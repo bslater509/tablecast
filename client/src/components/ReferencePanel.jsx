@@ -19,6 +19,7 @@ function ReferencePanel() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   // Trigger search on query or category change
   useEffect(() => {
@@ -54,23 +55,27 @@ function ReferencePanel() {
   const renderEntries = (entries) => {
     if (!entries) return null;
     if (typeof entries === "string") return <p style={styles.entryPara}>{cleanText(entries)}</p>;
+    if (typeof entries === "number" || typeof entries === "boolean") {
+      return <p style={styles.entryPara}>{String(entries)}</p>;
+    }
     if (Array.isArray(entries)) {
       return entries.map((entry, idx) => {
         if (typeof entry === "string") {
           return <p key={idx} style={styles.entryPara}>{cleanText(entry)}</p>;
         }
+        if (!entry || typeof entry !== "object") return null;
         if (entry.type === "list" && Array.isArray(entry.items)) {
           return (
             <ul key={idx} style={styles.entryList}>
               {entry.items.map((item, i) => (
                 <li key={i} style={styles.entryListItem}>
-                  {typeof item === "string" ? cleanText(item) : renderEntries(item.entries || item)}
+                  {typeof item === "string" ? cleanText(item) : renderEntries(item.entries || item.entry || item.name || item)}
                 </li>
               ))}
             </ul>
           );
         }
-        if (entry.type === "entries" && Array.isArray(entry.entries)) {
+        if ((entry.type === "entries" || entry.type === "section") && Array.isArray(entry.entries)) {
           return (
             <div key={idx} style={styles.nestedEntries}>
               {entry.name && <h4 style={styles.nestedHeader}>{entry.name}</h4>}
@@ -78,8 +83,51 @@ function ReferencePanel() {
             </div>
           );
         }
+        if (entry.type === "item" && entry.entry) {
+          return (
+            <p key={idx} style={styles.entryPara}>
+              {entry.name && <strong style={styles.actionName}>{cleanText(entry.name)} </strong>}
+              {cleanText(entry.entry)}
+            </p>
+          );
+        }
+        if (entry.type === "insetReadaloud" && Array.isArray(entry.entries)) {
+          return <blockquote key={idx} style={styles.quoteBox}>{renderEntries(entry.entries)}</blockquote>;
+        }
+        if (entry.type === "quote" && Array.isArray(entry.entries)) {
+          return (
+            <div key={idx}>
+              {renderEntries(entry.entries)}
+              {entry.by && <p style={styles.quoteBy}>- {cleanText(entry.by)}</p>}
+            </div>
+          );
+        }
+        if (entry.type === "table" && Array.isArray(entry.rows)) {
+          return (
+            <div key={idx} style={styles.nestedEntries}>
+              {entry.caption && <h4 style={styles.nestedHeader}>{cleanText(entry.caption)}</h4>}
+              {entry.rows.slice(0, 20).map((row, rowIdx) => (
+                <p key={rowIdx} style={styles.entryPara}>
+                  {Array.isArray(row) ? row.map((cell) => cleanText(String(cell))).join(" | ") : cleanText(String(row))}
+                </p>
+              ))}
+            </div>
+          );
+        }
+        if (entry.name && entry.entries) {
+          return (
+            <div key={idx} style={styles.nestedEntries}>
+              <h4 style={styles.nestedHeader}>{cleanText(entry.name)}</h4>
+              {renderEntries(entry.entries)}
+            </div>
+          );
+        }
         return null;
       });
+    }
+    if (typeof entries === "object") {
+      if (entries.entries) return renderEntries(entries.entries);
+      if (entries.name) return <p style={styles.entryPara}>{cleanText(entries.name)}</p>;
     }
     return null;
   };
@@ -88,19 +136,56 @@ function ReferencePanel() {
   const cleanText = (text) => {
     if (typeof text !== "string") return "";
     return text
-      .replace(/\{@spell ([^}]+)\}/g, "$1")
-      .replace(/\{@dice ([^}]+)\}/g, "($1)")
-      .replace(/\{@item ([^}]+)\}/g, "$1")
-      .replace(/\{@creature ([^}]+)\}/g, "$1")
-      .replace(/\{@condition ([^}]+)\}/g, "$1")
+      .replace(/\{@spell ([^}|]+)[^}]*\}/g, "$1")
+      .replace(/\{@dice ([^}|]+)[^}]*\}/g, "($1)")
+      .replace(/\{@item ([^}|]+)[^}]*\}/g, "$1")
+      .replace(/\{@creature ([^}|]+)[^}]*\}/g, "$1")
+      .replace(/\{@condition ([^}|]+)[^}]*\}/g, "$1")
       .replace(/\{@filter ([^|]+)\|[^}]+\}/g, "$1")
-      .replace(/\{@[a-z]+ ([^}]+)\}/g, "$1");
+      .replace(/\{@table ([^}|]+)[^}]*\}/g, "$1")
+      .replace(/\{@style ([^}|]+)[^}]*\}/g, "$1")
+      .replace(/\{@[a-z]+ ([^}|]+)[^}]*\}/g, "$1");
   };
 
   const formatAbilityScore = (val) => {
     const mod = Math.floor((val - 10) / 2);
     const sign = mod >= 0 ? "+" : "";
     return `${val} (${sign}${mod})`;
+  };
+
+  const formatChallengeRating = (cr) => {
+    if (cr === undefined || cr === null || cr === "") return "0";
+    if (typeof cr === "string" || typeof cr === "number") return String(cr);
+    if (typeof cr === "object") return String(cr.cr || cr.lair || cr.coven || "0");
+    return "0";
+  };
+
+  const getListImageUrl = (item) => {
+    if (category === "monsters") return item.tokenUrl || "";
+    return item.imageUrl || "";
+  };
+
+  const openReferenceDetail = async (item) => {
+    setDetailLoading(true);
+    setSelectedItem(item);
+
+    try {
+      const params = new URLSearchParams({
+        category,
+        name: item.name,
+      });
+      if (item.source) params.set("source", item.source);
+
+      const res = await fetch(`/api/reference/detail?${params.toString()}`);
+      if (res.ok) {
+        const detail = await res.json();
+        setSelectedItem(detail);
+      }
+    } catch (err) {
+      console.error("Reference detail failed:", err);
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   return (
@@ -151,39 +236,64 @@ function ReferencePanel() {
           <p style={styles.statusText}>No matching scrolls found. </p>
         )}
         
-        {results.map((item, idx) => (
-          <div
-            key={idx}
-            onClick={() => setSelectedItem(item)}
-            style={styles.resultCard}
-            className="glass-panel btn-hover-scale"
-          >
-            <div style={styles.cardHeader}>
-              <span style={styles.cardName}>{item.name}</span>
-              {item.source && <span style={styles.cardSource}>{item.source}</span>}
+        {results.map((item, idx) => {
+          const listImageUrl = getListImageUrl(item);
+          return (
+            <div
+              key={idx}
+              role="button"
+              tabIndex={0}
+              aria-label={`Open ${item.name} from ${item.source || "reference library"}`}
+              onClick={() => openReferenceDetail(item)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openReferenceDetail(item);
+                }
+              }}
+              style={styles.resultCard}
+              className="glass-panel btn-hover-scale"
+            >
+              <div style={styles.cardThumbSlot}>
+                {listImageUrl && (
+                  <img
+                    src={listImageUrl}
+                    alt=""
+                    loading="lazy"
+                    style={styles.cardImage}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                )}
+              </div>
+              <div style={styles.cardHeader}>
+                <span style={styles.cardName}>{item.name}</span>
+                {item.source && <span style={styles.cardSource}>{item.source}</span>}
+              </div>
+              <div style={styles.cardSub}>
+                {category === "spells" && (
+                  <span>
+                    {item.level === 0 ? "Cantrip" : `Level ${item.level} spell`}  {item.school || "Magic"}
+                  </span>
+                )}
+                {category === "monsters" && (
+                  <span>
+                    CR {formatChallengeRating(item.cr)}  HP {item.hp?.average || "unknown"}  AC {item.ac?.[0]?.ac || item.ac?.[0] || "unknown"}
+                  </span>
+                )}
+                {category === "items" && (
+                  <span>
+                    {item.rarity || "Common"}  {item.type || "Item"}
+                  </span>
+                )}
+                {category === "classes" && <span>Class Reference</span>}
+                {category === "races" && <span>Race Reference</span>}
+                {category === "rules" && <span>General D&D Rule</span>}
+              </div>
             </div>
-            <div style={styles.cardSub}>
-              {category === "spells" && (
-                <span>
-                  {item.level === 0 ? "Cantrip" : `Level ${item.level} spell`}  {item.school || "Magic"}
-                </span>
-              )}
-              {category === "monsters" && (
-                <span>
-                  CR {item.cr || "0"}  HP {item.hp?.average || "unknown"}  AC {item.ac?.[0]?.ac || item.ac?.[0] || "unknown"}
-                </span>
-              )}
-              {category === "items" && (
-                <span>
-                  {item.rarity || "Common"}  {item.type || "Item"}
-                </span>
-              )}
-              {category === "classes" && <span>Class Reference</span>}
-              {category === "races" && <span>Race Reference</span>}
-              {category === "rules" && <span>General D&D Rule</span>}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Popup Overlay Detail dialog */}
@@ -201,8 +311,22 @@ function ReferencePanel() {
             </header>
 
             <div style={styles.modalContent}>
+              {detailLoading && <p style={styles.statusText}>Loading reference details...</p>}
+              {!detailLoading && selectedItem.imageUrl && (
+                <div style={styles.imageFrame}>
+                  <img
+                    src={selectedItem.imageUrl}
+                    alt={selectedItem.name}
+                    style={styles.detailImage}
+                    onError={(e) => {
+                      e.currentTarget.parentElement.style.display = "none";
+                    }}
+                  />
+                </div>
+              )}
+
               {/* SPELLS DETAIL VIEW */}
-              {category === "spells" && (
+              {!detailLoading && category === "spells" && (
                 <div style={styles.detailsGroup}>
                   <div style={styles.metaGrid}>
                     <div style={styles.metaBox}>
@@ -230,12 +354,12 @@ function ReferencePanel() {
               )}
 
               {/* MONSTERS DETAIL VIEW */}
-              {category === "monsters" && (
+              {!detailLoading && category === "monsters" && (
                 <div style={styles.detailsGroup}>
                   <div style={styles.metaGrid}>
                     <div style={styles.metaBox}>
                       <span style={styles.metaLabel}>Challenge Rating</span>
-                      <span style={styles.metaVal}>CR {selectedItem.cr || "0"}</span>
+                      <span style={styles.metaVal}>CR {formatChallengeRating(selectedItem.cr)}</span>
                     </div>
                     <div style={styles.metaBox}>
                       <span style={styles.metaLabel}>Armor Class</span>
@@ -252,6 +376,15 @@ function ReferencePanel() {
                       </span>
                     </div>
                   </div>
+
+                  {selectedItem.infoEntries && (
+                    <div style={styles.descSection}>
+                      <h4 style={styles.secTitle}>
+                        Info{selectedItem.infoName && selectedItem.infoName !== selectedItem.name ? `: ${selectedItem.infoName}` : ""}
+                      </h4>
+                      {renderEntries(selectedItem.infoEntries)}
+                    </div>
+                  )}
 
                   {/* Attributes Box */}
                   <div style={styles.statsGrid}>
@@ -297,7 +430,7 @@ function ReferencePanel() {
               )}
 
               {/* ITEMS DETAIL VIEW */}
-              {category === "items" && (
+              {!detailLoading && category === "items" && (
                 <div style={styles.detailsGroup}>
                   <div style={styles.metaGrid}>
                     <div style={styles.metaBox}>
@@ -325,7 +458,7 @@ function ReferencePanel() {
               )}
 
               {/* GENERAL RULES, CLASSES, RACES VIEW */}
-              {(category === "rules" || category === "classes" || category === "races") && (
+              {!detailLoading && (category === "rules" || category === "classes" || category === "races") && (
                 <div style={styles.detailsGroup}>
                   <div style={styles.descSection}>
                     <h4 style={styles.secTitle}>Details</h4>
@@ -408,19 +541,44 @@ const styles = {
     padding: "0.75rem 0.95rem",
     borderRadius: "8px",
     cursor: "pointer",
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.25rem",
+    display: "grid",
+    gridTemplateColumns: "44px minmax(0, 1fr)",
+    gridTemplateRows: "auto auto",
+    columnGap: "0.75rem",
+    rowGap: "0.25rem",
+    alignItems: "center",
+  },
+  cardImage: {
+    width: "44px",
+    height: "44px",
+    objectFit: "cover",
+    borderRadius: "6px",
+    border: "1px solid rgba(200, 151, 58, 0.25)",
+    background: "rgba(0,0,0,0.25)",
+  },
+  cardThumbSlot: {
+    gridRow: "1 / span 2",
+    width: "44px",
+    height: "44px",
+    borderRadius: "6px",
+    overflow: "hidden",
+    background: "rgba(255,255,255,0.025)",
   },
   cardHeader: {
+    minWidth: 0,
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: "0.25rem",
   },
   cardName: {
     fontSize: "0.95rem",
     fontWeight: 600,
     color: "var(--color-accent)",
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   cardSource: {
     fontSize: "0.65rem",
@@ -432,6 +590,7 @@ const styles = {
   cardSub: {
     fontSize: "0.75rem",
     color: "var(--color-muted)",
+    minWidth: 0,
   },
   overlay: {
     position: "fixed",
@@ -486,6 +645,26 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: "1.25rem",
+  },
+  imageFrame: {
+    width: "100%",
+    minHeight: "180px",
+    maxHeight: "260px",
+    borderRadius: "8px",
+    overflow: "hidden",
+    border: "1px solid rgba(200, 151, 58, 0.25)",
+    background: "rgba(0,0,0,0.25)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  detailImage: {
+    width: "100%",
+    height: "100%",
+    maxHeight: "260px",
+    objectFit: "contain",
+    display: "block",
   },
   detailsGroup: {
     display: "flex",
@@ -557,6 +736,21 @@ const styles = {
     fontWeight: "bold",
     color: "var(--color-text)",
     marginBottom: "0.2rem",
+  },
+  quoteBox: {
+    margin: "0.25rem 0 0.75rem 0",
+    padding: "0.75rem",
+    border: "1px solid rgba(200, 151, 58, 0.2)",
+    borderLeft: "3px solid var(--color-accent)",
+    borderRadius: "6px",
+    background: "rgba(255,255,255,0.03)",
+  },
+  quoteBy: {
+    fontSize: "0.78rem",
+    lineHeight: "1.4",
+    color: "var(--color-muted)",
+    textAlign: "right",
+    margin: "0.25rem 0 0 0",
   },
   statsGrid: {
     display: "grid",

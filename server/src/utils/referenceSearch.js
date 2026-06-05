@@ -7,12 +7,17 @@
 const fs = require("fs");
 const path = require("path");
 
-const dataRoot = path.resolve(__dirname, "../../5etoolssrc/data");
+const dataRootCandidates = [
+  path.resolve(__dirname, "../../5etoolssrc/data"),
+  path.resolve(__dirname, "../../../5etoolssrc/data"),
+];
+const dataRoot = dataRootCandidates.find((candidate) => fs.existsSync(candidate)) || dataRootCandidates[0];
 
 // In-memory cache for D&D records
 let cache = {
   spells: null,
   monsters: null,
+  monsterFluff: null,
   items: null,
   races: null,
   classes: null,
@@ -26,6 +31,7 @@ function clearCache() {
   cache = {
     spells: null,
     monsters: null,
+    monsterFluff: null,
     items: null,
     races: null,
     classes: null,
@@ -65,6 +71,60 @@ function loadFromDirectory(dirPath, arrayKey, filePrefix = "") {
   return list;
 }
 
+function normalizeSource(source) {
+  return String(source || "").trim().toUpperCase();
+}
+
+function normalizeSourceList(sources = []) {
+  if (!Array.isArray(sources)) return [];
+  return sources.map(normalizeSource).filter(Boolean);
+}
+
+function applySourceFilter(dataset, sources = []) {
+  const allowedSources = normalizeSourceList(sources);
+  if (allowedSources.length === 0) return dataset;
+  const allowed = new Set(allowedSources);
+  return dataset.filter((item) => allowed.has(normalizeSource(item?.source)));
+}
+
+function summarizeItem(item, category) {
+  const base = {
+    name: item.name,
+    source: item.source,
+  };
+
+  switch (category) {
+    case "spells":
+      return {
+        ...base,
+        level: item.level,
+        school: item.school,
+        time: item.time,
+        range: item.range,
+        duration: item.duration,
+      };
+    case "monsters":
+      return {
+        ...base,
+        cr: item.cr,
+        hp: item.hp ? { average: item.hp.average, formula: item.hp.formula } : undefined,
+        ac: item.ac,
+        size: item.size,
+        type: item.type,
+      };
+    case "items":
+      return {
+        ...base,
+        rarity: item.rarity,
+        type: item.type,
+        weight: item.weight,
+        value: item.value,
+      };
+    default:
+      return base;
+  }
+}
+
 /**
  * Helper to load from a single JSON file.
  */
@@ -101,6 +161,14 @@ function getMonsters() {
   cache.monsters = loadFromDirectory(bestiaryDir, "monster", "bestiary-");
   console.log(`[ReferenceSearch] Loaded ${cache.monsters.length} monsters into memory.`);
   return cache.monsters;
+}
+
+function getMonsterFluff() {
+  if (cache.monsterFluff) return cache.monsterFluff;
+  const bestiaryDir = path.join(dataRoot, "bestiary");
+  cache.monsterFluff = loadFromDirectory(bestiaryDir, "monsterFluff", "fluff-bestiary-");
+  console.log(`[ReferenceSearch] Loaded ${cache.monsterFluff.length} monster fluff entries into memory.`);
+  return cache.monsterFluff;
 }
 
 function getItems() {
@@ -146,7 +214,7 @@ function getRules() {
 /**
  * Searches in a category by matching the name field.
  */
-function search(category, query = "", limit = 50) {
+function getDataset(category) {
   let dataset = [];
   
   switch (category.toLowerCase()) {
@@ -172,18 +240,87 @@ function search(category, query = "", limit = 50) {
       return [];
   }
 
+  return dataset;
+}
+
+/**
+ * Searches in a category by matching the name field.
+ */
+function search(category, query = "", limit = 50, options = {}) {
+  const normalizedCategory = String(category || "").toLowerCase();
+  let dataset = applySourceFilter(getDataset(normalizedCategory), options.sources);
+
   const cleanQuery = query.trim().toLowerCase();
-  if (!cleanQuery) {
-    return dataset.slice(0, limit);
+  if (cleanQuery) {
+    dataset = dataset.filter((item) => item && item.name && item.name.toLowerCase().includes(cleanQuery));
   }
 
-  // Filter items that match the query
   return dataset
-    .filter((item) => item && item.name && item.name.toLowerCase().includes(cleanQuery))
-    .slice(0, limit);
+    .slice(0, limit)
+    .map((item) => options.summary === false ? item : summarizeItem(item, normalizedCategory));
+}
+
+function getByName(category, name, source = "", options = {}) {
+  const normalizedCategory = String(category || "").toLowerCase();
+  const cleanName = String(name || "").trim().toLowerCase();
+  const cleanSource = normalizeSource(source);
+  if (!cleanName) return null;
+
+  const dataset = applySourceFilter(getDataset(normalizedCategory), options.sources);
+  return dataset.find((item) => {
+    if (!item?.name || item.name.toLowerCase() !== cleanName) return false;
+    return !cleanSource || normalizeSource(item.source) === cleanSource;
+  }) || null;
+}
+
+function hasUsableFluff(fluff) {
+  return Boolean(fluff && Array.isArray(fluff.entries) && fluff.entries.length);
+}
+
+function getMonsterFluffByName(name, source = "", options = {}) {
+  const cleanName = String(name || "").trim().toLowerCase();
+  const cleanSource = normalizeSource(source);
+  if (!cleanName) return null;
+
+  const dataset = applySourceFilter(getMonsterFluff(), options.sources);
+  const sourceMatches = dataset.filter((item) => {
+    if (!item?.name) return false;
+    return !cleanSource || normalizeSource(item.source) === cleanSource;
+  });
+
+  const exact = sourceMatches.find((item) => item.name.toLowerCase() === cleanName);
+  if (hasUsableFluff(exact)) return exact;
+
+  const words = cleanName.split(/\s+/).filter(Boolean);
+  const familyCandidates = [];
+  if (words.length) {
+    familyCandidates.push(`${words[0]}s`);
+  }
+  if (words.length > 1) {
+    familyCandidates.push(`${words.slice(0, -1).join(" ")}s`);
+  }
+
+  return sourceMatches.find((item) => (
+    hasUsableFluff(item) && familyCandidates.includes(item.name.toLowerCase())
+  )) || exact || null;
+}
+
+function listAvailableSources(category) {
+  const sourceSet = new Set();
+  const categories = category ? [category] : ["spells", "monsters", "items", "races", "classes", "rules"];
+  for (const cat of categories) {
+    for (const item of getDataset(cat)) {
+      const source = normalizeSource(item?.source);
+      if (source) sourceSet.add(source);
+    }
+  }
+  return Array.from(sourceSet).sort();
 }
 
 module.exports = {
   search,
+  getByName,
+  getMonsterFluffByName,
+  listAvailableSources,
   clearCache,
 };

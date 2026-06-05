@@ -13,6 +13,9 @@ function SettingsPanel({ user }) {
   // Reference sync status states
   const [refStatus, setRefStatus] = useState(null);
   const [syncingRef, setSyncingRef] = useState(false);
+  const [allowedSourcesInput, setAllowedSourcesInput] = useState("");
+  const [availableSources, setAvailableSources] = useState([]);
+  const [savingSources, setSavingSources] = useState(false);
   const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
 
@@ -44,8 +47,22 @@ function SettingsPanel({ user }) {
     }
   };
 
+  const fetchReferenceSettings = async () => {
+    try {
+      const res = await fetch("/api/reference/settings");
+      if (res.ok) {
+        const data = await res.json();
+        setAllowedSourcesInput((data.allowedSources || []).join(", "));
+        setAvailableSources(data.availableSources || []);
+      }
+    } catch (err) {
+      console.error("Failed to load reference settings:", err);
+    }
+  };
+
   useEffect(() => {
     fetchRefStatus();
+    fetchReferenceSettings();
     fetchBackupStatus();
   }, [user?.id]);
 
@@ -80,6 +97,38 @@ function SettingsPanel({ user }) {
     } catch (err) {
       alert(`Network error starting sync: ${err.message}`);
       setSyncingRef(false);
+    }
+  };
+
+  const parseAllowedSources = () => (
+    allowedSourcesInput
+      .split(/[,\s]+/)
+      .map((source) => source.trim().toUpperCase())
+      .filter(Boolean)
+  );
+
+  const handleSaveReferenceSources = async () => {
+    if (savingSources) return;
+    setSavingSources(true);
+
+    try {
+      const res = await fetch("/api/reference/settings", {
+        method: "PUT",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ allowedSources: parseAllowedSources() }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to save source settings.");
+      }
+
+      setAllowedSourcesInput((data.allowedSources || []).join(", "));
+      fetchRefStatus();
+    } catch (err) {
+      alert(`Error saving sources: ${err.message}`);
+    } finally {
+      setSavingSources(false);
     }
   };
 
@@ -245,6 +294,70 @@ function SettingsPanel({ user }) {
                 <span style={styles.detailsLabel}>Startup Sync:</span>
                 <span style={styles.detailsVal}>{refStatus.syncOnStartup ? "Enabled" : "Manual only"}</span>
               </div>
+              <div style={styles.detailsRow}>
+                <span style={styles.detailsLabel}>Allowed Sources:</span>
+                <span style={styles.detailsVal}>
+                  {refStatus.allowedSources?.length ? refStatus.allowedSources.join(", ") : "All"}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div style={styles.inputGroup}>
+            <label htmlFor="reference-source-input" style={styles.label}>
+              5etools Source Filter
+            </label>
+            <input
+              id="reference-source-input"
+              type="text"
+              placeholder="e.g. XDMG, XMM, XPHB"
+              value={allowedSourcesInput}
+              onChange={(e) => setAllowedSourcesInput(e.target.value)}
+              style={styles.input}
+              className="form-input"
+              disabled={savingSources}
+            />
+            <small style={styles.helpText}>
+              Leave blank to allow every source. Use comma-separated 5etools source codes.
+            </small>
+          </div>
+
+          <button
+            id="save-ref-sources-btn"
+            onClick={handleSaveReferenceSources}
+            disabled={savingSources}
+            style={{
+              ...styles.secondaryBtn,
+              cursor: savingSources ? "not-allowed" : "pointer",
+              opacity: savingSources ? 0.7 : 1,
+            }}
+            className="touch-target btn-hover-scale"
+          >
+            {savingSources ? "Saving Sources..." : "Save Source Filter"}
+          </button>
+
+          {availableSources.length > 0 && (
+            <div style={styles.sourceCloud}>
+              {availableSources.slice(0, 40).map((source) => (
+                <button
+                  key={source}
+                  type="button"
+                  onClick={() => {
+                    const current = new Set(parseAllowedSources());
+                    if (current.has(source)) current.delete(source);
+                    else current.add(source);
+                    setAllowedSourcesInput(Array.from(current).sort().join(", "));
+                  }}
+                  style={{
+                    ...styles.sourceChip,
+                    borderColor: parseAllowedSources().includes(source) ? "var(--color-accent)" : "rgba(255,255,255,0.08)",
+                    color: parseAllowedSources().includes(source) ? "var(--color-accent)" : "var(--color-muted)",
+                  }}
+                  className="touch-target"
+                >
+                  {source}
+                </button>
+              ))}
             </div>
           )}
 
@@ -475,6 +588,33 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     transition: "all 0.2s",
+  },
+  secondaryBtn: {
+    width: "100%",
+    border: "1px solid rgba(200, 151, 58, 0.35)",
+    borderRadius: "6px",
+    background: "rgba(200, 151, 58, 0.08)",
+    color: "var(--color-accent)",
+    fontWeight: "bold",
+    fontSize: "0.9rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.2s",
+  },
+  sourceCloud: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "0.4rem",
+  },
+  sourceChip: {
+    minHeight: "44px",
+    padding: "0.45rem 0.7rem",
+    borderRadius: "6px",
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    fontSize: "0.75rem",
+    fontWeight: 700,
   },
   loadingSpinnerContainer: {
     display: "flex",

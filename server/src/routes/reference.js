@@ -11,19 +11,150 @@ const referenceSync = require("../utils/referenceSync");
 const referenceSearch = require("../utils/referenceSearch");
 const tokenImageLookup = require("../utils/tokenImageLookup");
 const { requireDm } = require("../auth");
+const prisma = require("../prisma");
 
 const router = Router();
+const SETTINGS_KEY = "reference.allowedSources";
+const IMAGE_SECTIONS = {
+  monsters: "bestiary",
+  spells: "spells",
+  items: "items",
+  races: "races",
+  classes: "classes",
+  rules: "variantrules",
+};
+
+function normalizeSources(sources) {
+  if (!Array.isArray(sources)) return [];
+  return Array.from(new Set(
+    sources
+      .map((source) => String(source || "").trim().toUpperCase())
+      .filter((source) => /^[A-Z0-9-]{2,24}$/.test(source))
+  )).slice(0, 100);
+}
+
+async function getAllowedSources() {
+  const setting = await prisma.appSetting.findUnique({ where: { key: SETTINGS_KEY } });
+  if (!setting?.value) return [];
+
+  try {
+    return normalizeSources(JSON.parse(setting.value));
+  } catch (err) {
+    console.warn("[API] Invalid reference source settings ignored:", err.message);
+    return [];
+  }
+}
+
+async function setAllowedSources(sources) {
+  const allowedSources = normalizeSources(sources);
+  await prisma.appSetting.upsert({
+    where: { key: SETTINGS_KEY },
+    update: { value: JSON.stringify(allowedSources) },
+    create: { key: SETTINGS_KEY, value: JSON.stringify(allowedSources) },
+  });
+  return allowedSources;
+}
+
+function withReferenceImage(item, category) {
+  if (!item || typeof item !== "object") return item;
+
+  const section = IMAGE_SECTIONS[String(category || "").toLowerCase()];
+  if (!section || !item.name) return item;
+
+  const match = tokenImageLookup.findReferenceImage({
+    name: item.name,
+    source: item.source,
+    section,
+    excludeTokens: true,
+  });
+  const tokenMatch = section === "bestiary"
+    ? tokenImageLookup.findReferenceImage({
+        name: item.name,
+        source: item.source,
+        section,
+        preferToken: true,
+        tokenOnly: true,
+      })
+    : null;
+
+  if (!match && !tokenMatch) return item;
+  return {
+    ...item,
+    imageUrl: match?.url,
+    imageMatchCount: match?.matchCount,
+    tokenUrl: tokenMatch?.url,
+    tokenMatchCount: tokenMatch?.matchCount,
+  };
+}
+
+function imageHrefToUrl(image) {
+  const imagePath = image?.href?.type === "internal" ? image.href.path : "";
+  if (!imagePath || typeof imagePath !== "string") return "";
+  return `/5etoolsimg/${imagePath.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function withReferenceInfo(item, category, allowedSources) {
+  if (String(category || "").toLowerCase() !== "monsters") return item;
+
+  const fluff = referenceSearch.getMonsterFluffByName(item.name, item.source, {
+    sources: allowedSources,
+  });
+
+  if (!fluff) return item;
+  const infoImageUrls = Array.isArray(fluff.images)
+    ? fluff.images.map(imageHrefToUrl).filter(Boolean)
+    : [];
+
+  return {
+    ...item,
+    imageUrl: item.imageUrl || infoImageUrls[0],
+    infoName: fluff.name,
+    infoSource: fluff.source,
+    infoEntries: fluff.entries,
+    infoImages: fluff.images,
+    infoImageUrls,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // GET /api/reference/status  Retrieve repository and sync status
 // ---------------------------------------------------------------------------
-router.get("/status", (req, res) => {
+router.get("/status", async (req, res) => {
   try {
     const status = referenceSync.getStatus();
-    res.json(status);
+    const allowedSources = await getAllowedSources();
+    res.json({ ...status, allowedSources });
   } catch (err) {
     console.error("[API] GET /api/reference/status error:", err.message);
     res.status(500).json({ error: "Failed to retrieve sync status." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/reference/settings  Retrieve DM-controlled source filters
+// ---------------------------------------------------------------------------
+router.get("/settings", async (req, res) => {
+  try {
+    const allowedSources = await getAllowedSources();
+    const availableSources = referenceSearch.listAvailableSources();
+    res.json({ allowedSources, availableSources });
+  } catch (err) {
+    console.error("[API] GET /api/reference/settings error:", err.message);
+    res.status(500).json({ error: "Failed to retrieve reference settings." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// PUT /api/reference/settings  Update allowed 5etools source books
+// ---------------------------------------------------------------------------
+router.put("/settings", requireDm, async (req, res) => {
+  try {
+    const allowedSources = await setAllowedSources(req.body?.allowedSources);
+    referenceSearch.clearCache();
+    res.json({ success: true, allowedSources });
+  } catch (err) {
+    console.error("[API] PUT /api/reference/settings error:", err.message);
+    res.status(500).json({ error: "Failed to save reference settings." });
   }
 });
 
@@ -59,7 +190,7 @@ router.post("/sync", requireDm, (req, res) => {
 // GET /api/reference/search  Search D&D reference files
 // Query params: ?category=spells|monsters|items|races|classes|rules&q=fireball&limit=50
 // ---------------------------------------------------------------------------
-router.get("/search", (req, res) => {
+router.get("/search", async (req, res) => {
   try {
     const { category, q, limit } = req.query;
 
@@ -68,12 +199,42 @@ router.get("/search", (req, res) => {
     }
 
     const maxResults = limit ? Math.min(200, Math.max(1, Number(limit))) : 50;
-    const results = referenceSearch.search(category, q || "", maxResults);
+    const allowedSources = await getAllowedSources();
+    const results = referenceSearch
+      .search(category, q || "", maxResults, { sources: allowedSources })
+      .map((item) => withReferenceImage(item, category));
     
     res.json(results);
   } catch (err) {
     console.error("[API] GET /api/reference/search error:", err.message);
     res.status(500).json({ error: "Failed to perform reference search." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/reference/detail  Retrieve one full reference record
+// Query params: ?category=monsters&name=Goblin&source=MM
+// ---------------------------------------------------------------------------
+router.get("/detail", async (req, res) => {
+  try {
+    const { category, name, source } = req.query;
+    if (!category || !name || typeof category !== "string" || typeof name !== "string") {
+      return res.status(400).json({ error: "Category and name query parameters are required." });
+    }
+
+    const allowedSources = await getAllowedSources();
+    const item = referenceSearch.getByName(category, name, typeof source === "string" ? source : "", {
+      sources: allowedSources,
+    });
+
+    if (!item) {
+      return res.status(404).json({ error: "Reference entry not found." });
+    }
+
+    res.json(withReferenceInfo(withReferenceImage(item, category), category, allowedSources));
+  } catch (err) {
+    console.error("[API] GET /api/reference/detail error:", err.message);
+    res.status(500).json({ error: "Failed to retrieve reference detail." });
   }
 });
 
