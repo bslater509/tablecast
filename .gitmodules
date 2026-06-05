@@ -1,0 +1,6 @@
+[submodule "5etoolsimg"]
+	path = 5etoolsimg
+	url = https://github.com/5etools-mirror-3/5etools-img.git
+[submodule "5etoolssrc"]
+	path = 5etoolssrc
+	url = https://github.com/5etools-mirror-3/5etools-src.git
