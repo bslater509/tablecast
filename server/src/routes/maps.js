@@ -1,5 +1,5 @@
 // =============================================================================
-// Tablecast — Maps & Tokens CRUD Routes
+// Tablecast  Maps & Tokens CRUD Routes
 // Endpoints:  GET /api/maps
 //             GET /api/maps/:id
 //             POST /api/maps            (supports Base64 imageData upload)
@@ -14,6 +14,7 @@ const { Router } = require("express");
 const fs = require("fs");
 const path = require("path");
 const prisma = require("../prisma");
+const { requireDm } = require("../auth");
 
 const router = Router();
 
@@ -24,7 +25,7 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/maps — List all maps
+// GET /api/maps  List all maps
 // ---------------------------------------------------------------------------
 router.get("/", async (req, res) => {
   try {
@@ -39,13 +40,13 @@ router.get("/", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/maps/:id — Fetch single map with tokens
+// GET /api/maps/:id  Fetch single map with tokens
 // ---------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
     const map = await prisma.map.findUnique({
       where: { id: Number(req.params.id) },
-      include: { tokens: true },
+      include: { tokens: { include: { character: true } } },
     });
 
     if (!map) {
@@ -60,18 +61,18 @@ router.get("/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/maps — Create a map (and write Base64 image to uploads)
-// Body: { name, gridSize, gridType, imageData }
+// POST /api/maps  Create a map (and write Base64 image to uploads)
+// Body: { name, gridSize, gridType, imageData, imageUrl }
 // ---------------------------------------------------------------------------
-router.post("/", async (req, res) => {
+router.post("/", requireDm, async (req, res) => {
   try {
-    const { name, gridSize, gridType, imageData } = req.body;
+    const { name, gridSize, gridType, imageData, imageUrl } = req.body;
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return res.status(400).json({ error: "Map name is required." });
     }
 
-    let imageUrl = "/uploads/placeholder_map.png";
+    let resolvedImageUrl = "/uploads/placeholder_map.png";
 
     if (imageData && typeof imageData === "string" && imageData.startsWith("data:")) {
       const matches = imageData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
@@ -91,11 +92,21 @@ router.post("/", async (req, res) => {
 
         // Write the decoded buffer to file
         fs.writeFileSync(filePath, dataBuffer);
-        imageUrl = `/uploads/${filename}`;
+        resolvedImageUrl = `/uploads/${filename}`;
         console.log(`[API] Saved uploaded map image to ${filePath}`);
       } else {
         return res.status(400).json({ error: "Invalid base64 image data format." });
       }
+    } else if (imageUrl && typeof imageUrl === "string") {
+      const trimmedImageUrl = imageUrl.trim();
+      const isAllowedLocalPath = trimmedImageUrl.startsWith("/uploads/") || trimmedImageUrl.startsWith("/5etoolsimg/");
+      const isAllowedRemotePath = /^https?:\/\/\S+$/i.test(trimmedImageUrl);
+
+      if (!isAllowedLocalPath && !isAllowedRemotePath) {
+        return res.status(400).json({ error: "Image URL must be an uploads path, 5etools image path, or http(s) URL." });
+      }
+
+      resolvedImageUrl = trimmedImageUrl;
     }
 
     const newMap = await prisma.map.create({
@@ -103,7 +114,7 @@ router.post("/", async (req, res) => {
         name: name.trim(),
         gridSize: gridSize ? Number(gridSize) : 50,
         gridType: gridType || "SQUARE",
-        imageUrl,
+        imageUrl: resolvedImageUrl,
         fogState: "[]",
       },
     });
@@ -116,11 +127,14 @@ router.post("/", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /api/maps/:id — Delete a map
+// DELETE /api/maps/:id  Delete a map
 // ---------------------------------------------------------------------------
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireDm, async (req, res) => {
   try {
     const mapId = Number(req.params.id);
+    if (!Number.isInteger(mapId) || mapId <= 0) {
+      return res.status(400).json({ error: "Invalid map id." });
+    }
 
     // Find first to delete actual image from filesystem if it exists
     const map = await prisma.map.findUnique({ where: { id: mapId } });
@@ -151,13 +165,23 @@ router.delete("/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/maps/:id/tokens — Add a token to a map
+// POST /api/maps/:id/tokens  Add a token to a map
 // Body: { characterId, label, imageUrl, x, y }
 // ---------------------------------------------------------------------------
-router.post("/:id/tokens", async (req, res) => {
+router.post("/:id/tokens", requireDm, async (req, res) => {
   try {
     const mapId = Number(req.params.id);
-    const { characterId, label, imageUrl, x, y } = req.body;
+    const { characterId, label, imageUrl, x, y, stats } = req.body;
+    const tokenX = x !== undefined ? Number(x) : 0;
+    const tokenY = y !== undefined ? Number(y) : 0;
+
+    if (!Number.isInteger(mapId) || mapId <= 0) {
+      return res.status(400).json({ error: "Invalid map id." });
+    }
+
+    if (!Number.isFinite(tokenX) || !Number.isFinite(tokenY)) {
+      return res.status(400).json({ error: "Token coordinates must be valid numbers." });
+    }
 
     // Check map exists
     const mapExists = await prisma.map.findUnique({ where: { id: mapId } });
@@ -169,8 +193,9 @@ router.post("/:id/tokens", async (req, res) => {
       mapId,
       label: label || "",
       imageUrl: imageUrl || "",
-      x: x !== undefined ? Number(x) : 0,
-      y: y !== undefined ? Number(y) : 0,
+      x: tokenX,
+      y: tokenY,
+      stats: stats || null,
     };
 
     if (characterId) {
@@ -190,19 +215,35 @@ router.post("/:id/tokens", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// PUT /api/tokens/:id — Update token (label, imageUrl, characterId, x, y)
+// PUT /api/tokens/:id  Update token (label, imageUrl, characterId, x, y)
 // ---------------------------------------------------------------------------
-router.put("/tokens/:id", async (req, res) => {
+router.put("/tokens/:id", requireDm, async (req, res) => {
   try {
     const tokenId = Number(req.params.id);
-    const { characterId, label, imageUrl, x, y } = req.body;
+    const { characterId, label, imageUrl, x, y, stats } = req.body;
+    if (!Number.isInteger(tokenId) || tokenId <= 0) {
+      return res.status(400).json({ error: "Invalid token id." });
+    }
 
     const data = {};
     if (label !== undefined) data.label = label;
     if (imageUrl !== undefined) data.imageUrl = imageUrl;
-    if (x !== undefined) data.x = Number(x);
-    if (y !== undefined) data.y = Number(y);
+    if (x !== undefined) {
+      const nextX = Number(x);
+      if (!Number.isFinite(nextX)) {
+        return res.status(400).json({ error: "Token x coordinate must be a valid number." });
+      }
+      data.x = nextX;
+    }
+    if (y !== undefined) {
+      const nextY = Number(y);
+      if (!Number.isFinite(nextY)) {
+        return res.status(400).json({ error: "Token y coordinate must be a valid number." });
+      }
+      data.y = nextY;
+    }
     if (characterId !== undefined) data.characterId = characterId ? Number(characterId) : null;
+    if (stats !== undefined) data.stats = stats;
 
     const updatedToken = await prisma.token.update({
       where: { id: tokenId },
@@ -221,11 +262,14 @@ router.put("/tokens/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /api/tokens/:id — Delete token
+// DELETE /api/tokens/:id  Delete token
 // ---------------------------------------------------------------------------
-router.delete("/tokens/:id", async (req, res) => {
+router.delete("/tokens/:id", requireDm, async (req, res) => {
   try {
     const tokenId = Number(req.params.id);
+    if (!Number.isInteger(tokenId) || tokenId <= 0) {
+      return res.status(400).json({ error: "Invalid token id." });
+    }
     await prisma.token.delete({ where: { id: tokenId } });
     res.json({ message: "Token deleted successfully." });
   } catch (err) {

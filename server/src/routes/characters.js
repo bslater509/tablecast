@@ -1,5 +1,5 @@
 // =============================================================================
-// Tablecast — Character CRUD Routes
+// Tablecast  Character CRUD Routes
 // Endpoints:  GET /api/characters          (optional ?userId=N filter)
 //             GET /api/characters/:id
 //             POST /api/characters
@@ -45,7 +45,7 @@ function isValidJson(value) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/characters — list all characters, optionally filter by userId
+// GET /api/characters  list all characters, optionally filter by userId
 // ---------------------------------------------------------------------------
 router.get("/", async (req, res) => {
   try {
@@ -68,7 +68,7 @@ router.get("/", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/characters/:id — get a single character with owner info
+// GET /api/characters/:id  get a single character with owner info
 // ---------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
@@ -89,7 +89,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/characters — create a new character
+// POST /api/characters  create a new character
 // Body: { userId: number, name: string, ...optional fields }
 // ---------------------------------------------------------------------------
 router.post("/", async (req, res) => {
@@ -139,7 +139,7 @@ router.post("/", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// PUT /api/characters/:id — partial update (only supplied fields change)
+// PUT /api/characters/:id  partial update (only supplied fields change)
 // Body: { ...any allowed field }
 // ---------------------------------------------------------------------------
 router.put("/:id", async (req, res) => {
@@ -178,7 +178,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /api/characters/:id — delete a character (tokens set null via schema)
+// DELETE /api/characters/:id  delete a character (tokens set null via schema)
 // ---------------------------------------------------------------------------
 router.delete("/:id", async (req, res) => {
   try {

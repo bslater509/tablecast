@@ -1,13 +1,87 @@
 // =============================================================================
-// Tablecast — DM Settings & Cloud Backups Panel (Phase 6)
+// Tablecast  DM Settings & Cloud Backups Panel (Phase 6)
 // Provides controls for zip compression & rclone Google Drive synchronization.
 // =============================================================================
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 function SettingsPanel({ user }) {
   const [remote, setRemote] = useState("gdrive:tablecast-backups");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [backupStatus, setBackupStatus] = useState(null);
+  
+  // Reference sync status states
+  const [refStatus, setRefStatus] = useState(null);
+  const [syncingRef, setSyncingRef] = useState(false);
+  const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
+  const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
+
+  const fetchRefStatus = async () => {
+    try {
+      const res = await fetch("/api/reference/status");
+      if (res.ok) {
+        const data = await res.json();
+        setRefStatus(data);
+        setSyncingRef(data.isSyncing);
+      }
+    } catch (err) {
+      console.error("Failed to load reference status:", err);
+    }
+  };
+
+  const fetchBackupStatus = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`/api/backup/status?remote=${encodeURIComponent(remote.trim())}`, {
+        headers: authHeaders,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBackupStatus(data);
+      }
+    } catch (err) {
+      console.error("Failed to load backup status:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchRefStatus();
+    fetchBackupStatus();
+  }, [user?.id]);
+
+  // Poll backend sync logs if in-progress
+  useEffect(() => {
+    let interval;
+    if (syncingRef) {
+      interval = setInterval(() => {
+        fetchRefStatus();
+      }, 2000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [syncingRef]);
+
+  const handleSyncReferences = async () => {
+    if (syncingRef) return;
+    setSyncingRef(true);
+    try {
+      const res = await fetch("/api/reference/sync", {
+        method: "POST",
+        headers: authHeaders,
+      });
+      if (res.ok) {
+        fetchRefStatus();
+      } else {
+        const err = await res.json();
+        alert(`Error starting sync: ${err.error || "Unknown"}`);
+        setSyncingRef(false);
+      }
+    } catch (err) {
+      alert(`Network error starting sync: ${err.message}`);
+      setSyncingRef(false);
+    }
+  };
 
   const handleBackup = async (e) => {
     e.preventDefault();
@@ -19,7 +93,7 @@ function SettingsPanel({ user }) {
     try {
       const res = await fetch("/api/backup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders,
         body: JSON.stringify({ remote: remote.trim() }),
       });
 
@@ -29,6 +103,12 @@ function SettingsPanel({ user }) {
 
       const data = await res.json();
       setResult(data);
+      setBackupStatus((prev) => ({
+        ...(prev || {}),
+        inProgress: false,
+        rclone: data.rclone || prev?.rclone,
+        history: data.history || prev?.history || [],
+      }));
     } catch (err) {
       setResult({
         success: false,
@@ -51,14 +131,14 @@ function SettingsPanel({ user }) {
   return (
     <div style={styles.container} className="fade-in">
       <header style={styles.header}>
-        <h1 style={styles.title}>🧙‍♂️ Dungeon Master Sanctum</h1>
+        <h1 style={styles.title}>Dungeon Master Sanctum</h1>
         <p style={styles.subtitle}>Manage cloud backups, database archives, and campaign sync settings.</p>
       </header>
 
       <div style={styles.content}>
         {/* Backup configuration card */}
         <section style={styles.card} className="glass-panel gold-border-glow">
-          <h2 style={styles.cardTitle}>🎲 Campaign Cloud Backup</h2>
+          <h2 style={styles.cardTitle}>Campaign Cloud Backup</h2>
           <p style={styles.cardDesc}>
             Zips the active SQLite database file (<code style={styles.codeInline}>tablecast.db</code>)
             and all uploaded campaign assets (<code style={styles.codeInline}>uploads/</code> directory)
@@ -76,6 +156,7 @@ function SettingsPanel({ user }) {
                 placeholder="e.g. gdrive:tablecast-backups"
                 value={remote}
                 onChange={(e) => setRemote(e.target.value)}
+                onBlur={fetchBackupStatus}
                 style={styles.input}
                 className="form-input"
                 required
@@ -85,6 +166,27 @@ function SettingsPanel({ user }) {
                 Format: <code style={styles.codeInline}>remoteName:folderPath</code>. Make sure this matches a profile defined in your <code style={styles.codeInline}>rclone.conf</code>.
               </small>
             </div>
+
+            {backupStatus?.rclone && (
+              <div style={styles.detailsTable}>
+                <div style={styles.detailsRow}>
+                  <span style={styles.detailsLabel}>rclone Installed:</span>
+                  <span style={{ ...styles.detailsVal, color: backupStatus.rclone.installed ? "var(--color-success)" : "var(--color-danger)" }}>
+                    {backupStatus.rclone.installed ? "Yes" : "No"}
+                  </span>
+                </div>
+                <div style={styles.detailsRow}>
+                  <span style={styles.detailsLabel}>Remote Configured:</span>
+                  <span style={{ ...styles.detailsVal, color: backupStatus.rclone.configured ? "var(--color-success)" : "var(--color-danger)" }}>
+                    {backupStatus.rclone.configured ? "Yes" : "No"}
+                  </span>
+                </div>
+                <div style={styles.detailsRow}>
+                  <span style={styles.detailsLabel}>Backup Job:</span>
+                  <span style={styles.detailsVal}>{backupStatus.inProgress ? "Running" : "Idle"}</span>
+                </div>
+              </div>
+            )}
 
             <button
               id="trigger-backup-btn"
@@ -106,16 +208,88 @@ function SettingsPanel({ user }) {
                   <span>Brewing Backup Archive...</span>
                 </div>
               ) : (
-                "🛡️ Backup Server Now"
+                "Backup Server Now"
               )}
             </button>
           </form>
         </section>
 
+        {/* D&D 5e Reference Library Sync Card */}
+        <section style={styles.card} className="glass-panel gold-border-glow">
+          <h2 style={styles.cardTitle}>D&D 5e Reference Library Sync</h2>
+          <p style={styles.cardDesc}>
+            Clones or pulls the latest D&D rules data (<code style={styles.codeInline}>5etoolssrc</code>)
+            and VTT token images (<code style={styles.codeInline}>5etoolsimg</code>) from remote repositories.
+            Runs asynchronously in the background.
+          </p>
+
+          {refStatus && (
+            <div style={styles.detailsTable}>
+              <div style={styles.detailsRow}>
+                <span style={styles.detailsLabel}>Data Repository (5etoolssrc):</span>
+                <span style={{ ...styles.detailsVal, color: refStatus.srcExists ? "var(--color-success)" : "var(--color-danger)" }}>
+                  {refStatus.srcExists ? "Cloned (Ready)" : "Missing"}
+                </span>
+              </div>
+              <div style={styles.detailsRow}>
+                <span style={styles.detailsLabel}>Images Repository (5etoolsimg):</span>
+                <span style={{ ...styles.detailsVal, color: refStatus.imgExists ? "var(--color-success)" : "var(--color-danger)" }}>
+                  {refStatus.imgExists ? "Cloned (Ready)" : "Missing"}
+                </span>
+              </div>
+              <div style={styles.detailsRow}>
+                <span style={styles.detailsLabel}>Current Status:</span>
+                <span style={styles.detailsVal}>{refStatus.progress}</span>
+              </div>
+              <div style={styles.detailsRow}>
+                <span style={styles.detailsLabel}>Startup Sync:</span>
+                <span style={styles.detailsVal}>{refStatus.syncOnStartup ? "Enabled" : "Manual only"}</span>
+              </div>
+            </div>
+          )}
+
+          <button
+            id="trigger-ref-sync-btn"
+            onClick={handleSyncReferences}
+            disabled={syncingRef}
+            style={{
+              ...styles.backupBtn,
+              background: syncingRef
+                ? "rgba(200, 151, 58, 0.2)"
+                : "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+              cursor: syncingRef ? "not-allowed" : "pointer",
+              color: syncingRef ? "var(--color-muted)" : "#0f0e17",
+            }}
+            className="touch-target btn-hover-scale"
+          >
+            {syncingRef ? (
+              <div style={styles.loadingSpinnerContainer}>
+                <div style={styles.spinner}></div>
+                <span>Syncing Repositories...</span>
+              </div>
+            ) : (
+              "Update References Now"
+            )}
+          </button>
+
+          {refStatus && refStatus.logs && refStatus.logs.length > 0 && (
+            <>
+              <h3 style={styles.consoleTitle}>git sync Output Log</h3>
+              <div style={{ ...styles.console, maxHeight: "250px" }} id="ref-console-log">
+                <div style={styles.consoleStdout}>
+                  {refStatus.logs.map((logLine, idx) => (
+                    <div key={idx}>{logLine}</div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </section>
+
         {/* Live Terminal Console and Status Report */}
         {result && (
           <section style={styles.card} className="glass-panel gold-border-glow">
-            <h2 style={styles.cardTitle}>📊 Backup Result Status</h2>
+            <h2 style={styles.cardTitle}>Backup Result Status</h2>
             
             {/* Status indicator banner */}
             <div
@@ -135,7 +309,7 @@ function SettingsPanel({ user }) {
             >
               <div style={styles.bannerHeader}>
                 <span style={styles.bannerIcon}>
-                  {result.success ? "✅" : result.zipName ? "⚠️" : "❌"}
+                  {result.success ? "OK" : result.zipName ? "WARN" : "FAIL"}
                 </span>
                 <span
                   style={{
@@ -176,7 +350,7 @@ function SettingsPanel({ user }) {
             )}
 
             {/* Terminal output console */}
-            <h3 style={styles.consoleTitle}>📟 rclone Server Output Log</h3>
+            <h3 style={styles.consoleTitle}>rclone Server Output Log</h3>
             <div style={styles.console} id="backup-console-log">
               {result.stdout && (
                 <div style={styles.consoleStdout}>{result.stdout}</div>
@@ -187,6 +361,20 @@ function SettingsPanel({ user }) {
               {!result.stdout && !result.stderr && (
                 <div style={styles.consoleMuted}>[No terminal output received]</div>
               )}
+            </div>
+          </section>
+        )}
+
+        {backupStatus?.history?.length > 0 && (
+          <section style={styles.card} className="glass-panel gold-border-glow">
+            <h2 style={styles.cardTitle}>Recent Local Backups</h2>
+            <div style={styles.detailsTable}>
+              {backupStatus.history.map((backup) => (
+                <div key={backup.name} style={styles.detailsRow}>
+                  <span style={styles.detailsLabel}>{backup.name}</span>
+                  <span style={styles.detailsVal}>{formatBytes(backup.size)}</span>
+                </div>
+              ))}
             </div>
           </section>
         )}

@@ -1,7 +1,7 @@
 {
   "name": "tablecast-server",
   "version": "1.0.0",
-  "description": "Tablecast D&D local server — Express + Socket.io + Prisma backend",
+  "description": "Tablecast D&D local server - Express + Socket.io + Prisma backend",
   "main": "src/index.js",
   "scripts": {
     "dev": "nodemon src/index.js",

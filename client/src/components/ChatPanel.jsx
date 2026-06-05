@@ -1,5 +1,5 @@
 // =============================================================================
-// Tablecast — Chat Panel (Phase 2 — Real-Time Verification)
+// Tablecast  Chat Panel (Phase 2  Real-Time Verification)
 // A simple global chat to prove Socket.io is working end-to-end.
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
@@ -23,7 +23,7 @@ export default function ChatPanel({ user }) {
     }
   }, [user]);
 
-  // ── Listen for incoming chat messages ──────────────────────────────────────
+  //  Listen for incoming chat messages 
   useEffect(() => {
     if (!socket) return;
 
@@ -47,12 +47,12 @@ export default function ChatPanel({ user }) {
     };
   }, [socket]);
 
-  // ── Auto-scroll to latest message ─────────────────────────────────────────
+  //  Auto-scroll to latest message 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  // ── Send a message ────────────────────────────────────────────────────────
+  //  Send a message 
   function sendMessage(e) {
     e.preventDefault();
     if (!draft.trim() || !socket) return;
@@ -61,7 +61,7 @@ export default function ChatPanel({ user }) {
     setDraft("");
   }
 
-  // ── Typing indicator ──────────────────────────────────────────────────────
+  //  Typing indicator 
   function handleInputChange(e) {
     setDraft(e.target.value);
     if (socket && hasSetName) {
@@ -69,7 +69,7 @@ export default function ChatPanel({ user }) {
     }
   }
 
-  // ── Username entry screen ─────────────────────────────────────────────────
+  //  Username entry screen 
   if (!hasSetName) {
     return (
       <div style={styles.nameOverlay}>
@@ -80,12 +80,12 @@ export default function ChatPanel({ user }) {
           }}
           style={styles.nameForm}
         >
-          <h2 style={styles.nameTitle}>⚔️ Enter the Tavern</h2>
+          <h2 style={styles.nameTitle}> Enter the Tavern</h2>
           <p style={styles.nameSub}>Choose a name for the chat</p>
           <input
             id="username-input"
             type="text"
-            placeholder="Your character name…"
+            placeholder="Your character name"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             style={styles.nameInput}
@@ -108,13 +108,13 @@ export default function ChatPanel({ user }) {
     );
   }
 
-  // ── Chat UI ───────────────────────────────────────────────────────────────
+  //  Chat UI 
   return (
     <div style={styles.wrapper}>
       {/* Header */}
       <header style={styles.header}>
         <div style={styles.headerLeft}>
-          <h1 style={styles.title}>⚔️ Tablecast</h1>
+          <h1 style={styles.title}> Tablecast</h1>
           <span style={styles.badge}>{username}</span>
         </div>
         <span
@@ -131,7 +131,7 @@ export default function ChatPanel({ user }) {
       <div id="chat-messages" ref={scrollRef} style={styles.messages}>
         {messages.length === 0 && (
           <p style={styles.emptyHint}>
-            No messages yet — say something to test the connection! 🎲
+            No messages yet  say something to test the connection! 
           </p>
         )}
         {messages.map((msg) => {
@@ -148,7 +148,7 @@ export default function ChatPanel({ user }) {
               >
                 <div style={styles.rollHeader}>
                   <div style={styles.rollHeaderLeft}>
-                    <span style={styles.rollIcon}>{rd.isAttack ? "⚔️" : "🎲"}</span>
+                    <span style={styles.rollIcon}>{rd.isAttack ? "" : ""}</span>
                     <span style={styles.rollName}>{rd.rollName}</span>
                   </div>
                   <span style={styles.time}>
@@ -243,7 +243,7 @@ export default function ChatPanel({ user }) {
         <input
           id="chat-input"
           type="text"
-          placeholder="Send a message…"
+          placeholder="Send a message"
           value={draft}
           onChange={handleInputChange}
           style={styles.input}
@@ -259,7 +259,7 @@ export default function ChatPanel({ user }) {
           }}
           disabled={!draft.trim()}
         >
-          ➤
+          
         </button>
       </form>
     </div>
@@ -267,7 +267,7 @@ export default function ChatPanel({ user }) {
 }
 
 // ---------------------------------------------------------------------------
-// Inline styles — Agent 3 will migrate these to the design system later
+// Inline styles  Agent 3 will migrate these to the design system later
 // ---------------------------------------------------------------------------
 const styles = {
   /* Name entry overlay */

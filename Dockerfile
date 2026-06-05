@@ -19,9 +19,9 @@ RUN npm run build
 # =============================================================================
 FROM node:20-slim AS runtime
 
-# Install rclone and openssl (required by Prisma's schema engine) via apt-get
+# Install rclone, openssl (required by Prisma's schema engine), git and ca-certificates via apt-get
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends rclone openssl && \
+    apt-get install -y --no-install-recommends rclone openssl git ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

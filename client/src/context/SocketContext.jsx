@@ -1,23 +1,11 @@
-// =============================================================================
-// Tablecast — Socket.io React Context
-// Provides a single, shared Socket.io connection to the entire component tree.
-// =============================================================================
 import { createContext, useContext, useEffect, useState } from "react";
 import { io } from "socket.io-client";
 
 const SocketContext = createContext(null);
 
-/**
- * Determines the Socket.io server URL.
- *
- * • In production the React SPA is served by Express on the same origin,
- *   so we connect to "/" (relative — no explicit URL needed).
- * • In development Vite proxies /socket.io to the backend (see vite.config.js),
- *   so we also connect without specifying a URL.
- */
 function createSocket() {
   return io({
-    autoConnect: false,       // We'll connect manually inside the effect
+    autoConnect: false,
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
@@ -26,51 +14,55 @@ function createSocket() {
   });
 }
 
-/**
- * Wrap the app with <SocketProvider> to give every component access to the
- * shared socket instance via the useSocket() hook.
- */
 export function SocketProvider({ children }) {
   const [socket] = useState(() => createSocket());
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState("connecting");
 
   useEffect(() => {
-    // Connect when the provider mounts
     socket.connect();
 
     function onConnect() {
       console.log("[Socket] Connected:", socket.id);
       setIsConnected(true);
+      setConnectionStatus("connected");
     }
 
     function onDisconnect(reason) {
       console.log("[Socket] Disconnected:", reason);
       setIsConnected(false);
+      setConnectionStatus("disconnected");
+    }
+
+    function onReconnectAttempt() {
+      setConnectionStatus("reconnecting");
+    }
+
+    function onReconnectError() {
+      setConnectionStatus("reconnecting");
     }
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
+    socket.io.on("reconnect_attempt", onReconnectAttempt);
+    socket.io.on("reconnect_error", onReconnectError);
 
-    // Cleanup on unmount
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
+      socket.io.off("reconnect_attempt", onReconnectAttempt);
+      socket.io.off("reconnect_error", onReconnectError);
       socket.disconnect();
     };
   }, [socket]);
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected }}>
+    <SocketContext.Provider value={{ socket, isConnected, connectionStatus }}>
       {children}
     </SocketContext.Provider>
   );
 }
 
-/**
- * Hook to access the socket instance and connection status.
- *
- * @returns {{ socket: import("socket.io-client").Socket, isConnected: boolean }}
- */
 export function useSocket() {
   const ctx = useContext(SocketContext);
   if (!ctx) {

@@ -1,10 +1,11 @@
 // =============================================================================
-// Tablecast — Character Sheet Component (Phase 4)
+// Tablecast  Character Sheet Component (Phase 4)
 // An interactive, auto-calculating D&D 5e Character Sheet.
 // Integrates click-to-roll with Socket.io and auto-saves to backend SQLite.
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
+import Autocomplete from "./Autocomplete";
 
 // Define the 18 standard 5e skills and their associated abilities
 const SKILL_DEFINITIONS = [
@@ -106,14 +107,14 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     ];
   }
 
-  // ── AUTO-CALCULATION HELPERS ──────────────────────────────────────────────
+  //  AUTO-CALCULATION HELPERS 
   const getMod = (score) => Math.floor((score - 10) / 2);
   const formatMod = (val) => (val >= 0 ? `+${val}` : `${val}`);
   
   // Proficiency Bonus based on level: Lvl 1-4 is +2, 5-8 is +3, 9-12 is +4...
   const getProficiencyBonus = (lvl) => Math.ceil((lvl || 1) / 4) + 1;
 
-  // ── SAVE STATE TO SERVER (DEBUNCED/ON-BLUR) ────────────────────────────────
+  //  SAVE STATE TO SERVER (DEBUNCED/ON-BLUR) 
   async function saveToServer(updatedChar) {
     if (!updatedChar) return;
     setSaveStatus("Saving...");
@@ -177,7 +178,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     }));
   }
 
-  // ── DICE ROLLING LOGIC & WEB SOCKET EMITS ──────────────────────────────────
+  //  DICE ROLLING LOGIC & WEB SOCKET EMITS 
   
   // Helper to roll a standard die (e.g. d20, d6)
   function rollDice(sides, count = 1) {
@@ -207,7 +208,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     if (socket) {
       socket.emit("chat:send", {
         sender: character.name,
-        text: `rolled a ${cleanStatName} Check! 🎲 Total: ${total}`,
+        text: `rolled a ${cleanStatName} Check!  Total: ${total}`,
         type: "roll",
         rollDetails: {
           rollName: `${cleanStatName} Check`,
@@ -234,7 +235,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     if (socket) {
       socket.emit("chat:send", {
         sender: character.name,
-        text: `rolled a ${cleanStatName} Saving Throw! 🛡️ Total: ${total}`,
+        text: `rolled a ${cleanStatName} Saving Throw!  Total: ${total}`,
         type: "roll",
         rollDetails: {
           rollName: `${cleanStatName} Saving Throw`,
@@ -279,7 +280,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     if (socket) {
       socket.emit("chat:send", {
         sender: character.name,
-        text: `rolled an ${skill.name} Check! 🧠 Total: ${total}`,
+        text: `rolled an ${skill.name} Check!  Total: ${total}`,
         type: "roll",
         rollDetails: {
           rollName: `${skill.name} Check (${skill.ability.slice(0, 3).toUpperCase()})`,
@@ -331,7 +332,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     if (socket) {
       socket.emit("chat:send", {
         sender: character.name,
-        text: `swings with their ${atk.name}! ⚔️ Hit: ${toHitTotal} | Damage: ${damageTotal}`,
+        text: `swings with their ${atk.name}!  Hit: ${toHitTotal} | Damage: ${damageTotal}`,
         type: "roll",
         rollDetails: {
           rollName: atk.name,
@@ -421,8 +422,8 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     : "0.0";
 
   // Check state loading / error
-  if (loading) return <div style={styles.stateContainer}><p>Consulting character scrolls…</p></div>;
-  if (error) return <div style={styles.stateContainer}><p style={{ color: "var(--color-danger)" }}>⚠️ Error: {error}</p></div>;
+  if (loading) return <div style={styles.stateContainer}><p>Consulting character scrolls</p></div>;
+  if (error) return <div style={styles.stateContainer}><p style={{ color: "var(--color-danger)" }}> Error: {error}</p></div>;
   if (!character) return null;
 
   return (
@@ -430,20 +431,20 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       {/* Top Banner Header */}
       <header style={styles.header} className="glass-panel gold-border-glow">
         <button onClick={onBack} style={styles.backBtn} className="touch-target btn-hover-scale">
-          ⬅ List
+           List
         </button>
         
         <div style={styles.headerStats}>
           <h2 style={styles.charName}>{character.name}</h2>
           <span style={styles.charSummary}>
-            Lvl {character.level} • {character.race} {character.class}
+            Lvl {character.level}  {character.race} {character.class}
           </span>
         </div>
 
         <div style={styles.saveBadge}>
-          {saveStatus === "Saving..." && <span style={styles.savingDot}>⚡ Saving...</span>}
-          {saveStatus === "Saved" && <span style={styles.savedDot}>✅ Saved</span>}
-          {saveStatus === "Error" && <span style={styles.errorDot}>❌ Retry</span>}
+          {saveStatus === "Saving..." && <span style={styles.savingDot}> Saving...</span>}
+          {saveStatus === "Saved" && <span style={styles.savedDot}> Saved</span>}
+          {saveStatus === "Error" && <span style={styles.errorDot}> Retry</span>}
         </div>
       </header>
 
@@ -452,7 +453,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
         {/* HP Widget */}
         <div style={styles.hpWidget}>
           <div style={styles.hpHeader}>
-            <span style={styles.blockLabel}>🩸 Hit Points</span>
+            <span style={styles.blockLabel}> Hit Points</span>
             <span style={styles.hpValues}>
               {character.hp} / {character.maxHp}
             </span>
@@ -554,7 +555,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       {/* Sheet Content Scroll Area */}
       <div style={styles.scrollArea}>
         
-        {/* ── STATS TAB ── */}
+        {/*  STATS TAB  */}
         {sheetTab === "stats" && (
           <div style={styles.statsGrid} className="fade-in">
             {["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"].map((stat) => {
@@ -608,7 +609,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           </div>
         )}
 
-        {/* ── SKILLS TAB ── */}
+        {/*  SKILLS TAB  */}
         {sheetTab === "skills" && (
           <div style={styles.skillsList} className="fade-in">
             {SKILL_DEFINITIONS.map((skill) => {
@@ -639,7 +640,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                     style={styles.skillRollBtn}
                     className="touch-target btn-hover-scale"
                   >
-                    {formatMod(finalMod)} 🎲
+                    {formatMod(finalMod)} 
                   </button>
                 </div>
               );
@@ -647,7 +648,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           </div>
         )}
 
-        {/* ── ATTACKS TAB ── */}
+        {/*  ATTACKS TAB  */}
         {sheetTab === "attacks" && (
           <div style={styles.attacksContainer} className="fade-in">
             <div style={styles.attackSubHeader}>
@@ -672,15 +673,38 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                 <div style={styles.subFormRow}>
                   <div style={styles.inputGroup}>
                     <label style={styles.subLabel}>Name</label>
-                    <input
+                    <Autocomplete
                       id="atk-name-input"
-                      type="text"
-                      placeholder="e.g. Broadsword"
+                      category="spells"
+                      placeholder="e.g. Fireball, Broadsword..."
                       value={atkName}
-                      onChange={(e) => setAtkName(e.target.value)}
-                      required
-                      style={styles.subInput}
+                      onChange={(val) => setAtkName(val)}
+                      onSelect={(spell) => {
+                        setAtkName(spell.name);
+                        // Auto extract dice if possible from spell or item entries
+                        const entriesStr = JSON.stringify(spell.entries || []);
+                        const diceMatch = entriesStr.match(/\b(\d+d\d+)\b/);
+                        if (diceMatch) {
+                          setAtkDice(diceMatch[1]);
+                        } else {
+                          setAtkDice("1d8"); // default fallback
+                        }
+                        
+                        // Select casting attribute if it looks like a spell
+                        if (spell.level !== undefined) {
+                          const stats = {
+                            intelligence: character.intelligence,
+                            wisdom: character.wisdom,
+                            charisma: character.charisma
+                          };
+                          let bestStat = "intelligence";
+                          if (stats.wisdom > stats[bestStat]) bestStat = "wisdom";
+                          if (stats.charisma > stats[bestStat]) bestStat = "charisma";
+                          setAtkAbility(bestStat);
+                        }
+                      }}
                       className="form-input"
+                      inputStyle={styles.subInput}
                     />
                   </div>
                   <div style={styles.inputGroup}>
@@ -770,7 +794,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                         style={styles.atkRollBtn}
                         className="touch-target btn-hover-scale"
                       >
-                        Roll Attack ⚔️
+                        Roll Attack 
                       </button>
                       <button
                         id={`delete-atk-${atk.name.toLowerCase().replace(/\s/g, "")}`}
@@ -779,7 +803,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                         className="touch-target"
                         title="Delete attack"
                       >
-                        ✕
+                        
                       </button>
                     </div>
                   </div>
@@ -789,7 +813,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           </div>
         )}
 
-        {/* ── INVENTORY TAB ── */}
+        {/*  INVENTORY TAB  */}
         {sheetTab === "inventory" && (
           <div style={styles.inventoryContainer} className="fade-in">
             <div style={styles.inventoryHeader}>
@@ -816,15 +840,20 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                 
                 <div style={styles.inputGroup}>
                   <label style={styles.subLabel}>Item Name</label>
-                  <input
+                  <Autocomplete
                     id="item-name-input"
-                    type="text"
-                    placeholder="e.g. Iron Shield"
+                    category="items"
+                    placeholder="e.g. Iron Shield, Potion..."
                     value={itemName}
-                    onChange={(e) => setItemName(e.target.value)}
-                    required
-                    style={styles.subInput}
+                    onChange={(val) => setItemName(val)}
+                    onSelect={(item) => {
+                      setItemName(item.name);
+                      if (item.weight) {
+                        setItemWeight(item.weight);
+                      }
+                    }}
                     className="form-input"
+                    inputStyle={styles.subInput}
                   />
                 </div>
 
@@ -894,7 +923,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                     className="touch-target"
                     title="Remove item"
                   >
-                    ✕
+                    
                   </button>
                 </div>
               ))}
@@ -907,7 +936,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   );
 }
 
-// ── INLINE STYLES ──────────────────────────────────────────────────────────
+//  INLINE STYLES 
 const styles = {
   sheet: {
     display: "flex",

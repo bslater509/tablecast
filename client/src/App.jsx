@@ -1,5 +1,5 @@
 // =============================================================================
-// Tablecast — Root App Component (Phase 4)
+// Tablecast  Root App Component (Phase 4)
 // Wires up tab navigation, global states, and user selection overlay.
 // =============================================================================
 import { useState, useEffect } from "react";
@@ -9,10 +9,13 @@ import CharacterSheet from "./components/CharacterSheet";
 import ChatPanel from "./components/ChatPanel";
 import WikiPanel from "./components/WikiPanel";
 import SettingsPanel from "./components/SettingsPanel";
+import ReferencePanel from "./components/ReferencePanel";
 import { useSocket } from "./context/SocketContext";
 
+const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
+
 function App() {
-  const { isConnected } = useSocket();
+  const { connectionStatus } = useSocket();
   const [user, setUser] = useState(null);
   const [usersList, setUsersList] = useState([]);
   const [activeCharacter, setActiveCharacter] = useState(null);
@@ -24,7 +27,7 @@ function App() {
   const [customRole, setCustomRole] = useState("PLAYER");
   const [loadingUsers, setLoadingUsers] = useState(true);
 
-  // Fetch users list
+  // Fetch users list and restore persisted session when it is still valid.
   useEffect(() => {
     async function loadUsers() {
       try {
@@ -32,6 +35,16 @@ function App() {
         if (res.ok) {
           const data = await res.json();
           setUsersList(data);
+
+          if (!user) {
+            const storedUserId = Number(localStorage.getItem(SELECTED_USER_STORAGE_KEY));
+            const storedUser = data.find((u) => u.id === storedUserId);
+            if (storedUser) {
+              handleSelectUser(storedUser);
+            } else if (storedUserId) {
+              localStorage.removeItem(SELECTED_USER_STORAGE_KEY);
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to load users:", err);
@@ -45,10 +58,13 @@ function App() {
   // Handle joining as an existing user
   function handleSelectUser(selectedUser) {
     setUser(selectedUser);
+    localStorage.setItem(SELECTED_USER_STORAGE_KEY, String(selectedUser.id));
     // If the user has a character already, auto-select their first character if player
     if (selectedUser.role === "PLAYER" && selectedUser.characters && selectedUser.characters.length > 0) {
       const firstChar = selectedUser.characters[0];
       setActiveCharacter({ id: firstChar.id });
+    } else {
+      setActiveCharacter(null);
     }
   }
 
@@ -73,7 +89,7 @@ function App() {
       }
 
       const newUser = await res.json();
-      setUser(newUser);
+      handleSelectUser(newUser);
     } catch (err) {
       alert(err.message);
     }
@@ -84,14 +100,14 @@ function App() {
     return (
       <div style={styles.overlay} className="fade-in">
         <div style={styles.loginCard} className="glass-panel gold-border-glow">
-          <h1 style={styles.loginTitle}>⚔️ Tablecast Tavern</h1>
+          <h1 style={styles.loginTitle}>Tablecast Tavern</h1>
           <p style={styles.loginSub}>Choose your character or DM profile to enter</p>
 
           {/* Seeded/Existing Users List */}
           <div style={styles.usersList}>
             <h3 style={styles.sectionHeader}>Join Session as:</h3>
             {loadingUsers ? (
-              <p style={styles.loadingText}>Opening tavern doors…</p>
+              <p style={styles.loadingText}>Opening tavern doors</p>
             ) : (
               <div style={styles.usersGrid}>
                 {usersList.map((u) => (
@@ -102,7 +118,7 @@ function App() {
                     style={styles.userButton}
                     className="touch-target btn-hover-scale glass-panel"
                   >
-                    <span style={styles.userIcon}>{u.role === "DM" ? "🧙‍♂️" : "🛡️"}</span>
+                    <span style={styles.userIcon}>{u.role === "DM" ? "DM" : "PC"}</span>
                     <span style={styles.userName}>{u.username}</span>
                     <span style={styles.userRoleBadge}>{u.role}</span>
                   </button>
@@ -117,7 +133,7 @@ function App() {
             <input
               id="new-username-input"
               type="text"
-              placeholder="Enter username…"
+              placeholder="Enter username"
               value={customName}
               onChange={(e) => setCustomName(e.target.value)}
               style={styles.input}
@@ -137,7 +153,7 @@ function App() {
                 }}
                 className="touch-target"
               >
-                Player 🛡️
+                Player
               </button>
               <button
                 type="button"
@@ -150,7 +166,7 @@ function App() {
                 }}
                 className="touch-target"
               >
-                DM 🧙‍♂️
+                DM
               </button>
             </div>
             <button
@@ -208,7 +224,7 @@ function App() {
                 }}
                 className="touch-target"
               >
-                🎲 Session Chat
+                Session Chat
               </button>
               <button
                 id="toggle-journal-tab"
@@ -221,16 +237,27 @@ function App() {
                 }}
                 className="touch-target"
               >
-                📜 Player Journal
+                Player Journal
+              </button>
+              <button
+                id="toggle-reference-tab"
+                onClick={() => setChatJournalSubTab("reference")}
+                style={{
+                  ...styles.subTabBtn,
+                  background: chatJournalSubTab === "reference" ? "var(--color-accent-dim)" : "transparent",
+                  color: chatJournalSubTab === "reference" ? "var(--color-accent)" : "var(--color-muted)",
+                  border: chatJournalSubTab === "reference" ? "1px solid var(--color-border)" : "1px solid transparent",
+                }}
+                className="touch-target"
+              >
+                Reference Library
               </button>
             </div>
             
             <div style={styles.subTabContent}>
-              {chatJournalSubTab === "chat" ? (
-                <ChatPanel user={user} />
-              ) : (
-                <WikiPanel user={user} />
-              )}
+              {chatJournalSubTab === "chat" && <ChatPanel user={user} />}
+              {chatJournalSubTab === "journal" && <WikiPanel user={user} />}
+              {chatJournalSubTab === "reference" && <ReferencePanel />}
             </div>
           </div>
         );
@@ -245,6 +272,23 @@ function App() {
 
   return (
     <div style={styles.appContainer}>
+      <div
+        style={{
+          ...styles.connectionIndicator,
+          ...(connectionStatus === "connected"
+            ? styles.connectionOnline
+            : connectionStatus === "reconnecting"
+            ? styles.connectionReconnecting
+            : styles.connectionOffline),
+        }}
+      >
+        {connectionStatus === "connected"
+          ? "Live"
+          : connectionStatus === "reconnecting"
+          ? "Reconnecting"
+          : "Offline"}
+      </div>
+
       {/* Active Tab Screen Space */}
       <main style={styles.mainContent}>
         {renderContent()}
@@ -261,7 +305,7 @@ function App() {
           }}
           className="touch-target"
         >
-          <span style={styles.navIcon}>🗺️</span>
+          <span style={styles.navIcon}>Map</span>
           <span style={styles.navLabel}>Map</span>
         </button>
 
@@ -274,7 +318,7 @@ function App() {
           }}
           className="touch-target"
         >
-          <span style={styles.navIcon}>🛡️</span>
+          <span style={styles.navIcon}>Sheet</span>
           <span style={styles.navLabel}>Sheet</span>
         </button>
 
@@ -287,7 +331,7 @@ function App() {
           }}
           className="touch-target"
         >
-          <span style={styles.navIcon}>🎲</span>
+          <span style={styles.navIcon}>Chat</span>
           <span style={styles.navLabel}>Chat</span>
         </button>
 
@@ -301,7 +345,7 @@ function App() {
             }}
             className="touch-target"
           >
-            <span style={styles.navIcon}>⚙️</span>
+            <span style={styles.navIcon}>DM</span>
             <span style={styles.navLabel}>Settings</span>
           </button>
         )}
@@ -446,6 +490,35 @@ const styles = {
     flex: 1,
     overflow: "hidden",
     position: "relative",
+  },
+  connectionIndicator: {
+    position: "fixed",
+    top: "0.5rem",
+    right: "0.5rem",
+    zIndex: 1200,
+    minHeight: "28px",
+    padding: "0.25rem 0.6rem",
+    borderRadius: "4px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    fontSize: "0.72rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.03em",
+    background: "rgba(10, 8, 20, 0.92)",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+    pointerEvents: "none",
+  },
+  connectionOnline: {
+    color: "var(--color-success)",
+    borderColor: "rgba(111, 207, 151, 0.35)",
+  },
+  connectionReconnecting: {
+    color: "var(--color-accent)",
+    borderColor: "rgba(200, 151, 58, 0.4)",
+  },
+  connectionOffline: {
+    color: "var(--color-danger)",
+    borderColor: "rgba(235, 87, 87, 0.4)",
   },
   bottomNav: {
     display: "flex",

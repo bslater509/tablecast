@@ -27,6 +27,10 @@ services:
       #   docker run ... -v ~/.config/rclone:/root/.config/rclone
       - tablecast-rclone:/root/.config/rclone
 
+      # D&D 5e references repositories (5etoolssrc and 5etoolsimg)
+      - ./5etoolssrc:/app/server/5etoolssrc
+      - ./5etoolsimg:/app/server/5etoolsimg
+
 # Named volumes — Docker manages the storage location on the host
 volumes:
   tablecast-db:

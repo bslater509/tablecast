@@ -1,5 +1,5 @@
 // =============================================================================
-// Tablecast — MCP (Model Context Protocol) Server
+// Tablecast  MCP (Model Context Protocol) Server
 // Enables AI agents to read/write characters, wiki pages, and users on Tablecast.
 // =============================================================================
 "use strict";
@@ -43,7 +43,7 @@ const generateModifiers = (stats) => {
 
 // Tool schemas definition
 const TOOLS = [
-  // ── USER TOOLS ────────────────────────────────────────────────────────────
+  //  USER TOOLS 
   {
     name: "list_users",
     description: "Get all registered users on the Tablecast server.",
@@ -65,7 +65,7 @@ const TOOLS = [
     },
   },
 
-  // ── CHARACTER / NPC TOOLS ──────────────────────────────────────────────────
+  //  CHARACTER / NPC TOOLS 
   {
     name: "list_characters",
     description: "List all character sheets, optionally filtered by owner userId.",
@@ -167,7 +167,7 @@ const TOOLS = [
     },
   },
 
-  // ── WIKI / LORE TOOLS ──────────────────────────────────────────────────────
+  //  WIKI / LORE TOOLS 
   {
     name: "list_wiki_articles",
     description: "Get all wiki articles, including hidden DM logs and lore details.",
@@ -230,7 +230,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
-      // ── USER HANDLERS ──────────────────────────────────────────────────────
+      //  USER HANDLERS 
       case "list_users": {
         const users = await prisma.user.findMany({
           orderBy: { id: "asc" },
@@ -255,7 +255,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      // ── CHARACTER HANDLERS ──────────────────────────────────────────────────
+      //  CHARACTER HANDLERS 
       case "list_characters": {
         const filter = {};
         if (typeof args.userId === "number") {
@@ -421,7 +421,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      // ── WIKI HANDLERS ──────────────────────────────────────────────────────
+      //  WIKI HANDLERS 
       case "list_wiki_articles": {
         const articles = await prisma.wikiArticle.findMany({
           orderBy: { id: "asc" },

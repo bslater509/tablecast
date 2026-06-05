@@ -1,5 +1,5 @@
 // =============================================================================
-// Tablecast — User CRUD Routes
+// Tablecast  User CRUD Routes
 // Endpoints:  GET /api/users
 //             GET /api/users/:id
 //             POST /api/users
@@ -16,7 +16,7 @@ const router = Router();
 const VALID_ROLES = ["DM", "PLAYER"];
 
 // ---------------------------------------------------------------------------
-// GET /api/users — list all users
+// GET /api/users  list all users
 // ---------------------------------------------------------------------------
 router.get("/", async (_req, res) => {
   try {
@@ -32,7 +32,7 @@ router.get("/", async (_req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/users/:id — get a single user with their characters
+// GET /api/users/:id  get a single user with their characters
 // ---------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
@@ -53,7 +53,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/users — create a new user
+// POST /api/users  create a new user
 // Body: { username: string, role?: "DM" | "PLAYER" }
 // ---------------------------------------------------------------------------
 router.post("/", async (req, res) => {
@@ -89,7 +89,7 @@ router.post("/", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// PUT /api/users/:id — update an existing user
+// PUT /api/users/:id  update an existing user
 // Body: { username?: string, role?: "DM" | "PLAYER" }
 // ---------------------------------------------------------------------------
 router.put("/:id", async (req, res) => {
@@ -129,7 +129,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /api/users/:id — delete a user (cascades to their characters)
+// DELETE /api/users/:id  delete a user (cascades to their characters)
 // ---------------------------------------------------------------------------
 router.delete("/:id", async (req, res) => {
   try {

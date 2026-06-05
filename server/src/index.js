@@ -1,5 +1,5 @@
 // =============================================================================
-// Tablecast — Express + Socket.io Entry Point (Phase 2)
+// Tablecast  Express + Socket.io Entry Point (Phase 2)
 // Backend Engineer: Express routing, static serving, and Socket.io real-time.
 // =============================================================================
 "use strict";
@@ -23,11 +23,11 @@ const HOST = "0.0.0.0"; // Bind to all interfaces so LAN devices can connect
 // Middleware
 // ---------------------------------------------------------------------------
 
-// CORS — allow the Vite dev server (typically port 5173) during local dev
+// CORS  allow the Vite dev server (typically port 5173) during local dev
 app.use(
   cors({
     origin: process.env.NODE_ENV === "production"
-      ? false // In production the React SPA is served from Express — no CORS needed
+      ? false // In production the React SPA is served from Express  no CORS needed
       : ["http://localhost:5173", "http://127.0.0.1:5173"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
@@ -38,12 +38,12 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // ---------------------------------------------------------------------------
-// HTTP server — shared between Express & Socket.io
+// HTTP server  shared between Express & Socket.io
 // ---------------------------------------------------------------------------
 const server = http.createServer(app);
 
 // ---------------------------------------------------------------------------
-// Socket.io — initialised on the same HTTP server
+// Socket.io  initialised on the same HTTP server
 // ---------------------------------------------------------------------------
 const io = new SocketServer(server, {
   cors: {
@@ -65,7 +65,7 @@ registerSocketHandlers(io);
 // API routes
 // ---------------------------------------------------------------------------
 
-// Health check — confirms the server is alive
+// Health check  confirms the server is alive
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
@@ -81,12 +81,14 @@ const charactersRouter = require("./routes/characters");
 const wikiRouter = require("./routes/wiki");
 const mapsRouter = require("./routes/maps");
 const backupRouter = require("./routes/backup");
+const referenceRouter = require("./routes/reference");
 
 app.use("/api/users", usersRouter);
 app.use("/api/characters", charactersRouter);
 app.use("/api/wiki", wikiRouter);
 app.use("/api/maps", mapsRouter);
 app.use("/api/backup", backupRouter);
+app.use("/api/reference", referenceRouter);
 
 // ---------------------------------------------------------------------------
 // Serve map and token image uploads
@@ -98,14 +100,25 @@ if (!fs.existsSync(uploadsPath)) {
 }
 app.use("/uploads", express.static(uploadsPath));
 
+// Serve 5etools images repository statically. Local dev keeps it at repo root;
+// Docker mounts it under server/.
+const etoolsImgPaths = [
+  path.join(__dirname, "../5etoolsimg"),
+  path.join(__dirname, "../../5etoolsimg"),
+].filter((dir, index, all) => fs.existsSync(dir) && all.indexOf(dir) === index);
+
+for (const etoolsImgPath of etoolsImgPaths) {
+  app.use("/5etoolsimg", express.static(etoolsImgPath));
+}
+
 // ---------------------------------------------------------------------------
-// Serve the compiled React frontend (built by Vite → client/dist)
+// Serve the compiled React frontend (built by Vite  client/dist)
 // In Docker the files live at /app/client/dist.
 // ---------------------------------------------------------------------------
 const clientDist = path.join(__dirname, "../../client/dist");
 app.use(express.static(clientDist));
 
-// SPA fallback — return index.html for all unmatched routes so React Router works
+// SPA fallback  return index.html for all unmatched routes so React Router works
 app.get("*", (_req, res) => {
   res.sendFile(path.join(clientDist, "index.html"));
 });
@@ -114,9 +127,24 @@ app.get("*", (_req, res) => {
 // Start listening
 // ---------------------------------------------------------------------------
 server.listen(PORT, HOST, () => {
-  console.log(`[Tablecast] ⚔️  Server running at http://${HOST}:${PORT}`);
-  console.log(`[Tablecast] 🩺 Health check:    http://${HOST}:${PORT}/api/health`);
-  console.log(`[Tablecast] 🔌 Socket.io ready — awaiting connections`);
+  console.log(`[Tablecast]   Server running at http://${HOST}:${PORT}`);
+  console.log(`[Tablecast]  Health check:    http://${HOST}:${PORT}/api/health`);
+  console.log(`[Tablecast]  Socket.io ready  awaiting connections`);
+
+  const referenceSyncOnStartup = process.env.REFERENCE_SYNC_ON_STARTUP === "true";
+  console.log(`[Tablecast]  Reference sync on startup: ${referenceSyncOnStartup ? "enabled" : "disabled"}`);
+  if (referenceSyncOnStartup) {
+    const { sync } = require("./utils/referenceSync");
+    const { clearCache } = require("./utils/referenceSearch");
+    const { clearCache: clearTokenImageCache } = require("./utils/tokenImageLookup");
+    console.log(`[Tablecast]  Checking for D&D 5e reference repositories...`);
+    sync()
+      .then(() => {
+        clearCache();
+        clearTokenImageCache();
+      })
+      .catch(err => console.error("[Tablecast] Startup references sync failed:", err.message));
+  }
 });
 
 // Export for testing

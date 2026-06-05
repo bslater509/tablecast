@@ -1,5 +1,5 @@
 // =============================================================================
-// Tablecast — Prisma Client Singleton
+// Tablecast  Prisma Client Singleton
 // Re-uses a single PrismaClient instance across the app to avoid exhausting
 // database connections during development with nodemon/hot-reload.
 // =============================================================================

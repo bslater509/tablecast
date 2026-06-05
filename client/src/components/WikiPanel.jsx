@@ -1,5 +1,5 @@
 // =============================================================================
-// Tablecast — Wiki / Player Journal Panel (Phase 4)
+// Tablecast  Wiki / Player Journal Panel (Phase 4)
 // Allows players and DMs to view unlocked campaign logs, location info, and NPCs.
 // =============================================================================
 import { useState, useEffect } from "react";
@@ -96,7 +96,7 @@ export default function WikiPanel({ user }) {
   return (
     <div style={styles.container} className="fade-in">
       {selectedArticle ? (
-        /* ── ARTICLE READER VIEW ── */
+        /*  ARTICLE READER VIEW  */
         <div style={styles.reader} className="glass-panel gold-border-glow">
           {/* Reader Header */}
           <div style={styles.readerHeader}>
@@ -106,11 +106,11 @@ export default function WikiPanel({ user }) {
               style={styles.backBtn}
               className="touch-target btn-hover-scale"
             >
-              ⬅ Back
+               Back
             </button>
             <div style={styles.headerRight}>
               {!selectedArticle.isVisibleToPlayers && (
-                <span style={styles.secretBadge}>DM Secret 🔒</span>
+                <span style={styles.secretBadge}>DM Secret </span>
               )}
               <span style={styles.timeBadge}>
                 Updated: {new Date(selectedArticle.updatedAt).toLocaleDateString()}
@@ -147,14 +147,14 @@ export default function WikiPanel({ user }) {
           </div>
         </div>
       ) : (
-        /* ── SEARCH LIST VIEW ── */
+        /*  SEARCH LIST VIEW  */
         <div style={styles.listView}>
           {/* Search Bar Container */}
           <div style={styles.searchBarContainer}>
             <input
               id="wiki-search-input"
               type="text"
-              placeholder="Search lore, NPCs, locations…"
+              placeholder="Search lore, NPCs, locations"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={styles.searchInput}
@@ -165,18 +165,18 @@ export default function WikiPanel({ user }) {
                 style={styles.clearBtn}
                 className="touch-target"
               >
-                ✕
+                
               </button>
             )}
           </div>
 
           {/* Lore/Journal List */}
           <div style={styles.listScroll}>
-            {loading && <p style={styles.infoText}>Consulting the archives…</p>}
-            {error && <p style={styles.errorText}>⚠️ Error: {error}</p>}
+            {loading && <p style={styles.infoText}>Consulting the archives</p>}
+            {error && <p style={styles.errorText}> Error: {error}</p>}
             
             {!loading && !error && filteredArticles.length === 0 && (
-              <p style={styles.infoText}>No scrolls match your query. 📜</p>
+              <p style={styles.infoText}>No scrolls match your query. </p>
             )}
 
             {!loading && !error && filteredArticles.map((article) => {
@@ -196,7 +196,7 @@ export default function WikiPanel({ user }) {
                   <div style={styles.cardHeader}>
                     <h3 style={styles.cardTitle}>{article.title}</h3>
                     {!article.isVisibleToPlayers && (
-                      <span style={styles.secretDot} title="Visible to DM only">🔒</span>
+                      <span style={styles.secretDot} title="Visible to DM only"></span>
                     )}
                   </div>
                   <p style={styles.cardPreview}>

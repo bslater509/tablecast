@@ -131,6 +131,9 @@ model Token {
   x           Float     @default(0)
   y           Float     @default(0)
 
+  // JSON blob containing bestiary stats if it is a monster token
+  stats       String?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

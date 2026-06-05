@@ -1,5 +1,5 @@
 // =============================================================================
-// Tablecast — WikiArticle CRUD Routes
+// Tablecast  WikiArticle CRUD Routes
 // Endpoints:  GET /api/wiki           (?visible=true & ?search=term)
 //             GET /api/wiki/:id
 //             POST /api/wiki
@@ -10,14 +10,15 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
+const { requireDm } = require("../auth");
 
 const router = Router();
 
 // ---------------------------------------------------------------------------
-// GET /api/wiki — list all articles
+// GET /api/wiki  list all articles
 // Query params:
-//   ?visible=true   — only articles visible to players (Player Journal)
-//   ?search=term    — filter by title or content containing the term
+//   ?visible=true    only articles visible to players (Player Journal)
+//   ?search=term     filter by title or content containing the term
 // ---------------------------------------------------------------------------
 router.get("/", async (req, res) => {
   try {
@@ -49,7 +50,7 @@ router.get("/", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/wiki/:id — get a single article
+// GET /api/wiki/:id  get a single article
 // ---------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
@@ -69,10 +70,10 @@ router.get("/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/wiki — create a new article
+// POST /api/wiki  create a new article
 // Body: { title: string, content?: string, isVisibleToPlayers?: boolean, tags?: string }
 // ---------------------------------------------------------------------------
-router.post("/", async (req, res) => {
+router.post("/", requireDm, async (req, res) => {
   try {
     const { title, content, isVisibleToPlayers, tags } = req.body;
 
@@ -109,10 +110,10 @@ router.post("/", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// PUT /api/wiki/:id — update an existing article (partial)
+// PUT /api/wiki/:id  update an existing article (partial)
 // Body: { title?: string, content?: string, isVisibleToPlayers?: boolean, tags?: string }
 // ---------------------------------------------------------------------------
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireDm, async (req, res) => {
   try {
     const { title, content, isVisibleToPlayers, tags } = req.body;
     const data = {};
@@ -164,9 +165,9 @@ router.put("/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /api/wiki/:id — delete an article
+// DELETE /api/wiki/:id  delete an article
 // ---------------------------------------------------------------------------
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireDm, async (req, res) => {
   try {
     await prisma.wikiArticle.delete({
       where: { id: Number(req.params.id) },

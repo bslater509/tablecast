@@ -1,8 +1,9 @@
 // =============================================================================
-// Tablecast — Character List (Phase 4)
+// Tablecast  Character List (Phase 4)
 // Allows users to select an existing character sheet or create a new one.
 // =============================================================================
 import { useState, useEffect } from "react";
+import Autocomplete from "./Autocomplete";
 
 export default function CharacterList({ user, onSelectCharacter }) {
   const [characters, setCharacters] = useState([]);
@@ -105,7 +106,7 @@ export default function CharacterList({ user, onSelectCharacter }) {
   return (
     <div style={styles.container} className="fade-in">
       <header style={styles.header}>
-        <h2 style={styles.title}>🛡️ Heroic Characters</h2>
+        <h2 style={styles.title}> Heroic Characters</h2>
         {!showCreateForm && (
           <button
             id="new-char-btn"
@@ -119,7 +120,7 @@ export default function CharacterList({ user, onSelectCharacter }) {
       </header>
 
       {showCreateForm ? (
-        /* ── CREATION FORM ── */
+        /*  CREATION FORM  */
         <form onSubmit={handleCreate} style={styles.form} className="glass-panel gold-border-glow">
           <h3 style={styles.formTitle}>Forge a New Hero</h3>
           
@@ -140,29 +141,29 @@ export default function CharacterList({ user, onSelectCharacter }) {
 
           <div style={styles.inputGroup}>
             <label style={styles.label}>Race</label>
-            <input
+            <Autocomplete
               id="char-race-input"
-              type="text"
+              category="races"
               placeholder="e.g. Mountain Dwarf, Elf, Human"
               value={race}
-              onChange={(e) => setRace(e.target.value)}
-              style={styles.input}
+              onChange={(val) => setRace(val)}
+              onSelect={(item) => setRace(item.name)}
               className="form-input"
-              maxLength={24}
+              inputStyle={styles.input}
             />
           </div>
 
           <div style={styles.inputGroup}>
             <label style={styles.label}>Class</label>
-            <input
+            <Autocomplete
               id="char-class-input"
-              type="text"
+              category="classes"
               placeholder="e.g. Fighter, Wizard, Rogue"
               value={charClass}
-              onChange={(e) => setCharClass(e.target.value)}
-              style={styles.input}
+              onChange={(val) => setCharClass(val)}
+              onSelect={(item) => setCharClass(item.name)}
               className="form-input"
-              maxLength={24}
+              inputStyle={styles.input}
             />
           </div>
 
@@ -183,15 +184,15 @@ export default function CharacterList({ user, onSelectCharacter }) {
               className="touch-target btn-hover-scale"
               disabled={creating || !name.trim()}
             >
-              {creating ? "Forging…" : "Create Character"}
+              {creating ? "Forging" : "Create Character"}
             </button>
           </div>
         </form>
       ) : (
-        /* ── CHARACTER CARDS LIST ── */
+        /*  CHARACTER CARDS LIST  */
         <div style={styles.list}>
-          {loading && <p style={styles.infoText}>Loading character records…</p>}
-          {error && <p style={styles.errorText}>⚠️ Error: {error}</p>}
+          {loading && <p style={styles.infoText}>Loading character records</p>}
+          {error && <p style={styles.errorText}> Error: {error}</p>}
           
           {!loading && !error && characters.length === 0 && (
             <div style={styles.emptyCard} className="glass-panel">
@@ -201,7 +202,7 @@ export default function CharacterList({ user, onSelectCharacter }) {
                 style={styles.emptyCreateBtn}
                 className="touch-target"
               >
-                Create your first Hero! ⚔️
+                Create your first Hero! 
               </button>
             </div>
           )}
@@ -217,13 +218,13 @@ export default function CharacterList({ user, onSelectCharacter }) {
               <div style={styles.cardInfo}>
                 <h3 style={styles.cardName}>{char.name}</h3>
                 <span style={styles.cardSub}>
-                  Lvl {char.level} • {char.race} {char.class}
+                  Lvl {char.level}  {char.race} {char.class}
                 </span>
                 {isDM && (
                   <span style={styles.ownerBadge}>Owner: {char.user?.username}</span>
                 )}
               </div>
-              <div style={styles.cardArrow}>⚔️</div>
+              <div style={styles.cardArrow}></div>
             </div>
           ))}
         </div>

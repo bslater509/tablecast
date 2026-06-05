@@ -1,9 +1,27 @@
 // =============================================================================
-// Tablecast — Virtual Tabletop (VTT) Engine (Phase 5)
+// Tablecast  Virtual Tabletop (VTT) Engine (Phase 5)
 // Act as the VTT Engine Developer: HTML5 Canvas, touch events, and Fog of War.
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
+import Autocomplete from "./Autocomplete";
+
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 3;
+const DRAG_THRESHOLD_PX = 9;
+
+const MAP_IMPORT_PRESETS = [
+  { label: "Blank 5 ft Grid", name: "Blank Encounter Grid", path: "/uploads/placeholder_map.png", gridSize: 50 },
+  { label: "AitFR Adventurer Map", name: "AitFR Encounter Map", path: "/5etoolsimg/adventure/AitFR-AVT/13_1476395018.webp", gridSize: 70 },
+  { label: "AitFR Dungeon Map", name: "AitFR Dungeon Map", path: "/5etoolsimg/adventure/AitFR-DN/16_1476395070.webp", gridSize: 70 },
+];
+
+const TOKEN_IMPORT_PRESETS = [
+  { label: "Goblin", imageUrl: "/5etoolsimg/adventure/HotB/025-01-014.goblin-warrior-c.webp" },
+  { label: "Goblin Boss", imageUrl: "/5etoolsimg/adventure/HotB/026-01-015.goblin-boss-c.webp" },
+  { label: "Skeleton", imageUrl: "/5etoolsimg/adventure/DrDe/133-07-003.brandles-rest-skeleton.webp" },
+  { label: "Bandit", imageUrl: "/5etoolsimg/adventure/BQGT/004-00-004.bandit.webp" },
+];
 
 export default function MapPanel({ user }) {
   const { socket, isConnected } = useSocket();
@@ -40,10 +58,12 @@ export default function MapPanel({ user }) {
   const [newMapName, setNewMapName] = useState("");
   const [newMapGridSize, setNewMapGridSize] = useState(50);
   const [newMapFile, setNewMapFile] = useState(null);
+  const [newMapImagePath, setNewMapImagePath] = useState("");
   const [newTokenLabel, setNewTokenLabel] = useState("");
   const [newTokenCharacterId, setNewTokenCharacterId] = useState("");
   const [newTokenImageUrl, setNewTokenImageUrl] = useState("");
   const [newTokenIsMonster, setNewTokenIsMonster] = useState(false);
+  const [newTokenStats, setNewTokenStats] = useState(null);
 
   // Refs for HTML elements & drawing loop
   const containerRef = useRef(null);
@@ -51,8 +71,12 @@ export default function MapPanel({ user }) {
   const imageRef = useRef(null);
   const [mapImageLoaded, setMapImageLoaded] = useState(false);
   const tokenImagesRef = useRef({}); // tokenId -> Image instance cache
+  const gestureRef = useRef(null);
 
   const gridSize = activeMap?.gridSize || 50;
+  const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
+  const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
+  const withUser = (payload = {}) => ({ ...payload, userId: user?.id });
 
   // ---------------------------------------------------------------------------
   // Load data & initial socket listeners
@@ -128,15 +152,16 @@ export default function MapPanel({ user }) {
   const resetViewport = (imgW, imgH) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
     
-    const scaleX = canvas.width / imgW;
-    const scaleY = canvas.height / imgH;
+    const scaleX = rect.width / imgW;
+    const scaleY = rect.height / imgH;
     const fitScale = Math.min(scaleX, scaleY, 1.0) * 0.95; // fits nicely with margins
 
     setZoom(fitScale);
     setPanOffset({
-      x: (canvas.width - imgW * fitScale) / 2,
-      y: (canvas.height - imgH * fitScale) / 2
+      x: (rect.width - imgW * fitScale) / 2,
+      y: (rect.height - imgH * fitScale) / 2
     });
   };
 
@@ -185,11 +210,32 @@ export default function MapPanel({ user }) {
       }
     };
 
+    // A map was deleted
+    const handleMapDeleted = (payload) => {
+      const deletedId = Number(payload.mapId);
+      setMapsList(prev => {
+        const updated = prev.filter(m => m.id !== deletedId);
+        // If the deleted map is the currently active map, select another one or clear
+        if (activeMap && activeMap.id === deletedId) {
+          if (updated.length > 0) {
+            fetchMapDetails(updated[0].id);
+          } else {
+            setActiveMap(null);
+            setTokens([]);
+            imageRef.current = null;
+            setMapImageLoaded(false);
+          }
+        }
+        return updated;
+      });
+    };
+
     socket.on("map:selected", handleMapSelected);
     socket.on("token:moved", handleTokenMoved);
     socket.on("token:created", handleTokenCreated);
     socket.on("token:deleted", handleTokenDeleted);
     socket.on("fog:updated", handleFogUpdated);
+    socket.on("map:deleted", handleMapDeleted);
 
     return () => {
       socket.off("map:selected", handleMapSelected);
@@ -197,6 +243,7 @@ export default function MapPanel({ user }) {
       socket.off("token:created", handleTokenCreated);
       socket.off("token:deleted", handleTokenDeleted);
       socket.off("fog:updated", handleFogUpdated);
+      socket.off("map:deleted", handleMapDeleted);
     };
   }, [socket, activeMap]);
 
@@ -504,7 +551,35 @@ export default function MapPanel({ user }) {
     };
   };
 
-  const handleStart = (clientX, clientY) => {
+  const getTouchDistance = (touches) => {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  const getTouchMidpoint = (touches) => ({
+    clientX: (touches[0].clientX + touches[1].clientX) / 2,
+    clientY: (touches[0].clientY + touches[1].clientY) / 2,
+  });
+
+  const applyZoomAt = (nextZoom, clientX, clientY) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const screenX = clientX - rect.left;
+    const screenY = clientY - rect.top;
+    const clampedZoom = Math.max(MIN_ZOOM, Math.min(nextZoom, MAX_ZOOM));
+    const worldX = (screenX - panOffset.x) / zoom;
+    const worldY = (screenY - panOffset.y) / zoom;
+
+    setZoom(clampedZoom);
+    setPanOffset({
+      x: screenX - worldX * clampedZoom,
+      y: screenY - worldY * clampedZoom,
+    });
+  };
+
+  const handleStart = (clientX, clientY, options = {}) => {
     const { x, y, screenX, screenY } = getWorldCoordinates(clientX, clientY);
     setMousePosWorld({ x, y });
 
@@ -530,6 +605,8 @@ export default function MapPanel({ user }) {
             tokenId: hitToken.id,
             startGridPos: { x: hitToken.x, y: hitToken.y },
             currentWorldPos: { x: (hitToken.x + 0.5) * gridSize, y: (hitToken.y + 0.5) * gridSize },
+            startScreenPos: { x: screenX, y: screenY },
+            pending: options.isTouch === true,
             offset: {
               x: x - (hitToken.x + 0.5) * gridSize,
               y: y - (hitToken.y + 0.5) * gridSize
@@ -558,8 +635,15 @@ export default function MapPanel({ user }) {
     setMousePosWorld({ x, y });
 
     if (dragState) {
+      if (dragState.pending) {
+        const dx = screenX - dragState.startScreenPos.x;
+        const dy = screenY - dragState.startScreenPos.y;
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+      }
+
       setDragState(prev => ({
         ...prev,
+        pending: false,
         currentWorldPos: {
           x: x - prev.offset.x,
           y: y - prev.offset.y
@@ -575,6 +659,11 @@ export default function MapPanel({ user }) {
 
   const handleEnd = () => {
     if (dragState) {
+      if (dragState.pending) {
+        setDragState(null);
+        return;
+      }
+
       const px = dragState.currentWorldPos.x;
       const py = dragState.currentWorldPos.y;
 
@@ -594,6 +683,7 @@ export default function MapPanel({ user }) {
       // Emit movement position
       if (socket && isConnected) {
         socket.emit("token:move", {
+          userId: user?.id,
           id: dragState.tokenId,
           x: clampedCol,
           y: clampedRow
@@ -611,37 +701,145 @@ export default function MapPanel({ user }) {
     }
   };
 
+  const handleTouchStart = (e) => {
+    e.preventDefault();
+
+    if (e.touches.length === 2) {
+      const midpoint = getTouchMidpoint(e.touches);
+      gestureRef.current = {
+        type: "pinch",
+        startDistance: getTouchDistance(e.touches),
+        startZoom: zoom,
+        midpoint,
+      };
+      setDragState(null);
+      setIsPanning(false);
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      gestureRef.current = null;
+      handleStart(t.clientX, t.clientY, { isTouch: true });
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    e.preventDefault();
+
+    if (e.touches.length === 2 && gestureRef.current?.type === "pinch") {
+      const distance = getTouchDistance(e.touches);
+      const midpoint = getTouchMidpoint(e.touches);
+      const nextZoom = gestureRef.current.startZoom * (distance / gestureRef.current.startDistance);
+      applyZoomAt(nextZoom, midpoint.clientX, midpoint.clientY);
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      handleMove(t.clientX, t.clientY);
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    e.preventDefault();
+
+    if (e.touches.length === 0) {
+      gestureRef.current = null;
+      handleEnd();
+    } else if (e.touches.length === 1) {
+      const t = e.touches[0];
+      gestureRef.current = null;
+      handleStart(t.clientX, t.clientY, { isTouch: true });
+    }
+  };
+
   // ---------------------------------------------------------------------------
   // Action Handlers
   // ---------------------------------------------------------------------------
   const handleZoom = (amount) => {
-    setZoom(prev => Math.max(0.1, Math.min(prev + amount, 3.0)));
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      setZoom(prev => Math.max(MIN_ZOOM, Math.min(prev + amount, MAX_ZOOM)));
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    applyZoomAt(zoom + amount, rect.left + rect.width / 2, rect.top + rect.height / 2);
+  };
+
+  const handleMapPresetSelect = (presetLabel) => {
+    const preset = MAP_IMPORT_PRESETS.find((item) => item.label === presetLabel);
+    if (!preset) return;
+
+    setNewMapImagePath(preset.path);
+    setNewMapGridSize(preset.gridSize);
+    if (!newMapName.trim()) {
+      setNewMapName(preset.name);
+    }
+  };
+
+  const handleTokenPresetSelect = (presetLabel) => {
+    const preset = TOKEN_IMPORT_PRESETS.find((item) => item.label === presetLabel);
+    if (!preset) return;
+
+    setNewTokenIsMonster(true);
+    setNewTokenCharacterId("");
+    setNewTokenLabel(preset.label);
+    setNewTokenImageUrl(preset.imageUrl);
+    setNewTokenStats(null);
+  };
+
+  const resolveMonsterTokenImage = async (monster) => {
+    if (!monster?.name) return;
+
+    try {
+      const params = new URLSearchParams({ name: monster.name });
+      if (monster.source) params.set("source", monster.source);
+
+      const res = await fetch(`/api/reference/token-image?${params.toString()}`);
+      if (!res.ok) {
+        setNewTokenImageUrl("");
+        return;
+      }
+
+      const match = await res.json();
+      setNewTokenImageUrl(match.url || "");
+    } catch (err) {
+      console.error("Failed to resolve monster token image:", err);
+      setNewTokenImageUrl("");
+    }
+  };
+
+  const handleQuickCharacterToken = (character) => {
+    setNewTokenIsMonster(false);
+    setNewTokenCharacterId(String(character.id));
+    setNewTokenLabel(character.name);
+    setNewTokenImageUrl(character.imageUrl || "");
+    setNewTokenStats(null);
   };
 
   const handleSelectMap = (mapId) => {
     if (user?.role === "DM" && socket && isConnected) {
-      socket.emit("map:select", { mapId });
+      socket.emit("map:select", withUser({ mapId }));
     }
     fetchMapDetails(mapId);
   };
 
   const handleCreateMap = async (e) => {
     e.preventDefault();
-    if (!newMapName.trim() || !newMapFile) return;
+    if (!newMapName.trim() || (!newMapFile && !newMapImagePath.trim())) return;
 
-    // Read the map background as base64
-    const reader = new FileReader();
-    reader.readAsDataURL(newMapFile);
-    reader.onload = async () => {
+    const submitMap = async (imageData = null) => {
       try {
         const res = await fetch("/api/maps", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: jsonAuthHeaders,
           body: JSON.stringify({
             name: newMapName,
             gridSize: newMapGridSize,
             gridType: "SQUARE",
-            imageData: reader.result
+            imageData,
+            imageUrl: imageData ? undefined : newMapImagePath.trim()
           })
         });
 
@@ -650,19 +848,29 @@ export default function MapPanel({ user }) {
           setShowAddMapModal(false);
           setNewMapName("");
           setNewMapFile(null);
+          setNewMapImagePath("");
           
           // Re-load list and auto-select newly made map
           await loadMaps(map.id);
           
           // Broadcast select if DM
           if (user?.role === "DM" && socket && isConnected) {
-            socket.emit("map:select", { mapId: map.id });
+            socket.emit("map:select", withUser({ mapId: map.id }));
           }
         }
       } catch (err) {
         console.error("Failed to create map:", err);
       }
     };
+
+    if (newMapFile) {
+      const reader = new FileReader();
+      reader.readAsDataURL(newMapFile);
+      reader.onload = () => submitMap(reader.result);
+      reader.onerror = () => console.error("Failed to read map image file.");
+    } else {
+      await submitMap();
+    }
   };
 
   const handleCreateToken = async (e) => {
@@ -689,13 +897,14 @@ export default function MapPanel({ user }) {
     try {
       const res = await fetch(`/api/maps/${activeMap.id}/tokens`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders,
         body: JSON.stringify({
           characterId: charId,
           label,
           imageUrl,
           x: 0,
-          y: 0
+          y: 0,
+          stats: newTokenIsMonster && newTokenStats ? JSON.stringify(newTokenStats) : null
         })
       });
 
@@ -704,7 +913,7 @@ export default function MapPanel({ user }) {
         
         // Notify socket peers
         if (socket && isConnected) {
-          socket.emit("token:create", token);
+          socket.emit("token:create", withUser(token));
         } else {
           setTokens(prev => [...prev, token]);
         }
@@ -713,9 +922,83 @@ export default function MapPanel({ user }) {
         setNewTokenLabel("");
         setNewTokenCharacterId("");
         setNewTokenImageUrl("");
+        setNewTokenStats(null);
       }
     } catch (err) {
       console.error("Failed to create token:", err);
+    }
+  };
+
+  const cleanText = (text) => {
+    if (typeof text !== "string") return "";
+    return text
+      .replace(/\{@spell ([^}]+)\}/g, "$1")
+      .replace(/\{@dice ([^}]+)\}/g, "($1)")
+      .replace(/\{@item ([^}]+)\}/g, "$1")
+      .replace(/\{@creature ([^}]+)\}/g, "$1")
+      .replace(/\{@condition ([^}]+)\}/g, "$1")
+      .replace(/\{@hit (\d+)\}/g, "+$1")
+      .replace(/\{@damage ([^}]+)\}/g, "$1")
+      .replace(/\{@filter ([^|]+)\|[^}]+\}/g, "$1")
+      .replace(/\{@[a-z]+ ([^}]+)\}/g, "$1");
+  };
+
+  const handleMonsterRoll = (monsterName, actionName, actionText) => {
+    const hitMatch = actionText.match(/\{@hit (\d+)\}/);
+    const toHitMod = hitMatch ? parseInt(hitMatch[1]) : 0;
+
+    const dmgMatch = actionText.match(/\{@damage ([^}]+)\}/);
+    const dmgExpr = dmgMatch ? dmgMatch[1].trim() : "";
+
+    const d20 = Math.floor(Math.random() * 20) + 1;
+    const toHitTotal = d20 + toHitMod;
+    const formatModifier = (val) => (val >= 0 ? `+${val}` : `${val}`);
+
+    let damageTotal = 0;
+    let dmgRolls = [];
+    let dmgFormula = "";
+
+    if (dmgExpr) {
+      const parts = dmgExpr.toLowerCase().replace(/\s/g, "").split("+");
+      const dicePart = parts[0];
+      const modPart = parts[1] ? parseInt(parts[1]) : 0;
+      
+      const diceMatch = dicePart.match(/^(\d+)d(\d+)$/);
+      if (diceMatch) {
+        const count = parseInt(diceMatch[1]);
+        const sides = parseInt(diceMatch[2]);
+        for (let i = 0; i < count; i++) {
+          dmgRolls.push(Math.floor(Math.random() * sides) + 1);
+        }
+        const sumRolls = dmgRolls.reduce((a, b) => a + b, 0);
+        damageTotal = sumRolls + modPart;
+        dmgFormula = `${dicePart} + ${formatModifier(modPart)}`;
+      }
+    }
+
+    if (socket && isConnected) {
+      const cleanActionText = cleanText(actionText);
+      const text = dmgExpr 
+        ? `attacks with ${actionName}!  Hit: ${toHitTotal} | Damage: ${damageTotal}`
+        : `uses ${actionName}!  ${cleanActionText}`;
+      
+      socket.emit("chat:send", {
+        sender: monsterName,
+        text,
+        type: "roll",
+        rollDetails: {
+          rollName: actionName,
+          formula: dmgExpr ? `Hit: 1d20 + ${toHitMod} | Dmg: ${dmgFormula}` : `Hit: 1d20 + ${toHitMod}`,
+          isAttack: true,
+          toHitRoll: d20,
+          toHitMod,
+          toHitTotal,
+          damageRolls: dmgRolls,
+          damageDice: dmgExpr,
+          damageMod: dmgExpr ? (parseInt(dmgExpr.split("+")[1]) || 0) : 0,
+          damageTotal,
+        }
+      });
     }
   };
 
@@ -724,12 +1007,13 @@ export default function MapPanel({ user }) {
 
     try {
       const res = await fetch(`/api/maps/tokens/${tokenId}`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: authHeaders
       });
 
       if (res.ok) {
         if (socket && isConnected) {
-          socket.emit("token:delete", { id: tokenId });
+          socket.emit("token:delete", withUser({ id: tokenId, broadcastOnly: true }));
         } else {
           setTokens(prev => prev.filter(t => t.id !== tokenId));
         }
@@ -740,6 +1024,47 @@ export default function MapPanel({ user }) {
     }
   };
 
+  const handleDeleteMap = async () => {
+    if (!activeMap) return;
+    if (!confirm(`Are you sure you want to delete the map "${activeMap.name}"? This will also delete all tokens on this map.`)) return;
+
+    try {
+      const res = await fetch(`/api/maps/${activeMap.id}`, {
+        method: "DELETE",
+        headers: authHeaders
+      });
+
+      if (res.ok) {
+        const deletedId = activeMap.id;
+
+        // Emit deletion to socket peers
+        if (socket && isConnected) {
+          socket.emit("map:delete", withUser({ mapId: deletedId }));
+        }
+
+        // Update local maps list
+        const updatedList = mapsList.filter(m => m.id !== deletedId);
+        setMapsList(updatedList);
+
+        if (updatedList.length > 0) {
+          // Switch local map view
+          handleSelectMap(updatedList[0].id);
+        } else {
+          setActiveMap(null);
+          setTokens([]);
+          imageRef.current = null;
+          setMapImageLoaded(false);
+        }
+      } else {
+        const errData = await res.json();
+        alert(`Failed to delete map: ${errData.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      console.error("Failed to delete map:", err);
+      alert("Failed to delete map due to a network error.");
+    }
+  };
+
   const handleUndoFog = () => {
     if (!activeMap || user?.role !== "DM") return;
     const polys = parseFogState(activeMap.fogState);
@@ -747,7 +1072,7 @@ export default function MapPanel({ user }) {
     
     const updated = polys.slice(0, polys.length - 1);
     if (socket && isConnected) {
-      socket.emit("fog:update", { mapId: activeMap.id, fogState: updated });
+      socket.emit("fog:update", withUser({ mapId: activeMap.id, fogState: updated }));
     }
   };
 
@@ -771,7 +1096,7 @@ export default function MapPanel({ user }) {
     }
 
     if (socket && isConnected) {
-      socket.emit("fog:update", { mapId: activeMap.id, fogState: updated });
+      socket.emit("fog:update", withUser({ mapId: activeMap.id, fogState: updated }));
     }
   };
 
@@ -793,6 +1118,7 @@ export default function MapPanel({ user }) {
 
       if (socket && isConnected) {
         socket.emit("fog:update", {
+          userId: user?.id,
           mapId: activeMap.id,
           fogState: JSON.stringify(updatedFog)
         });
@@ -812,7 +1138,7 @@ export default function MapPanel({ user }) {
       {/* VTT Header */}
       <header style={styles.header}>
         <div style={styles.headerTitleBox}>
-          <h2 style={styles.title}>🗺️ Tacticians Grid (VTT)</h2>
+          <h2 style={styles.title}> Tacticians Grid (VTT)</h2>
           {activeMap && (
             <span style={styles.mapNameBadge}>
               Active: {activeMap.name} ({activeMap.gridSize}px Grid)
@@ -821,33 +1147,43 @@ export default function MapPanel({ user }) {
         </div>
         
         <div style={styles.headerControls}>
-          {/* DM-only Map selector */}
-          {user?.role === "DM" && (
-            <div style={styles.dmMapSelector}>
-              <select
-                value={activeMap?.id || ""}
-                onChange={(e) => handleSelectMap(Number(e.target.value))}
-                style={styles.select}
-                className="form-input"
-              >
-                {mapsList.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => setShowAddMapModal(true)}
-                style={styles.btnSmall}
-                className="btn-hover-scale glass-panel touch-target"
-              >
-                ➕ New Map
-              </button>
-            </div>
-          )}
+          {/* Map selector visible to all; editing actions only for DM */}
+          <div style={styles.dmMapSelector}>
+            <select
+              value={activeMap?.id || ""}
+              onChange={(e) => handleSelectMap(Number(e.target.value))}
+              style={styles.select}
+              className="form-input touch-target"
+            >
+              {mapsList.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            {user?.role === "DM" && (
+              <>
+                <button
+                  onClick={() => setShowAddMapModal(true)}
+                  style={styles.btnSmall}
+                  className="btn-hover-scale glass-panel touch-target"
+                >
+                   New Map
+                </button>
+                <button
+                  onClick={handleDeleteMap}
+                  style={styles.btnDangerSmall}
+                  className="btn-hover-scale glass-panel touch-target"
+                  disabled={!activeMap}
+                >
+                   Delete
+                </button>
+              </>
+            )}
+          </div>
 
           <span style={styles.status}>
-            {isConnected ? "🟢 Live Sync" : "🔴 Offline Mode"}
+            {isConnected ? " Live Sync" : " Offline Mode"}
           </span>
         </div>
       </header>
@@ -865,20 +1201,10 @@ export default function MapPanel({ user }) {
           onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
           onMouseUp={handleEnd}
           onMouseLeave={handleEnd}
-          
-          onTouchStart={(e) => {
-            if (e.touches.length > 0) {
-              const t = e.touches[0];
-              handleStart(t.clientX, t.clientY);
-            }
-          }}
-          onTouchMove={(e) => {
-            if (e.touches.length > 0) {
-              const t = e.touches[0];
-              handleMove(t.clientX, t.clientY);
-            }
-          }}
-          onTouchEnd={handleEnd}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
         />
 
         {/* Floating Tool Option Bar */}
@@ -893,7 +1219,7 @@ export default function MapPanel({ user }) {
             title="Pan Map / Drag Token"
             className="touch-target btn-hover-scale"
           >
-            🖐️ Move
+             Move
           </button>
 
           {user?.role === "DM" && (
@@ -915,7 +1241,7 @@ export default function MapPanel({ user }) {
                 title={activeMap ? "Draw Fog (Hide area)" : "Select a map first"}
                 className="touch-target btn-hover-scale"
               >
-                🥷 Mask
+                 Mask
               </button>
               
               <button
@@ -935,7 +1261,7 @@ export default function MapPanel({ user }) {
                 title={activeMap ? "Reveal Fog (Carve hole)" : "Select a map first"}
                 className="touch-target btn-hover-scale"
               >
-                👁️ Reveal
+                 Reveal
               </button>
             </>
           )}
@@ -961,7 +1287,7 @@ export default function MapPanel({ user }) {
             title="Zoom In"
             className="touch-target btn-hover-scale"
           >
-            ➕
+            +
           </button>
           
           <button
@@ -970,7 +1296,7 @@ export default function MapPanel({ user }) {
             title="Zoom Out"
             className="touch-target btn-hover-scale"
           >
-            ➖
+            -
           </button>
 
           <button
@@ -983,13 +1309,18 @@ export default function MapPanel({ user }) {
             title="Reset View"
             className="touch-target btn-hover-scale"
           >
-            🔄
+            Fit
           </button>
         </div>
 
         {/* Floating Token and Utility control */}
         <div style={styles.floatingTokensControl} className="glass-panel">
-          <h4 style={styles.smallPanelHeader}>⚔️ Token Control</h4>
+          <h4 style={styles.smallPanelHeader}> Token Control</h4>
+          {selectedTokenId && (
+            <div style={styles.selectedTokenText}>
+              Selected: {tokens.find((t) => t.id === selectedTokenId)?.label || "Token"}
+            </div>
+          )}
           <div style={styles.tokenActionRow}>
             <button
               onClick={() => setShowAddTokenModal(true)}
@@ -1005,7 +1336,16 @@ export default function MapPanel({ user }) {
                 style={{ ...styles.btnAction, background: "var(--color-danger)" }}
                 className="btn-hover-scale touch-target"
               >
-                Delete Selected
+                Delete
+              </button>
+            )}
+            {selectedTokenId && (
+              <button
+                onClick={() => setSelectedTokenId(null)}
+                style={styles.btnAction}
+                className="btn-hover-scale touch-target"
+              >
+                Clear
               </button>
             )}
           </div>
@@ -1014,7 +1354,7 @@ export default function MapPanel({ user }) {
         {/* Floating Fog Actions for DM */}
         {user?.role === "DM" && (tool === "draw-fog" || tool === "reveal-fog") && (
           <div style={styles.floatingFogActions} className="glass-panel">
-            <h4 style={styles.smallPanelHeader}>🌫️ Fog Control</h4>
+            <h4 style={styles.smallPanelHeader}> Fog Control</h4>
             <div style={styles.tokenActionRow}>
               <button
                 onClick={handleUndoFog}
@@ -1045,10 +1385,166 @@ export default function MapPanel({ user }) {
                 style={styles.finishShapeBtn}
                 className="btn-hover-scale pulse-accent-animation touch-target"
               >
-                ✅ Finish Shape ({currentPolygon.length} pts)
+                 Finish Shape ({currentPolygon.length} pts)
               </button>
             )}
           </div>
+        )}
+
+        {/* Selected Token Details Sidebar (Top Right) */}
+        {selectedTokenId && (
+          (() => {
+            const selectedToken = tokens.find(t => t.id === selectedTokenId);
+            if (!selectedToken) return null;
+            
+            let monsterStats = null;
+            if (selectedToken.stats) {
+              try {
+                monsterStats = JSON.parse(selectedToken.stats);
+              } catch (e) {}
+            }
+
+            return (
+              <div style={styles.floatingTokenDetails} className="glass-panel gold-border-glow">
+                <header style={styles.detailsHeader}>
+                  <h4 style={styles.smallPanelHeader}> Selected Token</h4>
+                  <button onClick={() => setSelectedTokenId(null)} style={styles.closeBtn}></button>
+                </header>
+                
+                <div style={styles.detailsBody}>
+                  <div style={styles.detailsRow}>
+                    <strong>Name:</strong> <span>{selectedToken.label || selectedToken.character?.name || "Token"}</span>
+                  </div>
+
+                  {/* Render player details */}
+                  {selectedToken.characterId && (
+                    <div style={styles.metaInfo}>
+                      Lvl {selectedToken.character?.level}  {selectedToken.character?.race} {selectedToken.character?.class}
+                    </div>
+                  )}
+
+                  {/* Render monster combat sheet */}
+                  {monsterStats && (
+                    <div style={styles.monsterSheet}>
+                      <div style={styles.metaInfo}>
+                        CR {monsterStats.cr || "0"}  AC {monsterStats.ac?.[0]?.ac || monsterStats.ac?.[0] || "10"}
+                      </div>
+                      
+                      {/* HP Tracker */}
+                      <div style={styles.hpTracker}>
+                        <div style={styles.hpLabelRow}>
+                          <span>HP: {monsterStats.currentHp !== undefined ? monsterStats.currentHp : (monsterStats.hp?.average || 10)} / {monsterStats.hp?.average || 10}</span>
+                        </div>
+                        <div style={styles.hpControlsRow}>
+                          <button
+                            onClick={() => {
+                              const cur = monsterStats.currentHp !== undefined ? monsterStats.currentHp : (monsterStats.hp?.average || 10);
+                              const next = Math.max(0, cur - 1);
+                              const updated = { ...monsterStats, currentHp: next };
+                              fetch(`/api/maps/tokens/${selectedToken.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ stats: JSON.stringify(updated) })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, stats: JSON.stringify(updated) } : t));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            -1
+                          </button>
+                          <button
+                            onClick={() => {
+                              const cur = monsterStats.currentHp !== undefined ? monsterStats.currentHp : (monsterStats.hp?.average || 10);
+                              const next = Math.max(0, cur - 5);
+                              const updated = { ...monsterStats, currentHp: next };
+                              fetch(`/api/maps/tokens/${selectedToken.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ stats: JSON.stringify(updated) })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, stats: JSON.stringify(updated) } : t));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            -5
+                          </button>
+                          <button
+                            onClick={() => {
+                              const cur = monsterStats.currentHp !== undefined ? monsterStats.currentHp : (monsterStats.hp?.average || 10);
+                              const max = monsterStats.hp?.average || 10;
+                              const next = Math.min(max, cur + 5);
+                              const updated = { ...monsterStats, currentHp: next };
+                              fetch(`/api/maps/tokens/${selectedToken.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ stats: JSON.stringify(updated) })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, stats: JSON.stringify(updated) } : t));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            +5
+                          </button>
+                          <button
+                            onClick={() => {
+                              const cur = monsterStats.currentHp !== undefined ? monsterStats.currentHp : (monsterStats.hp?.average || 10);
+                              const max = monsterStats.hp?.average || 10;
+                              const next = Math.min(max, cur + 1);
+                              const updated = { ...monsterStats, currentHp: next };
+                              fetch(`/api/maps/tokens/${selectedToken.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ stats: JSON.stringify(updated) })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, stats: JSON.stringify(updated) } : t));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            +1
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Attributes */}
+                      <div style={styles.miniStatsGrid}>
+                        <div><strong>STR</strong><span>{monsterStats.str || 10}</span></div>
+                        <div><strong>DEX</strong><span>{monsterStats.dex || 10}</span></div>
+                        <div><strong>CON</strong><span>{monsterStats.con || 10}</span></div>
+                        <div><strong>INT</strong><span>{monsterStats.int || 10}</span></div>
+                        <div><strong>WIS</strong><span>{monsterStats.wis || 10}</span></div>
+                        <div><strong>CHA</strong><span>{monsterStats.cha || 10}</span></div>
+                      </div>
+
+                      {/* Rollable Actions */}
+                      {monsterStats.action && (
+                        <div style={styles.actionsSection}>
+                          <h5 style={styles.actionsHeader}>Roll Actions</h5>
+                          {monsterStats.action.map((act, i) => {
+                            const entriesStr = JSON.stringify(act.entries || []);
+                            const hasRoll = entriesStr.includes("{@hit") || entriesStr.includes("{@damage");
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => handleMonsterRoll(selectedToken.label, act.name, entriesStr)}
+                                style={styles.monsterActionBtn}
+                                className="touch-target btn-hover-scale"
+                              >
+                                {act.name} {hasRoll ? "" : ""}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()
         )}
       </div>
 
@@ -1056,7 +1552,7 @@ export default function MapPanel({ user }) {
       {showAddMapModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard} className="glass-panel gold-border-glow">
-            <h3 style={styles.modalTitle}>⚔️ Upload Campaign Map</h3>
+            <h3 style={styles.modalTitle}> Upload Campaign Map</h3>
             <form onSubmit={handleCreateMap} style={styles.form}>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Map Name</label>
@@ -1086,13 +1582,37 @@ export default function MapPanel({ user }) {
               </div>
 
               <div style={styles.formGroup}>
+                <label style={styles.label}>Quick map path</label>
+                <select
+                  value=""
+                  onChange={(e) => handleMapPresetSelect(e.target.value)}
+                  style={styles.select}
+                  className="form-input touch-target"
+                >
+                  <option value="">Choose a preset...</option>
+                  {MAP_IMPORT_PRESETS.map((preset) => (
+                    <option key={preset.label} value={preset.label}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  placeholder="/uploads/map.png, /5etoolsimg/..., or https://..."
+                  value={newMapImagePath}
+                  onChange={(e) => setNewMapImagePath(e.target.value)}
+                  style={styles.input}
+                  className="form-input"
+                />
+              </div>
+
+              <div style={styles.formGroup}>
                 <label style={styles.label}>Choose Image File</label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={(e) => setNewMapFile(e.target.files[0])}
                   style={styles.fileInput}
-                  required
                 />
               </div>
 
@@ -1109,6 +1629,7 @@ export default function MapPanel({ user }) {
                   type="submit"
                   style={styles.btnSubmit}
                   className="touch-target btn-hover-scale"
+                  disabled={!newMapName.trim() || (!newMapFile && !newMapImagePath.trim())}
                 >
                   Create Map
                 </button>
@@ -1122,7 +1643,7 @@ export default function MapPanel({ user }) {
       {showAddTokenModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard} className="glass-panel gold-border-glow">
-            <h3 style={styles.modalTitle}>🛡️ Add Token to VTT</h3>
+            <h3 style={styles.modalTitle}> Add Token to VTT</h3>
             <form onSubmit={handleCreateToken} style={styles.form}>
               
               {user?.role === "DM" && (
@@ -1136,6 +1657,47 @@ export default function MapPanel({ user }) {
                     />
                     Generic Monster / NPC Token
                   </label>
+                </div>
+              )}
+
+              {user?.role === "DM" && (
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Quick token presets</label>
+                  <div style={styles.quickPresetGrid}>
+                    {TOKEN_IMPORT_PRESETS.map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => handleTokenPresetSelect(preset.label)}
+                        style={styles.presetBtn}
+                        className="touch-target btn-hover-scale"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {availableCharacters.length > 0 && (
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Quick character tokens</label>
+                  <div style={styles.quickPresetGrid}>
+                    {availableCharacters
+                      .filter(c => user?.role === "DM" || c.userId === user?.id)
+                      .slice(0, 6)
+                      .map((character) => (
+                        <button
+                          key={character.id}
+                          type="button"
+                          onClick={() => handleQuickCharacterToken(character)}
+                          style={styles.presetBtn}
+                          className="touch-target btn-hover-scale"
+                        >
+                          {character.name}
+                        </button>
+                      ))}
+                  </div>
                 </div>
               )}
 
@@ -1162,14 +1724,19 @@ export default function MapPanel({ user }) {
               ) : (
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Monster / NPC Label</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Goblin Archer, Orc Chieftain..."
+                  <Autocomplete
+                    id="new-token-monster-select"
+                    category="monsters"
+                    placeholder="Search Bestiary e.g. Goblin, Orc..."
                     value={newTokenLabel}
-                    onChange={(e) => setNewTokenLabel(e.target.value)}
-                    style={styles.input}
+                    onChange={(val) => setNewTokenLabel(val)}
+                    onSelect={(monster) => {
+                      setNewTokenLabel(monster.name);
+                      setNewTokenStats(monster);
+                      resolveMonsterTokenImage(monster);
+                    }}
                     className="form-input"
-                    required
+                    inputStyle={styles.input}
                   />
                 </div>
               )}
@@ -1249,6 +1816,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "0.75rem",
+    flexWrap: "wrap",
   },
   dmMapSelector: {
     display: "flex",
@@ -1260,8 +1828,9 @@ const styles = {
     border: "1px solid var(--color-border)",
     fontSize: "0.85rem",
     padding: "0.35rem 0.75rem",
-    height: "36px",
+    height: "44px",
     color: "var(--color-text)",
+    borderRadius: "4px",
   },
   btnSmall: {
     border: "1px solid var(--color-border)",
@@ -1272,7 +1841,20 @@ const styles = {
     fontSize: "0.75rem",
     cursor: "pointer",
     fontWeight: 600,
-    height: "36px",
+    height: "44px",
+    display: "flex",
+    alignItems: "center",
+  },
+  btnDangerSmall: {
+    border: "1px solid var(--color-danger)",
+    color: "var(--color-danger)",
+    background: "rgba(235, 87, 87, 0.08)",
+    padding: "0.35rem 0.65rem",
+    borderRadius: "4px",
+    fontSize: "0.75rem",
+    cursor: "pointer",
+    fontWeight: 600,
+    height: "44px",
     display: "flex",
     alignItems: "center",
   },
@@ -1283,7 +1865,7 @@ const styles = {
     padding: "0.35rem 0.65rem",
     borderRadius: "4px",
     border: "1px solid rgba(255, 255, 255, 0.05)",
-    height: "36px",
+    height: "44px",
     display: "flex",
     alignItems: "center",
   },
@@ -1307,25 +1889,28 @@ const styles = {
     left: "12px",
     display: "flex",
     flexDirection: "row",
-    gap: "0.25rem",
+    flexWrap: "wrap",
+    gap: "0.35rem",
     padding: "0.35rem",
     borderRadius: "6px",
     zIndex: 100,
     background: "rgba(10, 8, 20, 0.88)",
+    maxWidth: "calc(100% - 24px)",
   },
   toolBtn: {
-    width: "36px",
-    height: "36px",
+    minWidth: "48px",
+    height: "48px",
     border: "1px solid transparent",
     borderRadius: "4px",
     color: "var(--color-text)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "0.85rem",
+    fontSize: "0.78rem",
     cursor: "pointer",
     background: "transparent",
     fontWeight: "bold",
+    padding: "0 0.45rem",
   },
   divider: {
     width: "1px",
@@ -1344,7 +1929,8 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: "0.35rem",
-    minWidth: "160px",
+    minWidth: "190px",
+    maxWidth: "calc(100% - 24px)",
   },
   floatingFogActions: {
     position: "absolute",
@@ -1368,18 +1954,26 @@ const styles = {
   },
   tokenActionRow: {
     display: "flex",
+    flexWrap: "wrap",
     gap: "0.35rem",
   },
   btnAction: {
     flex: 1,
+    minWidth: "72px",
     background: "rgba(255,255,255,0.06)",
     border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: "4px",
     color: "var(--color-text)",
     fontSize: "0.75rem",
-    padding: "0.35rem",
+    padding: "0.55rem",
     cursor: "pointer",
     fontWeight: 600,
+  },
+  selectedTokenText: {
+    color: "var(--color-text)",
+    fontSize: "0.78rem",
+    lineHeight: 1.3,
+    wordBreak: "break-word",
   },
   finishShapeBtn: {
     marginTop: "0.25rem",
@@ -1407,12 +2001,14 @@ const styles = {
   modalCard: {
     maxWidth: "400px",
     width: "100%",
+    maxHeight: "min(92vh, 720px)",
     borderRadius: "8px",
     padding: "1.5rem",
     display: "flex",
     flexDirection: "column",
     gap: "1.25rem",
     boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+    overflowY: "auto",
   },
   modalTitle: {
     fontSize: "1.1rem",
@@ -1449,6 +2045,7 @@ const styles = {
   },
   modalActions: {
     display: "flex",
+    flexWrap: "wrap",
     justifyContent: "flex-end",
     gap: "0.5rem",
     marginTop: "0.5rem",
@@ -1470,5 +2067,133 @@ const styles = {
     fontSize: "0.85rem",
     cursor: "pointer",
     padding: "0.5rem 1.25rem",
+  },
+  quickPresetGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))",
+    gap: "0.4rem",
+  },
+  presetBtn: {
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "4px",
+    color: "var(--color-text)",
+    cursor: "pointer",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    padding: "0.45rem",
+    minHeight: "44px",
+  },
+  floatingTokenDetails: {
+    position: "absolute",
+    top: "12px",
+    right: "12px",
+    padding: "0.85rem",
+    borderRadius: "8px",
+    background: "rgba(10, 8, 20, 0.94)",
+    zIndex: 100,
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    width: "260px",
+    maxHeight: "60vh",
+    overflowY: "auto",
+  },
+  detailsHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    paddingBottom: "0.25rem",
+    background: "transparent",
+  },
+  closeBtn: {
+    background: "transparent",
+    border: "none",
+    color: "var(--color-muted)",
+    fontSize: "0.95rem",
+    cursor: "pointer",
+    padding: "0.15rem",
+  },
+  detailsBody: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.4rem",
+    fontSize: "0.8rem",
+  },
+  metaInfo: {
+    fontSize: "0.75rem",
+    color: "var(--color-muted)",
+    marginBottom: "0.25rem",
+  },
+  monsterSheet: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  },
+  hpTracker: {
+    background: "rgba(235, 87, 87, 0.05)",
+    border: "1px solid rgba(235, 87, 87, 0.2)",
+    borderRadius: "4px",
+    padding: "0.4rem",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.3rem",
+  },
+  hpLabelRow: {
+    fontSize: "0.75rem",
+    fontWeight: "bold",
+    color: "#eb5757",
+    textAlign: "center",
+  },
+  hpControlsRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "0.25rem",
+  },
+  hpAdjBtn: {
+    flex: 1,
+    padding: "0.25rem 0",
+    fontSize: "0.7rem",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "3px",
+    color: "var(--color-text)",
+    cursor: "pointer",
+  },
+  miniStatsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(6, 1fr)",
+    gap: "0.2rem",
+    textAlign: "center",
+    background: "rgba(255,255,255,0.02)",
+    padding: "0.35rem 0.15rem",
+    borderRadius: "4px",
+    fontSize: "0.65rem",
+  },
+  actionsSection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.3rem",
+    borderTop: "1px solid rgba(255,255,255,0.05)",
+    paddingTop: "0.4rem",
+  },
+  actionsHeader: {
+    fontSize: "0.7rem",
+    fontWeight: "bold",
+    color: "var(--color-accent)",
+    textTransform: "uppercase",
+    marginBottom: "0.15rem",
+  },
+  monsterActionBtn: {
+    padding: "0.45rem",
+    background: "rgba(200, 151, 58, 0.08)",
+    border: "1px solid rgba(200, 151, 58, 0.2)",
+    borderRadius: "4px",
+    color: "var(--color-accent)",
+    cursor: "pointer",
+    fontSize: "0.75rem",
+    textAlign: "left",
+    fontWeight: "bold",
   },
 };
