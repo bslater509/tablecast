@@ -7,6 +7,7 @@ This document defines the specialized agent roles and system prompts to be used 
 * **Network Binding:** The Node.js server must bind to `0.0.0.0` (not `localhost` or `127.0.0.1`) to allow Local Area Network (LAN) access from phones.
 * **Simplicity:** Prefer readable, modular code over clever, heavily abstracted logic. 
 * **Error Handling:** All async operations must have robust try/catch blocks. Gracefully handle WebSocket disconnections and reconnections.
+* **Docker Container Rebuild:** Whenever codebase or config modifications are made, the Docker container must always be rebuilt and run (e.g. using `docker compose up --build -d` or building and restarting the container) to ensure the live environment runs the latest changes.
 
 ---
 
@@ -19,6 +20,7 @@ This document defines the specialized agent roles and system prompts to be used 
 * Create a single `Dockerfile` that builds the React frontend, serves it via the Express backend, AND installs `rclone` via the OS package manager.
 * Configure `docker-compose.yml` with persistent volumes mapped for the SQLite database, the `uploads/` directory, and the `rclone.conf` configuration file.
 * Write the `schema.prisma` file strictly adhering to the entities defined in `dnd-local-server-design-doc.md`.
+* Rebuild and restart the Docker container to ensure the updated deployment is running whenever code, schema, or configuration modifications are made.
 
 ### 🔌 Agent 2: The Backend & Real-Time Engineer
 **Focus:** Express API routes, Socket.io handling, Prisma integration, and Cloud Backups via rclone.

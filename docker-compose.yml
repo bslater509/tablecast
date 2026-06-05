@@ -1,0 +1,37 @@
+services:
+  tablecast:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tablecast
+    restart: unless-stopped
+
+    ports:
+      # Bind to 0.0.0.0 so LAN devices (phones) can connect — required per AGENTS.md
+      - "0.0.0.0:3001:3001"
+
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:./data/tablecast.db
+      - PORT=3001
+
+    volumes:
+      # Persistent SQLite database file — survives container rebuilds
+      - tablecast-db:/app/server/prisma/data
+
+      # Uploads directory — map images, token art, etc.
+      - tablecast-uploads:/app/server/uploads
+
+      # rclone config — contains Google Drive OAuth tokens
+      # Mount your host rclone.conf here before enabling backups:
+      #   docker run ... -v ~/.config/rclone:/root/.config/rclone
+      - tablecast-rclone:/root/.config/rclone
+
+# Named volumes — Docker manages the storage location on the host
+volumes:
+  tablecast-db:
+    driver: local
+  tablecast-uploads:
+    driver: local
+  tablecast-rclone:
+    driver: local

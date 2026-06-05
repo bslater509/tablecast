@@ -1,0 +1,34 @@
+# Dependencies — always installed fresh inside the container
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Build outputs
+client/dist/
+
+# Git history
+.git/
+.gitignore
+
+# Local env files (secrets should never enter the build context)
+.env
+**/.env.local
+**/.env.*.local
+
+# IDE / editor folders
+.vscode/
+.idea/
+
+# OS clutter
+.DS_Store
+Thumbs.db
+
+# Test and coverage artifacts
+coverage/
+**/__tests__/
+**/*.test.*
+**/*.spec.*
+
+# Docker files themselves (avoid infinite recursion risk)
+Dockerfile*
+docker-compose*.yml

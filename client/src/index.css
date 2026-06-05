@@ -1,0 +1,147 @@
+/* =============================================================================
+   Tablecast — Global CSS Reset & Base Styles
+   Agent 3 (Frontend Developer) will expand this with the full design system.
+============================================================================= */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --color-bg: #0f0e17;
+  --color-surface: #1a1830;
+  --color-surface-hover: #262347;
+  --color-accent: #c8973a;
+  --color-accent-hover: #e0ab4c;
+  --color-accent-dim: rgba(200, 151, 58, 0.15);
+  --color-text: #fffffe;
+  --color-muted: #a7a9be;
+  --color-border: rgba(200, 151, 58, 0.25);
+  --color-border-light: rgba(255, 255, 255, 0.08);
+  --color-success: #6fcf97;
+  --color-danger: #eb5757;
+  --color-info: #56ccf2;
+  --font-body: 'Segoe UI', system-ui, sans-serif;
+  --glass-bg: rgba(26, 24, 48, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.06);
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--color-bg);
+}
+
+body {
+  color: var(--color-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  /* Prevent accidental zoom on double-tap for mobile */
+  touch-action: manipulation;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(200, 151, 58, 0.3);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(200, 151, 58, 0.5);
+}
+
+/* Animations */
+@keyframes shake {
+  0% { transform: translate(1px, 1px) rotate(0deg); }
+  10% { transform: translate(-1px, -2px) rotate(-1deg); }
+  20% { transform: translate(-3px, 0px) rotate(1deg); }
+  30% { transform: translate(0px, 2px) rotate(0deg); }
+  40% { transform: translate(1px, -1px) rotate(1deg); }
+  55% { transform: translate(-1px, 2px) rotate(-1deg); }
+  70% { transform: translate(-3px, 1px) rotate(0deg); }
+  85% { transform: translate(2px, 1px) rotate(-2deg); }
+  100% { transform: translate(1px, -2px) rotate(-1deg); }
+}
+
+@keyframes pulse-accent {
+  0% { box-shadow: 0 0 0 0 rgba(200, 151, 58, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(200, 151, 58, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(200, 151, 58, 0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.shake-animation {
+  animation: shake 0.4s ease-in-out;
+}
+
+.pulse-accent-animation {
+  animation: pulse-accent 1.5s infinite;
+}
+
+.fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Glassmorphism Panel Utility */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.gold-border-glow {
+  border: 1px solid var(--color-border);
+  box-shadow: 0 0 8px rgba(200, 151, 58, 0.15);
+}
+
+/* Input Styles */
+.form-input {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: var(--color-text);
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 6px rgba(200, 151, 58, 0.25);
+}
+
+/* Base button animations */
+.btn-hover-scale {
+  transition: transform 0.1s ease, filter 0.2s ease;
+}
+
+.btn-hover-scale:active {
+  transform: scale(0.96);
+}
+
+/* Touch hitboxes target size */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

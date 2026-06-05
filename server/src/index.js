@@ -1,0 +1,123 @@
+// =============================================================================
+// Tablecast — Express + Socket.io Entry Point (Phase 2)
+// Backend Engineer: Express routing, static serving, and Socket.io real-time.
+// =============================================================================
+"use strict";
+
+require("dotenv").config();
+const http = require("http");
+const express = require("express");
+const cors = require("cors");
+const path = require("path");
+const { Server: SocketServer } = require("socket.io");
+const { registerSocketHandlers } = require("./socket");
+
+// ---------------------------------------------------------------------------
+// Express app
+// ---------------------------------------------------------------------------
+const app = express();
+const PORT = process.env.PORT || 3001;
+const HOST = "0.0.0.0"; // Bind to all interfaces so LAN devices can connect
+
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
+
+// CORS — allow the Vite dev server (typically port 5173) during local dev
+app.use(
+  cors({
+    origin: process.env.NODE_ENV === "production"
+      ? false // In production the React SPA is served from Express — no CORS needed
+      : ["http://localhost:5173", "http://127.0.0.1:5173"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    credentials: true,
+  })
+);
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ---------------------------------------------------------------------------
+// HTTP server — shared between Express & Socket.io
+// ---------------------------------------------------------------------------
+const server = http.createServer(app);
+
+// ---------------------------------------------------------------------------
+// Socket.io — initialised on the same HTTP server
+// ---------------------------------------------------------------------------
+const io = new SocketServer(server, {
+  cors: {
+    origin: process.env.NODE_ENV === "production"
+      ? false
+      : ["http://localhost:5173", "http://127.0.0.1:5173"],
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+  // Graceful reconnection defaults
+  pingTimeout: 60_000,
+  pingInterval: 25_000,
+});
+
+// Register all real-time event handlers
+registerSocketHandlers(io);
+
+// ---------------------------------------------------------------------------
+// API routes
+// ---------------------------------------------------------------------------
+
+// Health check — confirms the server is alive
+app.get("/api/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    service: "tablecast",
+    timestamp: new Date().toISOString(),
+    sockets: io.engine.clientsCount,
+  });
+});
+
+// CRUD route modules (Phase 3)
+const usersRouter = require("./routes/users");
+const charactersRouter = require("./routes/characters");
+const wikiRouter = require("./routes/wiki");
+const mapsRouter = require("./routes/maps");
+const backupRouter = require("./routes/backup");
+
+app.use("/api/users", usersRouter);
+app.use("/api/characters", charactersRouter);
+app.use("/api/wiki", wikiRouter);
+app.use("/api/maps", mapsRouter);
+app.use("/api/backup", backupRouter);
+
+// ---------------------------------------------------------------------------
+// Serve map and token image uploads
+// ---------------------------------------------------------------------------
+const fs = require("fs");
+const uploadsPath = path.join(__dirname, "../uploads");
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, { recursive: true });
+}
+app.use("/uploads", express.static(uploadsPath));
+
+// ---------------------------------------------------------------------------
+// Serve the compiled React frontend (built by Vite → client/dist)
+// In Docker the files live at /app/client/dist.
+// ---------------------------------------------------------------------------
+const clientDist = path.join(__dirname, "../../client/dist");
+app.use(express.static(clientDist));
+
+// SPA fallback — return index.html for all unmatched routes so React Router works
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(clientDist, "index.html"));
+});
+
+// ---------------------------------------------------------------------------
+// Start listening
+// ---------------------------------------------------------------------------
+server.listen(PORT, HOST, () => {
+  console.log(`[Tablecast] ⚔️  Server running at http://${HOST}:${PORT}`);
+  console.log(`[Tablecast] 🩺 Health check:    http://${HOST}:${PORT}/api/health`);
+  console.log(`[Tablecast] 🔌 Socket.io ready — awaiting connections`);
+});
+
+// Export for testing
+module.exports = { app, server, io };
