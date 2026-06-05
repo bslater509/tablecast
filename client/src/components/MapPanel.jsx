@@ -546,7 +546,7 @@ export default function MapPanel({ user }) {
         });
       }
     } else if (tool === "draw-fog" || tool === "reveal-fog") {
-      if (user?.role === "DM") {
+      if (user?.role === "DM" && activeMap) {
         setIsDrawing(true);
         setCurrentPolygon(prev => [...prev, { x, y }]);
       }
@@ -776,6 +776,12 @@ export default function MapPanel({ user }) {
   };
 
   const handleFinishFogPolygon = () => {
+    if (!activeMap) {
+      setCurrentPolygon([]);
+      setIsDrawing(false);
+      return;
+    }
+
     if (currentPolygon.length > 2) {
       const newPoly = {
         type: tool === "draw-fog" ? "hide" : "reveal",
@@ -894,15 +900,19 @@ export default function MapPanel({ user }) {
             <>
               <button
                 onClick={() => {
+                  if (!activeMap) return;
                   setTool("draw-fog");
                   setCurrentPolygon([]);
                 }}
+                disabled={!activeMap}
                 style={{
                   ...styles.toolBtn,
                   background: tool === "draw-fog" ? "var(--color-accent-dim)" : "transparent",
-                  borderColor: tool === "draw-fog" ? "var(--color-accent)" : "rgba(255,255,255,0.05)"
+                  borderColor: tool === "draw-fog" ? "var(--color-accent)" : "rgba(255,255,255,0.05)",
+                  opacity: activeMap ? 1 : 0.5,
+                  cursor: activeMap ? "pointer" : "not-allowed"
                 }}
-                title="Draw Fog (Hide area)"
+                title={activeMap ? "Draw Fog (Hide area)" : "Select a map first"}
                 className="touch-target btn-hover-scale"
               >
                 🥷 Mask
@@ -910,15 +920,19 @@ export default function MapPanel({ user }) {
               
               <button
                 onClick={() => {
+                  if (!activeMap) return;
                   setTool("reveal-fog");
                   setCurrentPolygon([]);
                 }}
+                disabled={!activeMap}
                 style={{
                   ...styles.toolBtn,
                   background: tool === "reveal-fog" ? "var(--color-accent-dim)" : "transparent",
-                  borderColor: tool === "reveal-fog" ? "var(--color-accent)" : "rgba(255,255,255,0.05)"
+                  borderColor: tool === "reveal-fog" ? "var(--color-accent)" : "rgba(255,255,255,0.05)",
+                  opacity: activeMap ? 1 : 0.5,
+                  cursor: activeMap ? "pointer" : "not-allowed"
                 }}
-                title="Reveal Fog (Carve hole)"
+                title={activeMap ? "Reveal Fog (Carve hole)" : "Select a map first"}
                 className="touch-target btn-hover-scale"
               >
                 👁️ Reveal
