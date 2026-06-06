@@ -156,6 +156,7 @@ model WikiArticle {
   title              String
   content            String  @default("") // Rich text / Markdown
   isVisibleToPlayers Boolean @default(false)
+  category           String  @default("LORE")
 
   // JSON array of tag strings, e.g. ["NPC","Neverwinter"]
   tags String @default("[]") // JSON

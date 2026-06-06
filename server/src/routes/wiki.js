@@ -75,10 +75,20 @@ router.get("/:id", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post("/", requireDm, async (req, res) => {
   try {
-    const { title, content, isVisibleToPlayers, tags } = req.body;
+    const { title, content, isVisibleToPlayers, tags, category } = req.body;
 
     if (!title || typeof title !== "string" || !title.trim()) {
       return res.status(400).json({ error: "title is required." });
+    }
+
+    // Validate category if provided
+    const validCategories = ["LOCATION", "NPC", "LORE", "LOG"];
+    let finalCategory = "LORE";
+    if (category !== undefined) {
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({ error: `category must be one of: ${validCategories.join(", ")}` });
+      }
+      finalCategory = category;
     }
 
     // Validate tags is a parseable JSON array if provided
@@ -99,6 +109,7 @@ router.post("/", requireDm, async (req, res) => {
         content: content || "",
         isVisibleToPlayers: isVisibleToPlayers === true,
         tags: tags || "[]",
+        category: finalCategory,
       },
     });
 
@@ -115,7 +126,7 @@ router.post("/", requireDm, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.put("/:id", requireDm, async (req, res) => {
   try {
-    const { title, content, isVisibleToPlayers, tags } = req.body;
+    const { title, content, isVisibleToPlayers, tags, category } = req.body;
     const data = {};
 
     if (title !== undefined) {
@@ -127,6 +138,14 @@ router.put("/:id", requireDm, async (req, res) => {
 
     if (content !== undefined) {
       data.content = content;
+    }
+
+    if (category !== undefined) {
+      const validCategories = ["LOCATION", "NPC", "LORE", "LOG"];
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({ error: `category must be one of: ${validCategories.join(", ")}` });
+      }
+      data.category = category;
     }
 
     if (isVisibleToPlayers !== undefined) {

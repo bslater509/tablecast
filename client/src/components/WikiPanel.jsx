@@ -1,13 +1,12 @@
 // =============================================================================
-// Tablecast — Wiki / Player Journal Panel (Phase 4)
+// Tablecast — Campaign Wiki / Player Journal Panel (Phase 4)
 // Allows players and DMs to view unlocked campaign logs, location info, and NPCs.
-// Enables DMs to create, edit, and delete articles using a live Markdown preview editor.
+// Categorizes entries into Locations, NPCs, Lore, and Session Logs.
 // =============================================================================
 import { useState, useEffect } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 
-// Configure marked options
 marked.setOptions({
   gfm: true,
   breaks: true,
@@ -20,10 +19,17 @@ export default function WikiPanel({ user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Categorized Section State
+  const [activeCategoryTab, setActiveCategoryTab] = useState("LOCATION"); // "LOCATION" | "NPC" | "LORE" | "LOG"
+
+  // Creation Flow States
+  const [showCategoryPrompt, setShowCategoryPrompt] = useState(false);
+
   // DM Workspace Editor States
   const [isEditing, setIsEditing] = useState(false);
-  const [editId, setEditId] = useState(null); // null = creating new article
+  const [editId, setEditId] = useState(null); // null = new article
   const [editTitle, setEditTitle] = useState("");
+  const [editCategory, setEditCategory] = useState("LORE");
   const [editContent, setEditContent] = useState("");
   const [editTags, setEditTags] = useState([]);
   const [editIsVisible, setEditIsVisible] = useState(false);
@@ -31,7 +37,7 @@ export default function WikiPanel({ user }) {
   const [tagInput, setTagInput] = useState("");
   const [editorError, setEditorError] = useState(null);
 
-  // Delete Confirmation Modal State
+  // Custom Delete Modal State
   const [articleToDelete, setArticleToDelete] = useState(null);
 
   // Determine if user has DM privileges
@@ -81,6 +87,11 @@ export default function WikiPanel({ user }) {
     return titleMatch || contentMatch || tagsMatch;
   });
 
+  // Filter by category tab
+  const categoryArticles = filteredArticles.filter(
+    (article) => (article.category || "LORE") === activeCategoryTab
+  );
+
   // Markdown Compilation with DOMPurify XSS Sanitization
   function compileMarkdown(markdownText) {
     if (!markdownText) return "";
@@ -98,12 +109,56 @@ export default function WikiPanel({ user }) {
     setSelectedArticle(null);
   }
 
-  // Create article triggers
-  function handleStartCreate() {
+  // Templates Definitions
+  const templates = {
+    LOCATION: `### Location Name
+*Category: Dungeon / Settlement / Wilderness*
+***
+> **Description**
+> Describe the surroundings, sights, sounds, and atmosphere that the players notice first.
+
+- **Points of Interest:**
+  - **Area 1:** Details about Area 1.
+  - **Area 2:** Details about Area 2.
+- **Key NPCs:** Notable NPCs found here.
+`,
+    NPC: `### NPC Name
+*Race Class, Alignment*
+***
+- **Appearance**: Description of physical appearance.
+- **Personality**: Character traits, bonds, flaws, and secrets.
+- **History**: Brief backstory and goals.
+- **Party Relationship**: Notes on how they view the player characters.
+`,
+    LORE: `### Lore Topic
+*Item / Deity / Historic Event*
+***
+- **Overview**: Summary of the subject.
+- **History**: Historical context, origins, or lore.
+- **Properties/Secrets**: Mechanical properties, values, or hidden secrets.
+`,
+    LOG: `### Session Log: [Date]
+*Adventure / Chapter / Arc*
+***
+- **Summary of Events**: What happened in the session.
+- **Loot & XP Awarded**: Rewards collected by the party.
+- **Active Quests / Hooks**: Current objectives and unresolved plot hooks.
+`,
+  };
+
+  // Create article triggers (opens category selector modal first)
+  function handleStartCreatePrompt() {
+    setShowCategoryPrompt(true);
+  }
+
+  // Trigger editor mode after selecting category
+  function handleSelectCategoryToCreate(category) {
+    setShowCategoryPrompt(false);
     setEditId(null);
     setEditTitle("");
-    setEditContent("");
-    setEditTags([]);
+    setEditCategory(category);
+    setEditContent(templates[category] || "");
+    setEditTags([category.charAt(0) + category.slice(1).toLowerCase()]); // default tag
     setEditIsVisible(false);
     setEditorTab("write");
     setTagInput("");
@@ -115,6 +170,7 @@ export default function WikiPanel({ user }) {
   function handleStartEdit(article) {
     setEditId(article.id);
     setEditTitle(article.title);
+    setEditCategory(article.category || "LORE");
     setEditContent(article.content || "");
     let parsedTags = [];
     try {
@@ -150,7 +206,7 @@ export default function WikiPanel({ user }) {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to delete scroll.");
+        throw new Error(err.error || "Failed to delete article.");
       }
 
       setArticles((prev) => prev.filter((a) => a.id !== articleToDelete.id));
@@ -158,8 +214,7 @@ export default function WikiPanel({ user }) {
       setArticleToDelete(null);
     } catch (err) {
       console.error("[WikiPanel] Delete error:", err);
-      // Inline visual error instead of blocking alert()
-      setError(`Failed to delete scroll: ${err.message}`);
+      setError(`Failed to delete article: ${err.message}`);
       setArticleToDelete(null);
     }
   }
@@ -177,6 +232,7 @@ export default function WikiPanel({ user }) {
     const payload = {
       title: editTitle.trim(),
       content: editContent,
+      category: editCategory,
       isVisibleToPlayers: editIsVisible,
       tags: JSON.stringify(editTags),
     };
@@ -193,7 +249,7 @@ export default function WikiPanel({ user }) {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to save campaign article.");
+        throw new Error(err.error || "Failed to save article.");
       }
 
       const saved = await res.json();
@@ -205,6 +261,8 @@ export default function WikiPanel({ user }) {
         setArticles((prev) => [saved, ...prev]);
         setSelectedArticle(saved);
       }
+      // Update our category tab to match the saved article so the user sees it
+      setActiveCategoryTab(saved.category || "LORE");
       setIsEditing(false);
     } catch (err) {
       console.error("[WikiPanel] Save error:", err);
@@ -259,37 +317,6 @@ export default function WikiPanel({ user }) {
     setEditTags(editTags.filter((t) => t !== tagToRemove));
   }
 
-  // Templates
-  const npcTemplate = `
-### NPC Name
-*Medium Humanoid, Alignment*
-***
-- **Armor Class** 10 (Natural Armor)
-- **Hit Points** 10 (2d8 + 2)
-- **Speed** 30 ft.
-***
-| STR | DEX | CON | INT | WIS | CHA |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| 10 (+0) | 10 (+0) | 10 (+0) | 10 (+0) | 10 (+0) | 10 (+0) |
-***
-- **Actions**
-  - **Dagger.** *Melee Weapon Attack:* +2 to hit, reach 5 ft., one target. *Hit:* 4 (1d4 + 2) piercing damage.
-`;
-
-  const locationTemplate = `
-### Location Name
-*Category: Dungeon / Wilderness / Settlement*
-***
-> **Room Description**
-> Enter details about the lighting, features, and immediate sensory descriptions that players discover.
-
-- **Points of Interest:**
-  - **Feature 1:** Description of feature 1.
-  - **Feature 2:** Description of feature 2.
-- **Key NPCs:** NPCs located in this setting.
-- **Treasure/Secrets:** Details on loot, traps, or lore.
-`;
-
   return (
     <div style={styles.container} className="fade-in">
       {isEditing ? (
@@ -297,7 +324,7 @@ export default function WikiPanel({ user }) {
         <form onSubmit={handleSave} style={styles.editor} className="glass-panel gold-border-glow fade-in">
           <header style={styles.editorHeader}>
             <h2 style={styles.editorTitle}>
-              {editId ? "Edit Campaign Scroll" : "Forge New Campaign Scroll"}
+              {editId ? "Edit Campaign Article" : "Write Campaign Article"}
             </h2>
             <div style={styles.editorHeaderActions}>
               <button
@@ -313,7 +340,7 @@ export default function WikiPanel({ user }) {
                 style={styles.saveBtn}
                 className="touch-target btn-hover-scale"
               >
-                Save Scroll
+                Save Article
               </button>
             </div>
           </header>
@@ -321,19 +348,34 @@ export default function WikiPanel({ user }) {
           <div style={styles.editorBody}>
             {editorError && <p style={styles.editorErrorText}>⚠️ {editorError}</p>}
 
-            {/* Title & Visibility */}
+            {/* Title, Category & Visibility */}
             <div style={styles.formRow}>
-              <div style={{ ...styles.formGroup, flex: 2 }}>
-                <label style={styles.label}>Scroll Title *</label>
+              <div style={{ ...styles.formGroup, flex: 2, minWidth: "200px" }}>
+                <label style={styles.label}>Article Title *</label>
                 <input
                   type="text"
-                  placeholder="e.g. Sword Coast Lore, Elminster, Old Owl Well"
+                  placeholder="e.g. Sword Coast, Elminster, Old Owl Well"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
                   style={styles.input}
                   className="form-input"
                   required
                 />
+              </div>
+
+              <div style={{ ...styles.formGroup, width: "160px" }}>
+                <label style={styles.label}>Section/Category</label>
+                <select
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  style={styles.select}
+                  className="form-input"
+                >
+                  <option value="LOCATION">Location</option>
+                  <option value="NPC">NPC</option>
+                  <option value="LORE">Lore & Item</option>
+                  <option value="LOG">Session Log</option>
+                </select>
               </div>
 
               <div style={styles.checkboxGroup}>
@@ -458,22 +500,9 @@ export default function WikiPanel({ user }) {
                     💬 Box
                   </button>
                   <div style={styles.toolbarDivider}></div>
-                  <button
-                    type="button"
-                    onClick={() => insertText(npcTemplate)}
-                    style={styles.toolbarTemplateBtn}
-                    className="touch-target"
-                  >
-                    + NPC Template
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => insertText(locationTemplate)}
-                    style={styles.toolbarTemplateBtn}
-                    className="touch-target"
-                  >
-                    + Location Template
-                  </button>
+                  <small style={{ color: "var(--color-muted)", fontSize: "0.75rem", paddingLeft: "0.25rem" }}>
+                    Category-specific template is loaded.
+                  </small>
                 </div>
 
                 {/* Textarea */}
@@ -481,7 +510,7 @@ export default function WikiPanel({ user }) {
                   id="wiki-markdown-textarea"
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  placeholder="Record your campaign lore, dungeon room scripts, or NPC descriptions here. Full-spec Markdown is supported."
+                  placeholder="Record your campaign details. Dynamic section templates are preloaded depending on the chosen category."
                   style={styles.textarea}
                   className="form-input"
                 />
@@ -517,7 +546,7 @@ export default function WikiPanel({ user }) {
                     style={styles.editBtn}
                     className="touch-target btn-hover-scale"
                   >
-                    Edit Scroll
+                    Edit Article
                   </button>
                   <button
                     onClick={() => triggerDelete(selectedArticle)}
@@ -569,12 +598,64 @@ export default function WikiPanel({ user }) {
       ) : (
         /*  SEARCH LIST VIEW  */
         <div style={styles.listView}>
+          {/* Top Section Category Tabs */}
+          <div style={styles.sectionTabsContainer} className="glass-panel">
+            <button
+              onClick={() => setActiveCategoryTab("LOCATION")}
+              style={{
+                ...styles.sectionTabBtn,
+                background: activeCategoryTab === "LOCATION" ? "var(--color-accent-dim)" : "transparent",
+                color: activeCategoryTab === "LOCATION" ? "var(--color-accent)" : "var(--color-muted)",
+                borderBottom: activeCategoryTab === "LOCATION" ? "2px solid var(--color-accent)" : "none",
+              }}
+              className="touch-target"
+            >
+              🗺️ Locations
+            </button>
+            <button
+              onClick={() => setActiveCategoryTab("NPC")}
+              style={{
+                ...styles.sectionTabBtn,
+                background: activeCategoryTab === "NPC" ? "var(--color-accent-dim)" : "transparent",
+                color: activeCategoryTab === "NPC" ? "var(--color-accent)" : "var(--color-muted)",
+                borderBottom: activeCategoryTab === "NPC" ? "2px solid var(--color-accent)" : "none",
+              }}
+              className="touch-target"
+            >
+              👤 NPCs
+            </button>
+            <button
+              onClick={() => setActiveCategoryTab("LORE")}
+              style={{
+                ...styles.sectionTabBtn,
+                background: activeCategoryTab === "LORE" ? "var(--color-accent-dim)" : "transparent",
+                color: activeCategoryTab === "LORE" ? "var(--color-accent)" : "var(--color-muted)",
+                borderBottom: activeCategoryTab === "LORE" ? "2px solid var(--color-accent)" : "none",
+              }}
+              className="touch-target"
+            >
+              📜 Lore & Items
+            </button>
+            <button
+              onClick={() => setActiveCategoryTab("LOG")}
+              style={{
+                ...styles.sectionTabBtn,
+                background: activeCategoryTab === "LOG" ? "var(--color-accent-dim)" : "transparent",
+                color: activeCategoryTab === "LOG" ? "var(--color-accent)" : "var(--color-muted)",
+                borderBottom: activeCategoryTab === "LOG" ? "2px solid var(--color-accent)" : "none",
+              }}
+              className="touch-target"
+            >
+              📓 Session Logs
+            </button>
+          </div>
+
           {/* Search Bar & Add Button */}
           <div style={styles.searchBarContainer}>
             <input
               id="wiki-search-input"
               type="text"
-              placeholder="Search campaign lore, NPCs, locations..."
+              placeholder={`Search ${activeCategoryTab === "LOCATION" ? "locations" : activeCategoryTab === "NPC" ? "NPCs" : activeCategoryTab === "LORE" ? "lore" : "session logs"}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={styles.searchInput}
@@ -590,11 +671,11 @@ export default function WikiPanel({ user }) {
             )}
             {isDM && (
               <button
-                onClick={handleStartCreate}
+                onClick={handleStartCreatePrompt}
                 style={styles.createBtn}
                 className="touch-target btn-hover-scale"
               >
-                + New Scroll
+                + New Wiki Entry
               </button>
             )}
           </div>
@@ -604,11 +685,11 @@ export default function WikiPanel({ user }) {
             {loading && <p style={styles.infoText}>Consulting the archives...</p>}
             {error && <p style={styles.errorText}>Error: {error}</p>}
             
-            {!loading && !error && filteredArticles.length === 0 && (
-              <p style={styles.infoText}>No lore scrolls match your query.</p>
+            {!loading && !error && categoryArticles.length === 0 && (
+              <p style={styles.infoText}>No entries found in this section.</p>
             )}
 
-            {!loading && !error && filteredArticles.map((article) => {
+            {!loading && !error && categoryArticles.map((article) => {
               let parsedTags = [];
               try {
                 parsedTags = JSON.parse(article.tags || "[]");
@@ -631,7 +712,7 @@ export default function WikiPanel({ user }) {
                   <p style={styles.cardPreview}>
                     {article.content
                       ? article.content.replace(/[#*`]/g, "").slice(0, 100) + (article.content.length > 100 ? "..." : "")
-                      : "Empty scroll."}
+                      : "No details recorded."}
                   </p>
                   {parsedTags.length > 0 && (
                     <div style={styles.cardTags}>
@@ -643,6 +724,71 @@ export default function WikiPanel({ user }) {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* NEW ARTICLE CATEGORY CHOICE MODAL */}
+      {showCategoryPrompt && (
+        <div style={styles.modalOverlay} className="fade-in">
+          <div style={styles.categoryPromptBox} className="glass-panel gold-border-glow">
+            <header style={styles.modalHeader}>
+              <h3 style={{ ...styles.modalTitle, color: "var(--color-accent)" }}>New Wiki Entry</h3>
+              <button
+                onClick={() => setShowCategoryPrompt(false)}
+                style={styles.modalCloseBtn}
+                className="touch-target"
+              >
+                ✕
+              </button>
+            </header>
+            <div style={styles.modalBody}>
+              <p style={{ marginBottom: "1rem", textAlign: "center", color: "var(--color-muted)" }}>
+                What category of lore would you like to add to the archives?
+              </p>
+              <div style={styles.categoryPromptGrid}>
+                <button
+                  type="button"
+                  onClick={() => handleSelectCategoryToCreate("LOCATION")}
+                  style={styles.categoryPromptBtn}
+                  className="touch-target btn-hover-scale glass-panel"
+                >
+                  <span style={styles.categoryPromptIcon}>🗺️</span>
+                  <span style={styles.categoryPromptLabel}>Location</span>
+                  <span style={styles.categoryPromptDesc}>Dungeons, settlements, landmarks</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectCategoryToCreate("NPC")}
+                  style={styles.categoryPromptBtn}
+                  className="touch-target btn-hover-scale glass-panel"
+                >
+                  <span style={styles.categoryPromptIcon}>👤</span>
+                  <span style={styles.categoryPromptLabel}>NPC</span>
+                  <span style={styles.categoryPromptDesc}>Allies, monsters, notable figures</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectCategoryToCreate("LORE")}
+                  style={styles.categoryPromptBtn}
+                  className="touch-target btn-hover-scale glass-panel"
+                >
+                  <span style={styles.categoryPromptIcon}>📜</span>
+                  <span style={styles.categoryPromptLabel}>Lore & Item</span>
+                  <span style={styles.categoryPromptDesc}>Historical facts, magic items, organizations</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectCategoryToCreate("LOG")}
+                  style={styles.categoryPromptBtn}
+                  className="touch-target btn-hover-scale glass-panel"
+                >
+                  <span style={styles.categoryPromptIcon}>📓</span>
+                  <span style={styles.categoryPromptLabel}>Session Log</span>
+                  <span style={styles.categoryPromptDesc}>Summaries of game sessions and dates</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -662,7 +808,7 @@ export default function WikiPanel({ user }) {
               </button>
             </header>
             <div style={styles.modalBody}>
-              <p>Are you sure you want to permanently delete and burn the lore scroll <strong>"{articleToDelete.title}"</strong>?</p>
+              <p>Are you sure you want to permanently delete and burn the entry <strong>"{articleToDelete.title}"</strong>?</p>
               <p style={{ color: "var(--color-danger)", fontSize: "0.8rem", marginTop: "0.5rem" }}>This action cannot be undone.</p>
             </div>
             <footer style={styles.modalFooter}>
@@ -678,7 +824,7 @@ export default function WikiPanel({ user }) {
                 style={styles.confirmDeleteBtn}
                 className="touch-target btn-hover-scale"
               >
-                Destroy Scroll
+                Destroy Entry
               </button>
             </footer>
           </div>
@@ -702,6 +848,28 @@ const styles = {
     height: "100%",
     gap: "0.75rem",
   },
+  sectionTabsContainer: {
+    display: "flex",
+    borderRadius: "8px",
+    overflow: "hidden",
+    border: "1px solid rgba(255, 255, 255, 0.05)",
+    background: "rgba(0, 0, 0, 0.2)",
+    flexShrink: 0,
+    overflowX: "auto",
+  },
+  sectionTabBtn: {
+    flex: 1,
+    minWidth: "100px",
+    background: "transparent",
+    border: "none",
+    padding: "0.65rem 0.35rem",
+    cursor: "pointer",
+    fontSize: "0.78rem",
+    fontWeight: 700,
+    textAlign: "center",
+    whiteSpace: "nowrap",
+    transition: "all 0.2s",
+  },
   searchBarContainer: {
     display: "flex",
     position: "relative",
@@ -720,7 +888,7 @@ const styles = {
   },
   clearBtn: {
     position: "absolute",
-    right: "120px",
+    right: "155px",
     top: 0,
     bottom: 0,
     background: "transparent",
@@ -978,6 +1146,16 @@ const styles = {
     padding: "0.55rem 0.75rem",
     fontSize: "0.85rem",
   },
+  select: {
+    padding: "0.55rem 0.75rem",
+    fontSize: "0.85rem",
+    background: "rgba(0,0,0,0.3)",
+    color: "var(--color-text)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "6px",
+    outline: "none",
+    cursor: "pointer",
+  },
   checkboxGroup: {
     display: "flex",
     alignItems: "center",
@@ -1085,20 +1263,6 @@ const styles = {
     background: "rgba(255, 255, 255, 0.1)",
     margin: "0 0.25rem",
   },
-  toolbarTemplateBtn: {
-    padding: "0 0.6rem",
-    height: "32px",
-    background: "rgba(200, 151, 58, 0.08)",
-    border: "1px solid rgba(200, 151, 58, 0.25)",
-    borderRadius: "4px",
-    color: "var(--color-accent)",
-    fontSize: "0.7rem",
-    fontWeight: 600,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   textarea: {
     flex: 1,
     resize: "none",
@@ -1115,6 +1279,55 @@ const styles = {
     borderRadius: "6px",
     background: "rgba(0,0,0,0.15)",
     minHeight: "280px",
+  },
+
+  /* CATEGORY CHOICE MODAL */
+  categoryPromptBox: {
+    width: "100%",
+    maxWidth: "520px",
+    borderRadius: "12px",
+    padding: "1.5rem",
+    display: "flex",
+    flexDirection: "column",
+    gap: "1.25rem",
+    background: "rgba(15, 14, 23, 0.95)",
+    boxShadow: "0 10px 40px rgba(0,0,0,0.7)",
+  },
+  categoryPromptGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "0.75rem",
+    marginTop: "0.5rem",
+    "@media (max-width: 500px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  categoryPromptBtn: {
+    padding: "1rem",
+    borderRadius: "8px",
+    background: "rgba(255, 255, 255, 0.02)",
+    border: "1px solid rgba(255, 255, 255, 0.05)",
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    textAlign: "center",
+    gap: "0.35rem",
+    transition: "all 0.2s",
+  },
+  categoryPromptIcon: {
+    fontSize: "1.75rem",
+    marginBottom: "0.25rem",
+  },
+  categoryPromptLabel: {
+    fontSize: "0.95rem",
+    fontWeight: "bold",
+    color: "var(--color-accent)",
+  },
+  categoryPromptDesc: {
+    fontSize: "0.7rem",
+    color: "var(--color-muted)",
+    lineHeight: 1.3,
   },
 
   /* MODAL OVERLAY STYLES */
