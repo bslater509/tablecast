@@ -16,7 +16,9 @@ export function DiceBoxProvider({ children }) {
     if (!containerRef.current) return;
 
     // Initialize the DiceBox instance
-    const box = new DiceBox("#dice-box-canvas", {
+    const box = new DiceBox({
+      container: "#dice-box-canvas",
+      id: "dice-canvas",
       assetPath: "/assets/dice-box/", // Must match public folder structure
       theme: "default",
       offscreen: false, // Keep on UI thread for maximum compatibility on mobile
