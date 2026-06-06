@@ -28,6 +28,10 @@ function App() {
   const [customRole, setCustomRole] = useState("PLAYER");
   const [loadingUsers, setLoadingUsers] = useState(true);
 
+  useEffect(() => {
+    setUser({ id: 1, username: "DungeonMaster", role: "DM", characters: [] });
+  }, []);
+
   const pathParts = location.pathname.split("/");
   const currentTab = ["map", "characters", "chat-journal", "settings"].includes(pathParts[1])
     ? pathParts[1]
