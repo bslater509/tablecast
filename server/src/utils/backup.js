@@ -126,22 +126,72 @@ async function writeRcloneConfigFile(content) {
   await fs.promises.writeFile(CONFIG_PATH, content || "", "utf8");
 }
 
+function parseIni(content) {
+  const config = {};
+  let currentSection = null;
+  const lines = (content || "").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith(";")) {
+      continue;
+    }
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      currentSection = trimmed.substring(1, trimmed.length - 1);
+      config[currentSection] = {};
+    } else if (currentSection) {
+      const eqIndex = trimmed.indexOf("=");
+      if (eqIndex !== -1) {
+        const key = trimmed.substring(0, eqIndex).trim();
+        const val = trimmed.substring(eqIndex + 1).trim();
+        config[currentSection][key] = val;
+      }
+    }
+  }
+  return config;
+}
+
+function stringifyIni(config) {
+  let content = "";
+  for (const [section, sectionData] of Object.entries(config)) {
+    content += `[${section}]\n`;
+    for (const [key, val] of Object.entries(sectionData)) {
+      content += `${key} = ${val}\n`;
+    }
+    content += "\n";
+  }
+  return content;
+}
+
 async function saveRcloneRemote(remoteName, type, options) {
-  const args = ["config", "create", remoteName, type];
-  for (const [key, val] of Object.entries(options)) {
-    args.push(`${key}=${val}`);
+  // Read existing config from DB
+  let currentConfigContent = "";
+  try {
+    const setting = await prisma.appSetting.findUnique({
+      where: { key: "rclone.config" },
+    });
+    currentConfigContent = setting?.value || "";
+  } catch (err) {
+    console.warn("[Backup] Could not read existing rclone config from DB:", err.message);
   }
 
-  // Ensure config directory exists
+  // Parse existing config
+  const config = parseIni(currentConfigContent);
+
+  // Set or update the target remote section
+  config[remoteName] = {
+    type,
+    ...options
+  };
+
+  // Stringify the updated config
+  const configContent = stringifyIni(config);
+
+  // Ensure config directory exists and write file to disk
   const dir = path.dirname(CONFIG_PATH);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-
-  await execRclone(args);
-
-  // Read the modified CONFIG_PATH
-  const configContent = await fs.promises.readFile(CONFIG_PATH, "utf8");
+  await fs.promises.writeFile(CONFIG_PATH, configContent, "utf8");
 
   // Save config Content back to database app_settings
   await prisma.appSetting.upsert({
