@@ -225,6 +225,13 @@ const TOOLS = [
             required: ["name", "description"],
           },
         },
+        description: { type: "string", description: "Narrative/GM description." },
+        alignment: { type: "string", description: "NPC alignment (e.g. Neutral Good)." },
+        appearance: { type: "string", description: "Physical appearance details." },
+        personality: { type: "string", description: "Personality traits." },
+        history: { type: "string", description: "Backstory / Lore." },
+        partyRelationship: { type: "string", description: "Relationship with the adventuring party." },
+        isVisibleToPlayers: { type: "boolean", description: "Whether players can see this NPC in the wiki (default: false)." },
       },
       required: ["name"],
     },
@@ -276,6 +283,13 @@ const TOOLS = [
             required: ["name", "description"],
           },
         },
+        description: { type: "string", description: "Narrative/GM description." },
+        alignment: { type: "string", description: "NPC alignment (e.g. Neutral Good)." },
+        appearance: { type: "string", description: "Physical appearance details." },
+        personality: { type: "string", description: "Personality traits." },
+        history: { type: "string", description: "Backstory / Lore." },
+        partyRelationship: { type: "string", description: "Relationship with the adventuring party." },
+        isVisibleToPlayers: { type: "boolean", description: "Whether players can see this NPC in the wiki." },
       },
       required: ["id"],
     },
@@ -628,7 +642,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "create_npc": {
-        const { name: npcName, race, class: cls, level, hp, maxHp, ac, cr, imageUrl, ...rest } = args;
+        const {
+          name: npcName,
+          race,
+          class: cls,
+          level,
+          hp,
+          maxHp,
+          ac,
+          cr,
+          imageUrl,
+          description,
+          alignment,
+          appearance,
+          personality,
+          history,
+          partyRelationship,
+          isVisibleToPlayers,
+          ...rest
+        } = args;
 
         const strength = rest.strength ?? 10;
         const dexterity = rest.dexterity ?? 10;
@@ -670,6 +702,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             inventory: inventoryStr,
             actions: actionsStr,
             modifiers: modifiersStr,
+            description: description || "",
+            alignment: alignment || "",
+            appearance: appearance || "",
+            personality: personality || "",
+            history: history || "",
+            partyRelationship: partyRelationship || "",
+            isVisibleToPlayers: isVisibleToPlayers ?? false,
           },
         });
 
@@ -686,7 +725,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "update_npc": {
-        const { id, name: npcName, race, class: cls, level, hp, maxHp, ac, cr, imageUrl, inventory, actions, modifiers, ...statsUpdate } = args;
+        const {
+          id,
+          name: npcName,
+          race,
+          class: cls,
+          level,
+          hp,
+          maxHp,
+          ac,
+          cr,
+          imageUrl,
+          inventory,
+          actions,
+          modifiers,
+          description,
+          alignment,
+          appearance,
+          personality,
+          history,
+          partyRelationship,
+          isVisibleToPlayers,
+          ...statsUpdate
+        } = args;
 
         const existing = await prisma.npc.findUnique({ where: { id } });
         if (!existing) {
@@ -703,6 +764,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (ac !== undefined) dataUpdate.ac = ac;
         if (cr !== undefined) dataUpdate.cr = cr;
         if (imageUrl !== undefined) dataUpdate.imageUrl = imageUrl;
+        if (description !== undefined) dataUpdate.description = description;
+        if (alignment !== undefined) dataUpdate.alignment = alignment;
+        if (appearance !== undefined) dataUpdate.appearance = appearance;
+        if (personality !== undefined) dataUpdate.personality = personality;
+        if (history !== undefined) dataUpdate.history = history;
+        if (partyRelationship !== undefined) dataUpdate.partyRelationship = partyRelationship;
+        if (isVisibleToPlayers !== undefined) dataUpdate.isVisibleToPlayers = isVisibleToPlayers;
 
         let statsChanged = false;
         const statKeys = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
