@@ -1303,7 +1303,7 @@ export default function MapPanel({ user }) {
             title="Pan Map / Drag Token"
             className="touch-target btn-hover-scale"
           >
-             Move
+            🖐️ Move
           </button>
 
           {user?.role === "DM" && (
@@ -1325,7 +1325,7 @@ export default function MapPanel({ user }) {
                 title={activeMap ? "Draw Fog (Hide area)" : "Select a map first"}
                 className="touch-target btn-hover-scale"
               >
-                 Mask
+                🌑 Mask
               </button>
               
               <button
@@ -1345,7 +1345,7 @@ export default function MapPanel({ user }) {
                 title={activeMap ? "Reveal Fog (Carve hole)" : "Select a map first"}
                 className="touch-target btn-hover-scale"
               >
-                 Reveal
+                👁️ Reveal
               </button>
             </>
           )}
@@ -1362,7 +1362,7 @@ export default function MapPanel({ user }) {
             title="Toggle Grid Lines"
             className="touch-target btn-hover-scale"
           >
-            # Grid
+            ▦ Grid
           </button>
 
           <button
@@ -1371,7 +1371,7 @@ export default function MapPanel({ user }) {
             title="Zoom In"
             className="touch-target btn-hover-scale"
           >
-            +
+            ➕
           </button>
           
           <button
@@ -1380,7 +1380,7 @@ export default function MapPanel({ user }) {
             title="Zoom Out"
             className="touch-target btn-hover-scale"
           >
-            -
+            ➖
           </button>
 
           <button
@@ -1393,7 +1393,7 @@ export default function MapPanel({ user }) {
             title="Reset View"
             className="touch-target btn-hover-scale"
           >
-            Fit
+            🎯 Fit
           </button>
         </div>
 
@@ -1494,7 +1494,7 @@ export default function MapPanel({ user }) {
               <div style={styles.floatingTokenDetails} className="glass-panel gold-border-glow">
                 <header style={styles.detailsHeader}>
                   <h4 style={styles.smallPanelHeader}> Selected Token</h4>
-                  <button onClick={() => setSelectedTokenId(null)} style={styles.closeBtn}></button>
+                  <button onClick={() => setSelectedTokenId(null)} style={styles.closeBtn}>✕</button>
                 </header>
                 
                 <div style={styles.detailsBody}>

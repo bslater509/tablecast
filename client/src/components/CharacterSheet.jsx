@@ -431,7 +431,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       {/* Top Banner Header */}
       <header style={styles.header} className="glass-panel gold-border-glow">
         <button onClick={onBack} style={styles.backBtn} className="touch-target btn-hover-scale">
-           List
+          ◀ List
         </button>
         
         <div style={styles.headerStats}>
@@ -803,7 +803,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                         className="touch-target"
                         title="Delete attack"
                       >
-                        
+                        🗑️
                       </button>
                     </div>
                   </div>
@@ -923,7 +923,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                     className="touch-target"
                     title="Remove item"
                   >
-                    
+                    🗑️
                   </button>
                 </div>
               ))}

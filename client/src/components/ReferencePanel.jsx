@@ -5,12 +5,12 @@
 import React, { useState, useEffect } from "react";
 
 const CATEGORIES = [
-  { id: "spells", label: " Spells", icon: "" },
-  { id: "monsters", label: " Monsters", icon: "" },
-  { id: "items", label: " Items", icon: "" },
-  { id: "rules", label: " Rules", icon: "" },
-  { id: "classes", label: " Classes", icon: "" },
-  { id: "races", label: " Races", icon: "" },
+  { id: "spells", label: " Spells", icon: "✨" },
+  { id: "monsters", label: " Monsters", icon: "🐉" },
+  { id: "items", label: " Items", icon: "⚔️" },
+  { id: "rules", label: " Rules", icon: "📜" },
+  { id: "classes", label: " Classes", icon: "🛡️" },
+  { id: "races", label: " Races", icon: "🧝" },
 ];
 
 function ReferencePanel() {
@@ -207,7 +207,7 @@ function ReferencePanel() {
             }}
             className="touch-target btn-hover-scale"
           >
-            {cat.label}
+            {cat.icon}{cat.label}
           </button>
         ))}
       </div>
@@ -224,7 +224,7 @@ function ReferencePanel() {
         />
         {query && (
           <button onClick={() => setQuery("")} style={styles.clearBtn} className="touch-target">
-            
+            ✕
           </button>
         )}
       </div>
@@ -306,7 +306,7 @@ function ReferencePanel() {
                 <span style={styles.modalSource}>Source: {selectedItem.source || "D&D 5e Reference"}</span>
               </div>
               <button onClick={() => setSelectedItem(null)} style={styles.closeBtn} className="touch-target">
-                
+                ✕
               </button>
             </header>
 

@@ -165,7 +165,7 @@ export default function WikiPanel({ user }) {
                 style={styles.clearBtn}
                 className="touch-target"
               >
-                
+                ✕
               </button>
             )}
           </div>
@@ -196,7 +196,7 @@ export default function WikiPanel({ user }) {
                   <div style={styles.cardHeader}>
                     <h3 style={styles.cardTitle}>{article.title}</h3>
                     {!article.isVisibleToPlayers && (
-                      <span style={styles.secretDot} title="Visible to DM only"></span>
+                      <span style={styles.secretDot} title="Visible to DM only">🔒</span>
                     )}
                   </div>
                   <p style={styles.cardPreview}>
