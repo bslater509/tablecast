@@ -578,6 +578,7 @@ NPC PROFILE:
 - Stats: STR:${npc.strength} DEX:${npc.dexterity} CON:${npc.constitution} INT:${npc.intelligence} WIS:${npc.wisdom} CHA:${npc.charisma}
 - Actions: ${npc.actions}
 - Inventory: ${npc.inventory}
+- Biography/Description: ${npc.description || ""}
 
 Local campaign context (if any rules are mentioned):
 ${referenceContext}

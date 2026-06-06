@@ -10,7 +10,7 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
-const { requireDm } = require("../auth");
+const { requireDm, getRequestUser } = require("../auth");
 
 const router = Router();
 
@@ -34,6 +34,8 @@ const ALLOWED_FIELDS = [
   "inventory",
   "modifiers",
   "actions",
+  "description",
+  "isVisibleToPlayers",
 ];
 
 function isValidJson(value) {
@@ -50,7 +52,16 @@ function isValidJson(value) {
 // ---------------------------------------------------------------------------
 router.get("/", async (req, res) => {
   try {
+    const user = await getRequestUser(req);
+    const where = {};
+
+    // Players only see public NPCs
+    if (!user || user.role !== "DM") {
+      where.isVisibleToPlayers = true;
+    }
+
     const npcs = await prisma.npc.findMany({
+      where,
       orderBy: { name: "asc" },
     });
     res.json(npcs);
@@ -65,12 +76,18 @@ router.get("/", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
+    const user = await getRequestUser(req);
     const npc = await prisma.npc.findUnique({
       where: { id: Number(req.params.id) },
     });
 
     if (!npc) {
       return res.status(404).json({ error: "NPC not found." });
+    }
+
+    // If player, check visibility
+    if ((!user || user.role !== "DM") && !npc.isVisibleToPlayers) {
+      return res.status(403).json({ error: "You do not have permission to view this NPC." });
     }
 
     res.json(npc);
@@ -104,7 +121,11 @@ router.post("/", requireDm, async (req, res) => {
             .status(400)
             .json({ error: `${field} must be a valid JSON string.` });
         }
-        data[field] = req.body[field];
+        if (field === "isVisibleToPlayers") {
+          data[field] = req.body[field] === true || req.body[field] === "true";
+        } else {
+          data[field] = req.body[field];
+        }
       }
     }
 
@@ -133,7 +154,11 @@ router.put("/:id", requireDm, async (req, res) => {
             .status(400)
             .json({ error: `${field} must be a valid JSON string.` });
         }
-        data[field] = req.body[field];
+        if (field === "isVisibleToPlayers") {
+          data[field] = req.body[field] === true || req.body[field] === "true";
+        } else {
+          data[field] = req.body[field];
+        }
       }
     }
 

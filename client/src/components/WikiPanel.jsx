@@ -6,14 +6,199 @@
 import { useState, useEffect } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import Autocomplete from "./Autocomplete";
+import { useSocket } from "../context/SocketContext";
 
 marked.setOptions({
   gfm: true,
   breaks: true,
 });
 
+// Interactive 5e Statblock Sub-component for NPCs
+function NpcStatblock({ npc, socket, isDM, onHpChange }) {
+  const getMod = (score) => {
+    const mod = Math.floor((Number(score || 10) - 10) / 2);
+    return mod >= 0 ? `+${mod}` : `${mod}`;
+  };
+
+  const handleAbilityRoll = (statName, score) => {
+    const modifier = Math.floor((score - 10) / 2);
+    const d20 = Math.floor(Math.random() * 20) + 1;
+    const total = d20 + modifier;
+    if (socket) {
+      socket.emit("chat:send", {
+        sender: npc.name,
+        text: `rolled a ${statName.charAt(0).toUpperCase() + statName.slice(1)} Check! Total: ${total}`,
+        type: "roll",
+        rollDetails: {
+          rollName: `${statName.charAt(0).toUpperCase() + statName.slice(1)} Check`,
+          formula: `1d20 + ${modifier >= 0 ? "+" : ""}${modifier}`,
+          rolls: [d20],
+          modifier,
+          total,
+          isAttack: false,
+        },
+      });
+    }
+  };
+
+  const handleAttackRoll = (atk) => {
+    const toHit = Number(atk.toHit || 0);
+    const toHitD20 = Math.floor(Math.random() * 20) + 1;
+    const toHitTotal = toHitD20 + toHit;
+
+    // Simple parser for dice formulas like "1d6+2" or "2d10"
+    let damageTotal = 0;
+    let damageRolls = [];
+    const diceExpr = (atk.damage || "1d4").trim().toLowerCase();
+    const match = diceExpr.match(/^(\d+)d(\d+)(.*)$/);
+    let formulaText = `Hit: 1d20 + ${toHit} | Dmg: ${diceExpr}`;
+    
+    if (match) {
+      const count = parseInt(match[1]);
+      const sides = parseInt(match[2]);
+      const remainder = match[3] || "";
+      let flatMod = 0;
+      const modMatch = remainder.match(/([+-])\s*(\d+)/);
+      if (modMatch) {
+        flatMod = parseInt(modMatch[2]) * (modMatch[1] === "-" ? -1 : 1);
+      }
+      for (let i = 0; i < count; i++) {
+        const r = Math.floor(Math.random() * sides) + 1;
+        damageRolls.push(r);
+        damageTotal += r;
+      }
+      damageTotal += flatMod;
+    } else {
+      damageTotal = Math.max(1, parseInt(diceExpr) || 4);
+    }
+
+    if (socket) {
+      socket.emit("chat:send", {
+        sender: npc.name,
+        text: `swings with their ${atk.name}! Hit: ${toHitTotal} | Damage: ${damageTotal}`,
+        type: "roll",
+        rollDetails: {
+          rollName: atk.name,
+          formula: formulaText,
+          isAttack: true,
+          toHitRoll: toHitD20,
+          toHitMod: toHit,
+          toHitTotal,
+          damageRolls,
+          damageDice: atk.damage || "1d4",
+          damageMod: 0,
+          damageTotal,
+        },
+      });
+    }
+  };
+
+  let actionsList = [];
+  try {
+    actionsList = JSON.parse(npc.actions || "[]");
+  } catch (e) {}
+
+  return (
+    <div style={statblockStyles.block} className="glass-panel gold-border-glow">
+      <div style={statblockStyles.header}>
+        <div>
+          <h2 style={statblockStyles.name}>{npc.name}</h2>
+          <div style={statblockStyles.meta}>
+            CR {npc.cr} • {npc.race} {npc.class} (Level {npc.level})
+          </div>
+        </div>
+        {npc.imageUrl && (
+          <img src={npc.imageUrl} alt={npc.name} style={statblockStyles.avatar} />
+        )}
+      </div>
+
+      <div style={statblockStyles.hpAcRow}>
+        <div style={statblockStyles.statItem}>
+          <strong>AC:</strong> {npc.ac}
+        </div>
+        <div style={statblockStyles.statItem} className="hp-adjuster-widget">
+          <strong>HP:</strong> {npc.hp} / {npc.maxHp}
+          {isDM && (
+            <div style={statblockStyles.hpControls}>
+              <button
+                type="button"
+                onClick={() => onHpChange(Math.max(0, npc.hp - 1))}
+                style={statblockStyles.hpBtn}
+                className="touch-target btn-hover-scale"
+              >
+                -
+              </button>
+              <button
+                type="button"
+                onClick={() => onHpChange(Math.min(npc.maxHp, npc.hp + 1))}
+                style={statblockStyles.hpBtn}
+                className="touch-target btn-hover-scale"
+              >
+                +
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={statblockStyles.abilityGrid}>
+        {["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"].map((stat) => {
+          const score = npc[stat] || 10;
+          return (
+            <button
+              key={stat}
+              type="button"
+              onClick={() => handleAbilityRoll(stat, score)}
+              style={statblockStyles.abilityBox}
+              className="touch-target btn-hover-scale glass-panel"
+            >
+              <span style={statblockStyles.abilityLabel}>{stat.slice(0, 3).toUpperCase()}</span>
+              <span style={statblockStyles.abilityScore}>{score}</span>
+              <span style={statblockStyles.abilityMod}>{getMod(score)}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {actionsList.length > 0 && (
+        <div style={statblockStyles.actionsSection}>
+          <h3 style={statblockStyles.sectionTitle}>Actions</h3>
+          <div style={statblockStyles.actionsList}>
+            {actionsList.map((action, i) => (
+              <div key={i} style={statblockStyles.actionItem} className="glass-panel">
+                <div style={statblockStyles.actionHeader}>
+                  <strong style={statblockStyles.actionName}>{action.name}</strong>
+                  <button
+                    type="button"
+                    onClick={() => handleAttackRoll(action)}
+                    style={statblockStyles.rollBtn}
+                    className="touch-target btn-hover-scale"
+                  >
+                    Roll
+                  </button>
+                </div>
+                {action.description && (
+                  <p style={statblockStyles.actionDesc}>{action.description}</p>
+                )}
+                {action.damage && (
+                  <div style={statblockStyles.actionDmg}>
+                    <strong>Damage:</strong> {action.damage} {action.toHit ? `(Hit Bonus: +${action.toHit})` : ""}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function WikiPanel({ user }) {
+  const { socket } = useSocket();
   const [articles, setArticles] = useState([]);
+  const [npcs, setNpcs] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +222,10 @@ export default function WikiPanel({ user }) {
   const [tagInput, setTagInput] = useState("");
   const [editorError, setEditorError] = useState(null);
 
+  // NPC Editor Specific States
+  const [editingNpc, setEditingNpc] = useState(null);
+  const [importQuery, setImportQuery] = useState("");
+
   // Custom Delete Modal State
   const [articleToDelete, setArticleToDelete] = useState(null);
 
@@ -46,20 +235,30 @@ export default function WikiPanel({ user }) {
   const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
 
-  // Fetch articles on mount/user role change
+  const calculateModifier = (score) => {
+    const mod = Math.floor((Number(score || 10) - 10) / 2);
+    return mod >= 0 ? `+${mod}` : `${mod}`;
+  };
+
+  // Fetch articles and NPCs on mount/user role change
   useEffect(() => {
-    async function fetchArticles() {
+    async function loadData() {
       setLoading(true);
       setError(null);
       try {
-        // Players only fetch visible articles, DMs get all
-        const url = isDM ? "/api/wiki" : "/api/wiki?visible=true";
-        const res = await fetch(url, { headers: authHeaders });
-        if (!res.ok) {
+        const wikiUrl = isDM ? "/api/wiki" : "/api/wiki?visible=true";
+        const wikiRes = await fetch(wikiUrl, { headers: authHeaders });
+        if (!wikiRes.ok) {
           throw new Error("Failed to load campaign records.");
         }
-        const data = await res.json();
-        setArticles(data);
+        const wikiData = await wikiRes.json();
+        setArticles(wikiData);
+
+        const npcsRes = await fetch("/api/npcs", { headers: authHeaders });
+        if (npcsRes.ok) {
+          const npcsData = await npcsRes.json();
+          setNpcs(npcsData);
+        }
       } catch (err) {
         console.error("[WikiPanel] Fetch error:", err);
         setError(err.message);
@@ -68,7 +267,7 @@ export default function WikiPanel({ user }) {
       }
     }
 
-    fetchArticles();
+    loadData();
   }, [isDM]);
 
   // Filter list by search query
@@ -77,7 +276,6 @@ export default function WikiPanel({ user }) {
     const titleMatch = article.title.toLowerCase().includes(query);
     const contentMatch = article.content.toLowerCase().includes(query);
     
-    // Parse tags array if valid
     let tagsMatch = false;
     try {
       const tags = JSON.parse(article.tags || "[]");
@@ -87,7 +285,15 @@ export default function WikiPanel({ user }) {
     return titleMatch || contentMatch || tagsMatch;
   });
 
-  // Filter by category tab
+  const filteredNpcs = npcs.filter((npc) => {
+    const query = searchQuery.toLowerCase();
+    const nameMatch = npc.name.toLowerCase().includes(query);
+    const raceMatch = (npc.race || "").toLowerCase().includes(query);
+    const classMatch = (npc.class || "").toLowerCase().includes(query);
+    const descMatch = (npc.description || "").toLowerCase().includes(query);
+    return nameMatch || raceMatch || classMatch || descMatch;
+  });
+
   const categoryArticles = filteredArticles.filter(
     (article) => (article.category || "LORE") === activeCategoryTab
   );
@@ -122,7 +328,7 @@ export default function WikiPanel({ user }) {
   - **Area 2:** Details about Area 2.
 - **Key NPCs:** Notable NPCs found here.
 `,
-    NPC: `### NPC Name
+    NPC: `### NPC Background
 *Race Class, Alignment*
 ***
 - **Appearance**: Description of physical appearance.
@@ -155,67 +361,274 @@ export default function WikiPanel({ user }) {
   function handleSelectCategoryToCreate(category) {
     setShowCategoryPrompt(false);
     setEditId(null);
-    setEditTitle("");
     setEditCategory(category);
-    setEditContent(templates[category] || "");
-    setEditTags([category.charAt(0) + category.slice(1).toLowerCase()]); // default tag
-    setEditIsVisible(false);
     setEditorTab("write");
-    setTagInput("");
     setEditorError(null);
+
+    if (category === "NPC") {
+      setEditingNpc({
+        name: "",
+        race: "Humanoid",
+        class: "Commoner",
+        level: 1,
+        hp: 10,
+        maxHp: 10,
+        ac: 10,
+        cr: "0",
+        imageUrl: "",
+        strength: 10,
+        dexterity: 10,
+        constitution: 10,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+        inventory: "[]",
+        modifiers: "{}",
+        actions: JSON.stringify([
+          { name: "Club", description: "Melee Weapon Attack: one target.", toHit: 2, damage: "1d4" }
+        ]),
+        description: templates.NPC,
+        isVisibleToPlayers: false,
+      });
+    } else {
+      setEditTitle("");
+      setEditContent(templates[category] || "");
+      setEditTags([category.charAt(0) + category.slice(1).toLowerCase()]); // default tag
+      setEditIsVisible(false);
+      setTagInput("");
+      setEditingNpc(null);
+    }
     setIsEditing(true);
   }
 
   // Edit article trigger
-  function handleStartEdit(article) {
-    setEditId(article.id);
-    setEditTitle(article.title);
-    setEditCategory(article.category || "LORE");
-    setEditContent(article.content || "");
-    let parsedTags = [];
-    try {
-      parsedTags = JSON.parse(article.tags || "[]");
-    } catch (e) {}
-    setEditTags(parsedTags);
-    setEditIsVisible(article.isVisibleToPlayers);
+  function handleStartEdit(item) {
+    setEditId(item.id);
+    setEditCategory(activeCategoryTab);
     setEditorTab("write");
-    setTagInput("");
     setEditorError(null);
+
+    if (activeCategoryTab === "NPC") {
+      setEditingNpc({
+        ...item,
+      });
+    } else {
+      setEditTitle(item.title);
+      setEditContent(item.content || "");
+      let parsedTags = [];
+      try {
+        parsedTags = JSON.parse(item.tags || "[]");
+      } catch (e) {}
+      setEditTags(parsedTags);
+      setEditIsVisible(item.isVisibleToPlayers);
+      setTagInput("");
+      setEditingNpc(null);
+    }
     setIsEditing(true);
   }
+
+  // Bestiary importer
+  const handleBestiaryImport = async (bestiaryItem) => {
+    try {
+      const res = await fetch(`/api/reference/detail?category=monsters&name=${encodeURIComponent(bestiaryItem.name)}&source=${encodeURIComponent(bestiaryItem.source)}`, {
+        headers: authHeaders
+      });
+      if (!res.ok) throw new Error("Failed to load monster details.");
+      
+      const details = await res.json();
+      
+      // Map bestiary stats to NPC model fields
+      const hpVal = details.hp?.average || 10;
+      const acVal = details.ac?.[0]?.ac || details.ac?.[0] || 10;
+      
+      // Map actions
+      const actionsList = [];
+      if (Array.isArray(details.action)) {
+        details.action.forEach(act => {
+          const entriesStr = Array.isArray(act.entries) ? act.entries.join(" ") : String(act.entries || "");
+          
+          // Try to extract basic hit and damage
+          const hitMatch = entriesStr.match(/\{@hit (\d+)\}/);
+          const toHit = hitMatch ? parseInt(hitMatch[1]) : 0;
+          const dmgMatch = entriesStr.match(/\{@damage ([^}]+)\}/);
+          const damage = dmgMatch ? dmgMatch[1].trim() : "";
+          
+          actionsList.push({
+            name: act.name || "Action",
+            description: entriesStr.replace(/\{@[a-z]+ ([^}]+)\}/g, "$1").replace(/\{@hit (\d+)\}/g, "+$1").replace(/\{@damage ([^}]+)\}/g, "$1"),
+            toHit,
+            damage
+          });
+        });
+      }
+
+      setIsEditing(true);
+      setEditId(null);
+      setEditCategory("NPC");
+      setActiveCategoryTab("NPC");
+      setEditorTab("write");
+      setEditingNpc({
+        name: details.name || "",
+        race: Array.isArray(details.type) ? details.type.join(", ") : (details.type?.type || "Monster"),
+        class: "Monster",
+        level: Math.max(1, Math.floor(hpVal / 6)), // rough level estimation
+        hp: hpVal,
+        maxHp: hpVal,
+        ac: acVal,
+        cr: details.cr || "0",
+        imageUrl: details.imageUrl || details.tokenUrl || "",
+        strength: details.str || 10,
+        dexterity: details.dex || 10,
+        constitution: details.con || 10,
+        intelligence: details.int || 10,
+        wisdom: details.wis || 10,
+        charisma: details.cha || 10,
+        inventory: "[]",
+        modifiers: JSON.stringify({
+          strength: calculateModifier(details.str || 10),
+          dexterity: calculateModifier(details.dex || 10),
+          constitution: calculateModifier(details.con || 10),
+          intelligence: calculateModifier(details.int || 10),
+          wisdom: calculateModifier(details.wis || 10),
+          charisma: calculateModifier(details.cha || 10),
+        }),
+        actions: JSON.stringify(actionsList.length ? actionsList : [
+          { name: "Bite", description: "Melee Weapon Attack.", toHit: 2, damage: "1d4" }
+        ]),
+        description: `### NPC Description
+- **Appearance**: Physical details.
+- **Personality**: Mannerisms and demeanor.
+- **History**: Backstory.
+`,
+        isVisibleToPlayers: false,
+      });
+      setImportQuery("");
+    } catch (err) {
+      alert(`Import error: ${err.message}`);
+    }
+  };
+
+  // Helper to sync HP adjusters directly from statblock
+  const handleHpChange = async (newHp) => {
+    if (!selectedArticle || activeCategoryTab !== "NPC") return;
+    try {
+      const res = await fetch(`/api/npcs/${selectedArticle.id}`, {
+        method: "PUT",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ hp: newHp }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setNpcs((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+        setSelectedArticle(updated);
+      }
+    } catch (err) {
+      console.error("Failed to update NPC HP:", err);
+    }
+  };
+
+  // NPC Editor field modifications
+  const handleNpcFieldChange = (key, value) => {
+    setEditingNpc((prev) => {
+      const updated = { ...prev, [key]: value };
+      
+      const abilityFields = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
+      if (abilityFields.includes(key)) {
+        const mods = {};
+        abilityFields.forEach(f => {
+          mods[f] = calculateModifier(f === key ? value : prev[f]);
+        });
+        updated.modifiers = JSON.stringify(mods);
+      }
+      return updated;
+    });
+  };
+
+  const handleNpcActionChange = (index, key, value) => {
+    let actionsArray = [];
+    try {
+      actionsArray = JSON.parse(editingNpc.actions);
+    } catch (e) {}
+
+    actionsArray[index][key] = value;
+    handleNpcFieldChange("actions", JSON.stringify(actionsArray));
+  };
+
+  const handleNpcAddAction = () => {
+    let actionsArray = [];
+    try {
+      actionsArray = JSON.parse(editingNpc.actions);
+    } catch (e) {}
+
+    actionsArray.push({ name: "New Action", description: "Description", toHit: 0, damage: "" });
+    handleNpcFieldChange("actions", JSON.stringify(actionsArray));
+  };
+
+  const handleNpcRemoveAction = (index) => {
+    let actionsArray = [];
+    try {
+      actionsArray = JSON.parse(editingNpc.actions);
+    } catch (e) {}
+
+    actionsArray.splice(index, 1);
+    handleNpcFieldChange("actions", JSON.stringify(actionsArray));
+  };
 
   // Cancel edit
   function handleCancelEdit() {
     setIsEditing(false);
+    setEditingNpc(null);
     setEditorError(null);
   }
 
   // Delete flow confirmation triggers
-  function triggerDelete(article) {
-    setArticleToDelete(article);
+  function triggerDelete(item) {
+    setArticleToDelete(item);
   }
 
   async function confirmDelete() {
     if (!articleToDelete) return;
 
-    try {
-      const res = await fetch(`/api/wiki/${articleToDelete.id}`, {
-        method: "DELETE",
-        headers: authHeaders,
-      });
+    if (activeCategoryTab === "NPC") {
+      try {
+        const res = await fetch(`/api/npcs/${articleToDelete.id}`, {
+          method: "DELETE",
+          headers: authHeaders,
+        });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to delete article.");
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to delete NPC.");
+        }
+
+        setNpcs((prev) => prev.filter((n) => n.id !== articleToDelete.id));
+        setSelectedArticle(null);
+        setArticleToDelete(null);
+      } catch (err) {
+        console.error("[WikiPanel] NPC Delete error:", err);
+        setError(`Failed to delete NPC: ${err.message}`);
+        setArticleToDelete(null);
       }
+    } else {
+      try {
+        const res = await fetch(`/api/wiki/${articleToDelete.id}`, {
+          method: "DELETE",
+          headers: authHeaders,
+        });
 
-      setArticles((prev) => prev.filter((a) => a.id !== articleToDelete.id));
-      setSelectedArticle(null);
-      setArticleToDelete(null);
-    } catch (err) {
-      console.error("[WikiPanel] Delete error:", err);
-      setError(`Failed to delete article: ${err.message}`);
-      setArticleToDelete(null);
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to delete article.");
+        }
+
+        setArticles((prev) => prev.filter((a) => a.id !== articleToDelete.id));
+        setSelectedArticle(null);
+        setArticleToDelete(null);
+      } catch (err) {
+        console.error("[WikiPanel] Delete error:", err);
+        setError(`Failed to delete article: ${err.message}`);
+        setArticleToDelete(null);
+      }
     }
   }
 
@@ -224,49 +637,98 @@ export default function WikiPanel({ user }) {
     e.preventDefault();
     setEditorError(null);
 
-    if (!editTitle.trim()) {
-      setEditorError("Title is required.");
-      return;
-    }
-
-    const payload = {
-      title: editTitle.trim(),
-      content: editContent,
-      category: editCategory,
-      isVisibleToPlayers: editIsVisible,
-      tags: JSON.stringify(editTags),
-    };
-
-    const url = editId ? `/api/wiki/${editId}` : "/api/wiki";
-    const method = editId ? "PUT" : "POST";
-
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: jsonAuthHeaders,
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to save article.");
+    if (activeCategoryTab === "NPC") {
+      if (!editingNpc.name.trim()) {
+        setEditorError("Name is required.");
+        return;
       }
 
-      const saved = await res.json();
+      const payload = {
+        ...editingNpc,
+        level: Number(editingNpc.level),
+        hp: Number(editingNpc.hp),
+        maxHp: Number(editingNpc.maxHp),
+        ac: Number(editingNpc.ac),
+        strength: Number(editingNpc.strength),
+        dexterity: Number(editingNpc.dexterity),
+        constitution: Number(editingNpc.constitution),
+        intelligence: Number(editingNpc.intelligence),
+        wisdom: Number(editingNpc.wisdom),
+        charisma: Number(editingNpc.charisma),
+      };
 
-      if (editId) {
-        setArticles((prev) => prev.map((a) => (a.id === saved.id ? saved : a)));
+      const url = editId ? `/api/npcs/${editId}` : "/api/npcs";
+      const method = editId ? "PUT" : "POST";
+
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: jsonAuthHeaders,
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to save NPC.");
+        }
+
+        const saved = await res.json();
+
+        if (editId) {
+          setNpcs((prev) => prev.map((n) => (n.id === saved.id ? saved : n)));
+        } else {
+          setNpcs((prev) => [...prev, saved]);
+        }
         setSelectedArticle(saved);
-      } else {
-        setArticles((prev) => [saved, ...prev]);
-        setSelectedArticle(saved);
+        setIsEditing(false);
+        setEditingNpc(null);
+      } catch (err) {
+        console.error("[WikiPanel] NPC Save error:", err);
+        setEditorError(err.message);
       }
-      // Update our category tab to match the saved article so the user sees it
-      setActiveCategoryTab(saved.category || "LORE");
-      setIsEditing(false);
-    } catch (err) {
-      console.error("[WikiPanel] Save error:", err);
-      setEditorError(err.message);
+    } else {
+      if (!editTitle.trim()) {
+        setEditorError("Title is required.");
+        return;
+      }
+
+      const payload = {
+        title: editTitle.trim(),
+        content: editContent,
+        category: editCategory,
+        isVisibleToPlayers: editIsVisible,
+        tags: JSON.stringify(editTags),
+      };
+
+      const url = editId ? `/api/wiki/${editId}` : "/api/wiki";
+      const method = editId ? "PUT" : "POST";
+
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: jsonAuthHeaders,
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to save article.");
+        }
+
+        const saved = await res.json();
+
+        if (editId) {
+          setArticles((prev) => prev.map((a) => (a.id === saved.id ? saved : a)));
+        } else {
+          setArticles((prev) => [saved, ...prev]);
+        }
+        setSelectedArticle(saved);
+        setActiveCategoryTab(saved.category || "LORE");
+        setIsEditing(false);
+      } catch (err) {
+        console.error("[WikiPanel] Save error:", err);
+        setEditorError(err.message);
+      }
     }
   }
 
@@ -281,7 +743,11 @@ export default function WikiPanel({ user }) {
     const selected = text.substring(start, end);
     const replacement = prefix + selected + suffix;
 
-    setEditContent(text.substring(0, start) + replacement + text.substring(end));
+    if (activeCategoryTab === "NPC") {
+      handleNpcFieldChange("description", text.substring(0, start) + replacement + text.substring(end));
+    } else {
+      setEditContent(text.substring(0, start) + replacement + text.substring(end));
+    }
 
     // Refocus and set cursor range
     setTimeout(() => {
@@ -317,216 +783,496 @@ export default function WikiPanel({ user }) {
     setEditTags(editTags.filter((t) => t !== tagToRemove));
   }
 
+  const listItems = activeCategoryTab === "NPC" ? filteredNpcs : categoryArticles;
+
   return (
     <div style={styles.container} className="fade-in">
       {isEditing ? (
-        /*  DM WORKSPACE EDITOR  */
-        <form onSubmit={handleSave} style={styles.editor} className="glass-panel gold-border-glow fade-in">
-          <header style={styles.editorHeader}>
-            <h2 style={styles.editorTitle}>
-              {editId ? "Edit Campaign Article" : "Write Campaign Article"}
-            </h2>
-            <div style={styles.editorHeaderActions}>
-              <button
-                type="button"
-                onClick={handleCancelEdit}
-                style={styles.backBtn}
-                className="touch-target"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                style={styles.saveBtn}
-                className="touch-target btn-hover-scale"
-              >
-                Save Article
-              </button>
-            </div>
-          </header>
-
-          <div style={styles.editorBody}>
-            {editorError && <p style={styles.editorErrorText}>⚠️ {editorError}</p>}
-
-            {/* Title, Category & Visibility */}
-            <div style={styles.formRow}>
-              <div style={{ ...styles.formGroup, flex: 2, minWidth: "200px" }}>
-                <label style={styles.label}>Article Title *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Sword Coast, Elminster, Old Owl Well"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  style={styles.input}
-                  className="form-input"
-                  required
-                />
-              </div>
-
-              <div style={{ ...styles.formGroup, width: "160px" }}>
-                <label style={styles.label}>Section/Category</label>
-                <select
-                  value={editCategory}
-                  onChange={(e) => setEditCategory(e.target.value)}
-                  style={styles.select}
-                  className="form-input"
+        activeCategoryTab === "NPC" ? (
+          /*  DM NPC SHEET EDITOR  */
+          <form onSubmit={handleSave} style={styles.editor} className="glass-panel gold-border-glow fade-in">
+            <header style={styles.editorHeader}>
+              <h2 style={styles.editorTitle}>
+                {editId ? `Edit NPC: ${editingNpc.name}` : "Create NPC Statblock"}
+              </h2>
+              <div style={styles.editorHeaderActions}>
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  style={styles.backBtn}
+                  className="touch-target"
                 >
-                  <option value="LOCATION">Location</option>
-                  <option value="NPC">NPC</option>
-                  <option value="LORE">Lore & Item</option>
-                  <option value="LOG">Session Log</option>
-                </select>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={styles.saveBtn}
+                  className="touch-target btn-hover-scale"
+                >
+                  Save NPC
+                </button>
               </div>
+            </header>
 
-              <div style={styles.checkboxGroup}>
-                <input
-                  type="checkbox"
-                  id="isVisibleToPlayers"
-                  checked={editIsVisible}
-                  onChange={(e) => setEditIsVisible(e.target.checked)}
-                  style={styles.checkbox}
-                />
-                <label htmlFor="isVisibleToPlayers" style={styles.checkboxLabel}>
-                  Visible to Players
-                </label>
-              </div>
-            </div>
+            <div style={styles.editorBody}>
+              {editorError && <p style={styles.editorErrorText}>⚠️ {editorError}</p>}
 
-            {/* Tag chip manager */}
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Tags (Press Enter or Comma to add)</label>
-              <div style={styles.tagChipsContainer} className="form-input">
-                {editTags.map((tag) => (
-                  <span key={tag} style={styles.editorTagChip}>
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      style={styles.tagChipRemove}
-                      className="touch-target"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
-                <input
-                  type="text"
-                  placeholder={editTags.length === 0 ? "e.g. NPC, Location, Quest..." : ""}
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={handleTagKeyDown}
-                  onBlur={handleTagBlur}
-                  style={styles.tagInputField}
-                />
-              </div>
-            </div>
-
-            {/* Tab selection for Write / Live Preview */}
-            <div style={styles.tabsContainer}>
-              <button
-                type="button"
-                onClick={() => setEditorTab("write")}
-                style={{
-                  ...styles.tabBtn,
-                  borderBottom: editorTab === "write" ? "2px solid var(--color-accent)" : "none",
-                  color: editorTab === "write" ? "var(--color-accent)" : "var(--color-muted)",
-                }}
-                className="touch-target"
-              >
-                Write (Markdown)
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditorTab("preview")}
-                style={{
-                  ...styles.tabBtn,
-                  borderBottom: editorTab === "preview" ? "2px solid var(--color-accent)" : "none",
-                  color: editorTab === "preview" ? "var(--color-accent)" : "var(--color-muted)",
-                }}
-                className="touch-target"
-              >
-                Live Preview
-              </button>
-            </div>
-
-            {editorTab === "write" ? (
-              /* WRITE TAB WITH FORMATTING HELPERS */
-              <div style={styles.workspaceWriteContainer}>
-                {/* Toolbar */}
-                <div style={styles.toolbar}>
-                  <button
-                    type="button"
-                    title="Bold"
-                    onClick={() => insertText("**", "**")}
-                    style={styles.toolbarBtn}
-                    className="touch-target"
-                  >
-                    <strong>B</strong>
-                  </button>
-                  <button
-                    type="button"
-                    title="Italic"
-                    onClick={() => insertText("*", "*")}
-                    style={styles.toolbarBtn}
-                    className="touch-target"
-                  >
-                    <em>I</em>
-                  </button>
-                  <button
-                    type="button"
-                    title="Header"
-                    onClick={() => insertText("\n### ", "")}
-                    style={styles.toolbarBtn}
-                    className="touch-target"
-                  >
-                    H3
-                  </button>
-                  <button
-                    type="button"
-                    title="Bullet List"
-                    onClick={() => insertText("\n- ", "")}
-                    style={styles.toolbarBtn}
-                    className="touch-target"
-                  >
-                    • List
-                  </button>
-                  <button
-                    type="button"
-                    title="Read Aloud Box"
-                    onClick={() => insertText("\n> ", "")}
-                    style={styles.toolbarBtn}
-                    className="touch-target"
-                  >
-                    💬 Box
-                  </button>
-                  <div style={styles.toolbarDivider}></div>
-                  <small style={{ color: "var(--color-muted)", fontSize: "0.75rem", paddingLeft: "0.25rem" }}>
-                    Category-specific template is loaded.
-                  </small>
+              {/* Identity & Basic Combat Stats */}
+              <div style={styles.editorSection}>
+                <h3 style={styles.subSectionTitle}>1. Basic Information</h3>
+                <div style={styles.formGrid}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Name *</label>
+                    <input
+                      type="text"
+                      value={editingNpc.name}
+                      onChange={(e) => handleNpcFieldChange("name", e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                      required
+                    />
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Challenge Rating (CR)</label>
+                    <input
+                      type="text"
+                      value={editingNpc.cr}
+                      onChange={(e) => handleNpcFieldChange("cr", e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                      placeholder="e.g. 1/4, 2, 12"
+                    />
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Race / Type</label>
+                    <input
+                      type="text"
+                      value={editingNpc.race}
+                      onChange={(e) => handleNpcFieldChange("race", e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                    />
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Class / Role</label>
+                    <input
+                      type="text"
+                      value={editingNpc.class}
+                      onChange={(e) => handleNpcFieldChange("class", e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                    />
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Level</label>
+                    <input
+                      type="number"
+                      value={editingNpc.level}
+                      onChange={(e) => handleNpcFieldChange("level", e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                      min={1}
+                    />
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Armor Class (AC)</label>
+                    <input
+                      type="number"
+                      value={editingNpc.ac}
+                      onChange={(e) => handleNpcFieldChange("ac", e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                      min={1}
+                    />
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Current HP</label>
+                    <input
+                      type="number"
+                      value={editingNpc.hp}
+                      onChange={(e) => handleNpcFieldChange("hp", e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                      min={0}
+                    />
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Max HP</label>
+                    <input
+                      type="number"
+                      value={editingNpc.maxHp}
+                      onChange={(e) => handleNpcFieldChange("maxHp", e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                      min={1}
+                    />
+                  </div>
                 </div>
 
-                {/* Textarea */}
-                <textarea
-                  id="wiki-markdown-textarea"
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  placeholder="Record your campaign details. Dynamic section templates are preloaded depending on the chosen category."
-                  style={styles.textarea}
-                  className="form-input"
-                />
+                <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem", flexWrap: "wrap" }}>
+                  <div style={{ ...styles.formGroup, flex: 2, minWidth: "200px" }}>
+                    <label style={styles.label}>Avatar / Token Image URL (Optional)</label>
+                    <input
+                      type="text"
+                      value={editingNpc.imageUrl}
+                      onChange={(e) => handleNpcFieldChange("imageUrl", e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                      placeholder="https://example.com/avatar.png or /uploads/..."
+                    />
+                  </div>
+                  <div style={styles.checkboxGroup}>
+                    <input
+                      type="checkbox"
+                      id="npcIsVisibleToPlayers"
+                      checked={editingNpc.isVisibleToPlayers}
+                      onChange={(e) => handleNpcFieldChange("isVisibleToPlayers", e.target.checked)}
+                      style={styles.checkbox}
+                    />
+                    <label htmlFor="npcIsVisibleToPlayers" style={styles.checkboxLabel}>
+                      Visible to Players
+                    </label>
+                  </div>
+                </div>
               </div>
-            ) : (
-              /* PREVIEW TAB */
-              <div
-                style={styles.previewContainer}
-                className="wiki-content"
-                dangerouslySetInnerHTML={{ __html: compileMarkdown(editContent) }}
-              />
-            )}
-          </div>
-        </form>
+
+              {/* Core Ability Scores */}
+              <div style={styles.editorSection}>
+                <h3 style={styles.subSectionTitle}>2. Ability Scores & Modifiers</h3>
+                <div style={styles.abilityGrid}>
+                  {["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"].map((stat) => (
+                    <div key={stat} style={styles.abilityBox} className="glass-panel">
+                      <span style={styles.abilityLabel}>{stat.slice(0, 3).toUpperCase()}</span>
+                      <input
+                        type="number"
+                        value={editingNpc[stat]}
+                        onChange={(e) => handleNpcFieldChange(stat, e.target.value)}
+                        style={styles.abilityInput}
+                        min={1}
+                        max={30}
+                      />
+                      <span style={styles.abilityModBadge}>
+                        {calculateModifier(editingNpc[stat])}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions Builder */}
+              <div style={styles.editorSection}>
+                <div style={styles.actionsHeaderRow}>
+                  <h3 style={styles.subSectionTitle}>3. Custom Actions & Attacks</h3>
+                  <button
+                    type="button"
+                    onClick={handleNpcAddAction}
+                    style={styles.addActionBtn}
+                    className="touch-target btn-hover-scale"
+                  >
+                    + Add Action
+                  </button>
+                </div>
+
+                {(() => {
+                  let actionsList = [];
+                  try {
+                    actionsList = JSON.parse(editingNpc.actions);
+                  } catch (e) {}
+
+                  if (actionsList.length === 0) {
+                    return <p style={styles.infoText}>No actions defined. Add at least one action for combat rolls.</p>;
+                  }
+
+                  return (
+                    <div style={styles.actionsEditorList}>
+                      {actionsList.map((action, index) => (
+                        <div key={index} style={styles.actionItemBox} className="glass-panel">
+                          <div style={styles.actionHeaderRow}>
+                            <h4 style={styles.actionIdxLabel}>Action #{index + 1}</h4>
+                            <button
+                              type="button"
+                              onClick={() => handleNpcRemoveAction(index)}
+                              style={styles.removeActionBtn}
+                              className="touch-target"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <div style={styles.actionFieldsGrid}>
+                            <div style={styles.formGroup}>
+                              <label style={styles.label}>Action Name</label>
+                              <input
+                                type="text"
+                                value={action.name}
+                                onChange={(e) => handleNpcActionChange(index, "name", e.target.value)}
+                                style={styles.input}
+                                className="form-input"
+                                placeholder="e.g. Sword, Fire Bolt"
+                                required
+                              />
+                            </div>
+                            <div style={styles.formGroup}>
+                              <label style={styles.label}>Hit Bonus</label>
+                              <input
+                                type="number"
+                                value={action.toHit || 0}
+                                onChange={(e) => handleNpcActionChange(index, "toHit", Number(e.target.value))}
+                                style={styles.input}
+                                className="form-input"
+                                placeholder="e.g. 5"
+                              />
+                            </div>
+                            <div style={styles.formGroup}>
+                              <label style={styles.label}>Damage Formula</label>
+                              <input
+                                type="text"
+                                value={action.damage || ""}
+                                onChange={(e) => handleNpcActionChange(index, "damage", e.target.value)}
+                                style={styles.input}
+                                className="form-input"
+                                placeholder="e.g. 1d8+3"
+                              />
+                            </div>
+                          </div>
+                          <div style={{ ...styles.formGroup, marginTop: "0.5rem" }}>
+                            <label style={styles.label}>Description / Details</label>
+                            <textarea
+                              value={action.description || ""}
+                              onChange={(e) => handleNpcActionChange(index, "description", e.target.value)}
+                              style={styles.textareaMini}
+                              className="form-input"
+                              placeholder="Action details..."
+                              rows={2}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Biography Markdown Editor */}
+              <div style={styles.editorSection}>
+                <h3 style={styles.subSectionTitle}>4. Biography & Lore Markdown</h3>
+                <div style={styles.tabsContainer}>
+                  <button
+                    type="button"
+                    onClick={() => setEditorTab("write")}
+                    style={{
+                      ...styles.tabBtn,
+                      borderBottom: editorTab === "write" ? "2px solid var(--color-accent)" : "none",
+                      color: editorTab === "write" ? "var(--color-accent)" : "var(--color-muted)",
+                    }}
+                    className="touch-target"
+                  >
+                    Write (Markdown)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditorTab("preview")}
+                    style={{
+                      ...styles.tabBtn,
+                      borderBottom: editorTab === "preview" ? "2px solid var(--color-accent)" : "none",
+                      color: editorTab === "preview" ? "var(--color-accent)" : "var(--color-muted)",
+                    }}
+                    className="touch-target"
+                  >
+                    Live Preview
+                  </button>
+                </div>
+
+                {editorTab === "write" ? (
+                  <div style={styles.workspaceWriteContainer}>
+                    {/* Toolbar */}
+                    <div style={styles.toolbar}>
+                      <button type="button" title="Bold" onClick={() => insertText("**", "**")} style={styles.toolbarBtn} className="touch-target"><strong>B</strong></button>
+                      <button type="button" title="Italic" onClick={() => insertText("*", "*")} style={styles.toolbarBtn} className="touch-target"><em>I</em></button>
+                      <button type="button" title="Header" onClick={() => insertText("\n### ", "")} style={styles.toolbarBtn} className="touch-target">H3</button>
+                      <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "")} style={styles.toolbarBtn} className="touch-target">• List</button>
+                      <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                    </div>
+
+                    <textarea
+                      id="wiki-markdown-textarea"
+                      value={editingNpc.description}
+                      onChange={(e) => handleNpcFieldChange("description", e.target.value)}
+                      placeholder="Write bio, appearance, personality, secrets and notes..."
+                      style={styles.textarea}
+                      className="form-input"
+                    />
+                  </div>
+                ) : (
+                  <div
+                    style={styles.previewContainer}
+                    className="wiki-content"
+                    dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.description) }}
+                  />
+                )}
+              </div>
+            </div>
+          </form>
+        ) : (
+          /*  STANDARD WIKI ARTICLE EDITOR  */
+          <form onSubmit={handleSave} style={styles.editor} className="glass-panel gold-border-glow fade-in">
+            <header style={styles.editorHeader}>
+              <h2 style={styles.editorTitle}>
+                {editId ? "Edit Campaign Article" : "Write Campaign Article"}
+              </h2>
+              <div style={styles.editorHeaderActions}>
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  style={styles.backBtn}
+                  className="touch-target"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={styles.saveBtn}
+                  className="touch-target btn-hover-scale"
+                >
+                  Save Article
+                </button>
+              </div>
+            </header>
+
+            <div style={styles.editorBody}>
+              {editorError && <p style={styles.editorErrorText}>⚠️ {editorError}</p>}
+
+              <div style={styles.formRow}>
+                <div style={{ ...styles.formGroup, flex: 2, minWidth: "200px" }}>
+                  <label style={styles.label}>Article Title *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Sword Coast, Elminster, Old Owl Well"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    style={styles.input}
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div style={{ ...styles.formGroup, width: "160px" }}>
+                  <label style={styles.label}>Section/Category</label>
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    style={styles.select}
+                    className="form-input"
+                  >
+                    <option value="LOCATION">Location</option>
+                    <option value="NPC">NPC</option>
+                    <option value="LORE">Lore & Item</option>
+                    <option value="LOG">Session Log</option>
+                  </select>
+                </div>
+
+                <div style={styles.checkboxGroup}>
+                  <input
+                    type="checkbox"
+                    id="isVisibleToPlayers"
+                    checked={editIsVisible}
+                    onChange={(e) => setEditIsVisible(e.target.checked)}
+                    style={styles.checkbox}
+                  />
+                  <label htmlFor="isVisibleToPlayers" style={styles.checkboxLabel}>
+                    Visible to Players
+                  </label>
+                </div>
+              </div>
+
+              {/* Tag chip manager */}
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Tags (Press Enter or Comma to add)</label>
+                <div style={styles.tagChipsContainer} className="form-input">
+                  {editTags.map((tag) => (
+                    <span key={tag} style={styles.editorTagChip}>
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        style={styles.tagChipRemove}
+                        className="touch-target"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    type="text"
+                    placeholder={editTags.length === 0 ? "e.g. NPC, Location, Quest..." : ""}
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={handleTagKeyDown}
+                    onBlur={handleTagBlur}
+                    style={styles.tagInputField}
+                  />
+                </div>
+              </div>
+
+              {/* Tab selection for Write / Live Preview */}
+              <div style={styles.tabsContainer}>
+                <button
+                  type="button"
+                  onClick={() => setEditorTab("write")}
+                  style={{
+                    ...styles.tabBtn,
+                    borderBottom: editorTab === "write" ? "2px solid var(--color-accent)" : "none",
+                    color: editorTab === "write" ? "var(--color-accent)" : "var(--color-muted)",
+                  }}
+                  className="touch-target"
+                >
+                  Write (Markdown)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditorTab("preview")}
+                  style={{
+                    ...styles.tabBtn,
+                    borderBottom: editorTab === "preview" ? "2px solid var(--color-accent)" : "none",
+                    color: editorTab === "preview" ? "var(--color-accent)" : "var(--color-muted)",
+                  }}
+                  className="touch-target"
+                >
+                  Live Preview
+                </button>
+              </div>
+
+              {editorTab === "write" ? (
+                <div style={styles.workspaceWriteContainer}>
+                  {/* Toolbar */}
+                  <div style={styles.toolbar}>
+                    <button type="button" title="Bold" onClick={() => insertText("**", "**")} style={styles.toolbarBtn} className="touch-target"><strong>B</strong></button>
+                    <button type="button" title="Italic" onClick={() => insertText("*", "*")} style={styles.toolbarBtn} className="touch-target"><em>I</em></button>
+                    <button type="button" title="Header" onClick={() => insertText("\n### ", "")} style={styles.toolbarBtn} className="touch-target">H3</button>
+                    <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "")} style={styles.toolbarBtn} className="touch-target">• List</button>
+                    <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                  </div>
+
+                  <textarea
+                    id="wiki-markdown-textarea"
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    placeholder="Record your campaign details..."
+                    style={styles.textarea}
+                    className="form-input"
+                  />
+                </div>
+              ) : (
+                <div
+                  style={styles.previewContainer}
+                  className="wiki-content"
+                  dangerouslySetInnerHTML={{ __html: compileMarkdown(editContent) }}
+                />
+              )}
+            </div>
+          </form>
+        )
       ) : selectedArticle ? (
-        /*  ARTICLE READER VIEW  */
+        /*  ARTICLE / NPC READER VIEW  */
         <div style={styles.reader} className="glass-panel gold-border-glow">
           {/* Reader Header */}
           <div style={styles.readerHeader}>
@@ -546,7 +1292,7 @@ export default function WikiPanel({ user }) {
                     style={styles.editBtn}
                     className="touch-target btn-hover-scale"
                   >
-                    Edit Article
+                    Edit {activeCategoryTab === "NPC" ? "NPC" : "Article"}
                   </button>
                   <button
                     onClick={() => triggerDelete(selectedArticle)}
@@ -557,8 +1303,14 @@ export default function WikiPanel({ user }) {
                   </button>
                 </div>
               )}
-              {!selectedArticle.isVisibleToPlayers && (
-                <span style={styles.secretBadge}>DM Secret</span>
+              {activeCategoryTab === "NPC" ? (
+                !selectedArticle.isVisibleToPlayers && (
+                  <span style={styles.secretBadge}>DM Secret</span>
+                )
+              ) : (
+                !selectedArticle.isVisibleToPlayers && (
+                  <span style={styles.secretBadge}>DM Secret</span>
+                )
               )}
               <span style={styles.timeBadge}>
                 Updated: {new Date(selectedArticle.updatedAt).toLocaleDateString()}
@@ -568,31 +1320,50 @@ export default function WikiPanel({ user }) {
 
           {/* Reader Body */}
           <div style={styles.readerScroll}>
-            <h1 style={styles.articleTitle}>{selectedArticle.title}</h1>
-            
-            {/* Tags list */}
-            {(() => {
-              try {
-                const tags = JSON.parse(selectedArticle.tags || "[]");
-                if (tags.length > 0) {
-                  return (
-                    <div style={styles.tagList}>
-                      {tags.map((tag, i) => (
-                        <span key={i} style={styles.tag}>{tag}</span>
-                      ))}
-                    </div>
-                  );
-                }
-              } catch (e) {}
-              return null;
-            })()}
+            {activeCategoryTab === "NPC" ? (
+              <>
+                <NpcStatblock
+                  npc={selectedArticle}
+                  socket={socket}
+                  isDM={isDM}
+                  onHpChange={handleHpChange}
+                />
+                <h3 style={styles.npcBioHeader}>Narrative & Biography</h3>
+                <div
+                  className="wiki-content"
+                  style={styles.contentBody}
+                  dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.description) }}
+                />
+              </>
+            ) : (
+              <>
+                <h1 style={styles.articleTitle}>{selectedArticle.title}</h1>
+                
+                {/* Tags list */}
+                {(() => {
+                  try {
+                    const tags = JSON.parse(selectedArticle.tags || "[]");
+                    if (tags.length > 0) {
+                      return (
+                        <div style={styles.tagList}>
+                          {tags.map((tag, i) => (
+                            <span key={i} style={styles.tag}>{tag}</span>
+                          ))}
+                        </div>
+                      );
+                    }
+                  } catch (e) {}
+                  return null;
+                })()}
 
-            {/* Markdown Content */}
-            <div
-              className="wiki-content"
-              style={styles.contentBody}
-              dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.content) }}
-            />
+                {/* Markdown Content */}
+                <div
+                  className="wiki-content"
+                  style={styles.contentBody}
+                  dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.content) }}
+                />
+              </>
+            )}
           </div>
         </div>
       ) : (
@@ -650,8 +1421,22 @@ export default function WikiPanel({ user }) {
             </button>
           </div>
 
-          {/* Search Bar & Add Button */}
+          {/* Search Bar & Actions */}
           <div style={styles.searchBarContainer}>
+            {activeCategoryTab === "NPC" && isDM ? (
+              <div style={styles.npcAutocompleteWrapper}>
+                <Autocomplete
+                  category="monsters"
+                  value={importQuery}
+                  onChange={(val) => setImportQuery(val)}
+                  onSelect={handleBestiaryImport}
+                  placeholder="Import from Bestiary (e.g. Goblin, Orc...)"
+                  className="form-input touch-target"
+                  inputStyle={styles.importInput}
+                />
+              </div>
+            ) : null}
+
             <input
               id="wiki-search-input"
               type="text"
@@ -663,7 +1448,7 @@ export default function WikiPanel({ user }) {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                style={styles.clearBtn}
+                style={{ ...styles.clearBtn, right: isDM ? "155px" : "15px" }}
                 className="touch-target"
               >
                 ✕
@@ -675,60 +1460,87 @@ export default function WikiPanel({ user }) {
                 style={styles.createBtn}
                 className="touch-target btn-hover-scale"
               >
-                + New Wiki Entry
+                {activeCategoryTab === "NPC" ? "+ New NPC" : "+ New Entry"}
               </button>
             )}
           </div>
 
-          {/* Lore/Journal List */}
+          {/* List display */}
           <div style={styles.listScroll}>
             {loading && <p style={styles.infoText}>Consulting the archives...</p>}
             {error && <p style={styles.errorText}>Error: {error}</p>}
             
-            {!loading && !error && categoryArticles.length === 0 && (
+            {!loading && !error && listItems.length === 0 && (
               <p style={styles.infoText}>No entries found in this section.</p>
             )}
 
-            {!loading && !error && categoryArticles.map((article) => {
-              let parsedTags = [];
-              try {
-                parsedTags = JSON.parse(article.tags || "[]");
-              } catch (e) {}
-
-              return (
+            {!loading && !error && activeCategoryTab === "NPC" ? (
+              listItems.map((npc) => (
                 <div
-                  key={article.id}
-                  id={`wiki-article-${article.id}`}
-                  onClick={() => setSelectedArticle(article)}
+                  key={npc.id}
+                  id={`wiki-npc-${npc.id}`}
+                  onClick={() => setSelectedArticle(npc)}
                   style={styles.articleCard}
                   className="glass-panel btn-hover-scale"
                 >
                   <div style={styles.cardHeader}>
-                    <h3 style={styles.cardTitle}>{article.title}</h3>
-                    {!article.isVisibleToPlayers && (
-                      <span style={styles.secretDot} title="Visible to DM only">🔒 DM Secret</span>
-                    )}
+                    <h3 style={styles.cardTitle}>{npc.name}</h3>
+                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                      <span style={styles.cardSubText}>CR {npc.cr} • AC {npc.ac}</span>
+                      {!npc.isVisibleToPlayers && (
+                        <span style={styles.secretDot} title="Visible to DM only">🔒 DM Secret</span>
+                      )}
+                    </div>
                   </div>
                   <p style={styles.cardPreview}>
-                    {article.content
-                      ? article.content.replace(/[#*`]/g, "").slice(0, 100) + (article.content.length > 100 ? "..." : "")
+                    {npc.description
+                      ? npc.description.replace(/[#*`]/g, "").slice(0, 100) + (npc.description.length > 100 ? "..." : "")
                       : "No details recorded."}
                   </p>
-                  {parsedTags.length > 0 && (
-                    <div style={styles.cardTags}>
-                      {parsedTags.slice(0, 3).map((tag, idx) => (
-                        <span key={idx} style={styles.cardTag}>{tag}</span>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              );
-            })}
+              ))
+            ) : (
+              !loading && !error && listItems.map((article) => {
+                let parsedTags = [];
+                try {
+                  parsedTags = JSON.parse(article.tags || "[]");
+                } catch (e) {}
+
+                return (
+                  <div
+                    key={article.id}
+                    id={`wiki-article-${article.id}`}
+                    onClick={() => setSelectedArticle(article)}
+                    style={styles.articleCard}
+                    className="glass-panel btn-hover-scale"
+                  >
+                    <div style={styles.cardHeader}>
+                      <h3 style={styles.cardTitle}>{article.title}</h3>
+                      {!article.isVisibleToPlayers && (
+                        <span style={styles.secretDot} title="Visible to DM only">🔒 DM Secret</span>
+                      )}
+                    </div>
+                    <p style={styles.cardPreview}>
+                      {article.content
+                        ? article.content.replace(/[#*`]/g, "").slice(0, 100) + (article.content.length > 100 ? "..." : "")
+                        : "No details recorded."}
+                    </p>
+                    {parsedTags.length > 0 && (
+                      <div style={styles.cardTags}>
+                        {parsedTags.slice(0, 3).map((tag, idx) => (
+                          <span key={idx} style={styles.cardTag}>{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
 
-      {/* NEW ARTICLE CATEGORY CHOICE MODAL */}
+      {/* NEW ENTRY CATEGORY CHOICE MODAL */}
       {showCategoryPrompt && (
         <div style={styles.modalOverlay} className="fade-in">
           <div style={styles.categoryPromptBox} className="glass-panel gold-border-glow">
@@ -808,7 +1620,7 @@ export default function WikiPanel({ user }) {
               </button>
             </header>
             <div style={styles.modalBody}>
-              <p>Are you sure you want to permanently delete and burn the entry <strong>"{articleToDelete.title}"</strong>?</p>
+              <p>Are you sure you want to permanently delete and burn the entry <strong>"{articleToDelete.title || articleToDelete.name}"</strong>?</p>
               <p style={{ color: "var(--color-danger)", fontSize: "0.8rem", marginTop: "0.5rem" }}>This action cannot be undone.</p>
             </div>
             <footer style={styles.modalFooter}>
@@ -875,6 +1687,16 @@ const styles = {
     position: "relative",
     flexShrink: 0,
     gap: "0.5rem",
+    flexWrap: "wrap",
+  },
+  npcAutocompleteWrapper: {
+    flex: "1 1 100%",
+    marginBottom: "0.25rem",
+  },
+  importInput: {
+    padding: "0.6rem 1rem",
+    fontSize: "0.85rem",
+    width: "100%",
   },
   searchInput: {
     flex: 1,
@@ -885,12 +1707,11 @@ const styles = {
     background: "rgba(0,0,0,0.3)",
     color: "#fffffe",
     outline: "none",
+    minWidth: "180px",
   },
   clearBtn: {
     position: "absolute",
-    right: "155px",
-    top: 0,
-    bottom: 0,
+    top: "12px",
     background: "transparent",
     border: "none",
     color: "var(--color-muted)",
@@ -934,6 +1755,11 @@ const styles = {
     fontSize: "1.05rem",
     fontWeight: 600,
     color: "var(--color-accent)",
+    margin: 0,
+  },
+  cardSubText: {
+    fontSize: "0.75rem",
+    color: "var(--color-muted)",
   },
   secretDot: {
     fontSize: "0.72rem",
@@ -947,6 +1773,7 @@ const styles = {
     fontSize: "0.8rem",
     color: "var(--color-muted)",
     lineHeight: 1.4,
+    margin: 0,
   },
   cardTags: {
     display: "flex",
@@ -1000,6 +1827,7 @@ const styles = {
     cursor: "pointer",
     fontSize: "0.8rem",
     fontWeight: 600,
+    minHeight: "44px",
   },
   headerRight: {
     display: "flex",
@@ -1019,6 +1847,7 @@ const styles = {
     cursor: "pointer",
     fontSize: "0.75rem",
     fontWeight: 600,
+    minHeight: "44px",
   },
   deleteBtn: {
     padding: "0.45rem 0.75rem",
@@ -1029,6 +1858,7 @@ const styles = {
     cursor: "pointer",
     fontSize: "0.75rem",
     fontWeight: 600,
+    minHeight: "44px",
   },
   secretBadge: {
     fontSize: "0.65rem",
@@ -1054,6 +1884,16 @@ const styles = {
     color: "var(--color-accent)",
     marginBottom: "0.5rem",
     lineHeight: 1.25,
+    margin: 0,
+  },
+  npcBioHeader: {
+    fontSize: "1.1rem",
+    fontWeight: 700,
+    color: "var(--color-accent)",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    paddingBottom: "0.35rem",
+    marginTop: "1.5rem",
+    marginBottom: "0.75rem",
   },
   tagList: {
     display: "flex",
@@ -1095,6 +1935,7 @@ const styles = {
     fontSize: "1.15rem",
     fontWeight: 700,
     color: "var(--color-accent)",
+    margin: 0,
   },
   editorHeaderActions: {
     display: "flex",
@@ -1109,13 +1950,14 @@ const styles = {
     cursor: "pointer",
     fontSize: "0.8rem",
     fontWeight: 700,
+    minHeight: "44px",
   },
   editorBody: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     padding: "1rem",
-    gap: "0.85rem",
+    gap: "1.25rem",
     overflowY: "auto",
   },
   editorErrorText: {
@@ -1125,6 +1967,7 @@ const styles = {
     border: "1px solid rgba(235, 87, 87, 0.2)",
     padding: "0.5rem",
     borderRadius: "4px",
+    margin: 0,
   },
   formRow: {
     display: "flex",
@@ -1257,12 +2100,6 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
   },
-  toolbarDivider: {
-    width: "1px",
-    height: "20px",
-    background: "rgba(255, 255, 255, 0.1)",
-    margin: "0 0.25rem",
-  },
   textarea: {
     flex: 1,
     resize: "none",
@@ -1270,6 +2107,11 @@ const styles = {
     fontFamily: "Courier New, Courier, monospace",
     fontSize: "0.9rem",
     lineHeight: "1.45",
+  },
+  textareaMini: {
+    padding: "0.55rem 0.75rem",
+    fontSize: "0.85rem",
+    resize: "vertical",
   },
   previewContainer: {
     flex: 1,
@@ -1279,6 +2121,116 @@ const styles = {
     borderRadius: "6px",
     background: "rgba(0,0,0,0.15)",
     minHeight: "280px",
+  },
+
+  /* NPC editor section styles */
+  editorSection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.85rem",
+  },
+  subSectionTitle: {
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    color: "var(--color-accent)",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    borderBottom: "1px solid rgba(255,255,255,0.04)",
+    paddingBottom: "0.25rem",
+  },
+  formGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
+    gap: "0.75rem",
+  },
+  abilityGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(6, 1fr)",
+    gap: "0.5rem",
+    "@media (max-width: 600px)": {
+      gridTemplateColumns: "repeat(3, 1fr)",
+    },
+  },
+  abilityBox: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    padding: "0.6rem 0.4rem",
+    borderRadius: "8px",
+    gap: "0.25rem",
+  },
+  abilityLabel: {
+    fontSize: "0.65rem",
+    fontWeight: 700,
+    color: "var(--color-muted)",
+  },
+  abilityInput: {
+    width: "45px",
+    background: "transparent",
+    border: "none",
+    borderBottom: "1px solid rgba(255,255,255,0.15)",
+    textAlign: "center",
+    color: "var(--color-text)",
+    fontSize: "1rem",
+    fontWeight: "bold",
+    outline: "none",
+    padding: "0.1rem 0",
+  },
+  abilityModBadge: {
+    fontSize: "0.72rem",
+    color: "var(--color-accent)",
+    background: "rgba(200,151,58,0.1)",
+    padding: "0.05rem 0.35rem",
+    borderRadius: "4px",
+    fontWeight: 600,
+  },
+  actionsHeaderRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  addActionBtn: {
+    padding: "0.4rem 0.85rem",
+    background: "rgba(200, 151, 58, 0.08)",
+    border: "1px solid rgba(200,151,58,0.35)",
+    borderRadius: "6px",
+    color: "var(--color-accent)",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    minHeight: "36px",
+  },
+  actionsEditorList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.85rem",
+  },
+  actionItemBox: {
+    borderRadius: "8px",
+    padding: "0.85rem",
+    background: "rgba(255,255,255,0.01)",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.65rem",
+  },
+  removeActionBtn: {
+    background: "transparent",
+    border: "none",
+    color: "var(--color-danger)",
+    fontSize: "0.7rem",
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  actionFieldsGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 100px 140px",
+    gap: "0.75rem",
+  },
+  actionIdxLabel: {
+    fontSize: "0.75rem",
+    fontWeight: 700,
+    color: "var(--color-muted)",
+    margin: 0,
   },
 
   /* CATEGORY CHOICE MODAL */
@@ -1364,6 +2316,7 @@ const styles = {
     fontSize: "1rem",
     color: "var(--color-danger)",
     fontWeight: "bold",
+    margin: 0,
   },
   modalCloseBtn: {
     background: "transparent",
@@ -1393,6 +2346,7 @@ const styles = {
     cursor: "pointer",
     fontSize: "0.75rem",
     fontWeight: 600,
+    minHeight: "44px",
   },
   confirmDeleteBtn: {
     padding: "0.45rem 1rem",
@@ -1403,5 +2357,150 @@ const styles = {
     cursor: "pointer",
     fontSize: "0.75rem",
     fontWeight: 700,
+    minHeight: "44px",
+  },
+};
+
+const statblockStyles = {
+  block: {
+    padding: "1rem",
+    borderRadius: "8px",
+    background: "rgba(15, 12, 30, 0.4)",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.85rem",
+    marginBottom: "1.25rem",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  name: {
+    fontSize: "1.3rem",
+    color: "var(--color-accent)",
+    fontWeight: "bold",
+    margin: 0,
+  },
+  meta: {
+    fontSize: "0.78rem",
+    color: "var(--color-muted)",
+  },
+  avatar: {
+    width: "48px",
+    height: "48px",
+    borderRadius: "50%",
+    objectFit: "cover",
+    border: "1px solid rgba(200, 151, 58, 0.3)",
+  },
+  hpAcRow: {
+    display: "flex",
+    gap: "1.5rem",
+    fontSize: "0.88rem",
+    borderBottom: "1px solid rgba(255,255,255,0.05)",
+    paddingBottom: "0.5rem",
+  },
+  statItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  hpControls: {
+    display: "inline-flex",
+    gap: "0.25rem",
+    marginLeft: "0.5rem",
+  },
+  hpBtn: {
+    padding: "0.1rem 0.4rem",
+    border: "1px solid rgba(255,255,255,0.15)",
+    background: "rgba(255,255,255,0.05)",
+    borderRadius: "4px",
+    color: "var(--color-text)",
+    cursor: "pointer",
+    fontSize: "0.7rem",
+    fontWeight: "bold",
+  },
+  abilityGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(6, 1fr)",
+    gap: "0.4rem",
+  },
+  abilityBox: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    padding: "0.5rem 0.25rem",
+    background: "rgba(255,255,255,0.02)",
+    border: "1px solid rgba(255,255,255,0.05)",
+    borderRadius: "6px",
+    cursor: "pointer",
+  },
+  abilityLabel: {
+    fontSize: "0.6rem",
+    color: "var(--color-muted)",
+    fontWeight: "bold",
+  },
+  abilityScore: {
+    fontSize: "0.9rem",
+    fontWeight: "bold",
+    color: "var(--color-text)",
+  },
+  abilityMod: {
+    fontSize: "0.7rem",
+    color: "var(--color-accent)",
+    fontWeight: "bold",
+  },
+  actionsSection: {
+    marginTop: "0.5rem",
+  },
+  sectionTitle: {
+    fontSize: "0.85rem",
+    fontWeight: "bold",
+    textTransform: "uppercase",
+    color: "var(--color-accent)",
+    borderBottom: "1px solid rgba(255,255,255,0.05)",
+    paddingBottom: "0.2rem",
+    marginBottom: "0.4rem",
+  },
+  actionsList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  },
+  actionItem: {
+    padding: "0.5rem 0.75rem",
+    borderRadius: "6px",
+    background: "rgba(255,255,255,0.01)",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.25rem",
+  },
+  actionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  actionName: {
+    fontSize: "0.85rem",
+    color: "var(--color-text)",
+  },
+  rollBtn: {
+    padding: "0.2rem 0.6rem",
+    background: "rgba(200, 151, 58, 0.12)",
+    border: "1px solid rgba(200, 151, 58, 0.3)",
+    borderRadius: "4px",
+    color: "var(--color-accent)",
+    cursor: "pointer",
+    fontSize: "0.7rem",
+    fontWeight: "bold",
+  },
+  actionDesc: {
+    fontSize: "0.78rem",
+    color: "var(--color-muted)",
+    margin: 0,
+  },
+  actionDmg: {
+    fontSize: "0.78rem",
+    color: "var(--color-text)",
   },
 };

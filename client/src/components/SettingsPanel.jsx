@@ -3,7 +3,6 @@
 // Provides controls for zip compression & rclone Google Drive synchronization.
 // =============================================================================
 import React, { useState, useEffect } from "react";
-import NpcPanel from "./NpcPanel";
 
 function SettingsPanel({ user }) {
   const [loading, setLoading] = useState(false);
@@ -633,19 +632,7 @@ function SettingsPanel({ user }) {
           >
             AI Setup
           </button>
-          <button
-            id="dm-settings-npcs-tab"
-            onClick={() => setActiveSettingsTab("npcs")}
-            style={{
-              ...styles.subTabBtn,
-              background: activeSettingsTab === "npcs" ? "var(--color-accent-dim)" : "transparent",
-              color: activeSettingsTab === "npcs" ? "var(--color-accent)" : "var(--color-muted)",
-              border: activeSettingsTab === "npcs" ? "1px solid var(--color-border)" : "1px solid transparent",
-            }}
-            className="touch-target"
-          >
-            NPC Manager
-          </button>
+
         </div>
       </header>
 
@@ -1269,11 +1256,7 @@ function SettingsPanel({ user }) {
         </div>
       )}
 
-      {activeSettingsTab === "npcs" && (
-        <div style={styles.contentNpc}>
-          <NpcPanel user={user} />
-        </div>
-      )}
+
     </div>
   );
 }
@@ -1494,14 +1477,7 @@ const styles = {
     color: "var(--color-muted)",
     fontStyle: "italic",
   },
-  contentNpc: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "1.25rem",
-    maxWidth: "800px",
-    width: "100%",
-    margin: "0 auto",
-  },
+
   subTabNav: {
     display: "flex",
     padding: "0.5rem 0",

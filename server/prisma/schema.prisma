@@ -208,6 +208,10 @@ model Npc {
   modifiers String @default("{}") // JSON object
   actions   String @default("[]") // JSON array
 
+  // Narrative and player visibility
+  description        String  @default("")
+  isVisibleToPlayers Boolean @default(false)
+
   // Relations
   tokens                Token[]
   encounterParticipants EncounterParticipant[]
