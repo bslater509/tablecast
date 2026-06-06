@@ -94,7 +94,7 @@ router.post("/", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.put("/:id", async (req, res) => {
   try {
-    const { username, role } = req.body;
+    const { username, role, diceTheme, diceColor } = req.body;
 
     if (role && !VALID_ROLES.includes(role)) {
       return res
@@ -105,6 +105,8 @@ router.put("/:id", async (req, res) => {
     const data = {};
     if (username && typeof username === "string") data.username = username.trim();
     if (role) data.role = role;
+    if (diceTheme !== undefined) data.diceTheme = String(diceTheme);
+    if (diceColor !== undefined) data.diceColor = String(diceColor);
 
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: "No valid fields to update." });

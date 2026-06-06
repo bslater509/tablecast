@@ -12,6 +12,7 @@ import WikiPanel from "./components/WikiPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import ReferencePanel from "./components/ReferencePanel";
 import AiPanel from "./components/AiPanel";
+import DiceSettingsModal from "./components/DiceSettingsModal";
 import { useSocket } from "./context/SocketContext";
 
 const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
@@ -33,6 +34,26 @@ function App() {
     setUser(null);
     localStorage.removeItem(SELECTED_USER_STORAGE_KEY);
     navigate("/", { replace: true });
+  };
+
+  const [diceModalOpen, setDiceModalOpen] = useState(false);
+
+  const handleUpdateDiceSettings = async (diceTheme, diceColor) => {
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ diceTheme, diceColor }),
+      });
+      if (res.ok) {
+        const updatedUser = await res.json();
+        setUser(updatedUser);
+      } else {
+        console.error("Failed to update user settings");
+      }
+    } catch (err) {
+      console.error("Error updating user settings:", err);
+    }
   };
 
   // Route authorization & redirect logic
@@ -252,10 +273,18 @@ function App() {
 
       <Routes>
         <Route path="/" element={<p style={{ padding: "2rem", color: "var(--color-muted)" }}>Entering Tavern...</p>} />
-        <Route path="/player/*" element={<PlayerLayout user={user} onLogout={handleLogout} />} />
-        <Route path="/dm/*" element={<DmLayout user={user} onLogout={handleLogout} />} />
+        <Route path="/player/*" element={<PlayerLayout user={user} onLogout={handleLogout} onOpenDiceSettings={() => setDiceModalOpen(true)} />} />
+        <Route path="/dm/*" element={<DmLayout user={user} onLogout={handleLogout} onOpenDiceSettings={() => setDiceModalOpen(true)} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {diceModalOpen && (
+        <DiceSettingsModal
+          user={user}
+          onClose={() => setDiceModalOpen(false)}
+          onSave={handleUpdateDiceSettings}
+        />
+      )}
     </div>
   );
 }
@@ -533,6 +562,17 @@ const styles = {
     cursor: "pointer",
     transition: "all 0.2s",
   },
+  diceSettingsBtn: {
+    padding: "0.25rem",
+    background: "none",
+    border: "none",
+    fontSize: "1.1rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "transform 0.1s ease",
+  },
   noCharacterContainer: {
     display: "flex",
     flexDirection: "column",
@@ -658,7 +698,7 @@ function PlayerSheetRedirect({ user }) {
   );
 }
 
-function PlayerLayout({ user, onLogout }) {
+function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -682,6 +722,14 @@ function PlayerLayout({ user, onLogout }) {
         <span style={styles.headerTitle}>Player Screen</span>
         <div style={styles.headerUser}>
           <span style={styles.headerUsername}>{user?.username}</span>
+          <button
+            onClick={onOpenDiceSettings}
+            style={styles.diceSettingsBtn}
+            className="touch-target btn-hover-scale"
+            title="Dice Customization"
+          >
+            🎲
+          </button>
           <button 
             onClick={onLogout} 
             style={styles.logoutBtn} 
@@ -763,7 +811,7 @@ function PlayerLayout({ user, onLogout }) {
   );
 }
 
-function DmLayout({ user, onLogout }) {
+function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -779,6 +827,14 @@ function DmLayout({ user, onLogout }) {
         <span style={styles.headerTitle}>Dungeon Master Screen</span>
         <div style={styles.headerUser}>
           <span style={styles.headerUsername}>{user?.username}</span>
+          <button
+            onClick={onOpenDiceSettings}
+            style={styles.diceSettingsBtn}
+            className="touch-target btn-hover-scale"
+            title="Dice Customization"
+          >
+            🎲
+          </button>
           <button 
             onClick={onLogout} 
             style={styles.logoutBtn} 

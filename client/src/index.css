@@ -106,6 +106,16 @@ body {
   animation: pulse-accent 1.5s infinite;
 }
 
+@keyframes textPulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
+.text-pulse {
+  animation: textPulse 1.5s infinite ease-in-out;
+}
+
 .fade-in {
   animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

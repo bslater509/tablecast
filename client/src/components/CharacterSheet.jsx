@@ -217,6 +217,10 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           modifier,
           total,
           isAttack: false,
+          status: "rolling",
+          diceTheme: user?.diceTheme || "default",
+          diceColor: user?.diceColor || "#7c3aed",
+          dice3d: [`1d20@${d20}`],
         },
       });
     }
@@ -244,6 +248,10 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           modifier: finalMod,
           total,
           isAttack: false,
+          status: "rolling",
+          diceTheme: user?.diceTheme || "default",
+          diceColor: user?.diceColor || "#7c3aed",
+          dice3d: [`1d20@${d20}`],
         },
       });
     }
@@ -289,6 +297,10 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           modifier: finalMod,
           total,
           isAttack: false,
+          status: "rolling",
+          diceTheme: user?.diceTheme || "default",
+          diceColor: user?.diceColor || "#7c3aed",
+          dice3d: [`1d20@${d20}`],
         },
       });
     }
@@ -345,6 +357,10 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           damageDice: atk.dice,
           damageMod: abilityMod,
           damageTotal,
+          status: "rolling",
+          diceTheme: user?.diceTheme || "default",
+          diceColor: user?.diceColor || "#7c3aed",
+          dice3d: [`1d20@${toHitD20}`, `${count}d${sides}@${dmgRolls.join(",")}`],
         },
       });
     }

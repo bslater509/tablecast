@@ -4,6 +4,7 @@
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
+import { useDiceBox } from "../context/DiceBoxContext";
 
 export default function ChatPanel({ user }) {
   const { socket, isConnected } = useSocket();
@@ -23,12 +24,39 @@ export default function ChatPanel({ user }) {
     }
   }, [user]);
 
+  const { trigger3DRoll } = useDiceBox();
+
+  // Listen for completed dice rolls to update UI
+  useEffect(() => {
+    function handleRollComplete(e) {
+      const { messageId } = e.detail;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, rollDetails: { ...m.rollDetails, status: "done" } }
+            : m
+        )
+      );
+    }
+    window.addEventListener("dice:roll:complete", handleRollComplete);
+    return () => window.removeEventListener("dice:roll:complete", handleRollComplete);
+  }, []);
+
   //  Listen for incoming chat messages 
   useEffect(() => {
     if (!socket) return;
 
     function onMessage(msg) {
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+
+        // If it's a new roll message in rolling state, trigger 3D roll animation
+        if (msg.type === "roll" && msg.rollDetails?.status === "rolling") {
+          trigger3DRoll(msg.id, msg.rollDetails.dice3d, msg.rollDetails.diceColor);
+        }
+
+        return [...prev, msg];
+      });
     }
 
     function onTyping(payload) {
@@ -45,17 +73,69 @@ export default function ChatPanel({ user }) {
       socket.off("chat:message", onMessage);
       socket.off("chat:typing", onTyping);
     };
-  }, [socket]);
+  }, [socket, trigger3DRoll]);
 
   //  Auto-scroll to latest message 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  function parseDiceCommand(text) {
+    const clean = text.replace(/^\/(roll|r)\s+/i, "").trim();
+    const regex = /^(\d+)?d(\d+)(?:\s*([+-])\s*(\d+))?$/i;
+    const match = clean.match(regex);
+    if (!match) return null;
+
+    const qty = match[1] ? parseInt(match[1]) : 1;
+    const sides = parseInt(match[2]);
+    const sign = match[3] || "+";
+    const modifierVal = match[4] ? parseInt(match[4]) : 0;
+    const modifier = sign === "-" ? -modifierVal : modifierVal;
+
+    const rolls = [];
+    for (let i = 0; i < qty; i++) {
+      rolls.push(Math.floor(Math.random() * sides) + 1);
+    }
+    const sum = rolls.reduce((a, b) => a + b, 0);
+    const total = sum + modifier;
+
+    return { qty, sides, modifier, rolls, total };
+  }
+
   //  Send a message 
   function sendMessage(e) {
     e.preventDefault();
     if (!draft.trim() || !socket) return;
+
+    const text = draft.trim();
+    if (text.startsWith("/roll ") || text.startsWith("/r ") || text.toLowerCase() === "/roll" || text.toLowerCase() === "/r") {
+      const parsedText = (text.toLowerCase() === "/roll" || text.toLowerCase() === "/r") ? "/roll 1d20" : text;
+      const parsed = parseDiceCommand(parsedText);
+      if (parsed) {
+        const modSign = parsed.modifier >= 0 ? "+" : "";
+        const formattedModifier = parsed.modifier !== 0 ? ` ${modSign} ${Math.abs(parsed.modifier)}` : "";
+        
+        socket.emit("chat:send", {
+          sender: username || "Anonymous",
+          text: `rolled ${parsed.qty}d${parsed.sides}${formattedModifier}! Total: ${parsed.total}`,
+          type: "roll",
+          rollDetails: {
+            rollName: "Chat Roll",
+            formula: `${parsed.qty}d${parsed.sides}${parsed.modifier !== 0 ? (parsed.modifier > 0 ? ' + ' + parsed.modifier : ' - ' + Math.abs(parsed.modifier)) : ''}`,
+            rolls: parsed.rolls,
+            modifier: parsed.modifier,
+            total: parsed.total,
+            isAttack: false,
+            status: "rolling",
+            diceTheme: user?.diceTheme || "default",
+            diceColor: user?.diceColor || "#7c3aed",
+            dice3d: [`${parsed.qty}d${parsed.sides}@${parsed.rolls.join(",")}`],
+          },
+        });
+        setDraft("");
+        return;
+      }
+    }
 
     socket.emit("chat:send", { sender: username || "Anonymous", text: draft });
     setDraft("");
@@ -164,7 +244,15 @@ export default function ChatPanel({ user }) {
                   <span style={styles.rollFormula}>{rd.formula}</span>
                 </div>
 
-                {rd.isAttack ? (
+                {rd.status === "rolling" ? (
+                  <div style={styles.rollBodySingle}>
+                    <div style={styles.rollBlock} className="text-pulse">
+                      <span style={{ ...styles.rollLabel, fontSize: "1.1rem", fontStyle: "italic", color: "var(--color-accent)" }}>
+                        🎲 Rolling...
+                      </span>
+                    </div>
+                  </div>
+                ) : rd.isAttack ? (
                   <div style={styles.rollBody}>
                     <div style={styles.rollBlock}>
                       <span style={styles.rollLabel}>To Hit</span>
