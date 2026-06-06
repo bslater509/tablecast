@@ -190,7 +190,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
   switch (provider) {
     case "gemini": {
       if (!apiKey) throw new Error("Missing Gemini API Key.");
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
       
       const contents = [];
       // Combine systemPrompt + message in a clean instruction structure
