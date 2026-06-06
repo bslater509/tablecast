@@ -12,17 +12,74 @@ const {
   listLocalBackups,
 } = require("../utils/backup");
 const { requireDm } = require("../auth");
+const prisma = require("../prisma");
 
 const router = Router();
 let backupInProgress = false;
 
-function resolveRemote(req) {
-  return req.body?.remote || req.query?.remote || process.env.RCLONE_REMOTE || "gdrive:tablecast-backups";
+async function resolveRemote(req) {
+  const bodyRemote = req.body?.remote || req.query?.remote;
+  if (bodyRemote) return bodyRemote;
+
+  const setting = await prisma.appSetting.findUnique({
+    where: { key: "rclone.remote" }
+  });
+  if (setting && setting.value) return setting.value;
+
+  return process.env.RCLONE_REMOTE || "gdrive:tablecast-backups";
 }
+
+router.get("/config", requireDm, async (req, res) => {
+  try {
+    const configSetting = await prisma.appSetting.findUnique({
+      where: { key: "rclone.config" }
+    });
+    const remoteSetting = await prisma.appSetting.findUnique({
+      where: { key: "rclone.remote" }
+    });
+
+    res.json({
+      config: configSetting?.value || "",
+      remote: remoteSetting?.value || process.env.RCLONE_REMOTE || "gdrive:tablecast-backups"
+    });
+  } catch (err) {
+    console.error("[Backup Config] Fetch failed:", err.message);
+    res.status(500).json({ error: "Failed to load backup configuration." });
+  }
+});
+
+router.put("/config", requireDm, async (req, res) => {
+  try {
+    const { config, remote } = req.body;
+    const { writeRcloneConfigFile } = require("../utils/backup");
+
+    if (config !== undefined) {
+      await prisma.appSetting.upsert({
+        where: { key: "rclone.config" },
+        update: { value: config },
+        create: { key: "rclone.config", value: config }
+      });
+      await writeRcloneConfigFile(config);
+    }
+
+    if (remote !== undefined) {
+      await prisma.appSetting.upsert({
+        where: { key: "rclone.remote" },
+        update: { value: remote },
+        create: { key: "rclone.remote", value: remote }
+      });
+    }
+
+    res.json({ success: true, message: "Backup configuration updated successfully." });
+  } catch (err) {
+    console.error("[Backup Config] Save failed:", err.message);
+    res.status(500).json({ error: "Failed to update backup configuration." });
+  }
+});
 
 router.get("/status", requireDm, async (req, res) => {
   try {
-    const remote = resolveRemote(req);
+    const remote = await resolveRemote(req);
     const rclone = await getRcloneStatus(remote);
     res.json({
       inProgress: backupInProgress,
@@ -53,7 +110,7 @@ router.post("/", requireDm, async (req, res) => {
     const zipInfo = await createBackupZip();
 
     // 2. Resolve target remote destination
-    const remoteDest = resolveRemote(req);
+    const remoteDest = await resolveRemote(req);
     const rclone = await getRcloneStatus(remoteDest);
 
     if (!rclone.installed || !rclone.configured) {

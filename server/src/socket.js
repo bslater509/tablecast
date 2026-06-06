@@ -20,15 +20,16 @@ function registerSocketHandlers(io) {
       type: "system",
     });
 
-    socket.on("chat:send", (payload) => {
+    socket.on("chat:send", async (payload) => {
       if (!payload || typeof payload.text !== "string" || !payload.text.trim()) {
         return;
       }
 
+      const rawText = payload.text.trim();
       const message = {
         id: generateId(),
         sender: sanitizeShortText(payload.sender, "Anonymous"),
-        text: payload.text.trim().slice(0, 2000),
+        text: rawText.slice(0, 2000),
         timestamp: Date.now(),
         type: sanitizeShortText(payload.type, "user"),
         rollDetails: payload.rollDetails || null,
@@ -36,6 +37,166 @@ function registerSocketHandlers(io) {
 
       console.log(`[Socket] ${message.sender}: ${message.text} (${message.type})`);
       io.emit("chat:message", message);
+
+      // --- Intercept AI Assistant Commands ---
+      try {
+        const { performAiCall, findRelevantRules } = require("./routes/ai");
+
+        // 1. /ai [query] -> General AI rules/concepts assistant
+        if (rawText.startsWith("/ai ")) {
+          const query = rawText.slice(4).trim();
+          if (!query) return;
+
+          // Load AI settings from Database
+          const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"];
+          const settings = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
+
+          let provider = "";
+          let apiKey = "";
+          let ollamaUrl = "http://localhost:11434";
+          let ollamaModel = "llama3";
+
+          for (const s of settings) {
+            if (s.key === "ai.provider") provider = s.value;
+            if (s.key === "ai.apiKey") apiKey = s.value;
+            if (s.key === "ai.ollamaUrl") ollamaUrl = s.value;
+            if (s.key === "ai.ollamaModel") ollamaModel = s.value;
+          }
+
+          if (!provider) {
+            return io.emit("chat:message", {
+              id: generateId(),
+              sender: "D&D AI Assistant",
+              text: "AI is not configured. The DM must set up API keys in settings.",
+              timestamp: Date.now(),
+              type: "system"
+            });
+          }
+
+          // Fetch relevant rules
+          const ruleContext = await findRelevantRules(query);
+          const systemPrompt = `You are a helpful D&D 5e assistant, DM companion, and rules expert.
+Answer the question accurately. Rely on the local database context below if applicable.
+${ruleContext}
+Keep your answer clear, concise, and formatted in Markdown.`;
+
+          const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, query);
+          io.emit("chat:message", {
+            id: generateId(),
+            sender: "D&D AI Assistant",
+            text: reply,
+            timestamp: Date.now(),
+            type: "system"
+          });
+        }
+
+        // 2. /roleplay [NPC Name]: [message] OR /roleplay [NPC Name] [message]
+        else if (rawText.startsWith("/roleplay ")) {
+          const commandText = rawText.slice(10).trim();
+          let npcName = "";
+          let messageText = "";
+
+          const colonMatch = commandText.match(/^([^:]+):\s*(.+)$/);
+          if (colonMatch) {
+            npcName = colonMatch[1].trim();
+            messageText = colonMatch[2].trim();
+          } else {
+            const spaceIdx = commandText.indexOf(" ");
+            if (spaceIdx !== -1) {
+              npcName = commandText.slice(0, spaceIdx).trim();
+              messageText = commandText.slice(spaceIdx).trim();
+            }
+          }
+
+          if (!npcName || !messageText) {
+            return io.emit("chat:message", {
+              id: generateId(),
+              sender: "System",
+              text: "Usage: `/roleplay [NPC Name]: [message]` or `/roleplay [NPC Name] [message]`",
+              timestamp: Date.now(),
+              type: "system"
+            });
+          }
+
+          // Fetch NPC details
+          const npc = await prisma.npc.findFirst({
+            where: { name: { contains: npcName } }
+          });
+
+          if (!npc) {
+            return io.emit("chat:message", {
+              id: generateId(),
+              sender: "System",
+              text: `NPC template matching '${npcName}' not found. Create them in the NPCs panel first.`,
+              timestamp: Date.now(),
+              type: "system"
+            });
+          }
+
+          // Load AI settings
+          const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"];
+          const settings = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
+
+          let provider = "";
+          let apiKey = "";
+          let ollamaUrl = "http://localhost:11434";
+          let ollamaModel = "llama3";
+
+          for (const s of settings) {
+            if (s.key === "ai.provider") provider = s.value;
+            if (s.key === "ai.apiKey") apiKey = s.value;
+            if (s.key === "ai.ollamaUrl") ollamaUrl = s.value;
+            if (s.key === "ai.ollamaModel") ollamaModel = s.value;
+          }
+
+          if (!provider) {
+            return io.emit("chat:message", {
+              id: generateId(),
+              sender: npc.name,
+              text: "*The NPC remains silent. (AI is not configured. The DM must set up API keys in settings.)*",
+              timestamp: Date.now(),
+              type: "system"
+            });
+          }
+
+          const ruleContext = await findRelevantRules(messageText);
+          const systemPrompt = `You are roleplaying as the D&D NPC named "${npc.name}".
+Stay in character AT ALL TIMES. Respond in character, using fantasy-themed tone and speech patterns appropriate for "${npc.name}".
+
+NPC PROFILE:
+- Name: ${npc.name}
+- Race: ${npc.race || "unknown"}
+- Class/Description: ${npc.class || "NPC"}
+- Level: ${npc.level}
+- AC: ${npc.ac} | HP: ${npc.hp}/${npc.maxHp} | CR: ${npc.cr}
+- Stats: STR:${npc.strength} DEX:${npc.dexterity} CON:${npc.constitution} INT:${npc.intelligence} WIS:${npc.wisdom} CHA:${npc.charisma}
+- Actions: ${npc.actions}
+- Inventory: ${npc.inventory}
+
+Local campaign context (if any rules are mentioned):
+${ruleContext}
+
+Respond to the user's message as "${npc.name}". Keep it immersive, flavorful, and relatively short.`;
+
+          const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, messageText);
+          io.emit("chat:message", {
+            id: generateId(),
+            sender: npc.name,
+            text: reply,
+            timestamp: Date.now(),
+            type: "npc" // Flag this message as NPC response
+          });
+        }
+      } catch (err) {
+        console.error("[Socket AI Error]", err.message);
+        io.emit("chat:message", {
+          id: generateId(),
+          sender: "System",
+          text: `AI error: ${err.message}`,
+          timestamp: Date.now(),
+          type: "system"
+        });
+      }
     });
 
     socket.on("chat:typing", (payload) => {

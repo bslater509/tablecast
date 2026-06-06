@@ -6,10 +6,18 @@ import React, { useState, useEffect } from "react";
 import NpcPanel from "./NpcPanel";
 
 function SettingsPanel({ user }) {
-  const [remote, setRemote] = useState("gdrive:tablecast-backups");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [backupStatus, setBackupStatus] = useState(null);
+
+  // rclone configuration states
+  const [rcloneConfig, setRcloneConfig] = useState("");
+  const [showConfigEditor, setShowConfigEditor] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [remoteName, setRemoteName] = useState("gdrive");
+  const [remotePath, setRemotePath] = useState("tablecast-backups");
+  const [configMessage, setConfigMessage] = useState(null);
+  const [configError, setConfigError] = useState(null);
   
   // Reference sync status states
   const [refStatus, setRefStatus] = useState(null);
@@ -18,6 +26,16 @@ function SettingsPanel({ user }) {
   const [availableSources, setAvailableSources] = useState([]);
   const [savingSources, setSavingSources] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("backups");
+
+  // AI settings states
+  const [aiProvider, setAiProvider] = useState("gemini");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [aiOllamaUrl, setAiOllamaUrl] = useState("http://localhost:11434");
+  const [aiOllamaModel, setAiOllamaModel] = useState("llama3");
+  const [aiTesting, setAiTesting] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState(null);
+  const [savingAi, setSavingAi] = useState(false);
+
   const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
 
@@ -34,10 +52,32 @@ function SettingsPanel({ user }) {
     }
   };
 
+  const fetchBackupConfig = async () => {
+    try {
+      const res = await fetch("/api/backup/config", { headers: authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        setRcloneConfig(data.config || "");
+        const fullRemote = data.remote || "gdrive:tablecast-backups";
+        const colonIndex = fullRemote.indexOf(":");
+        if (colonIndex !== -1) {
+          setRemoteName(fullRemote.substring(0, colonIndex));
+          setRemotePath(fullRemote.substring(colonIndex + 1));
+        } else {
+          setRemoteName(fullRemote);
+          setRemotePath("");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load backup config:", err);
+    }
+  };
+
   const fetchBackupStatus = async () => {
     if (!user?.id) return;
     try {
-      const res = await fetch(`/api/backup/status?remote=${encodeURIComponent(remote.trim())}`, {
+      const fullRemote = `${remoteName}:${remotePath}`;
+      const res = await fetch(`/api/backup/status?remote=${encodeURIComponent(fullRemote.trim())}`, {
         headers: authHeaders,
       });
       if (res.ok) {
@@ -62,11 +102,31 @@ function SettingsPanel({ user }) {
     }
   };
 
+  const fetchAiSettings = async () => {
+    try {
+      const res = await fetch("/api/ai/settings", { headers: authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        setAiProvider(data.provider || "gemini");
+        setAiApiKey(data.apiKey || "");
+        setAiOllamaUrl(data.ollamaUrl || "http://localhost:11434");
+        setAiOllamaModel(data.ollamaModel || "llama3");
+      }
+    } catch (err) {
+      console.error("Failed to load AI settings:", err);
+    }
+  };
+
   useEffect(() => {
     fetchRefStatus();
     fetchReferenceSettings();
-    fetchBackupStatus();
+    fetchBackupConfig();
+    fetchAiSettings();
   }, [user?.id]);
+
+  useEffect(() => {
+    fetchBackupStatus();
+  }, [user?.id, remoteName, remotePath]);
 
   // Poll backend sync logs if in-progress
   useEffect(() => {
@@ -134,6 +194,40 @@ function SettingsPanel({ user }) {
     }
   };
 
+  const handleSaveBackupConfig = async (e) => {
+    if (e) e.preventDefault();
+    if (savingConfig) return;
+    setSavingConfig(true);
+    setConfigMessage(null);
+    setConfigError(null);
+    try {
+      const fullRemote = `${remoteName}:${remotePath}`;
+      const res = await fetch("/api/backup/config", {
+        method: "PUT",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          config: rcloneConfig,
+          remote: fullRemote.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setConfigMessage("rclone configuration saved successfully!");
+        setShowConfigEditor(false);
+        setTimeout(() => {
+          fetchBackupStatus();
+        }, 500);
+      } else {
+        setConfigError(data.error || "Failed to save configuration.");
+      }
+    } catch (err) {
+      setConfigError(`Network error: ${err.message}`);
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
   const handleBackup = async (e) => {
     e.preventDefault();
     if (loading) return;
@@ -142,10 +236,20 @@ function SettingsPanel({ user }) {
     setResult(null);
 
     try {
+      const fullRemote = `${remoteName}:${remotePath}`;
+      // Save settings before running backup
+      await fetch("/api/backup/config", {
+        method: "PUT",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          remote: fullRemote.trim(),
+        }),
+      });
+
       const res = await fetch("/api/backup", {
         method: "POST",
         headers: jsonAuthHeaders,
-        body: JSON.stringify({ remote: remote.trim() }),
+        body: JSON.stringify({ remote: fullRemote.trim() }),
       });
 
       if (!res.ok) {
@@ -168,6 +272,63 @@ function SettingsPanel({ user }) {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveAiSettings = async (e) => {
+    e.preventDefault();
+    if (savingAi) return;
+    setSavingAi(true);
+    try {
+      const res = await fetch("/api/ai/settings", {
+        method: "PUT",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          provider: aiProvider,
+          apiKey: aiApiKey,
+          ollamaUrl: aiOllamaUrl,
+          ollamaModel: aiOllamaModel,
+        }),
+      });
+      if (res.ok) {
+        alert("AI settings saved successfully!");
+        fetchAiSettings();
+      } else {
+        const err = await res.json();
+        alert(`Error saving AI settings: ${err.error || "Unknown"}`);
+      }
+    } catch (err) {
+      alert(`Network error saving AI settings: ${err.message}`);
+    } finally {
+      setSavingAi(false);
+    }
+  };
+
+  const handleTestAiSettings = async () => {
+    if (aiTesting) return;
+    setAiTesting(true);
+    setAiTestResult(null);
+    try {
+      const res = await fetch("/api/ai/test", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          provider: aiProvider,
+          apiKey: aiApiKey,
+          ollamaUrl: aiOllamaUrl,
+          ollamaModel: aiOllamaModel,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAiTestResult({ success: true, message: `Connection test successful! Reply: ${data.reply}` });
+      } else {
+        setAiTestResult({ success: false, message: `Connection test failed: ${data.error}` });
+      }
+    } catch (err) {
+      setAiTestResult({ success: false, message: `Network error: ${err.message}` });
+    } finally {
+      setAiTesting(false);
     }
   };
 
@@ -201,6 +362,19 @@ function SettingsPanel({ user }) {
             Backups & Sync
           </button>
           <button
+            id="dm-settings-ai-tab"
+            onClick={() => setActiveSettingsTab("ai")}
+            style={{
+              ...styles.subTabBtn,
+              background: activeSettingsTab === "ai" ? "var(--color-accent-dim)" : "transparent",
+              color: activeSettingsTab === "ai" ? "var(--color-accent)" : "var(--color-muted)",
+              border: activeSettingsTab === "ai" ? "1px solid var(--color-border)" : "1px solid transparent",
+            }}
+            className="touch-target"
+          >
+            AI Setup
+          </button>
+          <button
             id="dm-settings-npcs-tab"
             onClick={() => setActiveSettingsTab("npcs")}
             style={{
@@ -216,7 +390,7 @@ function SettingsPanel({ user }) {
         </div>
       </header>
 
-      {activeSettingsTab === "backups" ? (
+      {activeSettingsTab === "backups" && (
         <div style={styles.content}>
         {/* Backup configuration card */}
         <section style={styles.card} className="glass-panel gold-border-glow">
@@ -228,24 +402,128 @@ function SettingsPanel({ user }) {
           </p>
 
           <form onSubmit={handleBackup} style={styles.form}>
+            {/* Config Editor Collapsible */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <button
+                type="button"
+                id="toggle-rclone-config-btn"
+                onClick={() => {
+                  setShowConfigEditor(!showConfigEditor);
+                  setConfigMessage(null);
+                  setConfigError(null);
+                }}
+                style={styles.secondaryBtn}
+                className="touch-target btn-hover-scale"
+              >
+                {showConfigEditor ? "Hide Configuration Editor" : "Show/Edit rclone.conf"}
+              </button>
+
+              {showConfigEditor && (
+                <div style={styles.configEditorContainer}>
+                  <label htmlFor="rclone-config-textarea" style={styles.label}>
+                    rclone.conf File Content
+                  </label>
+                  <textarea
+                    id="rclone-config-textarea"
+                    rows={8}
+                    value={rcloneConfig}
+                    onChange={(e) => setRcloneConfig(e.target.value)}
+                    placeholder="[gdrive]&#10;type = drive&#10;client_id = ...&#10;client_secret = ...&#10;token = ..."
+                    style={{ ...styles.input, fontFamily: "monospace", minHeight: "150px", resize: "vertical" }}
+                    className="form-input"
+                    disabled={savingConfig}
+                  />
+                  <button
+                    type="button"
+                    id="save-rclone-config-btn"
+                    onClick={handleSaveBackupConfig}
+                    disabled={savingConfig}
+                    style={{
+                      ...styles.backupBtn,
+                      marginTop: "0.5rem",
+                      background: savingConfig ? "rgba(200, 151, 58, 0.2)" : "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+                      color: savingConfig ? "#888" : "#0f0e17"
+                    }}
+                    className="touch-target btn-hover-scale"
+                  >
+                    {savingConfig ? "Saving Configuration..." : "Save Configuration"}
+                  </button>
+                </div>
+              )}
+
+              {configMessage && (
+                <div style={{ ...styles.statusBanner, backgroundColor: "rgba(111, 207, 151, 0.1)", borderColor: "var(--color-success)", color: "var(--color-success)", fontSize: "0.85rem", padding: "0.5rem" }}>
+                  {configMessage}
+                </div>
+              )}
+              {configError && (
+                <div style={{ ...styles.statusBanner, backgroundColor: "rgba(235, 87, 87, 0.1)", borderColor: "var(--color-danger)", color: "var(--color-danger)", fontSize: "0.85rem", padding: "0.5rem" }}>
+                  {configError}
+                </div>
+              )}
+            </div>
+
             <div style={styles.inputGroup}>
-              <label htmlFor="rclone-remote-input" style={styles.label}>
-                rclone Remote Destination
-              </label>
-              <input
-                id="rclone-remote-input"
-                type="text"
-                placeholder="e.g. gdrive:tablecast-backups"
-                value={remote}
-                onChange={(e) => setRemote(e.target.value)}
-                onBlur={fetchBackupStatus}
-                style={styles.input}
-                className="form-input"
-                required
-                disabled={loading}
-              />
+              <label style={styles.label}>rclone Remote Destination</label>
+              
+              {backupStatus?.rclone?.remotes && backupStatus.rclone.remotes.length > 0 ? (
+                <div style={{ display: "flex", gap: "0.5rem", width: "100%" }}>
+                  <select
+                    id="rclone-remote-select"
+                    value={remoteName}
+                    onChange={(e) => setRemoteName(e.target.value)}
+                    style={{ ...styles.input, flex: "1", padding: "0.75rem", background: "var(--color-bg)", color: "var(--color-text)", border: "1px solid var(--color-border)" }}
+                    disabled={loading}
+                  >
+                    {backupStatus.rclone.remotes.map((rem) => {
+                      const name = rem.endsWith(":") ? rem.substring(0, rem.length - 1) : rem;
+                      return (
+                        <option key={name} value={name}>
+                          {rem}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <span style={{ alignSelf: "center", color: "var(--color-muted)" }}>/</span>
+                  <input
+                    id="rclone-path-input"
+                    type="text"
+                    placeholder="e.g. tablecast-backups"
+                    value={remotePath}
+                    onChange={(e) => setRemotePath(e.target.value)}
+                    style={{ ...styles.input, flex: "2" }}
+                    className="form-input"
+                    disabled={loading}
+                  />
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: "0.5rem", width: "100%" }}>
+                  <input
+                    id="rclone-remote-name-fallback"
+                    type="text"
+                    placeholder="e.g. gdrive"
+                    value={remoteName}
+                    onChange={(e) => setRemoteName(e.target.value)}
+                    style={{ ...styles.input, flex: "1" }}
+                    className="form-input"
+                    disabled={loading}
+                  />
+                  <span style={{ alignSelf: "center", color: "var(--color-muted)" }}>/</span>
+                  <input
+                    id="rclone-remote-path-fallback"
+                    type="text"
+                    placeholder="e.g. tablecast-backups"
+                    value={remotePath}
+                    onChange={(e) => setRemotePath(e.target.value)}
+                    style={{ ...styles.input, flex: "2" }}
+                    className="form-input"
+                    disabled={loading}
+                  />
+                </div>
+              )}
+              
               <small style={styles.helpText}>
-                Format: <code style={styles.codeInline}>remoteName:folderPath</code>. Make sure this matches a profile defined in your <code style={styles.codeInline}>rclone.conf</code>.
+                Format: <code style={styles.codeInline}>remoteName:folderPath</code>. Remote name must match a profile defined in your configuration.
               </small>
             </div>
 
@@ -273,7 +551,7 @@ function SettingsPanel({ user }) {
             <button
               id="trigger-backup-btn"
               type="submit"
-              disabled={loading || !remote.trim()}
+              disabled={loading || !remoteName.trim()}
               style={{
                 ...styles.backupBtn,
                 background: loading
@@ -525,7 +803,135 @@ function SettingsPanel({ user }) {
           </section>
         )}
       </div>
-      ) : (
+      )}
+
+      {activeSettingsTab === "ai" && (
+        <div style={styles.content}>
+          <section style={styles.card} className="glass-panel gold-border-glow">
+            <h2 style={styles.cardTitle}>D&D AI Companion Setup</h2>
+            <p style={styles.cardDesc}>
+              Configure your preferred LLM provider for the AI Companion chat and slash commands.
+              API credentials are saved securely in the database and never sent to players.
+            </p>
+
+            <form onSubmit={handleSaveAiSettings} style={styles.form}>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>AI Provider</label>
+                <select
+                  value={aiProvider}
+                  onChange={(e) => setAiProvider(e.target.value)}
+                  style={styles.select}
+                  disabled={savingAi}
+                >
+                  <option value="gemini">Google Gemini (1.5 Flash)</option>
+                  <option value="openai">OpenAI (GPT-4o mini)</option>
+                  <option value="anthropic">Anthropic (Claude 3.5 Sonnet)</option>
+                  <option value="ollama">Local Ollama (Offline LAN)</option>
+                </select>
+              </div>
+
+              {aiProvider !== "ollama" ? (
+                <div style={styles.inputGroup}>
+                  <label htmlFor="ai-key-input" style={styles.label}>
+                    API Key
+                  </label>
+                  <input
+                    id="ai-key-input"
+                    type="password"
+                    placeholder={aiApiKey ? "Leave empty to keep saved key" : "Enter API Key"}
+                    value={aiApiKey}
+                    onChange={(e) => setAiApiKey(e.target.value)}
+                    style={styles.input}
+                    className="form-input"
+                    disabled={savingAi}
+                  />
+                  <small style={styles.helpText}>
+                    API key will be saved securely. If you see a masked key (e.g. `abcd...1234`), leave it unchanged to keep the saved key.
+                  </small>
+                </div>
+              ) : (
+                <>
+                  <div style={styles.inputGroup}>
+                    <label htmlFor="ai-ollama-url-input" style={styles.label}>
+                      Ollama API Endpoint URL
+                    </label>
+                    <input
+                      id="ai-ollama-url-input"
+                      type="text"
+                      placeholder="e.g. http://localhost:11434"
+                      value={aiOllamaUrl}
+                      onChange={(e) => setAiOllamaUrl(e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                      disabled={savingAi}
+                      required
+                    />
+                  </div>
+                  <div style={styles.inputGroup}>
+                    <label htmlFor="ai-ollama-model-input" style={styles.label}>
+                      Model Name
+                    </label>
+                    <input
+                      id="ai-ollama-model-input"
+                      type="text"
+                      placeholder="e.g. llama3, mistral, gemma"
+                      value={aiOllamaModel}
+                      onChange={(e) => setAiOllamaModel(e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                      disabled={savingAi}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {aiTestResult && (
+                <div
+                  style={{
+                    ...styles.statusBanner,
+                    backgroundColor: aiTestResult.success ? "rgba(111, 207, 151, 0.1)" : "rgba(235, 87, 87, 0.1)",
+                    borderColor: aiTestResult.success ? "var(--color-success)" : "var(--color-danger)",
+                  }}
+                >
+                  <span style={{ fontSize: "0.85rem", color: aiTestResult.success ? "var(--color-success)" : "var(--color-danger)", fontWeight: "bold" }}>
+                    {aiTestResult.success ? "Test Passed" : "Test Failed"}
+                  </span>
+                  <p style={{ ...styles.bannerMessage, fontSize: "0.8rem", marginTop: "0.2rem" }}>{aiTestResult.message}</p>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={handleTestAiSettings}
+                  disabled={aiTesting || savingAi}
+                  style={{ ...styles.secondaryBtn, flex: 1, minHeight: "44px" }}
+                  className="touch-target btn-hover-scale"
+                >
+                  {aiTesting ? "Testing..." : "Test Connection"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAi || aiTesting}
+                  style={{
+                    ...styles.backupBtn,
+                    flex: 1,
+                    minHeight: "44px",
+                    background: savingAi ? "rgba(200, 151, 58, 0.2)" : "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+                    color: savingAi ? "var(--color-muted)" : "#0f0e17"
+                  }}
+                  className="touch-target btn-hover-scale"
+                >
+                  {savingAi ? "Saving..." : "Save Config"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {activeSettingsTab === "npcs" && (
         <div style={styles.contentNpc}>
           <NpcPanel user={user} />
         </div>
@@ -775,6 +1181,16 @@ const styles = {
     padding: "0.45rem",
     transition: "all 0.2s",
     minHeight: "44px",
+  },
+  configEditorContainer: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    background: "rgba(0, 0, 0, 0.15)",
+    padding: "1rem",
+    borderRadius: "6px",
+    border: "1px solid rgba(255, 255, 255, 0.05)",
+    marginTop: "0.25rem",
   },
 };
 

@@ -83,6 +83,7 @@ const wikiRouter = require("./routes/wiki");
 const mapsRouter = require("./routes/maps");
 const backupRouter = require("./routes/backup");
 const referenceRouter = require("./routes/reference");
+const aiRouter = require("./routes/ai");
 
 app.use("/api/users", usersRouter);
 app.use("/api/characters", charactersRouter);
@@ -91,6 +92,7 @@ app.use("/api/wiki", wikiRouter);
 app.use("/api/maps", mapsRouter);
 app.use("/api/backup", backupRouter);
 app.use("/api/reference", referenceRouter);
+app.use("/api/ai", aiRouter);
 
 // ---------------------------------------------------------------------------
 // Serve map and token image uploads
@@ -132,6 +134,12 @@ server.listen(PORT, HOST, () => {
   console.log(`[Tablecast]   Server running at http://${HOST}:${PORT}`);
   console.log(`[Tablecast]  Health check:    http://${HOST}:${PORT}/api/health`);
   console.log(`[Tablecast]  Socket.io ready  awaiting connections`);
+
+  // Initialize rclone config file from DB
+  const { initRcloneConfig } = require("./utils/backup");
+  initRcloneConfig()
+    .then(() => console.log("[Tablecast] rclone config initialized from database."))
+    .catch(err => console.error("[Tablecast] Failed to initialize rclone config from database:", err.message));
 
   const referenceSyncOnStartup = process.env.REFERENCE_SYNC_ON_STARTUP === "true";
   console.log(`[Tablecast]  Reference sync on startup: ${referenceSyncOnStartup ? "enabled" : "disabled"}`);

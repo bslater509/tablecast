@@ -43,11 +43,12 @@ function log(message, type = "info") {
  */
 function execCmd(cmd, args, cwd) {
   return new Promise((resolve, reject) => {
-    log(`Executing: ${cmd} ${args.join(" ")} (Cwd: ${cwd})`, "info");
+    const finalArgs = cmd === "git" ? ["-c", "safe.directory=*", ...args] : args;
+    log(`Executing: ${cmd} ${finalArgs.join(" ")} (Cwd: ${cwd})`, "info");
     
     // Set environment variable to skip prompts and avoid blocking
     const env = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
-    const child = spawn(cmd, args, { cwd, env });
+    const child = spawn(cmd, finalArgs, { cwd, env });
 
     child.stdout.on("data", (data) => {
       const lines = data.toString().split(/\r?\n/);
@@ -88,7 +89,7 @@ function isGitRepoValid(repoPath) {
     return false;
   }
   try {
-    execSync("git rev-parse HEAD", { cwd: repoPath, stdio: "ignore" });
+    execSync("git -c safe.directory=* rev-parse HEAD", { cwd: repoPath, stdio: "ignore" });
     return true;
   } catch (e) {
     return false;

@@ -8,9 +8,11 @@ const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 const archiver = require("archiver");
+const prisma = require("../prisma");
 
 const serverRoot = path.join(__dirname, "../..");
 const backupsDir = path.join(serverRoot, "backups");
+const CONFIG_PATH = path.resolve(serverRoot, "prisma/data/rclone.conf");
 
 function ensureBackupsDir() {
   if (!fs.existsSync(backupsDir)) {
@@ -98,7 +100,11 @@ function createBackupZip() {
 
 function execRclone(args) {
   return new Promise((resolve, reject) => {
-    execFile("rclone", args, { timeout: 120_000 }, (error, stdout = "", stderr = "") => {
+    const finalArgs = [...args];
+    if (fs.existsSync(CONFIG_PATH)) {
+      finalArgs.unshift("--config", CONFIG_PATH);
+    }
+    execFile("rclone", finalArgs, { timeout: 120_000 }, (error, stdout = "", stderr = "") => {
       if (error) {
         error.stdout = stdout;
         error.stderr = stderr;
@@ -111,6 +117,31 @@ function execRclone(args) {
   });
 }
 
+async function writeRcloneConfigFile(content) {
+  const dir = path.dirname(CONFIG_PATH);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  await fs.promises.writeFile(CONFIG_PATH, content || "", "utf8");
+}
+
+async function initRcloneConfig() {
+  try {
+    const setting = await prisma.appSetting.findUnique({
+      where: { key: "rclone.config" },
+    });
+    if (setting && setting.value) {
+      await writeRcloneConfigFile(setting.value);
+    } else {
+      if (fs.existsSync(CONFIG_PATH)) {
+        await fs.promises.unlink(CONFIG_PATH);
+      }
+    }
+  } catch (err) {
+    console.error("[Backup] Error loading rclone config from DB:", err.message);
+  }
+}
+
 async function getRcloneStatus(remote = process.env.RCLONE_REMOTE || "gdrive:tablecast-backups") {
   try {
     await execRclone(["version"]);
@@ -121,6 +152,16 @@ async function getRcloneStatus(remote = process.env.RCLONE_REMOTE || "gdrive:tab
       remote,
       message: "rclone is not installed or is not available in PATH.",
       error: err.message,
+    };
+  }
+
+  const configExists = fs.existsSync(CONFIG_PATH);
+  if (!configExists) {
+    return {
+      installed: true,
+      configured: false,
+      remote,
+      message: "rclone.conf is not configured in DM settings.",
     };
   }
 
@@ -180,4 +221,6 @@ module.exports = {
   createBackupZip,
   getRcloneStatus,
   listLocalBackups,
+  initRcloneConfig,
+  writeRcloneConfigFile,
 };

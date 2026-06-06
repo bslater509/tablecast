@@ -11,6 +11,7 @@ import ChatPanel from "./components/ChatPanel";
 import WikiPanel from "./components/WikiPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import ReferencePanel from "./components/ReferencePanel";
+import AiPanel from "./components/AiPanel";
 import { useSocket } from "./context/SocketContext";
 
 const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
@@ -550,7 +551,7 @@ function CharacterSheetWrapper({ user }) {
 function ChatJournalWrapper({ user }) {
   const { subtab } = useParams();
   const navigate = useNavigate();
-  const activeSubtab = ["chat", "journal", "reference"].includes(subtab) ? subtab : "chat";
+  const activeSubtab = ["chat", "journal", "reference", "ai"].includes(subtab) ? subtab : "chat";
 
   return (
     <div style={styles.chatJournalWrapper}>
@@ -595,12 +596,26 @@ function ChatJournalWrapper({ user }) {
         >
           Reference Library
         </button>
+        <button
+          id="toggle-ai-tab"
+          onClick={() => navigate("/chat-journal/ai")}
+          style={{
+            ...styles.subTabBtn,
+            background: activeSubtab === "ai" ? "var(--color-accent-dim)" : "transparent",
+            color: activeSubtab === "ai" ? "var(--color-accent)" : "var(--color-muted)",
+            border: activeSubtab === "ai" ? "1px solid var(--color-border)" : "1px solid transparent",
+          }}
+          className="touch-target"
+        >
+          AI Companion
+        </button>
       </div>
       
       <div style={styles.subTabContent}>
         {activeSubtab === "chat" && <ChatPanel user={user} />}
         {activeSubtab === "journal" && <WikiPanel user={user} />}
         {activeSubtab === "reference" && <ReferencePanel />}
+        {activeSubtab === "ai" && <AiPanel user={user} />}
       </div>
     </div>
   );

@@ -22,11 +22,6 @@ services:
       # Uploads directory — map images, token art, etc.
       - tablecast-uploads:/app/server/uploads
 
-      # rclone config — contains Google Drive OAuth tokens
-      # Mount your host rclone.conf here before enabling backups:
-      #   docker run ... -v ~/.config/rclone:/root/.config/rclone
-      - tablecast-rclone:/root/.config/rclone
-
       # D&D 5e references repositories (5etoolssrc and 5etoolsimg)
       - ./5etoolssrc:/app/server/5etoolssrc
       - ./5etoolsimg:/app/server/5etoolsimg
@@ -37,5 +32,4 @@ volumes:
     driver: local
   tablecast-uploads:
     driver: local
-  tablecast-rclone:
-    driver: local
+

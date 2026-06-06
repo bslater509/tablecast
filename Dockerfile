@@ -41,8 +41,7 @@ COPY --from=client-builder /build/client/dist ./client/dist
 # ── Create directories that will be mounted as volumes ────────────────────────
 RUN mkdir -p /app/server/prisma/data \
              /app/server/uploads \
-             /app/server/backups \
-             /root/.config/rclone
+             /app/server/backups
 
 # Run Prisma migrations then start the server
 WORKDIR /app/server
