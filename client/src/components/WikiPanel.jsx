@@ -291,7 +291,12 @@ export default function WikiPanel({ user }) {
     const raceMatch = (npc.race || "").toLowerCase().includes(query);
     const classMatch = (npc.class || "").toLowerCase().includes(query);
     const descMatch = (npc.description || "").toLowerCase().includes(query);
-    return nameMatch || raceMatch || classMatch || descMatch;
+    const alignMatch = (npc.alignment || "").toLowerCase().includes(query);
+    const appearanceMatch = (npc.appearance || "").toLowerCase().includes(query);
+    const personalityMatch = (npc.personality || "").toLowerCase().includes(query);
+    const historyMatch = (npc.history || "").toLowerCase().includes(query);
+    const relationshipMatch = (npc.partyRelationship || "").toLowerCase().includes(query);
+    return nameMatch || raceMatch || classMatch || descMatch || alignMatch || appearanceMatch || personalityMatch || historyMatch || relationshipMatch;
   });
 
   const categoryArticles = filteredArticles.filter(
@@ -387,7 +392,12 @@ export default function WikiPanel({ user }) {
         actions: JSON.stringify([
           { name: "Club", description: "Melee Weapon Attack: one target.", toHit: 2, damage: "1d4" }
         ]),
-        description: templates.NPC,
+        description: "",
+        alignment: "",
+        appearance: "",
+        personality: "",
+        history: "",
+        partyRelationship: "",
         isVisibleToPlayers: false,
       });
     } else {
@@ -411,6 +421,12 @@ export default function WikiPanel({ user }) {
     if (activeCategoryTab === "NPC") {
       setEditingNpc({
         ...item,
+        alignment: item.alignment || "",
+        appearance: item.appearance || "",
+        personality: item.personality || "",
+        history: item.history || "",
+        partyRelationship: item.partyRelationship || "",
+        description: item.description || "",
       });
     } else {
       setEditTitle(item.title);
@@ -426,6 +442,37 @@ export default function WikiPanel({ user }) {
     }
     setIsEditing(true);
   }
+
+  const parse5eToolsAlignment = (alignment) => {
+    if (!alignment) return "Unaligned";
+    if (typeof alignment === "string") return alignment;
+    if (!Array.isArray(alignment)) return "Unaligned";
+
+    const codes = alignment.map(item => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object" && Array.isArray(item.alignment)) {
+        return item.alignment;
+      }
+      return "";
+    }).flat().filter(Boolean);
+
+    if (codes.length === 0) return "Unaligned";
+    if (codes.includes("A")) return "Any alignment";
+    if (codes.includes("U")) return "Unaligned";
+
+    const mapping = {
+      L: "Lawful",
+      C: "Chaotic",
+      G: "Good",
+      E: "Evil",
+      N: "Neutral"
+    };
+
+    if (codes.length === 1 && codes[0] === "N") return "Neutral";
+
+    const words = codes.map(c => mapping[c] || c);
+    return words.join(" ");
+  };
 
   // Bestiary importer
   const handleBestiaryImport = async (bestiaryItem) => {
@@ -495,11 +542,12 @@ export default function WikiPanel({ user }) {
         actions: JSON.stringify(actionsList.length ? actionsList : [
           { name: "Bite", description: "Melee Weapon Attack.", toHit: 2, damage: "1d4" }
         ]),
-        description: `### NPC Description
-- **Appearance**: Physical details.
-- **Personality**: Mannerisms and demeanor.
-- **History**: Backstory.
-`,
+        description: "",
+        alignment: parse5eToolsAlignment(details.alignment),
+        appearance: "Physical details.",
+        personality: "Mannerisms and demeanor.",
+        history: "Backstory.",
+        partyRelationship: "",
         isVisibleToPlayers: false,
       });
       setImportQuery("");
@@ -733,8 +781,9 @@ export default function WikiPanel({ user }) {
   }
 
   // Formatting Shortcuts Helper
-  function insertText(prefix, suffix = "") {
-    const textarea = document.getElementById("wiki-markdown-textarea");
+  function insertText(prefix, suffix = "", fieldName = "description") {
+    const elementId = activeCategoryTab === "NPC" ? `wiki-textarea-${fieldName}` : "wiki-markdown-textarea";
+    const textarea = document.getElementById(elementId);
     if (!textarea) return;
 
     const start = textarea.selectionStart;
@@ -744,7 +793,7 @@ export default function WikiPanel({ user }) {
     const replacement = prefix + selected + suffix;
 
     if (activeCategoryTab === "NPC") {
-      handleNpcFieldChange("description", text.substring(0, start) + replacement + text.substring(end));
+      handleNpcFieldChange(fieldName, text.substring(0, start) + replacement + text.substring(end));
     } else {
       setEditContent(text.substring(0, start) + replacement + text.substring(end));
     }
@@ -1052,9 +1101,9 @@ export default function WikiPanel({ user }) {
                 })()}
               </div>
 
-              {/* Biography Markdown Editor */}
+              {/* Biography & Background Fields */}
               <div style={styles.editorSection}>
-                <h3 style={styles.subSectionTitle}>4. Biography & Lore Markdown</h3>
+                <h3 style={styles.subSectionTitle}>4. NPC Narrative & Background</h3>
                 <div style={styles.tabsContainer}>
                   <button
                     type="button"
@@ -1066,7 +1115,7 @@ export default function WikiPanel({ user }) {
                     }}
                     className="touch-target"
                   >
-                    Write (Markdown)
+                    Write Sections
                   </button>
                   <button
                     type="button"
@@ -1078,36 +1127,170 @@ export default function WikiPanel({ user }) {
                     }}
                     className="touch-target"
                   >
-                    Live Preview
+                    Combined Live Preview
                   </button>
                 </div>
 
                 {editorTab === "write" ? (
-                  <div style={styles.workspaceWriteContainer}>
-                    {/* Toolbar */}
-                    <div style={styles.toolbar}>
-                      <button type="button" title="Bold" onClick={() => insertText("**", "**")} style={styles.toolbarBtn} className="touch-target"><strong>B</strong></button>
-                      <button type="button" title="Italic" onClick={() => insertText("*", "*")} style={styles.toolbarBtn} className="touch-target"><em>I</em></button>
-                      <button type="button" title="Header" onClick={() => insertText("\n### ", "")} style={styles.toolbarBtn} className="touch-target">H3</button>
-                      <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "")} style={styles.toolbarBtn} className="touch-target">• List</button>
-                      <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                    
+                    {/* Alignment Field */}
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Alignment</label>
+                      <div style={styles.toolbar}>
+                        <button type="button" title="Bold" onClick={() => insertText("**", "**", "alignment")} style={styles.toolbarBtn} className="touch-target"><strong>B</strong></button>
+                        <button type="button" title="Italic" onClick={() => insertText("*", "*", "alignment")} style={styles.toolbarBtn} className="touch-target"><em>I</em></button>
+                      </div>
+                      <textarea
+                        id="wiki-textarea-alignment"
+                        value={editingNpc.alignment}
+                        onChange={(e) => handleNpcFieldChange("alignment", e.target.value)}
+                        placeholder="e.g. Lawful Good, Neutral, etc."
+                        style={{ ...styles.textarea, height: "80px" }}
+                        className="form-input"
+                      />
                     </div>
 
-                    <textarea
-                      id="wiki-markdown-textarea"
-                      value={editingNpc.description}
-                      onChange={(e) => handleNpcFieldChange("description", e.target.value)}
-                      placeholder="Write bio, appearance, personality, secrets and notes..."
-                      style={styles.textarea}
-                      className="form-input"
-                    />
+                    {/* Appearance Field */}
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Appearance</label>
+                      <div style={styles.toolbar}>
+                        <button type="button" title="Bold" onClick={() => insertText("**", "**", "appearance")} style={styles.toolbarBtn} className="touch-target"><strong>B</strong></button>
+                        <button type="button" title="Italic" onClick={() => insertText("*", "*", "appearance")} style={styles.toolbarBtn} className="touch-target"><em>I</em></button>
+                        <button type="button" title="Header" onClick={() => insertText("\n### ", "", "appearance")} style={styles.toolbarBtn} className="touch-target">H3</button>
+                        <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "appearance")} style={styles.toolbarBtn} className="touch-target">• List</button>
+                        <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "appearance")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                      </div>
+                      <textarea
+                        id="wiki-textarea-appearance"
+                        value={editingNpc.appearance}
+                        onChange={(e) => handleNpcFieldChange("appearance", e.target.value)}
+                        placeholder="Description of physical appearance..."
+                        style={styles.textarea}
+                        className="form-input"
+                      />
+                    </div>
+
+                    {/* Personality Field */}
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Personality</label>
+                      <div style={styles.toolbar}>
+                        <button type="button" title="Bold" onClick={() => insertText("**", "**", "personality")} style={styles.toolbarBtn} className="touch-target"><strong>B</strong></button>
+                        <button type="button" title="Italic" onClick={() => insertText("*", "*", "personality")} style={styles.toolbarBtn} className="touch-target"><em>I</em></button>
+                        <button type="button" title="Header" onClick={() => insertText("\n### ", "", "personality")} style={styles.toolbarBtn} className="touch-target">H3</button>
+                        <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "personality")} style={styles.toolbarBtn} className="touch-target">• List</button>
+                        <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "personality")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                      </div>
+                      <textarea
+                        id="wiki-textarea-personality"
+                        value={editingNpc.personality}
+                        onChange={(e) => handleNpcFieldChange("personality", e.target.value)}
+                        placeholder="Character traits, bonds, flaws, and secrets..."
+                        style={styles.textarea}
+                        className="form-input"
+                      />
+                    </div>
+
+                    {/* History Field */}
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>History</label>
+                      <div style={styles.toolbar}>
+                        <button type="button" title="Bold" onClick={() => insertText("**", "**", "history")} style={styles.toolbarBtn} className="touch-target"><strong>B</strong></button>
+                        <button type="button" title="Italic" onClick={() => insertText("*", "*", "history")} style={styles.toolbarBtn} className="touch-target"><em>I</em></button>
+                        <button type="button" title="Header" onClick={() => insertText("\n### ", "", "history")} style={styles.toolbarBtn} className="touch-target">H3</button>
+                        <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "history")} style={styles.toolbarBtn} className="touch-target">• List</button>
+                        <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "history")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                      </div>
+                      <textarea
+                        id="wiki-textarea-history"
+                        value={editingNpc.history}
+                        onChange={(e) => handleNpcFieldChange("history", e.target.value)}
+                        placeholder="Brief backstory and goals..."
+                        style={styles.textarea}
+                        className="form-input"
+                      />
+                    </div>
+
+                    {/* Party Relationship Field */}
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Party Relationship</label>
+                      <div style={styles.toolbar}>
+                        <button type="button" title="Bold" onClick={() => insertText("**", "**", "partyRelationship")} style={styles.toolbarBtn} className="touch-target"><strong>B</strong></button>
+                        <button type="button" title="Italic" onClick={() => insertText("*", "*", "partyRelationship")} style={styles.toolbarBtn} className="touch-target"><em>I</em></button>
+                        <button type="button" title="Header" onClick={() => insertText("\n### ", "", "partyRelationship")} style={styles.toolbarBtn} className="touch-target">H3</button>
+                        <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "partyRelationship")} style={styles.toolbarBtn} className="touch-target">• List</button>
+                        <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "partyRelationship")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                      </div>
+                      <textarea
+                        id="wiki-textarea-partyRelationship"
+                        value={editingNpc.partyRelationship}
+                        onChange={(e) => handleNpcFieldChange("partyRelationship", e.target.value)}
+                        placeholder="Notes on how they view the player characters..."
+                        style={styles.textarea}
+                        className="form-input"
+                      />
+                    </div>
+
+                    {/* Legacy description warning/editing in case the user wants to clean it up */}
+                    {editingNpc.description && (
+                      <div style={{ ...styles.formGroup, borderTop: "1px solid var(--color-border)", paddingTop: "1rem" }}>
+                        <label style={{ ...styles.label, color: "var(--color-warning)" }}>Legacy Notes / General Description (Read Only)</label>
+                        <p style={{ fontSize: "0.85rem", color: "var(--color-muted)", marginBottom: "0.5rem" }}>
+                          This NPC has legacy content in their description. It is displayed here but cannot be modified. Copy any useful text to the sections above.
+                        </p>
+                        <div
+                          style={{
+                            ...styles.previewContainer,
+                            opacity: 0.7,
+                            backgroundColor: "rgba(0,0,0,0.1)",
+                            fontSize: "0.9rem"
+                          }}
+                          className="wiki-content"
+                          dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.description) }}
+                        />
+                      </div>
+                    )}
+
                   </div>
                 ) : (
-                  <div
-                    style={styles.previewContainer}
-                    className="wiki-content"
-                    dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.description) }}
-                  />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    {editingNpc.alignment && (
+                      <div>
+                        <strong style={{ color: "var(--color-accent)" }}>Alignment:</strong>
+                        <div className="wiki-content" dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.alignment) }} />
+                      </div>
+                    )}
+                    {editingNpc.appearance && (
+                      <div>
+                        <strong style={{ color: "var(--color-accent)" }}>Appearance:</strong>
+                        <div className="wiki-content" dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.appearance) }} />
+                      </div>
+                    )}
+                    {editingNpc.personality && (
+                      <div>
+                        <strong style={{ color: "var(--color-accent)" }}>Personality:</strong>
+                        <div className="wiki-content" dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.personality) }} />
+                      </div>
+                    )}
+                    {editingNpc.history && (
+                      <div>
+                        <strong style={{ color: "var(--color-accent)" }}>History:</strong>
+                        <div className="wiki-content" dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.history) }} />
+                      </div>
+                    )}
+                    {editingNpc.partyRelationship && (
+                      <div>
+                        <strong style={{ color: "var(--color-accent)" }}>Party Relationship:</strong>
+                        <div className="wiki-content" dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.partyRelationship) }} />
+                      </div>
+                    )}
+                    {editingNpc.description && (
+                      <div style={{ borderTop: "1px dashed var(--color-border)", paddingTop: "0.5rem" }}>
+                        <strong style={{ color: "var(--color-warning)" }}>Legacy Notes / Description:</strong>
+                        <div className="wiki-content" dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.description) }} />
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -1329,11 +1512,44 @@ export default function WikiPanel({ user }) {
                   onHpChange={handleHpChange}
                 />
                 <h3 style={styles.npcBioHeader}>Narrative & Biography</h3>
-                <div
-                  className="wiki-content"
-                  style={styles.contentBody}
-                  dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.description) }}
-                />
+                <div style={styles.npcBioDetails}>
+                  {selectedArticle.alignment && (
+                    <div style={styles.npcBioSection}>
+                      <h4 style={styles.npcBioSectionTitle}>Alignment</h4>
+                      <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.alignment) }} />
+                    </div>
+                  )}
+                  {selectedArticle.appearance && (
+                    <div style={styles.npcBioSection}>
+                      <h4 style={styles.npcBioSectionTitle}>Appearance</h4>
+                      <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.appearance) }} />
+                    </div>
+                  )}
+                  {selectedArticle.personality && (
+                    <div style={styles.npcBioSection}>
+                      <h4 style={styles.npcBioSectionTitle}>Personality & Traits</h4>
+                      <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.personality) }} />
+                    </div>
+                  )}
+                  {selectedArticle.history && (
+                    <div style={styles.npcBioSection}>
+                      <h4 style={styles.npcBioSectionTitle}>History & Goals</h4>
+                      <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.history) }} />
+                    </div>
+                  )}
+                  {selectedArticle.partyRelationship && (
+                    <div style={styles.npcBioSection}>
+                      <h4 style={styles.npcBioSectionTitle}>Party Relationship</h4>
+                      <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.partyRelationship) }} />
+                    </div>
+                  )}
+                  {selectedArticle.description && (
+                    <div style={{ ...styles.npcBioSection, borderTop: "1px dashed var(--color-border)", paddingTop: "1rem", marginTop: "1rem" }}>
+                      <h4 style={{ ...styles.npcBioSectionTitle, color: "var(--color-warning)" }}>Legacy Notes / General Description</h4>
+                      <div className="wiki-content" style={{ ...styles.npcBioText, opacity: 0.8 }} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.description) }} />
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <>
@@ -1493,9 +1709,17 @@ export default function WikiPanel({ user }) {
                     </div>
                   </div>
                   <p style={styles.cardPreview}>
-                    {npc.description
-                      ? npc.description.replace(/[#*`]/g, "").slice(0, 100) + (npc.description.length > 100 ? "..." : "")
-                      : "No details recorded."}
+                    {(() => {
+                      const parts = [
+                        npc.alignment ? `[${npc.alignment}]` : "",
+                        npc.appearance,
+                        npc.personality,
+                        npc.history,
+                        npc.description
+                      ].filter(Boolean);
+                      const fullText = parts.join(" ").replace(/[#*`]/g, "").trim();
+                      return fullText ? (fullText.slice(0, 100) + (fullText.length > 100 ? "..." : "")) : "No details recorded.";
+                    })()}
                   </p>
                 </div>
               ))
@@ -1894,6 +2118,30 @@ const styles = {
     paddingBottom: "0.35rem",
     marginTop: "1.5rem",
     marginBottom: "0.75rem",
+  },
+  npcBioDetails: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+    marginTop: "0.5rem",
+  },
+  npcBioSection: {
+    padding: "0.8rem 1rem",
+    borderRadius: "6px",
+    background: "rgba(255, 255, 255, 0.02)",
+    borderLeft: "3px solid var(--color-accent)",
+  },
+  npcBioSectionTitle: {
+    fontSize: "0.85rem",
+    fontWeight: "bold",
+    color: "var(--color-accent)",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    margin: "0 0 0.4rem 0",
+  },
+  npcBioText: {
+    fontSize: "0.9rem",
+    lineHeight: "1.45",
   },
   tagList: {
     display: "flex",

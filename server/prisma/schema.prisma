@@ -210,6 +210,11 @@ model Npc {
 
   // Narrative and player visibility
   description        String  @default("")
+  alignment          String  @default("")
+  appearance         String  @default("")
+  personality        String  @default("")
+  history            String  @default("")
+  partyRelationship  String  @default("")
   isVisibleToPlayers Boolean @default(false)
 
   // Relations

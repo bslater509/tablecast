@@ -35,6 +35,11 @@ const ALLOWED_FIELDS = [
   "modifiers",
   "actions",
   "description",
+  "alignment",
+  "appearance",
+  "personality",
+  "history",
+  "partyRelationship",
   "isVisibleToPlayers",
 ];
 
