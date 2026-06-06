@@ -9,7 +9,7 @@ This document defines the specialized agent roles and system prompts to be used 
 * **Leverage Existing Libraries:** Prefer using well-established, maintained libraries rather than reinventing the wheel (e.g., for complex math, VTT operations, compression, or UI components).
 * **Error Handling:** All async operations must have robust try/catch blocks. Gracefully handle WebSocket disconnections and reconnections.
 * **Docker Container Rebuild:** Whenever codebase or config modifications are made, the Docker container must always be rebuilt and run (e.g. using `docker compose up --build -d` or building and restarting the container) to ensure the live environment runs the latest changes.
-* **Debugging Tools:** Use the installed Debian package for Google Chrome when testing the site.
+* **Debugging Tools:** Use the installed Debian package for Google Chrome when testing the site. If automated browser subagents fail to start due to environment loopback/CDP resolution issues (e.g., `failed to resolve CDP URLs` or `could not resolve IP for 127.0.0.1`), verify backend API endpoints directly using `curl http://localhost:3001/api/health` and verify client compilation from container build logs as a fallback validation mechanism.
 
 ---
 

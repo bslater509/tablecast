@@ -145,3 +145,71 @@ body {
   align-items: center;
   justify-content: center;
 }
+
+/* =============================================================================
+   Tablecast — Campaign Wiki Markdown Styling
+   Applied to .wiki-content container elements compiled by marked.
+============================================================================= */
+.wiki-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.85rem;
+}
+
+.wiki-content th, .wiki-content td {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+}
+
+.wiki-content th {
+  background-color: rgba(200, 151, 58, 0.1);
+  color: var(--color-accent);
+  font-weight: bold;
+}
+
+.wiki-content blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 0.75rem;
+  margin: 0.75rem 0;
+  color: var(--color-muted);
+  font-style: italic;
+  background: rgba(255, 255, 255, 0.02);
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+  padding-right: 0.45rem;
+  border-radius: 0 4px 4px 0;
+}
+
+.wiki-content p {
+  margin-bottom: 0.75rem;
+  line-height: 1.6;
+}
+
+.wiki-content ul, .wiki-content ol {
+  margin-left: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.wiki-content li {
+  margin-bottom: 0.25rem;
+}
+
+.wiki-content hr {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 1rem 0;
+}
+
+.wiki-content h1, .wiki-content h2, .wiki-content h3, .wiki-content h4 {
+  color: var(--color-accent);
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+}
+
+.wiki-content h1 { font-size: 1.4rem; }
+.wiki-content h2 { font-size: 1.25rem; }
+.wiki-content h3 { font-size: 1.1rem; }
+.wiki-content h4 { font-size: 1rem; }
