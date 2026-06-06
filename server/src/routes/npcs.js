@@ -25,6 +25,7 @@ const ALLOWED_FIELDS = [
   "ac",
   "cr",
   "imageUrl",
+  "largeImageUrl",
   "strength",
   "dexterity",
   "constitution",

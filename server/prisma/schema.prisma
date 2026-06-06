@@ -191,6 +191,7 @@ model Npc {
   ac       Int    @default(10)
   cr       String @default("0") // e.g. "1/8", "1", "10"
   imageUrl String @default("")
+  largeImageUrl String @default("")
 
   // Core Ability Scores (D&D 5e)
   strength     Int @default(10)

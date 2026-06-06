@@ -201,6 +201,7 @@ export default function WikiPanel({ user }) {
   const [npcs, setNpcs] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedArticle, setSelectedArticle] = useState(null);
+  const [lightboxImage, setLightboxImage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -381,6 +382,7 @@ export default function WikiPanel({ user }) {
         ac: 10,
         cr: "0",
         imageUrl: "",
+        largeImageUrl: "",
         strength: 10,
         dexterity: 10,
         constitution: 10,
@@ -421,6 +423,7 @@ export default function WikiPanel({ user }) {
     if (activeCategoryTab === "NPC") {
       setEditingNpc({
         ...item,
+        largeImageUrl: item.largeImageUrl || "",
         alignment: item.alignment || "",
         appearance: item.appearance || "",
         personality: item.personality || "",
@@ -523,7 +526,8 @@ export default function WikiPanel({ user }) {
         maxHp: hpVal,
         ac: acVal,
         cr: details.cr || "0",
-        imageUrl: details.imageUrl || details.tokenUrl || "",
+        imageUrl: details.tokenUrl || details.imageUrl || "",
+        largeImageUrl: details.imageUrl || "",
         strength: details.str || 10,
         dexterity: details.dex || 10,
         constitution: details.con || 10,
@@ -959,18 +963,29 @@ export default function WikiPanel({ user }) {
                 </div>
 
                 <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem", flexWrap: "wrap" }}>
-                  <div style={{ ...styles.formGroup, flex: 2, minWidth: "200px" }}>
+                  <div style={{ ...styles.formGroup, flex: 1, minWidth: "200px" }}>
                     <label style={styles.label}>Avatar / Token Image URL (Optional)</label>
                     <input
                       type="text"
-                      value={editingNpc.imageUrl}
+                      value={editingNpc.imageUrl || ""}
                       onChange={(e) => handleNpcFieldChange("imageUrl", e.target.value)}
                       style={styles.input}
                       className="form-input"
                       placeholder="https://example.com/avatar.png or /uploads/..."
                     />
                   </div>
-                  <div style={styles.checkboxGroup}>
+                  <div style={{ ...styles.formGroup, flex: 1, minWidth: "200px" }}>
+                    <label style={styles.label}>Large Portrait Image URL (Optional)</label>
+                    <input
+                      type="text"
+                      value={editingNpc.largeImageUrl || ""}
+                      onChange={(e) => handleNpcFieldChange("largeImageUrl", e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                      placeholder="https://example.com/portrait.png or /uploads/..."
+                    />
+                  </div>
+                  <div style={{ ...styles.checkboxGroup, flex: "0 0 auto", alignSelf: "center", marginTop: "1.25rem" }}>
                     <input
                       type="checkbox"
                       id="npcIsVisibleToPlayers"
@@ -1512,6 +1527,19 @@ export default function WikiPanel({ user }) {
                   onHpChange={handleHpChange}
                 />
                 <h3 style={styles.npcBioHeader}>Narrative & Biography</h3>
+                {selectedArticle.largeImageUrl && (
+                  <div
+                    className="npc-banner-container"
+                    onClick={() => setLightboxImage(selectedArticle.largeImageUrl)}
+                    title="Click to view full uncropped image"
+                  >
+                    <img
+                      src={selectedArticle.largeImageUrl}
+                      alt={selectedArticle.name}
+                      className="npc-banner-image"
+                    />
+                  </div>
+                )}
                 <div style={styles.npcBioDetails}>
                   {selectedArticle.alignment && (
                     <div style={styles.npcBioSection}>
@@ -1863,6 +1891,15 @@ export default function WikiPanel({ user }) {
                 Destroy Entry
               </button>
             </footer>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal for Large Portrait/Artwork */}
+      {lightboxImage && (
+        <div className="lightbox-overlay" onClick={() => setLightboxImage(null)}>
+          <div className="lightbox-content-wrapper">
+            <img src={lightboxImage} alt="NPC Portrait Full size" className="lightbox-image" />
           </div>
         </div>
       )}

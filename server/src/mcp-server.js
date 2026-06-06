@@ -194,6 +194,7 @@ const TOOLS = [
         ac: { type: "number", description: "Armor Class (default: 10)." },
         cr: { type: "string", description: "Challenge Rating, e.g. '1/4', '1', '5' (default: '0')." },
         imageUrl: { type: "string", description: "NPC image/avatar URL." },
+        largeImageUrl: { type: "string", description: "NPC large portrait URL." },
         strength: { type: "number", description: "Strength score (default: 10)." },
         dexterity: { type: "number", description: "Dexterity score (default: 10)." },
         constitution: { type: "number", description: "Constitution score (default: 10)." },
@@ -252,6 +253,7 @@ const TOOLS = [
         ac: { type: "number" },
         cr: { type: "string" },
         imageUrl: { type: "string" },
+        largeImageUrl: { type: "string" },
         strength: { type: "number" },
         dexterity: { type: "number" },
         constitution: { type: "number" },
@@ -652,6 +654,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ac,
           cr,
           imageUrl,
+          largeImageUrl,
           description,
           alignment,
           appearance,
@@ -693,6 +696,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ac: ac ?? 10,
             cr: cr || "0",
             imageUrl: imageUrl || "",
+            largeImageUrl: largeImageUrl || "",
             strength,
             dexterity,
             constitution,
@@ -736,6 +740,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ac,
           cr,
           imageUrl,
+          largeImageUrl,
           inventory,
           actions,
           modifiers,
@@ -764,6 +769,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (ac !== undefined) dataUpdate.ac = ac;
         if (cr !== undefined) dataUpdate.cr = cr;
         if (imageUrl !== undefined) dataUpdate.imageUrl = imageUrl;
+        if (largeImageUrl !== undefined) dataUpdate.largeImageUrl = largeImageUrl;
         if (description !== undefined) dataUpdate.description = description;
         if (alignment !== undefined) dataUpdate.alignment = alignment;
         if (appearance !== undefined) dataUpdate.appearance = appearance;
