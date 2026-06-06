@@ -34,6 +34,18 @@ export default function MapPanel({ user }) {
   const [availableNpcs, setAvailableNpcs] = useState([]);
   const [tokenType, setTokenType] = useState("character"); // "character", "npc", "monster"
   const [newTokenNpcId, setNewTokenNpcId] = useState("");
+  const [activeEncounter, setActiveEncounter] = useState(null);
+  const [showEncounterDrawer, setShowEncounterDrawer] = useState(false);
+  const [encounterName, setEncounterName] = useState("");
+  const [encounterMonsterQuery, setEncounterMonsterQuery] = useState("");
+  const [encounterMonster, setEncounterMonster] = useState(null);
+  const [encounterQuantity, setEncounterQuantity] = useState(1);
+  const [encounterHidden, setEncounterHidden] = useState(false);
+  const [encounterNpcId, setEncounterNpcId] = useState("");
+  const [encounterCharacterId, setEncounterCharacterId] = useState("");
+  const [encounterDeployX, setEncounterDeployX] = useState(0);
+  const [encounterDeployY, setEncounterDeployY] = useState(0);
+  const [encounterBusy, setEncounterBusy] = useState(false);
 
   // Toolbar & View state
   const [tool, setTool] = useState("select"); // "select" (pan/token move), "draw-fog", "reveal-fog"
@@ -80,6 +92,7 @@ export default function MapPanel({ user }) {
   const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
   const withUser = (payload = {}) => ({ ...payload, userId: user?.id });
+  const isDM = user?.role === "DM";
 
   // ---------------------------------------------------------------------------
   // Load data & initial socket listeners
@@ -164,6 +177,51 @@ export default function MapPanel({ user }) {
     }
   }
 
+  async function loadActiveEncounter(mapId = activeMap?.id) {
+    if (!mapId) {
+      setActiveEncounter(null);
+      return null;
+    }
+
+    try {
+      const res = await fetch(`/api/encounters/active?mapId=${mapId}`, { headers: authHeaders });
+      if (!res.ok) return null;
+      const data = await res.json();
+      setActiveEncounter(data);
+      return data;
+    } catch (err) {
+      console.error("Failed to load active encounter:", err);
+      return null;
+    }
+  }
+
+  const notifyEncounterRefresh = (encounterId = activeEncounter?.id, turnChanged = false) => {
+    if (!socket || !isConnected || !encounterId) return;
+    socket.emit(turnChanged ? "encounter:turn" : "encounter:refresh", withUser({ encounterId }));
+  };
+
+  const persistEncounterResult = async (res, options = {}) => {
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Encounter action failed.");
+    }
+    const encounter = await res.json();
+    setActiveEncounter(encounter);
+    notifyEncounterRefresh(encounter.id, options.turnChanged);
+    if (activeMap?.id) {
+      fetchMapDetails(activeMap.id);
+    }
+    return encounter;
+  };
+
+  useEffect(() => {
+    if (activeMap?.id) {
+      loadActiveEncounter(activeMap.id);
+    } else {
+      setActiveEncounter(null);
+    }
+  }, [activeMap?.id, user?.id]);
+
   // Helper to reset viewport zoom/pan to fit the map background centered
   const resetViewport = (imgW, imgH) => {
     const canvas = canvasRef.current;
@@ -246,12 +304,21 @@ export default function MapPanel({ user }) {
       });
     };
 
+    const handleEncounterRefresh = (payload) => {
+      if (!activeMap || Number(payload.mapId) === Number(activeMap.id)) {
+        loadActiveEncounter(payload.mapId || activeMap?.id);
+        if (activeMap?.id) fetchMapDetails(activeMap.id);
+      }
+    };
+
     socket.on("map:selected", handleMapSelected);
     socket.on("token:moved", handleTokenMoved);
     socket.on("token:created", handleTokenCreated);
     socket.on("token:deleted", handleTokenDeleted);
     socket.on("fog:updated", handleFogUpdated);
     socket.on("map:deleted", handleMapDeleted);
+    socket.on("encounter:updated", handleEncounterRefresh);
+    socket.on("encounter:turnChanged", handleEncounterRefresh);
 
     return () => {
       socket.off("map:selected", handleMapSelected);
@@ -260,6 +327,8 @@ export default function MapPanel({ user }) {
       socket.off("token:deleted", handleTokenDeleted);
       socket.off("fog:updated", handleFogUpdated);
       socket.off("map:deleted", handleMapDeleted);
+      socket.off("encounter:updated", handleEncounterRefresh);
+      socket.off("encounter:turnChanged", handleEncounterRefresh);
     };
   }, [socket, activeMap]);
 
@@ -956,6 +1025,183 @@ export default function MapPanel({ user }) {
     }
   };
 
+  const handleCreateEncounter = async () => {
+    if (!activeMap || !isDM || encounterBusy) return;
+    setEncounterBusy(true);
+    try {
+      const res = await fetch("/api/encounters", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          mapId: activeMap.id,
+          name: encounterName.trim() || `${activeMap.name} Encounter`,
+        }),
+      });
+      await persistEncounterResult(res);
+      setEncounterName("");
+      setShowEncounterDrawer(true);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setEncounterBusy(false);
+    }
+  };
+
+  const handleAddMonsterToEncounter = async () => {
+    if (!activeEncounter || !encounterMonster?.name || !isDM || encounterBusy) return;
+    setEncounterBusy(true);
+    try {
+      const res = await fetch(`/api/encounters/${activeEncounter.id}/participants`, {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          type: "monster",
+          monster: { name: encounterMonster.name, source: encounterMonster.source },
+          quantity: encounterQuantity,
+          isHidden: encounterHidden,
+        }),
+      });
+      await persistEncounterResult(res);
+      setEncounterMonster(null);
+      setEncounterMonsterQuery("");
+      setEncounterQuantity(1);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setEncounterBusy(false);
+    }
+  };
+
+  const handleAddNpcToEncounter = async () => {
+    if (!activeEncounter || !encounterNpcId || !isDM || encounterBusy) return;
+    setEncounterBusy(true);
+    try {
+      const res = await fetch(`/api/encounters/${activeEncounter.id}/participants`, {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          type: "npc",
+          npcId: Number(encounterNpcId),
+          isHidden: encounterHidden,
+        }),
+      });
+      await persistEncounterResult(res);
+      setEncounterNpcId("");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setEncounterBusy(false);
+    }
+  };
+
+  const handleAddCharacterToEncounter = async () => {
+    if (!activeEncounter || !encounterCharacterId || !isDM || encounterBusy) return;
+    setEncounterBusy(true);
+    try {
+      const res = await fetch(`/api/encounters/${activeEncounter.id}/participants`, {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          type: "character",
+          characterId: Number(encounterCharacterId),
+          isHidden: false,
+        }),
+      });
+      await persistEncounterResult(res);
+      setEncounterCharacterId("");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setEncounterBusy(false);
+    }
+  };
+
+  const handleDeployEncounter = async () => {
+    if (!activeEncounter || !isDM || encounterBusy) return;
+    setEncounterBusy(true);
+    try {
+      const res = await fetch(`/api/encounters/${activeEncounter.id}/deploy`, {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ startX: encounterDeployX, startY: encounterDeployY }),
+      });
+      await persistEncounterResult(res);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setEncounterBusy(false);
+    }
+  };
+
+  const handleStartEncounter = async () => {
+    if (!activeEncounter || !isDM || encounterBusy) return;
+    setEncounterBusy(true);
+    try {
+      const res = await fetch(`/api/encounters/${activeEncounter.id}/start`, {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ rollInitiative: true }),
+      });
+      await persistEncounterResult(res, { turnChanged: true });
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setEncounterBusy(false);
+    }
+  };
+
+  const handleAdvanceEncounterTurn = async (direction = "next") => {
+    if (!activeEncounter || !isDM || encounterBusy) return;
+    setEncounterBusy(true);
+    try {
+      const res = await fetch(`/api/encounters/${activeEncounter.id}/turn`, {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ direction }),
+      });
+      await persistEncounterResult(res, { turnChanged: true });
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setEncounterBusy(false);
+    }
+  };
+
+  const handleCompleteEncounter = async () => {
+    if (!activeEncounter || !isDM || encounterBusy) return;
+    setEncounterBusy(true);
+    try {
+      const res = await fetch(`/api/encounters/${activeEncounter.id}`, {
+        method: "PATCH",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ status: "COMPLETE" }),
+      });
+      await persistEncounterResult(res);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setEncounterBusy(false);
+    }
+  };
+
+  const handleParticipantHp = async (participant, delta) => {
+    if (!activeEncounter || !isDM || encounterBusy) return;
+    const nextHp = Math.max(0, Math.min(participant.maxHp, participant.currentHp + delta));
+    setEncounterBusy(true);
+    try {
+      const res = await fetch(`/api/encounters/participants/${participant.id}`, {
+        method: "PATCH",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ currentHp: nextHp }),
+      });
+      await persistEncounterResult(res);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setEncounterBusy(false);
+    }
+  };
+
   const cleanText = (text) => {
     if (typeof text !== "string") return "";
     return text
@@ -1291,6 +1537,232 @@ export default function MapPanel({ user }) {
           onTouchCancel={handleTouchEnd}
         />
 
+        {activeEncounter && activeEncounter.status !== "COMPLETE" && (
+          <div style={styles.combatStrip} className="glass-panel">
+            <div style={styles.combatStripMeta}>
+              <strong>{activeEncounter.name}</strong>
+              <span>Round {activeEncounter.round} • {activeEncounter.status}</span>
+            </div>
+            <div style={styles.combatParticipants}>
+              {(activeEncounter.participants || []).slice(0, 8).map((participant) => {
+                const isCurrent = participant.id === activeEncounter.currentParticipantId;
+                const hpPct = participant.maxHp ? Math.max(0, Math.min(100, (participant.currentHp / participant.maxHp) * 100)) : 0;
+                return (
+                  <div
+                    key={participant.id}
+                    style={{
+                      ...styles.combatPill,
+                      borderColor: isCurrent ? "var(--color-accent)" : "rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <span style={styles.combatPillName}>{participant.name}</span>
+                    <span style={styles.combatPillHp}>{participant.currentHp}/{participant.maxHp}</span>
+                    <span style={{ ...styles.combatHpBar, width: `${hpPct}%` }} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {isDM && showEncounterDrawer && (
+          <div style={styles.encounterDrawer} className="glass-panel gold-border-glow">
+            <header style={styles.detailsHeader}>
+              <h4 style={styles.smallPanelHeader}>Encounter Builder</h4>
+              <button onClick={() => setShowEncounterDrawer(false)} style={styles.closeBtn}>✕</button>
+            </header>
+
+            {!activeEncounter || activeEncounter.status === "COMPLETE" ? (
+              <div style={styles.encounterSection}>
+                <input
+                  value={encounterName}
+                  onChange={(e) => setEncounterName(e.target.value)}
+                  placeholder={activeMap ? `${activeMap.name} Encounter` : "Encounter name"}
+                  style={styles.input}
+                  className="form-input"
+                  disabled={!activeMap || encounterBusy}
+                />
+                <button
+                  onClick={handleCreateEncounter}
+                  disabled={!activeMap || encounterBusy}
+                  style={styles.btnSubmit}
+                  className="touch-target btn-hover-scale"
+                >
+                  Create Encounter
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={styles.encounterMetaBox}>
+                  <strong>{activeEncounter.name}</strong>
+                  <span>{activeEncounter.participants?.length || 0} combatants • Round {activeEncounter.round}</span>
+                </div>
+
+                <div style={styles.encounterSection}>
+                  <label style={styles.label}>Add Bestiary Monsters</label>
+                  <Autocomplete
+                    category="monsters"
+                    value={encounterMonsterQuery}
+                    onChange={(value) => {
+                      setEncounterMonsterQuery(value);
+                      setEncounterMonster(null);
+                    }}
+                    onSelect={(monster) => {
+                      setEncounterMonster(monster);
+                      setEncounterMonsterQuery(monster.name);
+                    }}
+                    placeholder="Search monsters"
+                    className="form-input"
+                    inputStyle={styles.input}
+                  />
+                  <div style={styles.encounterRow}>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={encounterQuantity}
+                      onChange={(e) => setEncounterQuantity(Number(e.target.value))}
+                      style={styles.smallNumberInput}
+                      className="form-input"
+                    />
+                    <label style={styles.checkboxLabel}>
+                      <input
+                        type="checkbox"
+                        checked={encounterHidden}
+                        onChange={(e) => setEncounterHidden(e.target.checked)}
+                      />
+                      Hidden
+                    </label>
+                    <button
+                      onClick={handleAddMonsterToEncounter}
+                      disabled={!encounterMonster || encounterBusy}
+                      style={styles.btnAction}
+                      className="touch-target"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                <div style={styles.encounterSection}>
+                  <label style={styles.label}>Add Existing NPC or Character</label>
+                  <div style={styles.encounterRow}>
+                    <select
+                      value={encounterNpcId}
+                      onChange={(e) => setEncounterNpcId(e.target.value)}
+                      style={styles.select}
+                      className="form-input"
+                    >
+                      <option value="">NPC...</option>
+                      {availableNpcs.map((npc) => (
+                        <option key={npc.id} value={npc.id}>{npc.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleAddNpcToEncounter}
+                      disabled={!encounterNpcId || encounterBusy}
+                      style={styles.btnAction}
+                      className="touch-target"
+                    >
+                      Add NPC
+                    </button>
+                  </div>
+                  <div style={styles.encounterRow}>
+                    <select
+                      value={encounterCharacterId}
+                      onChange={(e) => setEncounterCharacterId(e.target.value)}
+                      style={styles.select}
+                      className="form-input"
+                    >
+                      <option value="">Character...</option>
+                      {availableCharacters.map((character) => (
+                        <option key={character.id} value={character.id}>{character.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleAddCharacterToEncounter}
+                      disabled={!encounterCharacterId || encounterBusy}
+                      style={styles.btnAction}
+                      className="touch-target"
+                    >
+                      Add PC
+                    </button>
+                  </div>
+                </div>
+
+                <div style={styles.encounterRoster}>
+                  {(activeEncounter.participants || []).map((participant) => {
+                    const isCurrent = participant.id === activeEncounter.currentParticipantId;
+                    return (
+                      <div
+                        key={participant.id}
+                        style={{
+                          ...styles.encounterRosterItem,
+                          borderColor: isCurrent ? "var(--color-accent)" : "rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        <div style={styles.rosterNameRow}>
+                          <strong>{participant.name}</strong>
+                          <span>Init {participant.initiative}</span>
+                        </div>
+                        <div style={styles.encounterRow}>
+                          <span style={styles.rosterHp}>HP {participant.currentHp}/{participant.maxHp} • AC {participant.ac}</span>
+                          <button onClick={() => handleParticipantHp(participant, -5)} style={styles.hpAdjBtn}>-5</button>
+                          <button onClick={() => handleParticipantHp(participant, -1)} style={styles.hpAdjBtn}>-1</button>
+                          <button onClick={() => handleParticipantHp(participant, 1)} style={styles.hpAdjBtn}>+1</button>
+                          <button onClick={() => handleParticipantHp(participant, 5)} style={styles.hpAdjBtn}>+5</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={styles.encounterSection}>
+                  <label style={styles.label}>Deploy Start Cell</label>
+                  <div style={styles.encounterRow}>
+                    <input
+                      type="number"
+                      min="0"
+                      value={encounterDeployX}
+                      onChange={(e) => setEncounterDeployX(Number(e.target.value))}
+                      style={styles.smallNumberInput}
+                      className="form-input"
+                      aria-label="Deploy X"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      value={encounterDeployY}
+                      onChange={(e) => setEncounterDeployY(Number(e.target.value))}
+                      style={styles.smallNumberInput}
+                      className="form-input"
+                      aria-label="Deploy Y"
+                    />
+                    <button onClick={handleDeployEncounter} disabled={encounterBusy} style={styles.btnAction} className="touch-target">
+                      Deploy
+                    </button>
+                  </div>
+                </div>
+
+                <div style={styles.encounterControls}>
+                  <button onClick={handleStartEncounter} disabled={encounterBusy} style={styles.btnSubmit} className="touch-target">
+                    Roll Initiative
+                  </button>
+                  <button onClick={() => handleAdvanceEncounterTurn("previous")} disabled={encounterBusy} style={styles.btnAction} className="touch-target">
+                    Prev
+                  </button>
+                  <button onClick={() => handleAdvanceEncounterTurn("next")} disabled={encounterBusy} style={styles.btnAction} className="touch-target">
+                    Next
+                  </button>
+                  <button onClick={handleCompleteEncounter} disabled={encounterBusy} style={styles.btnDangerSmall} className="touch-target">
+                    Complete
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Floating Tool Option Bar */}
         <div style={styles.floatingToolbar} className="glass-panel">
           <button
@@ -1406,6 +1878,15 @@ export default function MapPanel({ user }) {
             </div>
           )}
           <div style={styles.tokenActionRow}>
+            {isDM && (
+              <button
+                onClick={() => setShowEncounterDrawer(true)}
+                style={styles.btnAction}
+                className="btn-hover-scale touch-target"
+              >
+                Encounter
+              </button>
+            )}
             <button
               onClick={() => setShowAddTokenModal(true)}
               style={styles.btnAction}
@@ -2390,6 +2871,153 @@ const styles = {
     width: "260px",
     maxHeight: "60vh",
     overflowY: "auto",
+  },
+  combatStrip: {
+    position: "absolute",
+    left: "12px",
+    right: "12px",
+    top: "76px",
+    zIndex: 90,
+    display: "flex",
+    alignItems: "center",
+    gap: "0.6rem",
+    padding: "0.45rem",
+    borderRadius: "6px",
+    background: "rgba(10, 8, 20, 0.86)",
+    overflowX: "auto",
+  },
+  combatStripMeta: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.1rem",
+    minWidth: "130px",
+    fontSize: "0.72rem",
+    color: "var(--color-text)",
+  },
+  combatParticipants: {
+    display: "flex",
+    gap: "0.35rem",
+    minWidth: 0,
+  },
+  combatPill: {
+    position: "relative",
+    minWidth: "96px",
+    height: "44px",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "4px",
+    overflow: "hidden",
+    background: "rgba(255,255,255,0.04)",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    padding: "0 0.45rem",
+    flexShrink: 0,
+  },
+  combatPillName: {
+    position: "relative",
+    zIndex: 1,
+    fontSize: "0.72rem",
+    fontWeight: 700,
+    color: "var(--color-text)",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  combatPillHp: {
+    position: "relative",
+    zIndex: 1,
+    fontSize: "0.65rem",
+    color: "var(--color-muted)",
+  },
+  combatHpBar: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    height: "3px",
+    background: "var(--color-success)",
+  },
+  encounterDrawer: {
+    position: "absolute",
+    top: "12px",
+    right: "12px",
+    bottom: "12px",
+    zIndex: 180,
+    width: "min(360px, calc(100% - 24px))",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.65rem",
+    padding: "0.85rem",
+    borderRadius: "8px",
+    background: "rgba(10, 8, 20, 0.96)",
+    overflowY: "auto",
+  },
+  encounterSection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.45rem",
+    paddingBottom: "0.55rem",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
+  },
+  encounterMetaBox: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.15rem",
+    padding: "0.55rem",
+    borderRadius: "6px",
+    background: "rgba(255,255,255,0.04)",
+    fontSize: "0.8rem",
+    color: "var(--color-text)",
+  },
+  encounterRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.35rem",
+    minWidth: 0,
+  },
+  smallNumberInput: {
+    width: "64px",
+    minHeight: "44px",
+    padding: "0.4rem",
+    fontSize: "0.85rem",
+  },
+  checkboxLabel: {
+    minHeight: "44px",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.3rem",
+    fontSize: "0.75rem",
+    color: "var(--color-muted)",
+  },
+  encounterRoster: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.4rem",
+  },
+  encounterRosterItem: {
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "6px",
+    padding: "0.5rem",
+    background: "rgba(255,255,255,0.03)",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.35rem",
+  },
+  rosterNameRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "0.5rem",
+    fontSize: "0.78rem",
+    color: "var(--color-text)",
+  },
+  rosterHp: {
+    flex: 1,
+    fontSize: "0.72rem",
+    color: "var(--color-muted)",
+  },
+  encounterControls: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "0.45rem",
   },
   detailsHeader: {
     display: "flex",

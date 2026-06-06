@@ -322,10 +322,80 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
       return reply;
     }
 
+    case "lmstudio": {
+      let baseUrl = ollamaUrl || "http://localhost:1234";
+      if (!baseUrl.endsWith("/v1") && !baseUrl.includes("/v1/")) {
+        baseUrl = baseUrl.replace(/\/+$/, "") + "/v1";
+      }
+      const url = `${baseUrl}/chat/completions`;
+      const messages = [
+        { role: "system", content: systemPrompt },
+        ...formatHistoryOpenAi(),
+        { role: "user", content: userMessage }
+      ];
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: ollamaModel || "",
+          messages
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`LM Studio responded with status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const reply = data.choices?.[0]?.message?.content;
+      if (!reply) throw new Error("Empty response from LM Studio.");
+      return reply;
+    }
+
     default:
       throw new Error(`Unknown AI Provider: ${provider}`);
   }
 }
+
+// ---------------------------------------------------------------------------
+// GET /api/ai/models - Get available models from local Ollama/LM Studio
+// ---------------------------------------------------------------------------
+router.get("/models", requireDm, async (req, res) => {
+  const { provider, url } = req.query;
+  if (!provider || !url) {
+    return res.status(400).json({ error: "Missing provider or url query parameter" });
+  }
+
+  try {
+    if (provider === "lmstudio") {
+      let baseUrl = url;
+      if (!baseUrl.endsWith("/v1") && !baseUrl.includes("/v1/")) {
+        baseUrl = baseUrl.replace(/\/+$/, "") + "/v1";
+      }
+      const response = await fetch(`${baseUrl}/models`);
+      if (!response.ok) {
+        throw new Error(`LM Studio returned status ${response.status}`);
+      }
+      const data = await response.json();
+      const models = (data.data || []).map(m => m.id);
+      res.json({ models });
+    } else if (provider === "ollama") {
+      const response = await fetch(`${url}/api/tags`);
+      if (!response.ok) {
+        throw new Error(`Ollama returned status ${response.status}`);
+      }
+      const data = await response.json();
+      const models = (data.models || []).map(m => m.name);
+      res.json({ models });
+    } else {
+      res.json({ models: [] });
+    }
+  } catch (err) {
+    console.error("[AI Models Fetch Error]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // GET /api/ai/settings - Load AI settings (masked API keys)

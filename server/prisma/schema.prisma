@@ -28,17 +28,17 @@ datasource db {
 /// role: "DM" | "PLAYER"  (enforced at the application layer)
 /// The DM has elevated permissions: wiki editing, backup triggers, fog of war.
 model User {
-  id         Int       @id @default(autoincrement())
-  username   String    @unique
+  id       Int    @id @default(autoincrement())
+  username String @unique
 
   /// "DM" or "PLAYER"
-  role       String    @default("PLAYER")
+  role String @default("PLAYER")
 
   // Relations
   characters Character[]
 
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("users")
 }
@@ -47,41 +47,42 @@ model User {
 /// Core ability scores are stored as individual integer columns for easy querying.
 /// Inventory and computed modifiers are stored as JSON strings (SQLite TEXT).
 model Character {
-  id           Int    @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   // Owner
-  userId       Int
-  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Identity
-  name         String
-  race         String @default("")
-  class        String @default("")
-  level        Int    @default(1)
+  name  String
+  race  String @default("")
+  class String @default("")
+  level Int    @default(1)
 
   // Hit Points
-  hp           Int    @default(10)
-  maxHp        Int    @default(10)
+  hp    Int @default(10)
+  maxHp Int @default(10)
 
   // Core Ability Scores (D&D 5e)
-  strength     Int    @default(10)
-  dexterity    Int    @default(10)
-  constitution Int    @default(10)
-  intelligence Int    @default(10)
-  wisdom       Int    @default(10)
-  charisma     Int    @default(10)
+  strength     Int @default(10)
+  dexterity    Int @default(10)
+  constitution Int @default(10)
+  intelligence Int @default(10)
+  wisdom       Int @default(10)
+  charisma     Int @default(10)
 
   // JSON blobs — calculated by the frontend; stored for persistence
   // inventory: serialized array of item objects
   // modifiers: serialized map of ability modifier values
-  inventory    String @default("[]")   // JSON array
-  modifiers    String @default("{}")   // JSON object
+  inventory String @default("[]") // JSON array
+  modifiers String @default("{}") // JSON object
 
   // Relations
-  tokens       Token[]
+  tokens                Token[]
+  encounterParticipants EncounterParticipant[]
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("characters")
 }
@@ -90,19 +91,20 @@ model Character {
 /// fogState stores the DM's fog-of-war polygon data as a JSON string.
 /// gridType: "SQUARE" | "HEX"  (enforced at the application layer)
 model Map {
-  id        Int      @id @default(autoincrement())
-  name      String
-  imageUrl  String   // Path within uploads/ or external URL
-  gridSize  Int      @default(50) // pixels per grid cell
+  id       Int    @id @default(autoincrement())
+  name     String
+  imageUrl String // Path within uploads/ or external URL
+  gridSize Int    @default(50) // pixels per grid cell
 
   /// "SQUARE" or "HEX"
-  gridType  String   @default("SQUARE")
+  gridType String @default("SQUARE")
 
   // Fog of War — JSON array of polygon coordinate arrays drawn by the DM
-  fogState  String   @default("[]") // JSON
+  fogState String @default("[]") // JSON
 
   // Relations
-  tokens    Token[]
+  tokens     Token[]
+  encounters Encounter[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -113,33 +115,36 @@ model Map {
 /// A draggable marker on a Map, optionally linked to a Character.
 /// x/y coordinates represent grid cell position (not pixel position).
 model Token {
-  id          Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   // Which map this token lives on
-  mapId       Int
-  map         Map       @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  mapId Int
+  map   Map @relation(fields: [mapId], references: [id], onDelete: Cascade)
 
   // Optional link to a character sheet (monster tokens may have no character)
   characterId Int?
   character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
 
   // Optional link to an NPC sheet
-  npcId       Int?
-  npc         Npc?       @relation(fields: [npcId], references: [id], onDelete: SetNull)
+  npcId Int?
+  npc   Npc? @relation(fields: [npcId], references: [id], onDelete: SetNull)
 
   // Display
-  label       String    @default("")
-  imageUrl    String    @default("")
+  label    String @default("")
+  imageUrl String @default("")
 
   // Grid position (column, row) — updated in real-time via Socket.io
-  x           Float     @default(0)
-  y           Float     @default(0)
+  x Float @default(0)
+  y Float @default(0)
 
   // JSON blob containing bestiary stats if it is a monster token
-  stats       String?
+  stats String?
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  // Optional combat tracker participant linked to this token
+  encounterParticipants EncounterParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("tokens")
 }
@@ -147,16 +152,16 @@ model Token {
 /// A DM wiki article — NPCs, locations, lore, session notes, etc.
 /// When isVisibleToPlayers is true the article appears in the Player Journal tab.
 model WikiArticle {
-  id                 Int      @id @default(autoincrement())
+  id                 Int     @id @default(autoincrement())
   title              String
-  content            String   @default("") // Rich text / Markdown
-  isVisibleToPlayers Boolean  @default(false)
+  content            String  @default("") // Rich text / Markdown
+  isVisibleToPlayers Boolean @default(false)
 
   // JSON array of tag strings, e.g. ["NPC","Neverwinter"]
-  tags               String   @default("[]") // JSON
+  tags String @default("[]") // JSON
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("wiki_articles")
 }
@@ -173,41 +178,93 @@ model AppSetting {
 
 /// A DM-created Non-Player Character (NPC) template with a 5e monster-like statblock
 model Npc {
-  id           Int      @id @default(autoincrement())
-  name         String
-  race         String   @default("")
-  class        String   @default("")
-  level        Int      @default(1)
+  id    Int    @id @default(autoincrement())
+  name  String
+  race  String @default("")
+  class String @default("")
+  level Int    @default(1)
 
   // Combat Stats
-  hp           Int      @default(10)
-  maxHp        Int      @default(10)
-  ac           Int      @default(10)
-  cr           String   @default("0") // e.g. "1/8", "1", "10"
-  imageUrl     String   @default("")
+  hp       Int    @default(10)
+  maxHp    Int    @default(10)
+  ac       Int    @default(10)
+  cr       String @default("0") // e.g. "1/8", "1", "10"
+  imageUrl String @default("")
 
   // Core Ability Scores (D&D 5e)
-  strength     Int      @default(10)
-  dexterity    Int      @default(10)
-  constitution Int      @default(10)
-  intelligence Int      @default(10)
-  wisdom       Int      @default(10)
-  charisma     Int      @default(10)
+  strength     Int @default(10)
+  dexterity    Int @default(10)
+  constitution Int @default(10)
+  intelligence Int @default(10)
+  wisdom       Int @default(10)
+  charisma     Int @default(10)
 
   // JSON blobs for structured stats
   // inventory: serialized array of item objects
   // modifiers: serialized map of ability modifier values (strength, dexterity, etc.)
   // actions: serialized array of action objects { name, description, toHit, damage }
-  inventory    String   @default("[]")   // JSON array
-  modifiers    String   @default("{}")   // JSON object
-  actions      String   @default("[]")   // JSON array
+  inventory String @default("[]") // JSON array
+  modifiers String @default("{}") // JSON object
+  actions   String @default("[]") // JSON array
 
   // Relations
-  tokens       Token[]
+  tokens                Token[]
+  encounterParticipants EncounterParticipant[]
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("npcs")
 }
 
+/// A prepared or active combat encounter for a specific map.
+/// status: "DRAFT" | "ACTIVE" | "COMPLETE"  (enforced at the application layer)
+model Encounter {
+  id    Int    @id @default(autoincrement())
+  name  String
+  mapId Int
+  map   Map    @relation(fields: [mapId], references: [id], onDelete: Cascade)
+
+  status    String @default("DRAFT")
+  round     Int    @default(1)
+  turnIndex Int    @default(0)
+
+  participants EncounterParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("encounters")
+}
+
+/// A combatant in an encounter. It may be linked to a token, NPC, or character.
+model EncounterParticipant {
+  id          Int       @id @default(autoincrement())
+  encounterId Int
+  encounter   Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  tokenId Int?
+  token   Token? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+
+  npcId Int?
+  npc   Npc? @relation(fields: [npcId], references: [id], onDelete: SetNull)
+
+  characterId Int?
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  name       String
+  initiative Int     @default(0)
+  currentHp  Int     @default(1)
+  maxHp      Int     @default(1)
+  ac         Int     @default(10)
+  isHidden   Boolean @default(false)
+  sortOrder  Int     @default(0)
+  source     String  @default("")
+  imageUrl   String  @default("")
+  stats      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("encounter_participants")
+}

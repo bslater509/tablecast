@@ -93,6 +93,14 @@ function Autocomplete({
     setIsOpen(false);
   };
 
+  const formatItemType = (type) => {
+    if (!type) return "";
+    if (typeof type === "string" || typeof type === "number") return String(type);
+    if (Array.isArray(type)) return type.map(formatItemType).filter(Boolean).join(", ");
+    if (typeof type === "object") return type.type || type.name || "";
+    return "";
+  };
+
   return (
     <div ref={containerRef} style={{ ...styles.container, ...style }}>
       <input
@@ -127,7 +135,7 @@ function Autocomplete({
                     {item.level === 0 ? "Cantrip" : `Lvl ${item.level}`}
                   </span>
                 )}
-                {item.type && <span style={styles.itemDetail}>{item.type}</span>}
+                {formatItemType(item.type) && <span style={styles.itemDetail}>{formatItemType(item.type)}</span>}
               </button>
             </li>
           ))}

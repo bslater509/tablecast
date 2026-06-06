@@ -15,6 +15,9 @@ services:
       - DATABASE_URL=file:./data/tablecast.db
       - PORT=3001
 
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     volumes:
       # Persistent SQLite database file — survives container rebuilds
       - tablecast-db:/app/server/prisma/data

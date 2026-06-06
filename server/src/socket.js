@@ -351,6 +351,52 @@ Respond to the user's message as "${npc.name}". Keep it immersive, flavorful, an
       }
     });
 
+    socket.on("encounter:refresh", async (payload) => {
+      try {
+        const parsed = validateIdPayload(payload, "encounterId");
+        if (!parsed.ok) return emitSocketError(socket, "encounter:refresh", parsed.error);
+
+        const encounter = await prisma.encounter.findUnique({
+          where: { id: parsed.value.encounterId },
+          select: { id: true, mapId: true, round: true, turnIndex: true, status: true },
+        });
+        if (!encounter) return emitSocketError(socket, "encounter:refresh", "Encounter not found.");
+
+        io.emit("encounter:updated", {
+          encounterId: encounter.id,
+          mapId: encounter.mapId,
+          status: encounter.status,
+          round: encounter.round,
+          turnIndex: encounter.turnIndex,
+        });
+      } catch (err) {
+        console.error("[Socket] Error broadcasting encounter refresh:", err.message);
+      }
+    });
+
+    socket.on("encounter:turn", async (payload) => {
+      try {
+        const parsed = validateIdPayload(payload, "encounterId");
+        if (!parsed.ok) return emitSocketError(socket, "encounter:turn", parsed.error);
+
+        const encounter = await prisma.encounter.findUnique({
+          where: { id: parsed.value.encounterId },
+          select: { id: true, mapId: true, round: true, turnIndex: true, status: true },
+        });
+        if (!encounter) return emitSocketError(socket, "encounter:turn", "Encounter not found.");
+
+        io.emit("encounter:turnChanged", {
+          encounterId: encounter.id,
+          mapId: encounter.mapId,
+          round: encounter.round,
+          turnIndex: encounter.turnIndex,
+          status: encounter.status,
+        });
+      } catch (err) {
+        console.error("[Socket] Error broadcasting encounter turn:", err.message);
+      }
+    });
+
     socket.on("disconnect", (reason) => {
       console.log(`[Socket] Client disconnected: ${clientId} (${reason})`);
 

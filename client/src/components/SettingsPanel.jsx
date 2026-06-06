@@ -35,6 +35,8 @@ function SettingsPanel({ user }) {
   const [aiTesting, setAiTesting] = useState(false);
   const [aiTestResult, setAiTestResult] = useState(null);
   const [savingAi, setSavingAi] = useState(false);
+  const [availableAiModels, setAvailableAiModels] = useState([]);
+  const [fetchingAiModels, setFetchingAiModels] = useState(false);
 
   const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
@@ -301,6 +303,34 @@ function SettingsPanel({ user }) {
       alert(`Network error saving AI settings: ${err.message}`);
     } finally {
       setSavingAi(false);
+    }
+  };
+
+  const handleFetchAiModels = async () => {
+    if (fetchingAiModels) return;
+    setFetchingAiModels(true);
+    setAvailableAiModels([]);
+    try {
+      const res = await fetch(`/api/ai/models?provider=${aiProvider}&url=${encodeURIComponent(aiOllamaUrl)}`, {
+        headers: authHeaders
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAvailableAiModels(data.models || []);
+        if (data.models && data.models.length > 0) {
+          if (!data.models.includes(aiOllamaModel)) {
+            setAiOllamaModel(data.models[0]);
+          }
+        } else {
+          alert("No loaded models found. Make sure your local server has a model active/loaded.");
+        }
+      } else {
+        alert(`Failed to fetch models: ${data.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      alert(`Network error fetching models: ${err.message}`);
+    } finally {
+      setFetchingAiModels(false);
     }
   };
 
@@ -827,10 +857,11 @@ function SettingsPanel({ user }) {
                   <option value="openai">OpenAI (GPT-4o mini)</option>
                   <option value="anthropic">Anthropic (Claude 3.5 Sonnet)</option>
                   <option value="ollama">Local Ollama (Offline LAN)</option>
+                  <option value="lmstudio">LM Studio (Local OpenAI-compatible)</option>
                 </select>
               </div>
 
-              {aiProvider !== "ollama" ? (
+              {aiProvider !== "ollama" && aiProvider !== "lmstudio" ? (
                 <div style={styles.inputGroup}>
                   <label htmlFor="ai-key-input" style={styles.label}>
                     API Key
@@ -853,12 +884,12 @@ function SettingsPanel({ user }) {
                 <>
                   <div style={styles.inputGroup}>
                     <label htmlFor="ai-ollama-url-input" style={styles.label}>
-                      Ollama API Endpoint URL
+                      {aiProvider === "lmstudio" ? "LM Studio API Endpoint URL" : "Ollama API Endpoint URL"}
                     </label>
                     <input
                       id="ai-ollama-url-input"
                       type="text"
-                      placeholder="e.g. http://localhost:11434"
+                      placeholder={aiProvider === "lmstudio" ? "e.g. http://host.docker.internal:1234" : "e.g. http://localhost:11434"}
                       value={aiOllamaUrl}
                       onChange={(e) => setAiOllamaUrl(e.target.value)}
                       style={styles.input}
@@ -869,19 +900,72 @@ function SettingsPanel({ user }) {
                   </div>
                   <div style={styles.inputGroup}>
                     <label htmlFor="ai-ollama-model-input" style={styles.label}>
-                      Model Name
+                      Model Name / Identifier
                     </label>
-                    <input
-                      id="ai-ollama-model-input"
-                      type="text"
-                      placeholder="e.g. llama3, mistral, gemma"
-                      value={aiOllamaModel}
-                      onChange={(e) => setAiOllamaModel(e.target.value)}
-                      style={styles.input}
-                      className="form-input"
-                      disabled={savingAi}
-                      required
-                    />
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <input
+                        id="ai-ollama-model-input"
+                        type="text"
+                        placeholder={aiProvider === "lmstudio" ? "e.g. meta-llama-3-8b-instruct" : "e.g. llama3, mistral, gemma"}
+                        value={aiOllamaModel}
+                        onChange={(e) => setAiOllamaModel(e.target.value)}
+                        style={{ ...styles.input, flex: 1 }}
+                        className="form-input"
+                        disabled={savingAi}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={handleFetchAiModels}
+                        disabled={fetchingAiModels || !aiOllamaUrl}
+                        style={{
+                          padding: "0.5rem 0.75rem",
+                          border: "1px solid rgba(200, 151, 58, 0.35)",
+                          borderRadius: "6px",
+                          background: "rgba(200, 151, 58, 0.08)",
+                          color: "var(--color-accent)",
+                          fontWeight: "bold",
+                          fontSize: "0.8rem",
+                          cursor: "pointer",
+                          minHeight: "44px",
+                          whiteSpace: "nowrap"
+                        }}
+                        className="touch-target btn-hover-scale"
+                      >
+                        {fetchingAiModels ? "Fetching..." : "Fetch Models"}
+                      </button>
+                    </div>
+
+                    {availableAiModels.length > 0 && (
+                      <div style={{ marginTop: "0.35rem" }}>
+                        <label htmlFor="ai-model-select" style={{ ...styles.label, fontSize: "0.75rem", color: "var(--color-muted)" }}>
+                          Select from loaded models:
+                        </label>
+                        <select
+                          id="ai-model-select"
+                          value={aiOllamaModel}
+                          onChange={(e) => setAiOllamaModel(e.target.value)}
+                          style={{
+                            ...styles.input,
+                            padding: "0.5rem",
+                            fontSize: "0.85rem",
+                            marginTop: "0.15rem",
+                            background: "rgba(0, 0, 0, 0.3)",
+                            color: "var(--color-text)",
+                            border: "1px solid var(--color-border)"
+                          }}
+                        >
+                          {!availableAiModels.includes(aiOllamaModel) && (
+                            <option value={aiOllamaModel}>{aiOllamaModel || "(None Selected)"}</option>
+                          )}
+                          {availableAiModels.map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
