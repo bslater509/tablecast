@@ -3,6 +3,7 @@
 // Wires up tab navigation, global states, and user selection overlay.
 // =============================================================================
 import { useState, useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import MapPanel from "./components/MapPanel";
 import CharacterList from "./components/CharacterList";
 import CharacterSheet from "./components/CharacterSheet";
@@ -16,16 +17,20 @@ const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
 
 function App() {
   const { connectionStatus } = useSocket();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(null);
   const [usersList, setUsersList] = useState([]);
-  const [activeCharacter, setActiveCharacter] = useState(null);
-  const [currentTab, setCurrentTab] = useState("chat_journal"); // Default tab
-  const [chatJournalSubTab, setChatJournalSubTab] = useState("chat"); // "chat" or "journal"
   
   // Custom user entry state
   const [customName, setCustomName] = useState("");
   const [customRole, setCustomRole] = useState("PLAYER");
   const [loadingUsers, setLoadingUsers] = useState(true);
+
+  const pathParts = location.pathname.split("/");
+  const currentTab = ["map", "characters", "chat-journal", "settings"].includes(pathParts[1])
+    ? pathParts[1]
+    : "chat-journal";
 
   // Fetch users list and restore persisted session when it is still valid.
   useEffect(() => {
@@ -62,9 +67,9 @@ function App() {
     // If the user has a character already, auto-select their first character if player
     if (selectedUser.role === "PLAYER" && selectedUser.characters && selectedUser.characters.length > 0) {
       const firstChar = selectedUser.characters[0];
-      setActiveCharacter({ id: firstChar.id });
-    } else {
-      setActiveCharacter(null);
+      if (location.pathname === "/" || location.pathname === "/characters") {
+        navigate(`/characters/${firstChar.id}`);
+      }
     }
   }
 
@@ -184,89 +189,13 @@ function App() {
     );
   }
 
-  // Render view depending on the selected tab
-  const renderContent = () => {
-    switch (currentTab) {
-      case "map":
-        return <MapPanel user={user} />;
-        
-      case "characters":
-        if (activeCharacter) {
-          return (
-            <CharacterSheet
-              characterId={activeCharacter.id}
-              user={user}
-              onBack={() => setActiveCharacter(null)}
-            />
-          );
-        } else {
-          return (
-            <CharacterList
-              user={user}
-              onSelectCharacter={(char) => setActiveCharacter(char)}
-            />
-          );
-        }
 
-      case "chat_journal":
-        return (
-          <div style={styles.chatJournalWrapper}>
-            {/* Top Toggle Bar for sub-tabs */}
-            <div style={styles.subTabNav}>
-              <button
-                id="toggle-chat-tab"
-                onClick={() => setChatJournalSubTab("chat")}
-                style={{
-                  ...styles.subTabBtn,
-                  background: chatJournalSubTab === "chat" ? "var(--color-accent-dim)" : "transparent",
-                  color: chatJournalSubTab === "chat" ? "var(--color-accent)" : "var(--color-muted)",
-                  border: chatJournalSubTab === "chat" ? "1px solid var(--color-border)" : "1px solid transparent",
-                }}
-                className="touch-target"
-              >
-                Session Chat
-              </button>
-              <button
-                id="toggle-journal-tab"
-                onClick={() => setChatJournalSubTab("journal")}
-                style={{
-                  ...styles.subTabBtn,
-                  background: chatJournalSubTab === "journal" ? "var(--color-accent-dim)" : "transparent",
-                  color: chatJournalSubTab === "journal" ? "var(--color-accent)" : "var(--color-muted)",
-                  border: chatJournalSubTab === "journal" ? "1px solid var(--color-border)" : "1px solid transparent",
-                }}
-                className="touch-target"
-              >
-                Player Journal
-              </button>
-              <button
-                id="toggle-reference-tab"
-                onClick={() => setChatJournalSubTab("reference")}
-                style={{
-                  ...styles.subTabBtn,
-                  background: chatJournalSubTab === "reference" ? "var(--color-accent-dim)" : "transparent",
-                  color: chatJournalSubTab === "reference" ? "var(--color-accent)" : "var(--color-muted)",
-                  border: chatJournalSubTab === "reference" ? "1px solid var(--color-border)" : "1px solid transparent",
-                }}
-                className="touch-target"
-              >
-                Reference Library
-              </button>
-            </div>
-            
-            <div style={styles.subTabContent}>
-              {chatJournalSubTab === "chat" && <ChatPanel user={user} />}
-              {chatJournalSubTab === "journal" && <WikiPanel user={user} />}
-              {chatJournalSubTab === "reference" && <ReferencePanel />}
-            </div>
-          </div>
-        );
 
-      case "settings":
-        return <SettingsPanel user={user} />;
-        
-      default:
-        return null;
+  const handleCharactersTabClick = () => {
+    if (user?.role === "PLAYER" && user.characters && user.characters.length > 0) {
+      navigate(`/characters/${user.characters[0].id}`);
+    } else {
+      navigate("/characters");
     }
   };
 
@@ -291,14 +220,39 @@ function App() {
 
       {/* Active Tab Screen Space */}
       <main style={styles.mainContent}>
-        {renderContent()}
+        <Routes>
+          <Route path="/map" element={<MapPanel user={user} />} />
+          <Route
+            path="/characters"
+            element={
+              <CharacterList
+                user={user}
+                onSelectCharacter={(char) => navigate(`/characters/${char.id}`)}
+              />
+            }
+          />
+          <Route path="/characters/:id" element={<CharacterSheetWrapper user={user} />} />
+          <Route path="/chat-journal" element={<Navigate to="/chat-journal/chat" replace />} />
+          <Route path="/chat-journal/:subtab" element={<ChatJournalWrapper user={user} />} />
+          <Route
+            path="/settings"
+            element={
+              user?.role === "DM" ? (
+                <SettingsPanel user={user} />
+              ) : (
+                <Navigate to="/chat-journal/chat" replace />
+              )
+            }
+          />
+          <Route path="*" element={<Navigate to="/chat-journal/chat" replace />} />
+        </Routes>
       </main>
 
       {/* Touch-optimized Bottom Navigation Bar */}
       <nav style={styles.bottomNav} className="glass-panel gold-border-glow">
         <button
           id="nav-tab-map"
-          onClick={() => setCurrentTab("map")}
+          onClick={() => navigate("/map")}
           style={{
             ...styles.navBtn,
             color: currentTab === "map" ? "var(--color-accent)" : "var(--color-muted)",
@@ -311,7 +265,7 @@ function App() {
 
         <button
           id="nav-tab-characters"
-          onClick={() => setCurrentTab("characters")}
+          onClick={handleCharactersTabClick}
           style={{
             ...styles.navBtn,
             color: currentTab === "characters" ? "var(--color-accent)" : "var(--color-muted)",
@@ -324,10 +278,10 @@ function App() {
 
         <button
           id="nav-tab-chat-journal"
-          onClick={() => setCurrentTab("chat_journal")}
+          onClick={() => navigate("/chat-journal/chat")}
           style={{
             ...styles.navBtn,
-            color: currentTab === "chat_journal" ? "var(--color-accent)" : "var(--color-muted)",
+            color: currentTab === "chat-journal" ? "var(--color-accent)" : "var(--color-muted)",
           }}
           className="touch-target"
         >
@@ -338,7 +292,7 @@ function App() {
         {user?.role === "DM" && (
           <button
             id="nav-tab-settings"
-            onClick={() => setCurrentTab("settings")}
+            onClick={() => navigate("/settings")}
             style={{
               ...styles.navBtn,
               color: currentTab === "settings" ? "var(--color-accent)" : "var(--color-muted)",
@@ -580,5 +534,76 @@ const styles = {
     overflow: "hidden",
   },
 };
+
+function CharacterSheetWrapper({ user }) {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  return (
+    <CharacterSheet
+      characterId={Number(id)}
+      user={user}
+      onBack={() => navigate("/characters")}
+    />
+  );
+}
+
+function ChatJournalWrapper({ user }) {
+  const { subtab } = useParams();
+  const navigate = useNavigate();
+  const activeSubtab = ["chat", "journal", "reference"].includes(subtab) ? subtab : "chat";
+
+  return (
+    <div style={styles.chatJournalWrapper}>
+      {/* Top Toggle Bar for sub-tabs */}
+      <div style={styles.subTabNav}>
+        <button
+          id="toggle-chat-tab"
+          onClick={() => navigate("/chat-journal/chat")}
+          style={{
+            ...styles.subTabBtn,
+            background: activeSubtab === "chat" ? "var(--color-accent-dim)" : "transparent",
+            color: activeSubtab === "chat" ? "var(--color-accent)" : "var(--color-muted)",
+            border: activeSubtab === "chat" ? "1px solid var(--color-border)" : "1px solid transparent",
+          }}
+          className="touch-target"
+        >
+          Session Chat
+        </button>
+        <button
+          id="toggle-journal-tab"
+          onClick={() => navigate("/chat-journal/journal")}
+          style={{
+            ...styles.subTabBtn,
+            background: activeSubtab === "journal" ? "var(--color-accent-dim)" : "transparent",
+            color: activeSubtab === "journal" ? "var(--color-accent)" : "var(--color-muted)",
+            border: activeSubtab === "journal" ? "1px solid var(--color-border)" : "1px solid transparent",
+          }}
+          className="touch-target"
+        >
+          Player Journal
+        </button>
+        <button
+          id="toggle-reference-tab"
+          onClick={() => navigate("/chat-journal/reference")}
+          style={{
+            ...styles.subTabBtn,
+            background: activeSubtab === "reference" ? "var(--color-accent-dim)" : "transparent",
+            color: activeSubtab === "reference" ? "var(--color-accent)" : "var(--color-muted)",
+            border: activeSubtab === "reference" ? "1px solid var(--color-border)" : "1px solid transparent",
+          }}
+          className="touch-target"
+        >
+          Reference Library
+        </button>
+      </div>
+      
+      <div style={styles.subTabContent}>
+        {activeSubtab === "chat" && <ChatPanel user={user} />}
+        {activeSubtab === "journal" && <WikiPanel user={user} />}
+        {activeSubtab === "reference" && <ReferencePanel />}
+      </div>
+    </div>
+  );
+}
 
 export default App;
