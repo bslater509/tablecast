@@ -636,12 +636,12 @@ function ChatJournalWrapper({ user, basePath }) {
 function PlayerSheetRedirect({ user }) {
   const navigate = useNavigate();
   useEffect(() => {
-    if (user.characters && user.characters.length > 0) {
+    if (user?.characters && user.characters.length > 0) {
       navigate(`/player/sheet/${user.characters[0].id}`, { replace: true });
     }
   }, [user, navigate]);
 
-  if (user.characters && user.characters.length > 0) {
+  if (user?.characters && user.characters.length > 0) {
     return null;
   }
 
@@ -665,7 +665,7 @@ function PlayerLayout({ user, onLogout }) {
     : "map";
 
   const handleSheetTabClick = () => {
-    if (user.characters && user.characters.length > 0) {
+    if (user?.characters && user.characters.length > 0) {
       navigate(`/player/sheet/${user.characters[0].id}`);
     } else {
       navigate("/player/sheet");
@@ -678,7 +678,7 @@ function PlayerLayout({ user, onLogout }) {
       <header style={styles.topHeader} className="glass-panel gold-border-glow">
         <span style={styles.headerTitle}>Player Screen</span>
         <div style={styles.headerUser}>
-          <span style={styles.headerUsername}>{user.username}</span>
+          <span style={styles.headerUsername}>{user?.username}</span>
           <button 
             onClick={onLogout} 
             style={styles.logoutBtn} 
@@ -705,7 +705,7 @@ function PlayerLayout({ user, onLogout }) {
       <nav style={styles.bottomNav} className="glass-panel gold-border-glow">
         <button
           id="nav-tab-map"
-          onClick={() => navigate("map")}
+          onClick={() => navigate("/player/map")}
           style={{
             ...styles.navBtn,
             color: currentTab === "map" ? "var(--color-accent)" : "var(--color-muted)",
@@ -741,7 +741,7 @@ function PlayerLayout({ user, onLogout }) {
 
         <button
           id="nav-tab-chat-journal"
-          onClick={() => navigate("chat-journal/chat")}
+          onClick={() => navigate("/player/chat-journal/chat")}
           style={{
             ...styles.navBtn,
             color: currentTab === "chat-journal" ? "var(--color-accent)" : "var(--color-muted)",
@@ -775,7 +775,7 @@ function DmLayout({ user, onLogout }) {
       <header style={styles.topHeader} className="glass-panel gold-border-glow">
         <span style={styles.headerTitle}>Dungeon Master Screen</span>
         <div style={styles.headerUser}>
-          <span style={styles.headerUsername}>{user.username}</span>
+          <span style={styles.headerUsername}>{user?.username}</span>
           <button 
             onClick={onLogout} 
             style={styles.logoutBtn} 
@@ -811,7 +811,7 @@ function DmLayout({ user, onLogout }) {
       <nav style={styles.bottomNav} className="glass-panel gold-border-glow">
         <button
           id="nav-tab-map"
-          onClick={() => navigate("map")}
+          onClick={() => navigate("/dm/map")}
           style={{
             ...styles.navBtn,
             color: currentTab === "map" ? "var(--color-accent)" : "var(--color-muted)",
@@ -830,7 +830,7 @@ function DmLayout({ user, onLogout }) {
 
         <button
           id="nav-tab-characters"
-          onClick={() => navigate("characters")}
+          onClick={() => navigate("/dm/characters")}
           style={{
             ...styles.navBtn,
             color: currentTab === "characters" ? "var(--color-accent)" : "var(--color-muted)",
@@ -850,7 +850,7 @@ function DmLayout({ user, onLogout }) {
 
         <button
           id="nav-tab-chat-journal"
-          onClick={() => navigate("chat-journal/chat")}
+          onClick={() => navigate("/dm/chat-journal/chat")}
           style={{
             ...styles.navBtn,
             color: currentTab === "chat-journal" ? "var(--color-accent)" : "var(--color-muted)",
@@ -867,7 +867,7 @@ function DmLayout({ user, onLogout }) {
 
         <button
           id="nav-tab-settings"
-          onClick={() => navigate("settings")}
+          onClick={() => navigate("/dm/settings")}
           style={{
             ...styles.navBtn,
             color: currentTab === "settings" ? "var(--color-accent)" : "var(--color-muted)",
