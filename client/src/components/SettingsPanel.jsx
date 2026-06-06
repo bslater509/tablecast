@@ -18,6 +18,16 @@ function SettingsPanel({ user }) {
   const [remotePath, setRemotePath] = useState("tablecast-backups");
   const [configMessage, setConfigMessage] = useState(null);
   const [configError, setConfigError] = useState(null);
+
+  // Google Drive OAuth wizard states
+  const [showOAuthWizard, setShowOAuthWizard] = useState(false);
+  const [oauthClientId, setOauthClientId] = useState("");
+  const [oauthClientSecret, setOauthClientSecret] = useState("");
+  const [oauthRemoteName, setOauthRemoteName] = useState("gdrive");
+  const [oauthRemotePath, setOauthRemotePath] = useState("tablecast-backups");
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const [oauthMessage, setOauthMessage] = useState("");
+  const [oauthError, setOauthError] = useState("");
   
   // Reference sync status states
   const [refStatus, setRefStatus] = useState(null);
@@ -142,6 +152,77 @@ function SettingsPanel({ user }) {
       if (interval) clearInterval(interval);
     };
   }, [syncingRef]);
+
+  // Google Drive OAuth callback message handler
+  useEffect(() => {
+    const handleOAuthMessage = (event) => {
+      if (event.data && event.data.type === "RCLONE_AUTH_SUCCESS") {
+        setOauthMessage("Authentication successful! Saving configuration and refreshing backup status...");
+        setOauthError("");
+        setTimeout(() => {
+          setShowOAuthWizard(false);
+          setOauthMessage("");
+          fetchBackupConfig();
+          setRemoteName(oauthRemoteName);
+          setRemotePath(oauthRemotePath);
+          fetchBackupStatus();
+        }, 2500);
+      }
+    };
+    window.addEventListener("message", handleOAuthMessage);
+    return () => {
+      window.removeEventListener("message", handleOAuthMessage);
+    };
+  }, [oauthRemoteName, oauthRemotePath]);
+
+  const handleStartOAuth = async () => {
+    if (!oauthClientId.trim() || !oauthClientSecret.trim() || !oauthRemoteName.trim()) {
+      setOauthError("Please fill in all required fields (Client ID, Client Secret, and Remote Name).");
+      return;
+    }
+
+    setOauthLoading(true);
+    setOauthError("");
+    setOauthMessage("Contacting server to start Google authorization flow...");
+
+    try {
+      const redirectUri = `${window.location.origin}/api/backup/oauth-callback`;
+      const res = await fetch("/api/backup/oauth-init", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          client_id: oauthClientId.trim(),
+          client_secret: oauthClientSecret.trim(),
+          remote_name: oauthRemoteName.trim(),
+          remote_path: oauthRemotePath.trim(),
+          redirect_uri: redirectUri,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to initialize Google Drive link flow.");
+      }
+
+      setOauthMessage("Popup opened. Complete authorization in the Google accounts page.");
+      
+      const width = 600;
+      const height = 700;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+      
+      window.open(
+        data.authUrl,
+        "tablecast_rclone_auth",
+        `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,status=yes`
+      );
+    } catch (err) {
+      setOauthError(err.message);
+      setOauthMessage("");
+    } finally {
+      setOauthLoading(false);
+    }
+  };
 
   const handleSyncReferences = async () => {
     if (syncingRef) return;
@@ -372,6 +453,154 @@ function SettingsPanel({ user }) {
 
   return (
     <div style={styles.container} className="fade-in">
+      {showOAuthWizard && (
+        <div style={styles.modalOverlay} onClick={() => { if (!oauthLoading) setShowOAuthWizard(false); }}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <header style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Google Drive Cloud Backup Setup</h3>
+              <button
+                type="button"
+                onClick={() => setShowOAuthWizard(false)}
+                disabled={oauthLoading}
+                style={styles.modalCloseBtn}
+                className="touch-target"
+              >
+                &times;
+              </button>
+            </header>
+            
+            <div style={styles.tutorialContainer}>
+              <strong style={{ color: "var(--color-accent)", display: "block", marginBottom: "0.25rem" }}>
+                Step-by-step Setup Guide:
+              </strong>
+              <ol style={{ margin: "0", paddingLeft: "1.2rem", fontSize: "0.82rem", display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+                <li>Go to the <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-accent)", textDecoration: "underline" }}>Google Cloud Console</a>.</li>
+                <li>Create a new Project (or select an existing one).</li>
+                <li>In the <strong>API Library</strong>, search for <strong>Google Drive API</strong> and click <strong>Enable</strong>.</li>
+                <li>Configure the <strong>OAuth Consent Screen</strong>: set type to <strong>External</strong>, input an App Name (e.g. <code>Tablecast</code>), and add your Google email address as a <strong>Test User</strong>.</li>
+                <li>Create credentials: click <strong>Create Credentials</strong> &rarr; <strong>OAuth client ID</strong>. Set type to <strong>Web application</strong>.</li>
+                <li>Add the following URL under <strong>Authorized redirect URIs</strong>:
+                  <div style={styles.copyGroup}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${window.location.origin}/api/backup/oauth-callback`}
+                      style={styles.copyInput}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/api/backup/oauth-callback`);
+                        alert("Redirect URI copied to clipboard!");
+                      }}
+                      style={styles.copyBtn}
+                      className="touch-target"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </li>
+                <li>Copy the generated <strong>Client ID</strong> and <strong>Client Secret</strong>, and enter them below.</li>
+              </ol>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Google OAuth Client ID *</label>
+                <input
+                  type="text"
+                  placeholder="Paste your Google OAuth Client ID"
+                  value={oauthClientId}
+                  onChange={(e) => setOauthClientId(e.target.value)}
+                  style={styles.input}
+                  className="form-input"
+                  disabled={oauthLoading}
+                />
+              </div>
+
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Google OAuth Client Secret *</label>
+                <input
+                  type="password"
+                  placeholder="Paste your Google OAuth Client Secret"
+                  value={oauthClientSecret}
+                  onChange={(e) => setOauthClientSecret(e.target.value)}
+                  style={styles.input}
+                  className="form-input"
+                  disabled={oauthLoading}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "0.75rem" }}>
+                <div style={{ ...styles.inputGroup, flex: 1 }}>
+                  <label style={styles.label}>Remote Profile Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. gdrive"
+                    value={oauthRemoteName}
+                    onChange={(e) => setOauthRemoteName(e.target.value)}
+                    style={styles.input}
+                    className="form-input"
+                    disabled={oauthLoading}
+                  />
+                </div>
+
+                <div style={{ ...styles.inputGroup, flex: 2 }}>
+                  <label style={styles.label}>Backup Folder Path</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. tablecast-backups"
+                    value={oauthRemotePath}
+                    onChange={(e) => setOauthRemotePath(e.target.value)}
+                    style={styles.input}
+                    className="form-input"
+                    disabled={oauthLoading}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {oauthError && (
+              <div style={{ ...styles.statusBanner, backgroundColor: "rgba(235, 87, 87, 0.15)", borderColor: "var(--color-danger)", color: "var(--color-danger)", fontSize: "0.85rem", padding: "0.5rem" }}>
+                {oauthError}
+              </div>
+            )}
+
+            {oauthMessage && (
+              <div style={{ ...styles.statusBanner, backgroundColor: "rgba(111, 207, 151, 0.15)", borderColor: "var(--color-success)", color: "var(--color-success)", fontSize: "0.85rem", padding: "0.5rem" }}>
+                {oauthMessage}
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "0.75rem" }}>
+              <button
+                type="button"
+                onClick={() => setShowOAuthWizard(false)}
+                disabled={oauthLoading}
+                style={{ ...styles.secondaryBtn, width: "auto", padding: "0.6rem 1.25rem" }}
+                className="touch-target"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleStartOAuth}
+                disabled={oauthLoading}
+                style={{
+                  ...styles.backupBtn,
+                  width: "auto",
+                  padding: "0.6rem 1.5rem",
+                  background: oauthLoading ? "rgba(200, 151, 58, 0.2)" : "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+                  color: oauthLoading ? "var(--color-muted)" : "#0f0e17"
+                }}
+                className="touch-target btn-hover-scale"
+              >
+                {oauthLoading ? "Connecting..." : "Authenticate & Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <header style={styles.header}>
         <h1 style={styles.title}>Dungeon Master Sanctum</h1>
         <p style={styles.subtitle}>Manage cloud backups, database archives, campaign settings, and NPCs.</p>
@@ -432,21 +661,46 @@ function SettingsPanel({ user }) {
           </p>
 
           <form onSubmit={handleBackup} style={styles.form}>
-            {/* Config Editor Collapsible */}
+            {/* Config Editor Row and Setup Wizard */}
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <button
-                type="button"
-                id="toggle-rclone-config-btn"
-                onClick={() => {
-                  setShowConfigEditor(!showConfigEditor);
-                  setConfigMessage(null);
-                  setConfigError(null);
-                }}
-                style={styles.secondaryBtn}
-                className="touch-target btn-hover-scale"
-              >
-                {showConfigEditor ? "Hide Configuration Editor" : "Show/Edit rclone.conf"}
-              </button>
+              <div style={{ display: "flex", gap: "0.5rem", width: "100%", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  id="link-google-drive-btn"
+                  onClick={() => {
+                    setOauthClientId("");
+                    setOauthClientSecret("");
+                    setOauthRemoteName("gdrive");
+                    setOauthRemotePath("tablecast-backups");
+                    setOauthError("");
+                    setOauthMessage("");
+                    setShowOAuthWizard(true);
+                  }}
+                  style={{
+                    ...styles.backupBtn,
+                    flex: "1 1 200px",
+                    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+                    color: "#0f0e17",
+                    minHeight: "44px"
+                  }}
+                  className="touch-target btn-hover-scale"
+                >
+                  🔐 Link Google Drive Backup
+                </button>
+                <button
+                  type="button"
+                  id="toggle-rclone-config-btn"
+                  onClick={() => {
+                    setShowConfigEditor(!showConfigEditor);
+                    setConfigMessage(null);
+                    setConfigError(null);
+                  }}
+                  style={{ ...styles.secondaryBtn, flex: "1 1 200px", minHeight: "44px" }}
+                  className="touch-target btn-hover-scale"
+                >
+                  {showConfigEditor ? "Hide Configuration Editor" : "Show/Edit rclone.conf"}
+                </button>
+              </div>
 
               {showConfigEditor && (
                 <div style={styles.configEditorContainer}>
@@ -1275,6 +1529,90 @@ const styles = {
     borderRadius: "6px",
     border: "1px solid rgba(255, 255, 255, 0.05)",
     marginTop: "0.25rem",
+  },
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(5, 3, 10, 0.8)",
+    backdropFilter: "blur(6px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+    padding: "1rem",
+  },
+  modalContent: {
+    background: "rgba(15, 14, 23, 0.95)",
+    border: "1px solid rgba(200, 151, 58, 0.35)",
+    boxShadow: "0 0 30px rgba(200, 151, 58, 0.25)",
+    borderRadius: "12px",
+    maxWidth: "600px",
+    width: "100%",
+    maxHeight: "90vh",
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: "1.25rem",
+    padding: "1.75rem",
+  },
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+    paddingBottom: "0.75rem",
+  },
+  modalTitle: {
+    fontSize: "1.25rem",
+    fontWeight: "bold",
+    color: "var(--color-accent)",
+    margin: 0,
+  },
+  modalCloseBtn: {
+    background: "transparent",
+    border: "none",
+    color: "var(--color-muted)",
+    fontSize: "1.5rem",
+    cursor: "pointer",
+    lineHeight: 1,
+  },
+  tutorialContainer: {
+    background: "rgba(0, 0, 0, 0.2)",
+    padding: "1rem",
+    borderRadius: "8px",
+    border: "1px solid rgba(255, 255, 255, 0.03)",
+    fontSize: "0.85rem",
+    color: "var(--color-text)",
+    lineHeight: "1.45",
+  },
+  copyGroup: {
+    display: "flex",
+    gap: "0.5rem",
+    marginTop: "0.5rem",
+  },
+  copyInput: {
+    flex: 1,
+    background: "rgba(0,0,0,0.4)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "4px",
+    padding: "0.45rem",
+    fontSize: "0.75rem",
+    color: "var(--color-text)",
+    fontFamily: "monospace",
+  },
+  copyBtn: {
+    padding: "0 0.75rem",
+    background: "rgba(200, 151, 58, 0.15)",
+    border: "1px solid rgba(200, 151, 58, 0.3)",
+    borderRadius: "4px",
+    color: "var(--color-accent)",
+    fontSize: "0.75rem",
+    fontWeight: "bold",
+    cursor: "pointer",
+    minHeight: "36px",
   },
 };
 

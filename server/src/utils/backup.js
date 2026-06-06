@@ -100,10 +100,11 @@ function createBackupZip() {
 
 function execRclone(args) {
   return new Promise((resolve, reject) => {
-    const finalArgs = [...args];
-    if (fs.existsSync(CONFIG_PATH)) {
-      finalArgs.unshift("--config", CONFIG_PATH);
+    const dir = path.dirname(CONFIG_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
+    const finalArgs = ["--config", CONFIG_PATH, ...args];
     execFile("rclone", finalArgs, { timeout: 120_000 }, (error, stdout = "", stderr = "") => {
       if (error) {
         error.stdout = stdout;
@@ -123,6 +124,33 @@ async function writeRcloneConfigFile(content) {
     fs.mkdirSync(dir, { recursive: true });
   }
   await fs.promises.writeFile(CONFIG_PATH, content || "", "utf8");
+}
+
+async function saveRcloneRemote(remoteName, type, options) {
+  const args = ["config", "create", remoteName, type];
+  for (const [key, val] of Object.entries(options)) {
+    args.push(`${key}=${val}`);
+  }
+
+  // Ensure config directory exists
+  const dir = path.dirname(CONFIG_PATH);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  await execRclone(args);
+
+  // Read the modified CONFIG_PATH
+  const configContent = await fs.promises.readFile(CONFIG_PATH, "utf8");
+
+  // Save config Content back to database app_settings
+  await prisma.appSetting.upsert({
+    where: { key: "rclone.config" },
+    update: { value: configContent },
+    create: { key: "rclone.config", value: configContent },
+  });
+
+  return configContent;
 }
 
 async function initRcloneConfig() {
@@ -223,4 +251,5 @@ module.exports = {
   listLocalBackups,
   initRcloneConfig,
   writeRcloneConfigFile,
+  saveRcloneRemote,
 };
