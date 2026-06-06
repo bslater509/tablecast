@@ -78,6 +78,7 @@ app.get("/api/health", (_req, res) => {
 // CRUD route modules (Phase 3)
 const usersRouter = require("./routes/users");
 const charactersRouter = require("./routes/characters");
+const npcsRouter = require("./routes/npcs");
 const wikiRouter = require("./routes/wiki");
 const mapsRouter = require("./routes/maps");
 const backupRouter = require("./routes/backup");
@@ -85,6 +86,7 @@ const referenceRouter = require("./routes/reference");
 
 app.use("/api/users", usersRouter);
 app.use("/api/characters", charactersRouter);
+app.use("/api/npcs", npcsRouter);
 app.use("/api/wiki", wikiRouter);
 app.use("/api/maps", mapsRouter);
 app.use("/api/backup", backupRouter);

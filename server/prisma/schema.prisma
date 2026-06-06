@@ -123,6 +123,10 @@ model Token {
   characterId Int?
   character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
 
+  // Optional link to an NPC sheet
+  npcId       Int?
+  npc         Npc?       @relation(fields: [npcId], references: [id], onDelete: SetNull)
+
   // Display
   label       String    @default("")
   imageUrl    String    @default("")
@@ -166,3 +170,44 @@ model AppSetting {
 
   @@map("app_settings")
 }
+
+/// A DM-created Non-Player Character (NPC) template with a 5e monster-like statblock
+model Npc {
+  id           Int      @id @default(autoincrement())
+  name         String
+  race         String   @default("")
+  class        String   @default("")
+  level        Int      @default(1)
+
+  // Combat Stats
+  hp           Int      @default(10)
+  maxHp        Int      @default(10)
+  ac           Int      @default(10)
+  cr           String   @default("0") // e.g. "1/8", "1", "10"
+  imageUrl     String   @default("")
+
+  // Core Ability Scores (D&D 5e)
+  strength     Int      @default(10)
+  dexterity    Int      @default(10)
+  constitution Int      @default(10)
+  intelligence Int      @default(10)
+  wisdom       Int      @default(10)
+  charisma     Int      @default(10)
+
+  // JSON blobs for structured stats
+  // inventory: serialized array of item objects
+  // modifiers: serialized map of ability modifier values (strength, dexterity, etc.)
+  // actions: serialized array of action objects { name, description, toHit, damage }
+  inventory    String   @default("[]")   // JSON array
+  modifiers    String   @default("{}")   // JSON object
+  actions      String   @default("[]")   // JSON array
+
+  // Relations
+  tokens       Token[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("npcs")
+}
+

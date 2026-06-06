@@ -64,7 +64,7 @@ function registerSocketHandlers(io) {
         const updatedToken = await prisma.token.update({
           where: { id: parsed.value.id },
           data: { x: parsed.value.x, y: parsed.value.y },
-          include: { character: true },
+          include: { character: true, npc: true },
         });
         io.emit("token:moved", updatedToken);
       } catch (err) {
@@ -83,7 +83,7 @@ function registerSocketHandlers(io) {
 
           const token = await prisma.token.findUnique({
             where: { id: parsed.value.id },
-            include: { character: true },
+            include: { character: true, npc: true },
           });
           if (!token) return emitSocketError(socket, "token:create", "Token not found.");
           io.emit("token:created", token);
@@ -107,10 +107,13 @@ function registerSocketHandlers(io) {
         if (parsed.value.characterId) {
           data.characterId = parsed.value.characterId;
         }
+        if (parsed.value.npcId) {
+          data.npcId = parsed.value.npcId;
+        }
 
         const newToken = await prisma.token.create({
           data,
-          include: { character: true },
+          include: { character: true, npc: true },
         });
         io.emit("token:created", newToken);
       } catch (err) {
@@ -233,6 +236,11 @@ function validateTokenCreatePayload(payload) {
     return { ok: false, error: "characterId must be a positive integer." };
   }
 
+  const npcId = payload.npcId ? Number(payload.npcId) : null;
+  if (npcId !== null && (!Number.isInteger(npcId) || npcId <= 0)) {
+    return { ok: false, error: "npcId must be a positive integer." };
+  }
+
   return {
     ok: true,
     value: {
@@ -241,6 +249,7 @@ function validateTokenCreatePayload(payload) {
       imageUrl: sanitizeShortText(payload.imageUrl, ""),
       stats: typeof payload.stats === "string" ? payload.stats : null,
       characterId,
+      npcId,
       x,
       y,
     },

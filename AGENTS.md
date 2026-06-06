@@ -6,8 +6,10 @@ This document defines the specialized agent roles and system prompts to be used 
 * **Mobile-First:** All UI components must be built for mobile screens first. Ensure touch targets (buttons, tokens) are large enough for fingers (minimum 44x44px).
 * **Network Binding:** The Node.js server must bind to `0.0.0.0` (not `localhost` or `127.0.0.1`) to allow Local Area Network (LAN) access from phones.
 * **Simplicity:** Prefer readable, modular code over clever, heavily abstracted logic. 
+* **Leverage Existing Libraries:** Prefer using well-established, maintained libraries rather than reinventing the wheel (e.g., for complex math, VTT operations, compression, or UI components).
 * **Error Handling:** All async operations must have robust try/catch blocks. Gracefully handle WebSocket disconnections and reconnections.
 * **Docker Container Rebuild:** Whenever codebase or config modifications are made, the Docker container must always be rebuilt and run (e.g. using `docker compose up --build -d` or building and restarting the container) to ensure the live environment runs the latest changes.
+* **Debugging Tools:** Google Chrome is installed on WSL and can be used to debug the application.
 
 ---
 

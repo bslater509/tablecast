@@ -31,6 +31,9 @@ export default function MapPanel({ user }) {
   const [activeMap, setActiveMap] = useState(null);
   const [tokens, setTokens] = useState([]);
   const [availableCharacters, setAvailableCharacters] = useState([]);
+  const [availableNpcs, setAvailableNpcs] = useState([]);
+  const [tokenType, setTokenType] = useState("character"); // "character", "npc", "monster"
+  const [newTokenNpcId, setNewTokenNpcId] = useState("");
 
   // Toolbar & View state
   const [tool, setTool] = useState("select"); // "select" (pan/token move), "draw-fog", "reveal-fog"
@@ -84,6 +87,7 @@ export default function MapPanel({ user }) {
   useEffect(() => {
     loadMaps();
     loadCharacters();
+    loadNpcs();
   }, []);
 
   async function loadMaps(autoSelectId = null) {
@@ -118,6 +122,18 @@ export default function MapPanel({ user }) {
       }
     } catch (err) {
       console.error("Failed to load characters list:", err);
+    }
+  }
+
+  async function loadNpcs() {
+    try {
+      const res = await fetch("/api/npcs");
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableNpcs(data);
+      }
+    } catch (err) {
+      console.error("Failed to load NPCs list:", err);
     }
   }
 
@@ -448,7 +464,7 @@ export default function MapPanel({ user }) {
         ctx.fill();
 
         // Image rendering with cropping
-        const imgUrl = token.imageUrl || token.character?.imageUrl;
+        const imgUrl = token.imageUrl || token.character?.imageUrl || token.npc?.imageUrl;
         let tokenImg = tokenImagesRef.current[token.id];
 
         if (imgUrl && !tokenImg) {
@@ -474,7 +490,7 @@ export default function MapPanel({ user }) {
           ctx.font = "bold 13px Segoe UI";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          const label = token.label || token.character?.name || "T";
+          const label = token.label || token.character?.name || token.npc?.name || "T";
           ctx.fillText(label.charAt(0).toUpperCase(), px, py);
         }
 
@@ -880,17 +896,25 @@ export default function MapPanel({ user }) {
     let label = newTokenLabel.trim();
     let imageUrl = newTokenImageUrl.trim();
     let charId = null;
+    let npcId = null;
 
-    if (!newTokenIsMonster && newTokenCharacterId) {
+    if (tokenType === "character" && newTokenCharacterId) {
       const char = availableCharacters.find(c => c.id === Number(newTokenCharacterId));
       if (char) {
         label = char.name;
         charId = char.id;
       }
+    } else if (tokenType === "npc" && newTokenNpcId) {
+      const npc = availableNpcs.find(n => n.id === Number(newTokenNpcId));
+      if (npc) {
+        label = npc.name;
+        npcId = npc.id;
+        imageUrl = npc.imageUrl || imageUrl;
+      }
     }
 
     if (!label) {
-      alert("Please enter a token label or choose a character.");
+      alert("Please enter a token label or choose an option.");
       return;
     }
 
@@ -900,11 +924,12 @@ export default function MapPanel({ user }) {
         headers: jsonAuthHeaders,
         body: JSON.stringify({
           characterId: charId,
+          npcId,
           label,
           imageUrl,
           x: 0,
           y: 0,
-          stats: newTokenIsMonster && newTokenStats ? JSON.stringify(newTokenStats) : null
+          stats: tokenType === "monster" && newTokenStats ? JSON.stringify(newTokenStats) : null
         })
       });
 
@@ -921,8 +946,10 @@ export default function MapPanel({ user }) {
         setShowAddTokenModal(false);
         setNewTokenLabel("");
         setNewTokenCharacterId("");
+        setNewTokenNpcId("");
         setNewTokenImageUrl("");
         setNewTokenStats(null);
+        setTokenType("character");
       }
     } catch (err) {
       console.error("Failed to create token:", err);
@@ -941,6 +968,63 @@ export default function MapPanel({ user }) {
       .replace(/\{@damage ([^}]+)\}/g, "$1")
       .replace(/\{@filter ([^|]+)\|[^}]+\}/g, "$1")
       .replace(/\{@[a-z]+ ([^}]+)\}/g, "$1");
+  };
+
+  const handleNpcRoll = (npcName, actionName, toHitMod, dmgExpr, description) => {
+    const d20 = Math.floor(Math.random() * 20) + 1;
+    const toHitTotal = d20 + Number(toHitMod || 0);
+    const formatModifier = (val) => (val >= 0 ? `+${val}` : `${val}`);
+
+    let damageTotal = 0;
+    let dmgRolls = [];
+    let dmgFormula = "";
+
+    if (dmgExpr) {
+      try {
+        const cleanExpr = dmgExpr.toLowerCase().replace(/\s/g, "");
+        const parts = cleanExpr.split("+");
+        const dicePart = parts[0];
+        const modPart = parts[1] ? parseInt(parts[1]) : 0;
+        
+        const diceMatch = dicePart.match(/^(\d+)d(\d+)$/);
+        if (diceMatch) {
+          const count = parseInt(diceMatch[1]);
+          const sides = parseInt(diceMatch[2]);
+          for (let i = 0; i < count; i++) {
+            dmgRolls.push(Math.floor(Math.random() * sides) + 1);
+          }
+          const sumRolls = dmgRolls.reduce((a, b) => a + b, 0);
+          damageTotal = sumRolls + modPart;
+          dmgFormula = `${dicePart} + ${formatModifier(modPart)}`;
+        }
+      } catch (err) {
+        console.error("Failed to parse NPC damage roll:", err);
+      }
+    }
+
+    if (socket && isConnected) {
+      const text = dmgExpr 
+        ? `attacks with ${actionName}!  Hit: ${toHitTotal} | Damage: ${damageTotal}`
+        : `uses ${actionName}!  ${description || ""}`;
+      
+      socket.emit("chat:send", {
+        sender: npcName,
+        text,
+        type: "roll",
+        rollDetails: {
+          rollName: actionName,
+          formula: dmgExpr ? `Hit: 1d20 + ${toHitMod || 0} | Dmg: ${dmgFormula}` : `Hit: 1d20 + ${toHitMod || 0}`,
+          isAttack: true,
+          toHitRoll: d20,
+          toHitMod: Number(toHitMod || 0),
+          toHitTotal,
+          damageRolls: dmgRolls,
+          damageDice: dmgExpr || "",
+          damageMod: dmgExpr ? (parseInt(dmgExpr.split("+")[1]) || 0) : 0,
+          damageTotal,
+        }
+      });
+    }
   };
 
   const handleMonsterRoll = (monsterName, actionName, actionText) => {
@@ -1404,6 +1488,8 @@ export default function MapPanel({ user }) {
               } catch (e) {}
             }
 
+            const npcDetail = selectedToken.npc;
+
             return (
               <div style={styles.floatingTokenDetails} className="glass-panel gold-border-glow">
                 <header style={styles.detailsHeader}>
@@ -1413,13 +1499,135 @@ export default function MapPanel({ user }) {
                 
                 <div style={styles.detailsBody}>
                   <div style={styles.detailsRow}>
-                    <strong>Name:</strong> <span>{selectedToken.label || selectedToken.character?.name || "Token"}</span>
+                    <strong>Name:</strong> <span>{selectedToken.label || selectedToken.character?.name || npcDetail?.name || "Token"}</span>
                   </div>
 
                   {/* Render player details */}
                   {selectedToken.characterId && (
                     <div style={styles.metaInfo}>
                       Lvl {selectedToken.character?.level}  {selectedToken.character?.race} {selectedToken.character?.class}
+                    </div>
+                  )}
+
+                  {/* Render NPC details */}
+                  {npcDetail && (
+                    <div style={styles.metaInfo}>
+                      CR {npcDetail.cr} • {npcDetail.race} {npcDetail.class} (Lvl {npcDetail.level})
+                    </div>
+                  )}
+
+                  {/* Render NPC combat sheet */}
+                  {npcDetail && (
+                    <div style={styles.monsterSheet}>
+                      <div style={styles.metaInfo}>
+                        AC {npcDetail.ac}
+                      </div>
+                      
+                      {/* HP Tracker */}
+                      <div style={styles.hpTracker}>
+                        <div style={styles.hpLabelRow}>
+                          <span>HP: {npcDetail.hp} / {npcDetail.maxHp}</span>
+                        </div>
+                        <div style={styles.hpControlsRow}>
+                          <button
+                            onClick={() => {
+                              const next = Math.max(0, npcDetail.hp - 1);
+                              fetch(`/api/npcs/${npcDetail.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ hp: next })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, npc: { ...npcDetail, hp: next } } : t));
+                                if (socket && isConnected) socket.emit("token:create", withUser({ id: selectedToken.id }));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            -1
+                          </button>
+                          <button
+                            onClick={() => {
+                              const next = Math.max(0, npcDetail.hp - 5);
+                              fetch(`/api/npcs/${npcDetail.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ hp: next })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, npc: { ...npcDetail, hp: next } } : t));
+                                if (socket && isConnected) socket.emit("token:create", withUser({ id: selectedToken.id }));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            -5
+                          </button>
+                          <button
+                            onClick={() => {
+                              const next = Math.min(npcDetail.maxHp, npcDetail.hp + 5);
+                              fetch(`/api/npcs/${npcDetail.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ hp: next })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, npc: { ...npcDetail, hp: next } } : t));
+                                if (socket && isConnected) socket.emit("token:create", withUser({ id: selectedToken.id }));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            +5
+                          </button>
+                          <button
+                            onClick={() => {
+                              const next = Math.min(npcDetail.maxHp, npcDetail.hp + 1);
+                              fetch(`/api/npcs/${npcDetail.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ hp: next })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, npc: { ...npcDetail, hp: next } } : t));
+                                if (socket && isConnected) socket.emit("token:create", withUser({ id: selectedToken.id }));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            +1
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Attributes */}
+                      <div style={styles.miniStatsGrid}>
+                        <div><strong>STR</strong><span>{npcDetail.strength}</span></div>
+                        <div><strong>DEX</strong><span>{npcDetail.dexterity}</span></div>
+                        <div><strong>CON</strong><span>{npcDetail.constitution}</span></div>
+                        <div><strong>INT</strong><span>{npcDetail.intelligence}</span></div>
+                        <div><strong>WIS</strong><span>{npcDetail.wisdom}</span></div>
+                        <div><strong>CHA</strong><span>{npcDetail.charisma}</span></div>
+                      </div>
+
+                      {/* Rollable Actions */}
+                      {npcDetail.actions && (() => {
+                        let parsedActions = [];
+                        try {
+                          parsedActions = JSON.parse(npcDetail.actions);
+                        } catch (e) {}
+                        return (
+                          <div style={styles.actionsSection}>
+                            <h5 style={styles.actionsHeader}>NPC Actions</h5>
+                            {parsedActions.map((act, i) => (
+                              <button
+                                key={i}
+                                onClick={() => handleNpcRoll(selectedToken.label || npcDetail.name, act.name, act.toHit, act.damage, act.description)}
+                                style={styles.monsterActionBtn}
+                                className="touch-target btn-hover-scale"
+                              >
+                                {act.name}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -1647,20 +1855,62 @@ export default function MapPanel({ user }) {
             <form onSubmit={handleCreateToken} style={styles.form}>
               
               {user?.role === "DM" && (
-                <div style={styles.formGroupRow}>
-                  <label style={{ ...styles.label, cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={newTokenIsMonster}
-                      onChange={(e) => setNewTokenIsMonster(e.target.checked)}
-                      style={{ marginRight: "0.5rem" }}
-                    />
-                    Generic Monster / NPC Token
-                  </label>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Token Source Type</label>
+                  <div style={styles.tokenTypeSelector}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTokenType("character");
+                        setNewTokenIsMonster(false);
+                      }}
+                      style={{
+                        ...styles.tokenTypeBtn,
+                        border: tokenType === "character" ? "1px solid var(--color-accent)" : "1px solid rgba(255,255,255,0.08)",
+                        background: tokenType === "character" ? "var(--color-accent-dim)" : "transparent",
+                        color: tokenType === "character" ? "var(--color-accent)" : "var(--color-text)",
+                      }}
+                      className="touch-target"
+                    >
+                      Player PC
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTokenType("npc");
+                        setNewTokenIsMonster(false);
+                      }}
+                      style={{
+                        ...styles.tokenTypeBtn,
+                        border: tokenType === "npc" ? "1px solid var(--color-accent)" : "1px solid rgba(255,255,255,0.08)",
+                        background: tokenType === "npc" ? "var(--color-accent-dim)" : "transparent",
+                        color: tokenType === "npc" ? "var(--color-accent)" : "var(--color-text)",
+                      }}
+                      className="touch-target"
+                    >
+                      Campaign NPC
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTokenType("monster");
+                        setNewTokenIsMonster(true);
+                      }}
+                      style={{
+                        ...styles.tokenTypeBtn,
+                        border: tokenType === "monster" ? "1px solid var(--color-accent)" : "1px solid rgba(255,255,255,0.08)",
+                        background: tokenType === "monster" ? "var(--color-accent-dim)" : "transparent",
+                        color: tokenType === "monster" ? "var(--color-accent)" : "var(--color-text)",
+                      }}
+                      className="touch-target"
+                    >
+                      Bestiary Monster
+                    </button>
+                  </div>
                 </div>
               )}
 
-              {user?.role === "DM" && (
+              {user?.role === "DM" && tokenType === "monster" && (
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Quick token presets</label>
                   <div style={styles.quickPresetGrid}>
@@ -1679,7 +1929,7 @@ export default function MapPanel({ user }) {
                 </div>
               )}
 
-              {availableCharacters.length > 0 && (
+              {availableCharacters.length > 0 && tokenType === "character" && (
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Quick character tokens</label>
                   <div style={styles.quickPresetGrid}>
@@ -1701,7 +1951,7 @@ export default function MapPanel({ user }) {
                 </div>
               )}
 
-              {(!newTokenIsMonster && user?.role === "DM") || user?.role === "PLAYER" ? (
+              {tokenType === "character" && (
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Link to Character Sheet</label>
                   <select
@@ -1721,7 +1971,29 @@ export default function MapPanel({ user }) {
                       ))}
                   </select>
                 </div>
-              ) : (
+              )}
+
+              {tokenType === "npc" && (
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Link to NPC Sheet</label>
+                  <select
+                    value={newTokenNpcId}
+                    onChange={(e) => setNewTokenNpcId(e.target.value)}
+                    style={styles.select}
+                    className="form-input"
+                    required
+                  >
+                    <option value="">-- Choose NPC --</option>
+                    {availableNpcs.map(n => (
+                      <option key={n.id} value={n.id}>
+                        {n.name} (CR {n.cr} • {n.race})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {tokenType === "monster" && (
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Monster / NPC Label</label>
                   <Autocomplete
@@ -1788,6 +2060,26 @@ const styles = {
     height: "100%",
     padding: "1rem",
     gap: "1rem",
+  },
+  tokenTypeSelector: {
+    display: "flex",
+    gap: "0.5rem",
+    marginBottom: "0.5rem",
+  },
+  tokenTypeBtn: {
+    flex: 1,
+    borderRadius: "6px",
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "transparent",
+    color: "var(--color-text)",
+    cursor: "pointer",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    minHeight: "44px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.2s",
   },
   header: {
     display: "flex",

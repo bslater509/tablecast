@@ -1,0 +1,178 @@
+// =============================================================================
+// Tablecast  NPC CRUD Routes
+// Endpoints:  GET /api/npcs
+//             GET /api/npcs/:id
+//             POST /api/npcs           (DM only)
+//             PUT /api/npcs/:id        (DM only)
+//             DELETE /api/npcs/:id     (DM only)
+// =============================================================================
+"use strict";
+
+const { Router } = require("express");
+const prisma = require("../prisma");
+const { requireDm } = require("../auth");
+
+const router = Router();
+
+// Fields that are allowed to be set/updated on an NPC
+const ALLOWED_FIELDS = [
+  "name",
+  "race",
+  "class",
+  "level",
+  "hp",
+  "maxHp",
+  "ac",
+  "cr",
+  "imageUrl",
+  "strength",
+  "dexterity",
+  "constitution",
+  "intelligence",
+  "wisdom",
+  "charisma",
+  "inventory",
+  "modifiers",
+  "actions",
+];
+
+function isValidJson(value) {
+  try {
+    JSON.parse(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/npcs  List all NPCs
+// ---------------------------------------------------------------------------
+router.get("/", async (req, res) => {
+  try {
+    const npcs = await prisma.npc.findMany({
+      orderBy: { name: "asc" },
+    });
+    res.json(npcs);
+  } catch (err) {
+    console.error("[API] GET /api/npcs error:", err.message);
+    res.status(500).json({ error: "Failed to fetch NPCs." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/npcs/:id  Get a single NPC by ID
+// ---------------------------------------------------------------------------
+router.get("/:id", async (req, res) => {
+  try {
+    const npc = await prisma.npc.findUnique({
+      where: { id: Number(req.params.id) },
+    });
+
+    if (!npc) {
+      return res.status(404).json({ error: "NPC not found." });
+    }
+
+    res.json(npc);
+  } catch (err) {
+    console.error("[API] GET /api/npcs/:id error:", err.message);
+    res.status(500).json({ error: "Failed to fetch NPC." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/npcs  Create a new NPC (DM only)
+// ---------------------------------------------------------------------------
+router.post("/", requireDm, async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ error: "name (string) is required." });
+    }
+
+    const data = { name: name.trim() };
+
+    for (const field of ALLOWED_FIELDS) {
+      if (field === "name") continue;
+      if (req.body[field] !== undefined) {
+        if (
+          (field === "inventory" || field === "modifiers" || field === "actions") &&
+          !isValidJson(req.body[field])
+        ) {
+          return res
+            .status(400)
+            .json({ error: `${field} must be a valid JSON string.` });
+        }
+        data[field] = req.body[field];
+      }
+    }
+
+    const npc = await prisma.npc.create({ data });
+    res.status(201).json(npc);
+  } catch (err) {
+    console.error("[API] POST /api/npcs error:", err.message);
+    res.status(500).json({ error: "Failed to create NPC." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// PUT /api/npcs/:id  Update an NPC (DM only)
+// ---------------------------------------------------------------------------
+router.put("/:id", requireDm, async (req, res) => {
+  try {
+    const data = {};
+
+    for (const field of ALLOWED_FIELDS) {
+      if (req.body[field] !== undefined) {
+        if (
+          (field === "inventory" || field === "modifiers" || field === "actions") &&
+          !isValidJson(req.body[field])
+        ) {
+          return res
+            .status(400)
+            .json({ error: `${field} must be a valid JSON string.` });
+        }
+        data[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update." });
+    }
+
+    const npc = await prisma.npc.update({
+      where: { id: Number(req.params.id) },
+      data,
+    });
+
+    res.json(npc);
+  } catch (err) {
+    if (err.code === "P2025") {
+      return res.status(404).json({ error: "NPC not found." });
+    }
+    console.error("[API] PUT /api/npcs/:id error:", err.message);
+    res.status(500).json({ error: "Failed to update NPC." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/npcs/:id  Delete an NPC
+// ---------------------------------------------------------------------------
+router.delete("/:id", requireDm, async (req, res) => {
+  try {
+    await prisma.npc.delete({
+      where: { id: Number(req.params.id) },
+    });
+
+    res.json({ message: "NPC deleted." });
+  } catch (err) {
+    if (err.code === "P2025") {
+      return res.status(404).json({ error: "NPC not found." });
+    }
+    console.error("[API] DELETE /api/npcs/:id error:", err.message);
+    res.status(500).json({ error: "Failed to delete NPC." });
+  }
+});
+
+module.exports = router;

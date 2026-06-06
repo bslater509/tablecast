@@ -46,7 +46,7 @@ router.get("/:id", async (req, res) => {
   try {
     const map = await prisma.map.findUnique({
       where: { id: Number(req.params.id) },
-      include: { tokens: { include: { character: true } } },
+      include: { tokens: { include: { character: true, npc: true } } },
     });
 
     if (!map) {
@@ -171,7 +171,7 @@ router.delete("/:id", requireDm, async (req, res) => {
 router.post("/:id/tokens", requireDm, async (req, res) => {
   try {
     const mapId = Number(req.params.id);
-    const { characterId, label, imageUrl, x, y, stats } = req.body;
+    const { characterId, npcId, label, imageUrl, x, y, stats } = req.body;
     const tokenX = x !== undefined ? Number(x) : 0;
     const tokenY = y !== undefined ? Number(y) : 0;
 
@@ -201,10 +201,13 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
     if (characterId) {
       data.characterId = Number(characterId);
     }
+    if (npcId) {
+      data.npcId = Number(npcId);
+    }
 
     const token = await prisma.token.create({
       data,
-      include: { character: true },
+      include: { character: true, npc: true },
     });
 
     res.status(201).json(token);
@@ -220,7 +223,7 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
 router.put("/tokens/:id", requireDm, async (req, res) => {
   try {
     const tokenId = Number(req.params.id);
-    const { characterId, label, imageUrl, x, y, stats } = req.body;
+    const { characterId, npcId, label, imageUrl, x, y, stats } = req.body;
     if (!Number.isInteger(tokenId) || tokenId <= 0) {
       return res.status(400).json({ error: "Invalid token id." });
     }
@@ -243,12 +246,33 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
       data.y = nextY;
     }
     if (characterId !== undefined) data.characterId = characterId ? Number(characterId) : null;
+    if (npcId !== undefined) data.npcId = npcId ? Number(npcId) : null;
     if (stats !== undefined) data.stats = stats;
+
+    // Direct HP sync: if this token is linked to an NPC and stats are updated with a currentHp,
+    // update the NPC's HP in the database too.
+    const existingToken = await prisma.token.findUnique({
+      where: { id: tokenId },
+      select: { npcId: true },
+    });
+    if (existingToken?.npcId && stats) {
+      try {
+        const parsedStats = JSON.parse(stats);
+        if (parsedStats.currentHp !== undefined) {
+          await prisma.npc.update({
+            where: { id: existingToken.npcId },
+            data: { hp: Math.max(0, Number(parsedStats.currentHp)) },
+          });
+        }
+      } catch (err) {
+        console.error("[API] Failed to sync NPC health from token stats:", err.message);
+      }
+    }
 
     const updatedToken = await prisma.token.update({
       where: { id: tokenId },
       data,
-      include: { character: true },
+      include: { character: true, npc: true },
     });
 
     res.json(updatedToken);

@@ -3,6 +3,7 @@
 // Provides controls for zip compression & rclone Google Drive synchronization.
 // =============================================================================
 import React, { useState, useEffect } from "react";
+import NpcPanel from "./NpcPanel";
 
 function SettingsPanel({ user }) {
   const [remote, setRemote] = useState("gdrive:tablecast-backups");
@@ -16,6 +17,7 @@ function SettingsPanel({ user }) {
   const [allowedSourcesInput, setAllowedSourcesInput] = useState("");
   const [availableSources, setAvailableSources] = useState([]);
   const [savingSources, setSavingSources] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState("backups");
   const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
 
@@ -181,10 +183,41 @@ function SettingsPanel({ user }) {
     <div style={styles.container} className="fade-in">
       <header style={styles.header}>
         <h1 style={styles.title}>Dungeon Master Sanctum</h1>
-        <p style={styles.subtitle}>Manage cloud backups, database archives, and campaign sync settings.</p>
+        <p style={styles.subtitle}>Manage cloud backups, database archives, campaign settings, and NPCs.</p>
+        
+        {/* Sub-tab navigation */}
+        <div style={styles.subTabNav}>
+          <button
+            id="dm-settings-backups-tab"
+            onClick={() => setActiveSettingsTab("backups")}
+            style={{
+              ...styles.subTabBtn,
+              background: activeSettingsTab === "backups" ? "var(--color-accent-dim)" : "transparent",
+              color: activeSettingsTab === "backups" ? "var(--color-accent)" : "var(--color-muted)",
+              border: activeSettingsTab === "backups" ? "1px solid var(--color-border)" : "1px solid transparent",
+            }}
+            className="touch-target"
+          >
+            Backups & Sync
+          </button>
+          <button
+            id="dm-settings-npcs-tab"
+            onClick={() => setActiveSettingsTab("npcs")}
+            style={{
+              ...styles.subTabBtn,
+              background: activeSettingsTab === "npcs" ? "var(--color-accent-dim)" : "transparent",
+              color: activeSettingsTab === "npcs" ? "var(--color-accent)" : "var(--color-muted)",
+              border: activeSettingsTab === "npcs" ? "1px solid var(--color-border)" : "1px solid transparent",
+            }}
+            className="touch-target"
+          >
+            NPC Manager
+          </button>
+        </div>
       </header>
 
-      <div style={styles.content}>
+      {activeSettingsTab === "backups" ? (
+        <div style={styles.content}>
         {/* Backup configuration card */}
         <section style={styles.card} className="glass-panel gold-border-glow">
           <h2 style={styles.cardTitle}>Campaign Cloud Backup</h2>
@@ -492,6 +525,11 @@ function SettingsPanel({ user }) {
           </section>
         )}
       </div>
+      ) : (
+        <div style={styles.contentNpc}>
+          <NpcPanel user={user} />
+        </div>
+      )}
     </div>
   );
 }
@@ -711,6 +749,32 @@ const styles = {
   consoleMuted: {
     color: "var(--color-muted)",
     fontStyle: "italic",
+  },
+  contentNpc: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1.25rem",
+    maxWidth: "800px",
+    width: "100%",
+    margin: "0 auto",
+  },
+  subTabNav: {
+    display: "flex",
+    padding: "0.5rem 0",
+    gap: "0.5rem",
+    marginTop: "0.5rem",
+  },
+  subTabBtn: {
+    flex: 1,
+    maxWidth: "200px",
+    border: "none",
+    borderRadius: "4px",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: "0.45rem",
+    transition: "all 0.2s",
+    minHeight: "44px",
   },
 };
 
