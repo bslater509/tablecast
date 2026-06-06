@@ -28,9 +28,37 @@ function App() {
   const [customRole, setCustomRole] = useState("PLAYER");
   const [loadingUsers, setLoadingUsers] = useState(true);
 
+  // Handle log out
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem(SELECTED_USER_STORAGE_KEY);
+    navigate("/", { replace: true });
+  };
+
+  // Route authorization & redirect logic
   useEffect(() => {
-    setUser({ id: 1, username: "DungeonMaster", role: "DM", characters: [] });
-  }, []);
+    if (!user) {
+      if (location.pathname !== "/" && !location.pathname.startsWith("/api")) {
+        navigate("/", { replace: true });
+      }
+      return;
+    }
+
+    if (user.role === "DM") {
+      if (!location.pathname.startsWith("/dm")) {
+        navigate("/dm/map", { replace: true });
+      }
+    } else {
+      if (!location.pathname.startsWith("/player")) {
+        const firstChar = user.characters && user.characters[0];
+        if (firstChar) {
+          navigate(`/player/sheet/${firstChar.id}`, { replace: true });
+        } else {
+          navigate("/player/map", { replace: true });
+        }
+      }
+    }
+  }, [user, location.pathname, navigate]);
 
   const pathParts = location.pathname.split("/");
   const currentTab = ["map", "characters", "chat-journal", "settings"].includes(pathParts[1])
@@ -197,37 +225,8 @@ function App() {
     );
   }
 
-  // Handle log out
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem(SELECTED_USER_STORAGE_KEY);
-    navigate("/", { replace: true });
-  };
 
-  // Route authorization & redirect logic
-  useEffect(() => {
-    if (!user) {
-      if (location.pathname !== "/" && !location.pathname.startsWith("/api")) {
-        navigate("/", { replace: true });
-      }
-      return;
-    }
 
-    if (user.role === "DM") {
-      if (!location.pathname.startsWith("/dm")) {
-        navigate("/dm/map", { replace: true });
-      }
-    } else {
-      if (!location.pathname.startsWith("/player")) {
-        const firstChar = user.characters && user.characters[0];
-        if (firstChar) {
-          navigate(`/player/sheet/${firstChar.id}`, { replace: true });
-        } else {
-          navigate("/player/map", { replace: true });
-        }
-      }
-    }
-  }, [user, location.pathname, navigate]);
 
   return (
     <div 
