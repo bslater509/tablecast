@@ -8,9 +8,17 @@ This document defines the specialized agent roles and system prompts to be used 
 * **Simplicity:** Prefer readable, modular code over clever, heavily abstracted logic. 
 * **Leverage Existing Libraries:** Prefer using well-established, maintained libraries rather than reinventing the wheel (e.g., for complex math, VTT operations, compression, or UI components).
 * **Error Handling:** All async operations must have robust try/catch blocks. Gracefully handle WebSocket disconnections and reconnections.
-* **Docker Container Rebuild:** Whenever codebase or config modifications are made, the Docker container must always be rebuilt and run (e.g. using `docker compose up --build -d` or building and restarting the container) to ensure the live environment runs the latest changes.
-* **Debugging Tools:** Use the installed Debian package for Google Chrome when testing the site. If automated browser subagents fail to start due to environment loopback/CDP resolution issues (e.g., `failed to resolve CDP URLs` or `could not resolve IP for 127.0.0.1`), verify backend API endpoints directly using `curl http://localhost:3001/api/health` and verify client compilation from container build logs as a fallback validation mechanism.
-* **Git Version Control:** Always push all changes to the repository, even if the changes were not originally made by the agent itself. When finished with a task, there should be no uncommitted or unpushed changes left in the workspace.
+* **No Local Server Execution:** The server must **never** be run or tested locally. All runtime testing, verification, and deployment must happen on the host server.
+* **Staging Server & Health:** The active server is hosted at `http://192.168.0.77:3001`. You can verify backend connectivity and health by calling `http://192.168.0.77:3001/api/health`.
+* **GitHub Webhook Deployment:** Code updates are deployed to the remote server via Git. Pushing changes to the GitHub repository automatically triggers the Git stack webhook:
+  `http://192.168.0.77:3000/api/git/stacks/2/webhook`
+  This webhook pulls the latest codebase from GitHub and builds/starts the Docker stack remotely using Portainer/Docker Compose:
+  `docker compose -p tablecast -f - up -d --remove-orphans --build --pull always`
+  *Testing Note:* Triggering this webhook via a `POST` request initiates the deployment flow and returns a success response with the build logs.
+* **Docker Container Rebuild:** Do not perform local Docker rebuilds. All Docker builds/rebuilds are handled automatically on the remote server when the stack webhook pulls updates.
+* **Debugging Tools:** Use the installed Debian package for Google Chrome when testing the site (connecting to the remote host at `http://192.168.0.77:3001`). If automated browser subagents fail to resolve loopback or connection settings, verify the backend endpoints directly using `curl http://192.168.0.77:3001/api/health` and examine the webhook's return response or git webhook status for container build logs.
+* **Git Version Control & Deployment Trigger:** Always push all changes to the repository, even if the changes were not originally made by the agent itself. Pushing is required to trigger the webhook and deploy the live changes. When finished with a task, there should be no uncommitted or unpushed changes left in the workspace.
+
 
 
 ---
