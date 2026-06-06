@@ -27,6 +27,19 @@
   --glass-border: rgba(255, 255, 255, 0.06);
 }
 
+/* Crimson/Dark Gold theme for Dungeon Master interface */
+.theme-dm {
+  --color-bg: #140909; /* Deep reddish black */
+  --color-surface: #261111; /* Deep crimson surface */
+  --color-surface-hover: #3b1919;
+  --color-accent: #d32f2f; /* Crimson accent */
+  --color-accent-hover: #ef5350;
+  --color-accent-dim: rgba(211, 47, 47, 0.15);
+  --color-border: rgba(211, 47, 47, 0.35);
+  --glass-bg: rgba(38, 17, 17, 0.6);
+  --glass-border: rgba(211, 47, 47, 0.15);
+}
+
 html, body, #root {
   height: 100%;
   width: 100%;

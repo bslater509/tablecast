@@ -65,11 +65,14 @@ function App() {
   function handleSelectUser(selectedUser) {
     setUser(selectedUser);
     localStorage.setItem(SELECTED_USER_STORAGE_KEY, String(selectedUser.id));
-    // If the user has a character already, auto-select their first character if player
-    if (selectedUser.role === "PLAYER" && selectedUser.characters && selectedUser.characters.length > 0) {
-      const firstChar = selectedUser.characters[0];
-      if (location.pathname === "/" || location.pathname === "/characters") {
-        navigate(`/characters/${firstChar.id}`);
+    if (selectedUser.role === "DM") {
+      navigate("/dm/map");
+    } else {
+      const firstChar = selectedUser.characters && selectedUser.characters[0];
+      if (firstChar) {
+        navigate(`/player/sheet/${firstChar.id}`);
+      } else {
+        navigate("/player/map");
       }
     }
   }
@@ -190,18 +193,43 @@ function App() {
     );
   }
 
-
-
-  const handleCharactersTabClick = () => {
-    if (user?.role === "PLAYER" && user.characters && user.characters.length > 0) {
-      navigate(`/characters/${user.characters[0].id}`);
-    } else {
-      navigate("/characters");
-    }
+  // Handle log out
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem(SELECTED_USER_STORAGE_KEY);
+    navigate("/", { replace: true });
   };
 
+  // Route authorization & redirect logic
+  useEffect(() => {
+    if (!user) {
+      if (location.pathname !== "/" && !location.pathname.startsWith("/api")) {
+        navigate("/", { replace: true });
+      }
+      return;
+    }
+
+    if (user.role === "DM") {
+      if (!location.pathname.startsWith("/dm")) {
+        navigate("/dm/map", { replace: true });
+      }
+    } else {
+      if (!location.pathname.startsWith("/player")) {
+        const firstChar = user.characters && user.characters[0];
+        if (firstChar) {
+          navigate(`/player/sheet/${firstChar.id}`, { replace: true });
+        } else {
+          navigate("/player/map", { replace: true });
+        }
+      }
+    }
+  }, [user, location.pathname, navigate]);
+
   return (
-    <div style={styles.appContainer}>
+    <div 
+      style={styles.appContainer} 
+      className={user?.role === "DM" ? "theme-dm" : "theme-player"}
+    >
       <div
         style={{
           ...styles.connectionIndicator,
@@ -219,111 +247,12 @@ function App() {
           : "Offline"}
       </div>
 
-      {/* Active Tab Screen Space */}
-      <main style={styles.mainContent}>
-        <Routes>
-          <Route path="/map" element={<MapPanel user={user} />} />
-          <Route
-            path="/characters"
-            element={
-              <CharacterList
-                user={user}
-                onSelectCharacter={(char) => navigate(`/characters/${char.id}`)}
-              />
-            }
-          />
-          <Route path="/characters/:id" element={<CharacterSheetWrapper user={user} />} />
-          <Route path="/chat-journal" element={<Navigate to="/chat-journal/chat" replace />} />
-          <Route path="/chat-journal/:subtab" element={<ChatJournalWrapper user={user} />} />
-          <Route
-            path="/settings"
-            element={
-              user?.role === "DM" ? (
-                <SettingsPanel user={user} />
-              ) : (
-                <Navigate to="/chat-journal/chat" replace />
-              )
-            }
-          />
-          <Route path="*" element={<Navigate to="/chat-journal/chat" replace />} />
-        </Routes>
-      </main>
-
-      {/* Touch-optimized Bottom Navigation Bar */}
-      <nav style={styles.bottomNav} className="glass-panel gold-border-glow">
-        <button
-          id="nav-tab-map"
-          onClick={() => navigate("/map")}
-          style={{
-            ...styles.navBtn,
-            color: currentTab === "map" ? "var(--color-accent)" : "var(--color-muted)",
-          }}
-          className="touch-target"
-        >
-          <span style={styles.navIcon}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
-              <line x1="9" y1="3" x2="9" y2="18" />
-              <line x1="15" y1="6" x2="15" y2="21" />
-            </svg>
-          </span>
-          <span style={styles.navLabel}>Map</span>
-        </button>
-
-        <button
-          id="nav-tab-characters"
-          onClick={handleCharactersTabClick}
-          style={{
-            ...styles.navBtn,
-            color: currentTab === "characters" ? "var(--color-accent)" : "var(--color-muted)",
-          }}
-          className="touch-target"
-        >
-          <span style={styles.navIcon}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          </span>
-          <span style={styles.navLabel}>Sheet</span>
-        </button>
-
-        <button
-          id="nav-tab-chat-journal"
-          onClick={() => navigate("/chat-journal/chat")}
-          style={{
-            ...styles.navBtn,
-            color: currentTab === "chat-journal" ? "var(--color-accent)" : "var(--color-muted)",
-          }}
-          className="touch-target"
-        >
-          <span style={styles.navIcon}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </span>
-          <span style={styles.navLabel}>Chat</span>
-        </button>
-
-        {user?.role === "DM" && (
-          <button
-            id="nav-tab-settings"
-            onClick={() => navigate("/settings")}
-            style={{
-              ...styles.navBtn,
-              color: currentTab === "settings" ? "var(--color-accent)" : "var(--color-muted)",
-            }}
-            className="touch-target"
-          >
-            <span style={styles.navIcon}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </span>
-            <span style={styles.navLabel}>Settings</span>
-          </button>
-        )}
-      </nav>
+      <Routes>
+        <Route path="/" element={<p style={{ padding: "2rem", color: "var(--color-muted)" }}>Entering Tavern...</p>} />
+        <Route path="/player/*" element={<PlayerLayout user={user} onLogout={handleLogout} />} />
+        <Route path="/dm/*" element={<DmLayout user={user} onLogout={handleLogout} />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </div>
   );
 }
@@ -553,21 +482,85 @@ const styles = {
     flex: 1,
     overflow: "hidden",
   },
+
+  // Added/New Styles for Layouts
+  layoutContainer: {
+    display: "flex",
+    flexDirection: "column",
+    height: "100%",
+    width: "100%",
+    overflow: "hidden",
+  },
+  topHeader: {
+    display: "flex",
+    height: "50px",
+    padding: "0 1rem",
+    alignItems: "center",
+    justifyContent: "space-between",
+    background: "rgba(10, 8, 20, 0.85)",
+    borderBottom: "1px solid rgba(200, 151, 58, 0.15)",
+    flexShrink: 0,
+    zIndex: 1100,
+  },
+  headerTitle: {
+    fontSize: "1rem",
+    fontWeight: "bold",
+    color: "var(--color-accent)",
+    letterSpacing: "0.05em",
+    textTransform: "uppercase",
+  },
+  headerUser: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+  },
+  headerUsername: {
+    fontSize: "0.85rem",
+    color: "var(--color-text)",
+    fontWeight: 600,
+  },
+  logoutBtn: {
+    padding: "0.25rem 0.6rem",
+    borderRadius: "4px",
+    background: "rgba(235, 87, 87, 0.1)",
+    border: "1px solid rgba(235, 87, 87, 0.3)",
+    color: "var(--color-danger)",
+    fontSize: "0.75rem",
+    fontWeight: "bold",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+  noCharacterContainer: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "2rem",
+    borderRadius: "8px",
+    margin: "2rem auto",
+    maxWidth: "400px",
+    border: "1px solid var(--color-border)",
+    background: "var(--glass-bg)",
+  },
 };
 
-function CharacterSheetWrapper({ user }) {
+// =============================================================================
+// Helper Wrappers & Layout Components
+// =============================================================================
+
+function CharacterSheetWrapper({ user, basePath }) {
   const { id } = useParams();
   const navigate = useNavigate();
   return (
     <CharacterSheet
       characterId={Number(id)}
       user={user}
-      onBack={() => navigate("/characters")}
+      onBack={() => navigate(basePath)}
     />
   );
 }
 
-function ChatJournalWrapper({ user }) {
+function ChatJournalWrapper({ user, basePath }) {
   const { subtab } = useParams();
   const navigate = useNavigate();
   const activeSubtab = ["chat", "journal", "reference", "ai"].includes(subtab) ? subtab : "chat";
@@ -578,7 +571,7 @@ function ChatJournalWrapper({ user }) {
       <div style={styles.subTabNav}>
         <button
           id="toggle-chat-tab"
-          onClick={() => navigate("/chat-journal/chat")}
+          onClick={() => navigate(`${basePath}/chat`)}
           style={{
             ...styles.subTabBtn,
             background: activeSubtab === "chat" ? "var(--color-accent-dim)" : "transparent",
@@ -591,7 +584,7 @@ function ChatJournalWrapper({ user }) {
         </button>
         <button
           id="toggle-journal-tab"
-          onClick={() => navigate("/chat-journal/journal")}
+          onClick={() => navigate(`${basePath}/journal`)}
           style={{
             ...styles.subTabBtn,
             background: activeSubtab === "journal" ? "var(--color-accent-dim)" : "transparent",
@@ -604,7 +597,7 @@ function ChatJournalWrapper({ user }) {
         </button>
         <button
           id="toggle-reference-tab"
-          onClick={() => navigate("/chat-journal/reference")}
+          onClick={() => navigate(`${basePath}/reference`)}
           style={{
             ...styles.subTabBtn,
             background: activeSubtab === "reference" ? "var(--color-accent-dim)" : "transparent",
@@ -617,7 +610,7 @@ function ChatJournalWrapper({ user }) {
         </button>
         <button
           id="toggle-ai-tab"
-          onClick={() => navigate("/chat-journal/ai")}
+          onClick={() => navigate(`${basePath}/ai`)}
           style={{
             ...styles.subTabBtn,
             background: activeSubtab === "ai" ? "var(--color-accent-dim)" : "transparent",
@@ -636,6 +629,260 @@ function ChatJournalWrapper({ user }) {
         {activeSubtab === "reference" && <ReferencePanel />}
         {activeSubtab === "ai" && <AiPanel user={user} />}
       </div>
+    </div>
+  );
+}
+
+function PlayerSheetRedirect({ user }) {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (user.characters && user.characters.length > 0) {
+      navigate(`/player/sheet/${user.characters[0].id}`, { replace: true });
+    }
+  }, [user, navigate]);
+
+  if (user.characters && user.characters.length > 0) {
+    return null;
+  }
+
+  return (
+    <div style={styles.noCharacterContainer} className="glass-panel">
+      <h3 style={{ color: "var(--color-accent)" }}>No Character Assigned</h3>
+      <p style={{ color: "var(--color-muted)", fontSize: "0.9rem", textAlign: "center", marginTop: "0.5rem" }}>
+        Ask your DM to create and assign a character to your profile.
+      </p>
+    </div>
+  );
+}
+
+function PlayerLayout({ user, onLogout }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const pathParts = location.pathname.split("/");
+  const currentTab = ["map", "sheet", "chat-journal"].includes(pathParts[2])
+    ? pathParts[2]
+    : "map";
+
+  const handleSheetTabClick = () => {
+    if (user.characters && user.characters.length > 0) {
+      navigate(`/player/sheet/${user.characters[0].id}`);
+    } else {
+      navigate("/player/sheet");
+    }
+  };
+
+  return (
+    <div style={styles.layoutContainer}>
+      {/* Top Header Banner */}
+      <header style={styles.topHeader} className="glass-panel gold-border-glow">
+        <span style={styles.headerTitle}>Player Screen</span>
+        <div style={styles.headerUser}>
+          <span style={styles.headerUsername}>{user.username}</span>
+          <button 
+            onClick={onLogout} 
+            style={styles.logoutBtn} 
+            className="touch-target btn-hover-scale"
+          >
+            Exit
+          </button>
+        </div>
+      </header>
+
+      {/* Main Workspace content */}
+      <main style={styles.mainContent}>
+        <Routes>
+          <Route path="map" element={<MapPanel user={user} />} />
+          <Route path="sheet" element={<PlayerSheetRedirect user={user} />} />
+          <Route path="sheet/:id" element={<CharacterSheetWrapper user={user} basePath="/player/sheet" />} />
+          <Route path="chat-journal" element={<Navigate to="chat" replace />} />
+          <Route path="chat-journal/:subtab" element={<ChatJournalWrapper user={user} basePath="/player/chat-journal" />} />
+          <Route path="*" element={<Navigate to="map" replace />} />
+        </Routes>
+      </main>
+
+      {/* Bottom Nav Bar */}
+      <nav style={styles.bottomNav} className="glass-panel gold-border-glow">
+        <button
+          id="nav-tab-map"
+          onClick={() => navigate("map")}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "map" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+        >
+          <span style={styles.navIcon}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+              <line x1="9" y1="3" x2="9" y2="18" />
+              <line x1="15" y1="6" x2="15" y2="21" />
+            </svg>
+          </span>
+          <span style={styles.navLabel}>Map</span>
+        </button>
+
+        <button
+          id="nav-tab-characters"
+          onClick={handleSheetTabClick}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "sheet" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+        >
+          <span style={styles.navIcon}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+          </span>
+          <span style={styles.navLabel}>Sheet</span>
+        </button>
+
+        <button
+          id="nav-tab-chat-journal"
+          onClick={() => navigate("chat-journal/chat")}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "chat-journal" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+        >
+          <span style={styles.navIcon}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </span>
+          <span style={styles.navLabel}>Chat</span>
+        </button>
+      </nav>
+    </div>
+  );
+}
+
+function DmLayout({ user, onLogout }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const pathParts = location.pathname.split("/");
+  const currentTab = ["map", "characters", "chat-journal", "settings"].includes(pathParts[2])
+    ? pathParts[2]
+    : "map";
+
+  return (
+    <div style={styles.layoutContainer}>
+      {/* Top Header Banner */}
+      <header style={styles.topHeader} className="glass-panel gold-border-glow">
+        <span style={styles.headerTitle}>Dungeon Master Screen</span>
+        <div style={styles.headerUser}>
+          <span style={styles.headerUsername}>{user.username}</span>
+          <button 
+            onClick={onLogout} 
+            style={styles.logoutBtn} 
+            className="touch-target btn-hover-scale"
+          >
+            Exit
+          </button>
+        </div>
+      </header>
+
+      {/* Main Workspace content */}
+      <main style={styles.mainContent}>
+        <Routes>
+          <Route path="map" element={<MapPanel user={user} />} />
+          <Route
+            path="characters"
+            element={
+              <CharacterList
+                user={user}
+                onSelectCharacter={(char) => navigate(`/dm/characters/${char.id}`)}
+              />
+            }
+          />
+          <Route path="characters/:id" element={<CharacterSheetWrapper user={user} basePath="/dm/characters" />} />
+          <Route path="chat-journal" element={<Navigate to="chat" replace />} />
+          <Route path="chat-journal/:subtab" element={<ChatJournalWrapper user={user} basePath="/dm/chat-journal" />} />
+          <Route path="settings" element={<SettingsPanel user={user} />} />
+          <Route path="*" element={<Navigate to="map" replace />} />
+        </Routes>
+      </main>
+
+      {/* Bottom Nav Bar */}
+      <nav style={styles.bottomNav} className="glass-panel gold-border-glow">
+        <button
+          id="nav-tab-map"
+          onClick={() => navigate("map")}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "map" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+        >
+          <span style={styles.navIcon}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+              <line x1="9" y1="3" x2="9" y2="18" />
+              <line x1="15" y1="6" x2="15" y2="21" />
+            </svg>
+          </span>
+          <span style={styles.navLabel}>Map</span>
+        </button>
+
+        <button
+          id="nav-tab-characters"
+          onClick={() => navigate("characters")}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "characters" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+        >
+          <span style={styles.navIcon}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </span>
+          <span style={styles.navLabel}>Characters</span>
+        </button>
+
+        <button
+          id="nav-tab-chat-journal"
+          onClick={() => navigate("chat-journal/chat")}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "chat-journal" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+        >
+          <span style={styles.navIcon}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </span>
+          <span style={styles.navLabel}>Chat</span>
+        </button>
+
+        <button
+          id="nav-tab-settings"
+          onClick={() => navigate("settings")}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "settings" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+        >
+          <span style={styles.navIcon}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </span>
+          <span style={styles.navLabel}>Settings</span>
+        </button>
+      </nav>
     </div>
   );
 }
