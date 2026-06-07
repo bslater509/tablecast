@@ -108,11 +108,22 @@ function stringifyEntries(entries) {
 async function findRelevantRules(message, user) {
   if (!message) return "";
 
-  // Split into keywords longer than 3 chars
+  const excludedWords = new Set([
+    "what", "with", "that", "your", "about", "the", "and", "for", "are", "but", 
+    "not", "you", "was", "out", "him", "her", "his", "who", "its", "can", 
+    "use", "has", "how", "why", "get", "set", "one", "two", "new", "old", 
+    "our", "any", "all", "she", "they", "them", "this", "from", "their", "there",
+    "will", "would", "shall", "should", "some", "more", "most", "than", "then", "into"
+  ]);
+
+  // Split into keywords, allowing 3+ characters and key 2-character D&D terms
   const words = message.toLowerCase()
     .replace(/[^a-z0-9\s]/g, "")
     .split(/\s+/)
-    .filter(w => w.length > 3 && w !== "what" && w !== "with" && w !== "that" && w !== "your" && w !== "about");
+    .filter(w => {
+      if (excludedWords.has(w)) return false;
+      return w.length > 2 || w === "ac" || w === "hp" || w === "cr";
+    });
 
   if (words.length === 0) return "";
 
