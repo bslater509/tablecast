@@ -3,6 +3,7 @@
 // Provides controls for zip compression & rclone Google Drive synchronization.
 // =============================================================================
 import React, { useState, useEffect } from "react";
+import { Bot, Cloud, KeyRound } from "lucide-react";
 
 function SettingsPanel({ user }) {
   const [loading, setLoading] = useState(false);
@@ -601,8 +602,8 @@ function SettingsPanel({ user }) {
         </div>
       )}
       <header style={styles.header}>
-        <h1 style={styles.title}>Dungeon Master Sanctum</h1>
-        <p style={styles.subtitle}>Manage cloud backups, database archives, campaign settings, and NPCs.</p>
+        <h1 style={styles.title}>DM Control Settings</h1>
+        <p style={styles.subtitle}>Manage backups, reference sync, AI configuration, and campaign operations.</p>
         
         {/* Sub-tab navigation */}
         <div style={styles.subTabNav}>
@@ -617,6 +618,7 @@ function SettingsPanel({ user }) {
             }}
             className="touch-target"
           >
+            <Cloud size={16} />
             Backups & Sync
           </button>
           <button
@@ -630,6 +632,7 @@ function SettingsPanel({ user }) {
             }}
             className="touch-target"
           >
+            <Bot size={16} />
             AI Setup
           </button>
 
@@ -672,7 +675,8 @@ function SettingsPanel({ user }) {
                   }}
                   className="touch-target btn-hover-scale"
                 >
-                  🔐 Link Google Drive Backup
+                  <KeyRound size={16} />
+                  <span>Link Google Drive Backup</span>
                 </button>
                 <button
                   type="button"
@@ -1352,6 +1356,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    gap: "0.4rem",
     transition: "all 0.2s",
   },
   secondaryBtn: {
@@ -1495,6 +1500,10 @@ const styles = {
     padding: "0.45rem",
     transition: "all 0.2s",
     minHeight: "44px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.35rem",
   },
   configEditorContainer: {
     display: "flex",

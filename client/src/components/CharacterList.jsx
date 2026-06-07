@@ -3,6 +3,7 @@
 // Allows users to select an existing character sheet or create a new one.
 // =============================================================================
 import { useState, useEffect } from "react";
+import { ChevronRight, Plus, UserRound } from "lucide-react";
 import Autocomplete from "./Autocomplete";
 
 export default function CharacterList({ user, onSelectCharacter }) {
@@ -109,7 +110,7 @@ export default function CharacterList({ user, onSelectCharacter }) {
   return (
     <div style={styles.container} className="fade-in">
       <header style={styles.header}>
-        <h2 style={styles.title}> Heroic Characters</h2>
+        <h2 style={styles.title}>Heroic Characters</h2>
         {!showCreateForm && (
           <button
             id="new-char-btn"
@@ -117,7 +118,8 @@ export default function CharacterList({ user, onSelectCharacter }) {
             style={styles.createBtn}
             className="touch-target btn-hover-scale"
           >
-            + New Hero
+            <Plus size={16} />
+            <span>New Hero</span>
           </button>
         )}
       </header>
@@ -218,6 +220,9 @@ export default function CharacterList({ user, onSelectCharacter }) {
               style={styles.card}
               className="glass-panel btn-hover-scale"
             >
+              <div style={styles.cardIcon}>
+                <UserRound size={18} />
+              </div>
               <div style={styles.cardInfo}>
                 <h3 style={styles.cardName}>{char.name}</h3>
                 <span style={styles.cardSub}>
@@ -227,7 +232,7 @@ export default function CharacterList({ user, onSelectCharacter }) {
                   <span style={styles.ownerBadge}>Owner: {char.user?.username}</span>
                 )}
               </div>
-              <div style={styles.cardArrow}></div>
+              <div style={styles.cardArrow}><ChevronRight size={18} /></div>
             </div>
           ))}
         </div>
@@ -257,13 +262,16 @@ const styles = {
   },
   createBtn: {
     padding: "0.45rem 0.85rem",
-    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+    background: "linear-gradient(135deg, var(--color-accent) 0%, #a87427 100%)",
     border: "none",
     borderRadius: "6px",
     color: "#0f0e17",
     fontWeight: "bold",
     cursor: "pointer",
     fontSize: "0.85rem",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.35rem",
   },
   list: {
     flex: 1,
@@ -273,17 +281,31 @@ const styles = {
     gap: "0.5rem",
   },
   card: {
-    padding: "1rem",
+    padding: "0.85rem",
     borderRadius: "8px",
     cursor: "pointer",
-    display: "flex",
-    justifyContent: "space-between",
+    display: "grid",
+    gridTemplateColumns: "44px minmax(0, 1fr) 32px",
+    gap: "0.75rem",
     alignItems: "center",
+    borderColor: "var(--color-border-light)",
+  },
+  cardIcon: {
+    width: "44px",
+    height: "44px",
+    borderRadius: "8px",
+    background: "var(--color-accent-dim)",
+    border: "1px solid var(--color-border)",
+    color: "var(--color-accent)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardInfo: {
     display: "flex",
     flexDirection: "column",
     gap: "0.25rem",
+    minWidth: 0,
   },
   cardName: {
     fontSize: "1.1rem",
@@ -305,9 +327,11 @@ const styles = {
     marginTop: "0.2rem",
   },
   cardArrow: {
-    fontSize: "1.25rem",
     color: "var(--color-accent)",
     opacity: 0.7,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   infoText: {
     textAlign: "center",
@@ -396,7 +420,7 @@ const styles = {
     padding: "0.65rem",
     borderRadius: "6px",
     border: "none",
-    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+    background: "linear-gradient(135deg, var(--color-accent) 0%, #a87427 100%)",
     color: "#0f0e17",
     fontWeight: "bold",
     cursor: "pointer",

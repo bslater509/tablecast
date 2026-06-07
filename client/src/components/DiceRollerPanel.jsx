@@ -4,6 +4,7 @@
 // Emits the roll event via Socket.io and integrates with the 3D Dice Box.
 // =============================================================================
 import { useState, useEffect } from "react";
+import { ExternalLink } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
 import { useDiceBox } from "../context/DiceBoxContext";
 
@@ -369,8 +370,9 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
             }}
             className="touch-target btn-hover-scale"
             title="Pop out Dice Roller"
+            aria-label="Pop out Dice Roller"
           >
-            ⧉
+            <ExternalLink size={17} />
           </button>
         )}
       </div>
@@ -400,7 +402,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {webGlSupported ? "● 3D Dice Active" : "● WebGL Offline"}
+                    {webGlSupported ? "3D Dice Active" : "WebGL Offline"}
                   </span>
                 </div>
                 <button
@@ -554,7 +556,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
               <h2 style={styles.title}>Shared Roll Log</h2>
               {history.length === 0 ? (
                 <div style={styles.emptyHistory} className="glass-panel">
-                  🎲 No rolls recorded yet in this session.
+                  No rolls recorded yet in this session.
                 </div>
               ) : (
                 <div style={styles.historyList}>

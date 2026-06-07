@@ -4,6 +4,7 @@
 // Categorizes entries into Locations, NPCs, Lore, and Session Logs.
 // =============================================================================
 import { useState, useEffect } from "react";
+import { ExternalLink } from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import Autocomplete from "./Autocomplete";
@@ -1680,8 +1681,9 @@ export default function WikiPanel({ user, isPopout = false }) {
                 }}
                 className="touch-target btn-hover-scale"
                 title="Pop out Wiki"
+                aria-label="Pop out Wiki"
               >
-                ⧉
+                <ExternalLink size={17} />
               </button>
             )}
           </div>

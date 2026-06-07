@@ -3,14 +3,15 @@
 // Supports tabbed searching and formatting of spells, items, monsters, and rules.
 // =============================================================================
 import React, { useState, useEffect } from "react";
+import { BookOpen, Box, ExternalLink, Shield, Sparkles, Users } from "lucide-react";
 
 const CATEGORIES = [
-  { id: "spells", label: " Spells", icon: "✨" },
-  { id: "monsters", label: " Monsters", icon: "🐉" },
-  { id: "items", label: " Items", icon: "⚔️" },
-  { id: "rules", label: " Rules", icon: "📜" },
-  { id: "classes", label: " Classes", icon: "🛡️" },
-  { id: "races", label: " Races", icon: "🧝" },
+  { id: "spells", label: "Spells", icon: Sparkles },
+  { id: "monsters", label: "Monsters", icon: Shield },
+  { id: "items", label: "Items", icon: Box },
+  { id: "rules", label: "Rules", icon: BookOpen },
+  { id: "classes", label: "Classes", icon: Shield },
+  { id: "races", label: "Races", icon: Users },
 ];
 
 function ReferencePanel({ user, isPopout = false }) {
@@ -207,24 +208,28 @@ function ReferencePanel({ user, isPopout = false }) {
     <div style={styles.container} className="fade-in">
       {/* Category selector row */}
       <div style={styles.categoryNav}>
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => {
-              setCategory(cat.id);
-              setResults([]);
-            }}
-            style={{
-              ...styles.categoryBtn,
-              background: category === cat.id ? "var(--color-accent-dim)" : "rgba(255,255,255,0.02)",
-              color: category === cat.id ? "var(--color-accent)" : "var(--color-muted)",
-              borderColor: category === cat.id ? "var(--color-accent)" : "rgba(255,255,255,0.05)",
-            }}
-            className="touch-target btn-hover-scale"
-          >
-            {cat.icon}{cat.label}
-          </button>
-        ))}
+        {CATEGORIES.map((cat) => {
+          const Icon = cat.icon;
+          return (
+            <button
+              key={cat.id}
+              onClick={() => {
+                setCategory(cat.id);
+                setResults([]);
+              }}
+              style={{
+                ...styles.categoryBtn,
+                background: category === cat.id ? "var(--color-accent-dim)" : "rgba(255,255,255,0.02)",
+                color: category === cat.id ? "var(--color-accent)" : "var(--color-muted)",
+                borderColor: category === cat.id ? "var(--color-accent)" : "rgba(255,255,255,0.05)",
+              }}
+              className="touch-target btn-hover-scale"
+            >
+              <Icon size={15} />
+              <span>{cat.label}</span>
+            </button>
+          );
+        })}
         {!isPopout && user?.role === "DM" && (
           <button
             onClick={() => window.open("/#/dm/popout/reference", "_blank", "width=800,height=800,resizable=yes,scrollbars=yes")}
@@ -242,8 +247,9 @@ function ReferencePanel({ user, isPopout = false }) {
             }}
             className="touch-target btn-hover-scale"
             title="Pop out Reference Library"
+            aria-label="Pop out Reference Library"
           >
-            ⧉
+            <ExternalLink size={17} />
           </button>
         )}
       </div>
@@ -537,6 +543,9 @@ const styles = {
     cursor: "pointer",
     whiteSpace: "nowrap",
     transition: "all 0.2s",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.35rem",
   },
   searchBar: {
     position: "relative",

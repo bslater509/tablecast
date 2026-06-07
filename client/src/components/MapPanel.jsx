@@ -3,6 +3,19 @@
 // Act as the VTT Engine Developer: HTML5 Canvas, touch events, and Fog of War.
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
+import {
+  Eye,
+  Grid3x3,
+  Hand,
+  Maximize2,
+  Plus,
+  Trash2,
+  Undo2,
+  UserPlus,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { useSocket } from "../context/SocketContext";
 import Autocomplete from "./Autocomplete";
 
@@ -1468,7 +1481,7 @@ export default function MapPanel({ user, isPopout = false }) {
       {/* VTT Header */}
       <header style={styles.header}>
         <div style={styles.headerTitleBox}>
-          <h2 style={styles.title}> Tacticians Grid (VTT)</h2>
+          <h2 style={styles.title}>Tacticians Grid</h2>
           {activeMap && (
             <span style={styles.mapNameBadge}>
               Active: {activeMap.name} ({activeMap.gridSize}px Grid)
@@ -1498,7 +1511,8 @@ export default function MapPanel({ user, isPopout = false }) {
                   style={styles.btnSmall}
                   className="btn-hover-scale glass-panel touch-target"
                 >
-                   New Map
+                  <Plus size={16} />
+                  <span>New Map</span>
                 </button>
                 <button
                   onClick={handleDeleteMap}
@@ -1506,14 +1520,15 @@ export default function MapPanel({ user, isPopout = false }) {
                   className="btn-hover-scale glass-panel touch-target"
                   disabled={!activeMap}
                 >
-                   Delete
+                  <Trash2 size={16} />
+                  <span>Delete</span>
                 </button>
               </>
             )}
           </div>
 
           <span style={styles.status}>
-            {isConnected ? " Live Sync" : " Offline Mode"}
+            {isConnected ? "Live Sync" : "Offline Mode"}
           </span>
         </div>
       </header>
@@ -1569,7 +1584,9 @@ export default function MapPanel({ user, isPopout = false }) {
           <div style={styles.encounterDrawer} className="glass-panel gold-border-glow">
             <header style={styles.detailsHeader}>
               <h4 style={styles.smallPanelHeader}>Encounter Builder</h4>
-              <button onClick={() => setShowEncounterDrawer(false)} style={styles.closeBtn}>✕</button>
+              <button onClick={() => setShowEncounterDrawer(false)} style={styles.closeBtn} aria-label="Close encounter builder">
+                <X size={16} />
+              </button>
             </header>
 
             {!activeEncounter || activeEncounter.status === "COMPLETE" ? (
@@ -1775,7 +1792,8 @@ export default function MapPanel({ user, isPopout = false }) {
             title="Pan Map / Drag Token"
             className="touch-target btn-hover-scale"
           >
-            🖐️ Move
+            <Hand size={17} />
+            <span>Move</span>
           </button>
 
           {user?.role === "DM" && (
@@ -1797,7 +1815,8 @@ export default function MapPanel({ user, isPopout = false }) {
                 title={activeMap ? "Draw Fog (Hide area)" : "Select a map first"}
                 className="touch-target btn-hover-scale"
               >
-                🌑 Mask
+                <Grid3x3 size={17} />
+                <span>Mask</span>
               </button>
               
               <button
@@ -1817,7 +1836,8 @@ export default function MapPanel({ user, isPopout = false }) {
                 title={activeMap ? "Reveal Fog (Carve hole)" : "Select a map first"}
                 className="touch-target btn-hover-scale"
               >
-                👁️ Reveal
+                <Eye size={17} />
+                <span>Reveal</span>
               </button>
             </>
           )}
@@ -1834,7 +1854,8 @@ export default function MapPanel({ user, isPopout = false }) {
             title="Toggle Grid Lines"
             className="touch-target btn-hover-scale"
           >
-            ▦ Grid
+            <Grid3x3 size={17} />
+            <span>Grid</span>
           </button>
 
           <button
@@ -1843,7 +1864,7 @@ export default function MapPanel({ user, isPopout = false }) {
             title="Zoom In"
             className="touch-target btn-hover-scale"
           >
-            ➕
+            <ZoomIn size={18} />
           </button>
           
           <button
@@ -1852,7 +1873,7 @@ export default function MapPanel({ user, isPopout = false }) {
             title="Zoom Out"
             className="touch-target btn-hover-scale"
           >
-            ➖
+            <ZoomOut size={18} />
           </button>
 
           <button
@@ -1865,13 +1886,14 @@ export default function MapPanel({ user, isPopout = false }) {
             title="Reset View"
             className="touch-target btn-hover-scale"
           >
-            🎯 Fit
+            <Maximize2 size={17} />
+            <span>Fit</span>
           </button>
         </div>
 
         {/* Floating Token and Utility control */}
         <div style={styles.floatingTokensControl} className="glass-panel">
-          <h4 style={styles.smallPanelHeader}> Token Control</h4>
+          <h4 style={styles.smallPanelHeader}>Token Control</h4>
           {selectedTokenId && (
             <div style={styles.selectedTokenText}>
               Selected: {tokens.find((t) => t.id === selectedTokenId)?.label || "Token"}
@@ -1884,6 +1906,7 @@ export default function MapPanel({ user, isPopout = false }) {
                 style={styles.btnAction}
                 className="btn-hover-scale touch-target"
               >
+                <UserPlus size={15} />
                 Encounter
               </button>
             )}
@@ -1892,6 +1915,7 @@ export default function MapPanel({ user, isPopout = false }) {
               style={styles.btnAction}
               className="btn-hover-scale touch-target"
             >
+              <Plus size={15} />
               Add Token
             </button>
             
@@ -1901,6 +1925,7 @@ export default function MapPanel({ user, isPopout = false }) {
                 style={{ ...styles.btnAction, background: "var(--color-danger)" }}
                 className="btn-hover-scale touch-target"
               >
+                <Trash2 size={15} />
                 Delete
               </button>
             )}
@@ -1910,6 +1935,7 @@ export default function MapPanel({ user, isPopout = false }) {
                 style={styles.btnAction}
                 className="btn-hover-scale touch-target"
               >
+                <X size={15} />
                 Clear
               </button>
             )}
@@ -1919,13 +1945,14 @@ export default function MapPanel({ user, isPopout = false }) {
         {/* Floating Fog Actions for DM */}
         {user?.role === "DM" && (tool === "draw-fog" || tool === "reveal-fog") && (
           <div style={styles.floatingFogActions} className="glass-panel">
-            <h4 style={styles.smallPanelHeader}> Fog Control</h4>
+            <h4 style={styles.smallPanelHeader}>Fog Control</h4>
             <div style={styles.tokenActionRow}>
               <button
                 onClick={handleUndoFog}
                 style={styles.btnAction}
                 className="btn-hover-scale touch-target"
               >
+                <Undo2 size={15} />
                 Undo Last
               </button>
               <button
@@ -1933,6 +1960,7 @@ export default function MapPanel({ user, isPopout = false }) {
                 style={styles.btnAction}
                 className="btn-hover-scale touch-target"
               >
+                <Grid3x3 size={15} />
                 Mask All
               </button>
               <button
@@ -1940,6 +1968,7 @@ export default function MapPanel({ user, isPopout = false }) {
                 style={styles.btnAction}
                 className="btn-hover-scale touch-target"
               >
+                <Eye size={15} />
                 Reveal All
               </button>
             </div>
@@ -1950,7 +1979,7 @@ export default function MapPanel({ user, isPopout = false }) {
                 style={styles.finishShapeBtn}
                 className="btn-hover-scale pulse-accent-animation touch-target"
               >
-                 Finish Shape ({currentPolygon.length} pts)
+                Finish Shape ({currentPolygon.length} pts)
               </button>
             )}
           </div>
@@ -1974,8 +2003,10 @@ export default function MapPanel({ user, isPopout = false }) {
             return (
               <div style={styles.floatingTokenDetails} className="glass-panel gold-border-glow">
                 <header style={styles.detailsHeader}>
-                  <h4 style={styles.smallPanelHeader}> Selected Token</h4>
-                  <button onClick={() => setSelectedTokenId(null)} style={styles.closeBtn}>✕</button>
+                  <h4 style={styles.smallPanelHeader}>Selected Token</h4>
+                  <button onClick={() => setSelectedTokenId(null)} style={styles.closeBtn} aria-label="Close selected token details">
+                    <X size={16} />
+                  </button>
                 </header>
                 
                 <div style={styles.detailsBody}>
@@ -2539,8 +2570,8 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     height: "100%",
-    padding: "1rem",
-    gap: "1rem",
+    padding: "0.75rem",
+    gap: "0.75rem",
   },
   tokenTypeSelector: {
     display: "flex",
@@ -2576,7 +2607,7 @@ const styles = {
     gap: "0.25rem",
   },
   title: {
-    fontSize: "1.25rem",
+    fontSize: "1.08rem",
     fontWeight: 700,
     color: "var(--color-accent)",
   },
@@ -2588,13 +2619,14 @@ const styles = {
   headerControls: {
     display: "flex",
     alignItems: "center",
-    gap: "0.75rem",
+    gap: "0.5rem",
     flexWrap: "wrap",
   },
   dmMapSelector: {
     display: "flex",
     alignItems: "center",
     gap: "0.5rem",
+    flexWrap: "wrap",
   },
   select: {
     background: "rgba(10, 8, 20, 0.6)",
@@ -2610,26 +2642,30 @@ const styles = {
     color: "var(--color-accent)",
     background: "rgba(200, 151, 58, 0.08)",
     padding: "0.35rem 0.65rem",
-    borderRadius: "4px",
+    borderRadius: "7px",
     fontSize: "0.75rem",
     cursor: "pointer",
     fontWeight: 600,
     height: "44px",
     display: "flex",
     alignItems: "center",
+    justifyContent: "center",
+    gap: "0.35rem",
   },
   btnDangerSmall: {
     border: "1px solid var(--color-danger)",
     color: "var(--color-danger)",
     background: "rgba(235, 87, 87, 0.08)",
     padding: "0.35rem 0.65rem",
-    borderRadius: "4px",
+    borderRadius: "7px",
     fontSize: "0.75rem",
     cursor: "pointer",
     fontWeight: 600,
     height: "44px",
     display: "flex",
     alignItems: "center",
+    justifyContent: "center",
+    gap: "0.35rem",
   },
   status: {
     fontSize: "0.75rem",
@@ -2645,7 +2681,7 @@ const styles = {
   vttWorkspace: {
     flex: 1,
     position: "relative",
-    borderRadius: "8px",
+    borderRadius: "7px",
     overflow: "hidden",
     background: "#08070e",
   },
@@ -2665,20 +2701,21 @@ const styles = {
     flexWrap: "wrap",
     gap: "0.35rem",
     padding: "0.35rem",
-    borderRadius: "6px",
+    borderRadius: "8px",
     zIndex: 100,
-    background: "rgba(10, 8, 20, 0.88)",
+    background: "rgba(12, 15, 18, 0.9)",
     maxWidth: "calc(100% - 24px)",
   },
   toolBtn: {
     minWidth: "48px",
     height: "48px",
     border: "1px solid transparent",
-    borderRadius: "4px",
+    borderRadius: "7px",
     color: "var(--color-text)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    gap: "0.32rem",
     fontSize: "0.78rem",
     cursor: "pointer",
     background: "transparent",
@@ -2696,8 +2733,8 @@ const styles = {
     bottom: "12px",
     left: "12px",
     padding: "0.65rem",
-    borderRadius: "6px",
-    background: "rgba(10, 8, 20, 0.88)",
+    borderRadius: "8px",
+    background: "rgba(12, 15, 18, 0.9)",
     zIndex: 100,
     display: "flex",
     flexDirection: "column",
@@ -2710,8 +2747,8 @@ const styles = {
     bottom: "12px",
     right: "12px",
     padding: "0.65rem",
-    borderRadius: "6px",
-    background: "rgba(10, 8, 20, 0.88)",
+    borderRadius: "8px",
+    background: "rgba(12, 15, 18, 0.9)",
     zIndex: 100,
     display: "flex",
     flexDirection: "column",
@@ -2741,6 +2778,10 @@ const styles = {
     padding: "0.55rem",
     cursor: "pointer",
     fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.3rem",
   },
   selectedTokenText: {
     color: "var(--color-text)",

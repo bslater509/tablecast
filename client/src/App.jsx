@@ -4,6 +4,17 @@
 // =============================================================================
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
+import {
+  Box,
+  ExternalLink,
+  LogOut,
+  Map as MapIcon,
+  MessageSquare,
+  Settings,
+  SlidersHorizontal,
+  Users,
+  Wifi,
+} from "lucide-react";
 import MapPanel from "./components/MapPanel";
 import CharacterList from "./components/CharacterList";
 import CharacterSheet from "./components/CharacterSheet";
@@ -18,6 +29,56 @@ import ConnectionHelpPanel from "./components/ConnectionHelpPanel";
 import { useSocket } from "./context/SocketContext";
 
 const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
+
+const DM_NAV_ITEMS = [
+  {
+    id: "map",
+    label: "Map VTT",
+    mobileLabel: "Map",
+    path: "/dm/map",
+    icon: MapIcon,
+    popoutUrl: "/#/dm/popout/map",
+    popoutTitle: "Pop out Map",
+    popoutFeatures: "width=1000,height=700,resizable=yes,scrollbars=yes",
+  },
+  {
+    id: "characters",
+    label: "Characters",
+    mobileLabel: "Heroes",
+    path: "/dm/characters",
+    icon: Users,
+    popoutUrl: "/#/dm/popout/characters",
+    popoutTitle: "Pop out Characters List",
+    popoutFeatures: "width=600,height=800,resizable=yes,scrollbars=yes",
+  },
+  {
+    id: "dice",
+    label: "Dice Roller",
+    mobileLabel: "Dice",
+    path: "/dm/dice",
+    icon: Box,
+    popoutUrl: "/#/dm/popout/dice",
+    popoutTitle: "Pop out Dice Roller",
+    popoutFeatures: "width=600,height=800,resizable=yes,scrollbars=yes",
+  },
+  {
+    id: "chat-journal",
+    label: "Chat & Wiki",
+    mobileLabel: "Chat",
+    path: "/dm/chat-journal/chat",
+    icon: MessageSquare,
+    popoutUrl: "/#/dm/popout/chat",
+    popoutTitle: "Pop out Chat & Logs",
+    popoutFeatures: "width=600,height=800,resizable=yes,scrollbars=yes",
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    mobileLabel: "Settings",
+    path: "/dm/settings",
+    icon: Settings,
+  },
+];
 
 function App() {
   const { connectionStatus } = useSocket();
@@ -861,126 +922,80 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
     <div className="dm-layout-shell">
       {/* Sidebar Nav (Desktop only) */}
       <aside className="dm-sidebar-nav">
-        <div className="dm-sidebar-title">Tablecast DM</div>
+        <div className="dm-sidebar-brand">
+          <div className="dm-sidebar-mark">
+            <SlidersHorizontal size={18} strokeWidth={2.2} />
+          </div>
+          <div>
+            <div className="dm-sidebar-title">Tablecast DM</div>
+            <div className="dm-sidebar-subtitle">Session Console</div>
+          </div>
+        </div>
         <div className="dm-sidebar-links">
-          <div className="dm-sidebar-item">
-            <button
-              onClick={() => navigate("/dm/map")}
-              className={`dm-sidebar-btn ${currentTab === "map" ? "active" : ""}`}
-            >
-              <span className="dm-sidebar-icon">🗺️</span>
-              Map VTT
-            </button>
-            <button
-              onClick={() => window.open("/#/dm/popout/map", "_blank", "width=1000,height=700,resizable=yes,scrollbars=yes")}
-              className="dm-sidebar-popout-btn touch-target btn-hover-scale"
-              title="Pop out Map"
-            >
-              ⧉
-            </button>
-          </div>
-
-          <div className="dm-sidebar-item">
-            <button
-              onClick={() => navigate("/dm/characters")}
-              className={`dm-sidebar-btn ${currentTab === "characters" ? "active" : ""}`}
-            >
-              <span className="dm-sidebar-icon">👥</span>
-              Characters
-            </button>
-            <button
-              onClick={() => window.open("/#/dm/popout/characters", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
-              className="dm-sidebar-popout-btn touch-target btn-hover-scale"
-              title="Pop out Characters List"
-            >
-              ⧉
-            </button>
-          </div>
-
-          <div className="dm-sidebar-item">
-            <button
-              onClick={() => navigate("/dm/dice")}
-              className={`dm-sidebar-btn ${currentTab === "dice" ? "active" : ""}`}
-            >
-              <span className="dm-sidebar-icon">🎲</span>
-              Dice Roller
-            </button>
-            <button
-              onClick={() => window.open("/#/dm/popout/dice", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
-              className="dm-sidebar-popout-btn touch-target btn-hover-scale"
-              title="Pop out Dice Roller"
-            >
-              ⧉
-            </button>
-          </div>
-
-          <div className="dm-sidebar-item">
-            <button
-              onClick={() => navigate("/dm/chat-journal/chat")}
-              className={`dm-sidebar-btn ${currentTab === "chat-journal" ? "active" : ""}`}
-            >
-              <span className="dm-sidebar-icon">💬</span>
-              Chat & Wiki
-            </button>
-            <button
-              onClick={() => window.open("/#/dm/popout/chat", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
-              className="dm-sidebar-popout-btn touch-target btn-hover-scale"
-              title="Pop out Chat & Logs"
-            >
-              ⧉
-            </button>
-          </div>
-
-          <div className="dm-sidebar-item">
-            <button
-              onClick={() => navigate("/dm/settings")}
-              className={`dm-sidebar-btn ${currentTab === "settings" ? "active" : ""}`}
-            >
-              <span className="dm-sidebar-icon">⚙️</span>
-              Settings
-            </button>
-          </div>
+          {DM_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentTab === item.id;
+            return (
+              <div className="dm-sidebar-item" key={item.id}>
+                <button
+                  onClick={() => navigate(item.path)}
+                  className={`dm-sidebar-btn ${isActive ? "active" : ""}`}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  <span className="dm-sidebar-icon"><Icon size={18} strokeWidth={2.1} /></span>
+                  <span>{item.label}</span>
+                </button>
+                {item.popoutUrl && (
+                  <button
+                    onClick={() => window.open(item.popoutUrl, "_blank", item.popoutFeatures)}
+                    className="dm-sidebar-popout-btn touch-target btn-hover-scale"
+                    title={item.popoutTitle}
+                    aria-label={item.popoutTitle}
+                  >
+                    <ExternalLink size={16} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="dm-sidebar-footer">
+          <span className="dm-sidebar-user">{user?.username}</span>
+          <span className="dm-sidebar-role">DM access</span>
         </div>
       </aside>
 
       <div style={styles.layoutContainer} className="dm-main-area">
         {/* Top Header Banner */}
-        <header style={styles.topHeader} className="glass-panel gold-border-glow">
-          <span style={styles.headerTitle}>Dungeon Master Screen</span>
-          <div style={styles.headerUser}>
-            <span style={styles.headerUsername}>{user?.username}</span>
+        <header className="dm-shell-topbar">
+          <div className="dm-shell-title-group">
+            <span className="dm-shell-kicker">DM Console</span>
+            <span className="dm-shell-title">Dungeon Master Screen</span>
+          </div>
+          <div className="dm-shell-actions">
+            <span className="dm-header-username">{user?.username}</span>
             <button
               onClick={() => window.open("/#/dm/popout/connection", "_blank", "width=500,height=530,resizable=yes,scrollbars=yes")}
-              style={{
-                background: "none",
-                border: "none",
-                fontSize: "1.2rem",
-                cursor: "pointer",
-                padding: "0.25rem",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "transform 0.1s ease",
-              }}
-              className="touch-target btn-hover-scale"
+              className="dm-header-icon-btn touch-target btn-hover-scale"
               title="Show Join QR Code"
+              aria-label="Show Join QR Code"
             >
-              📶
+              <Wifi size={18} />
             </button>
             <button
               onClick={onOpenDiceSettings}
-              style={styles.diceSettingsBtn}
-              className="touch-target btn-hover-scale"
+              className="dm-header-icon-btn touch-target btn-hover-scale"
               title="Dice Customization"
+              aria-label="Dice Customization"
             >
-              🎲
+              <Box size={18} />
             </button>
             <button 
               onClick={onLogout} 
-              style={styles.logoutBtn} 
-              className="touch-target btn-hover-scale"
+              className="dm-header-logout touch-target btn-hover-scale"
             >
-              Exit
+              <LogOut size={16} />
+              <span>Exit</span>
             </button>
           </div>
         </header>
@@ -1008,99 +1023,23 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
         </main>
 
         {/* Bottom Nav Bar (Mobile only) */}
-        <nav style={styles.bottomNav} className="dm-bottom-nav glass-panel gold-border-glow">
-          <button
-            id="nav-tab-map"
-            onClick={() => navigate("/dm/map")}
-            style={{
-              ...styles.navBtn,
-              color: currentTab === "map" ? "var(--color-accent)" : "var(--color-muted)",
-            }}
-            className="touch-target"
-          >
-            <span style={styles.navIcon}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
-                <line x1="9" y1="3" x2="9" y2="18" />
-                <line x1="15" y1="6" x2="15" y2="21" />
-              </svg>
-            </span>
-            <span style={styles.navLabel}>Map</span>
-          </button>
-
-          <button
-            id="nav-tab-characters"
-            onClick={() => navigate("/dm/characters")}
-            style={{
-              ...styles.navBtn,
-              color: currentTab === "characters" ? "var(--color-accent)" : "var(--color-muted)",
-            }}
-            className="touch-target"
-          >
-            <span style={styles.navIcon}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-            </span>
-            <span style={styles.navLabel}>Characters</span>
-          </button>
-
-          <button
-            id="nav-tab-dice"
-            onClick={() => navigate("/dm/dice")}
-            style={{
-              ...styles.navBtn,
-              color: currentTab === "dice" ? "var(--color-accent)" : "var(--color-muted)",
-            }}
-            className="touch-target"
-          >
-            <span style={styles.navIcon}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                <line x1="12" y1="22.08" x2="12" y2="12" />
-              </svg>
-            </span>
-            <span style={styles.navLabel}>Dice</span>
-          </button>
-
-          <button
-            id="nav-tab-chat-journal"
-            onClick={() => navigate("/dm/chat-journal/chat")}
-            style={{
-              ...styles.navBtn,
-              color: currentTab === "chat-journal" ? "var(--color-accent)" : "var(--color-muted)",
-            }}
-            className="touch-target"
-          >
-            <span style={styles.navIcon}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-            </span>
-            <span style={styles.navLabel}>Chat</span>
-          </button>
-
-          <button
-            id="nav-tab-settings"
-            onClick={() => navigate("/dm/settings")}
-            style={{
-              ...styles.navBtn,
-              color: currentTab === "settings" ? "var(--color-accent)" : "var(--color-muted)",
-            }}
-            className="touch-target"
-          >
-            <span style={styles.navIcon}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </span>
-            <span style={styles.navLabel}>Settings</span>
-          </button>
+        <nav className="dm-bottom-nav">
+          {DM_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentTab === item.id;
+            return (
+              <button
+                key={item.id}
+                id={`nav-tab-${item.id}`}
+                onClick={() => navigate(item.path)}
+                className={`dm-bottom-nav-btn touch-target ${isActive ? "active" : ""}`}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <Icon size={20} strokeWidth={2.1} />
+                <span>{item.mobileLabel}</span>
+              </button>
+            );
+          })}
         </nav>
       </div>
     </div>

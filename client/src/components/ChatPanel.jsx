@@ -3,6 +3,7 @@
 // A simple global chat to prove Socket.io is working end-to-end.
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
+import { ExternalLink } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
 
 export default function ChatPanel({ user, isPopout = false }) {
@@ -206,8 +207,9 @@ export default function ChatPanel({ user, isPopout = false }) {
               }}
               className="touch-target btn-hover-scale"
               title="Pop out Chat"
+              aria-label="Pop out Chat"
             >
-              ⧉
+              <ExternalLink size={17} />
             </button>
           )}
         </div>
