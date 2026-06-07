@@ -523,7 +523,7 @@ textarea:focus-visible {
 
 .dm-bottom-nav {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   min-height: 64px;
   padding: 0.35rem 0.45rem calc(0.35rem + env(safe-area-inset-bottom));
   gap: 0.25rem;

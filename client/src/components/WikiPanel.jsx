@@ -605,6 +605,20 @@ export default function WikiPanel({ user, isPopout = false }) {
     return titleMatch || contentMatch || tagsMatch;
   });
 
+  const filteredNpcs = npcs.filter((npc) => {
+    const query = searchQuery.toLowerCase();
+    const nameMatch = npc.name.toLowerCase().includes(query);
+    const raceMatch = (npc.race || "").toLowerCase().includes(query);
+    const classMatch = (npc.class || "").toLowerCase().includes(query);
+    const descMatch = (npc.description || "").toLowerCase().includes(query);
+    const alignMatch = (npc.alignment || "").toLowerCase().includes(query);
+    const appearanceMatch = (npc.appearance || "").toLowerCase().includes(query);
+    const personalityMatch = (npc.personality || "").toLowerCase().includes(query);
+    const historyMatch = (npc.history || "").toLowerCase().includes(query);
+    const relationshipMatch = (npc.partyRelationship || "").toLowerCase().includes(query);
+    return nameMatch || raceMatch || classMatch || descMatch || alignMatch || appearanceMatch || personalityMatch || historyMatch || relationshipMatch;
+  });
+
   const filteredMonsters = monsters.filter((monster) => {
     const query = searchQuery.toLowerCase();
     const nameMatch = monster.name.toLowerCase().includes(query);
