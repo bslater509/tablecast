@@ -1665,7 +1665,7 @@ export default function WikiPanel({ user, isPopout = false }) {
             </button>
             {!isPopout && user?.role === "DM" && (
               <button
-                onClick={() => window.open("/dm/popout/wiki", "_blank", "width=800,height=800,resizable=yes,scrollbars=yes")}
+                onClick={() => window.open("/#/dm/popout/wiki", "_blank", "width=800,height=800,resizable=yes,scrollbars=yes")}
                 style={{
                   background: "none",
                   border: "none",

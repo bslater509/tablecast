@@ -285,7 +285,7 @@ function App() {
         <Route path="/dm/popout/reference" element={<ReferencePanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/dice" element={<DiceRollerPanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/connection" element={<ConnectionHelpPanel user={user} />} />
-        <Route path="/dm/popout/characters" element={<CharacterList user={user} onSelectCharacter={(char) => window.open(`/dm/popout/characters/${char.id}`, '_blank', 'width=600,height=800,resizable=yes')} isPopout={true} />} />
+        <Route path="/dm/popout/characters" element={<CharacterList user={user} onSelectCharacter={(char) => window.open(`/#/dm/popout/characters/${char.id}`, '_blank', 'width=600,height=800,resizable=yes')} isPopout={true} />} />
         <Route path="/dm/popout/characters/:id" element={<CharacterSheetWrapper user={user} basePath="/dm/popout/characters" isPopout={true} />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -868,7 +868,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
               Map VTT
             </button>
             <button
-              onClick={() => window.open("/dm/popout/map", "_blank", "width=1000,height=700,resizable=yes,scrollbars=yes")}
+              onClick={() => window.open("/#/dm/popout/map", "_blank", "width=1000,height=700,resizable=yes,scrollbars=yes")}
               className="dm-sidebar-popout-btn touch-target btn-hover-scale"
               title="Pop out Map"
             >
@@ -885,7 +885,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
               Characters
             </button>
             <button
-              onClick={() => window.open("/dm/popout/characters", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
+              onClick={() => window.open("/#/dm/popout/characters", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
               className="dm-sidebar-popout-btn touch-target btn-hover-scale"
               title="Pop out Characters List"
             >
@@ -902,7 +902,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
               Dice Roller
             </button>
             <button
-              onClick={() => window.open("/dm/popout/dice", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
+              onClick={() => window.open("/#/dm/popout/dice", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
               className="dm-sidebar-popout-btn touch-target btn-hover-scale"
               title="Pop out Dice Roller"
             >
@@ -919,7 +919,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
               Chat & Wiki
             </button>
             <button
-              onClick={() => window.open("/dm/popout/chat", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
+              onClick={() => window.open("/#/dm/popout/chat", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
               className="dm-sidebar-popout-btn touch-target btn-hover-scale"
               title="Pop out Chat & Logs"
             >
@@ -946,7 +946,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
           <div style={styles.headerUser}>
             <span style={styles.headerUsername}>{user?.username}</span>
             <button
-              onClick={() => window.open("/dm/popout/connection", "_blank", "width=500,height=530,resizable=yes,scrollbars=yes")}
+              onClick={() => window.open("/#/dm/popout/connection", "_blank", "width=500,height=530,resizable=yes,scrollbars=yes")}
               style={{
                 background: "none",
                 border: "none",

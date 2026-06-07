@@ -192,7 +192,7 @@ export default function ChatPanel({ user, isPopout = false }) {
           <span style={styles.badge}>{username}</span>
           {!isPopout && user?.role === "DM" && (
             <button
-              onClick={() => window.open("/dm/popout/chat", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
+              onClick={() => window.open("/#/dm/popout/chat", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
               style={{
                 background: "none",
                 border: "none",

@@ -354,7 +354,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
         </button>
         {!isPopout && user?.role === "DM" && (
           <button
-            onClick={() => window.open("/dm/popout/dice", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
+            onClick={() => window.open("/#/dm/popout/dice", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
             style={{
               background: "none",
               border: "none",

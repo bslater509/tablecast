@@ -227,7 +227,7 @@ function ReferencePanel({ user, isPopout = false }) {
         ))}
         {!isPopout && user?.role === "DM" && (
           <button
-            onClick={() => window.open("/dm/popout/reference", "_blank", "width=800,height=800,resizable=yes,scrollbars=yes")}
+            onClick={() => window.open("/#/dm/popout/reference", "_blank", "width=800,height=800,resizable=yes,scrollbars=yes")}
             style={{
               background: "none",
               border: "none",
