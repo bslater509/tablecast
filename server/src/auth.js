@@ -3,7 +3,7 @@
 const prisma = require("./prisma");
 
 function getUserId(req) {
-  const raw = req.get("x-tablecast-user-id") || req.body?.userId || req.query?.userId;
+  const raw = req.get("x-tablecast-user-id");
   const id = Number(raw);
   return Number.isInteger(id) && id > 0 ? id : null;
 }
