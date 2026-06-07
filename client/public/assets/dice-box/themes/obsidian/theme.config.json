@@ -1,0 +1,20 @@
+{
+  "name": "Void Obsidian",
+  "systemName": "obsidian",
+  "author": "Antigravity",
+  "version": 1.0,
+  "meshFile": "../default/default.json",
+  "material": {
+    "type": "color",
+    "diffuseTexture": {
+      "light": "../default/diffuse-light.png",
+      "dark": "../default/diffuse-dark.png"
+    },
+    "diffuseLevel": 0.4,
+    "bumpTexture": "../default/normal.png",
+    "bumpLevel": 0.05,
+    "specularTexture": "../default/specular.jpg",
+    "specularPower": 15.0
+  },
+  "diceAvailable": ["d4","d6","d8","d10","d12","d20","d100"]
+}

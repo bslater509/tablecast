@@ -14,6 +14,9 @@ const THEME_DEFAULT_COLORS = {
   magma: "#ea580c",
   ice: "#0ea5e9",
   gold: "#fbbf24",
+  obsidian: "#111827",
+  stone: "#6b7280",
+  wood: "#854d0e",
 };
 
 const getPreviewStyle = (theme, color) => {
@@ -67,6 +70,57 @@ const getPreviewStyle = (theme, color) => {
         text: {
           color: "#1a1a1a",
           textShadow: "0 1px 1px rgba(255,255,255,0.8)",
+        }
+      };
+    case "obsidian":
+      return {
+        box: {
+          background: "radial-gradient(circle, rgba(31,41,55,0.15) 0%, rgba(0,0,0,0.4) 100%)",
+          border: "1px solid rgba(31, 41, 55, 0.4)",
+          boxShadow: "0 0 15px rgba(31, 41, 55, 0.25)",
+        },
+        die: {
+          backgroundColor: color,
+          border: "1px solid rgba(0, 0, 0, 0.8)",
+          boxShadow: "inset 0 0 15px rgba(255,255,255,0.15), 0 4px 8px rgba(0,0,0,0.5)",
+        },
+        text: {
+          color: "#ffffff",
+          textShadow: "0 0 3px rgba(255,255,255,0.5), 0 1px 2px rgba(0,0,0,0.8)",
+        }
+      };
+    case "stone":
+      return {
+        box: {
+          background: "radial-gradient(circle, rgba(107,114,128,0.15) 0%, rgba(0,0,0,0.4) 100%)",
+          border: "1px solid rgba(107, 114, 128, 0.4)",
+          boxShadow: "0 0 15px rgba(107, 114, 128, 0.25)",
+        },
+        die: {
+          backgroundColor: color,
+          border: "1px solid rgba(75, 85, 99, 0.8)",
+          boxShadow: "inset 0 0 14px rgba(0,0,0,0.7), 0 4px 6px rgba(0,0,0,0.4)",
+        },
+        text: {
+          color: "#d1d5db",
+          textShadow: "0 -1px 0 rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.1)",
+        }
+      };
+    case "wood":
+      return {
+        box: {
+          background: "radial-gradient(circle, rgba(133,77,14,0.15) 0%, rgba(0,0,0,0.4) 100%)",
+          border: "1px solid rgba(133, 77, 14, 0.4)",
+          boxShadow: "0 0 15px rgba(133, 77, 14, 0.25)",
+        },
+        die: {
+          backgroundColor: color,
+          border: "1px solid rgba(120, 53, 4, 0.8)",
+          boxShadow: "inset 0 0 12px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.3)",
+        },
+        text: {
+          color: "#fef3c7",
+          textShadow: "0 1px 2px rgba(0,0,0,0.9)",
         }
       };
     default:
@@ -134,6 +188,9 @@ export default function DiceSettingsModal({ user, onClose, onSave }) {
               <option value="magma">🔥 Fiery Magma</option>
               <option value="ice">❄️ Frosty Ice</option>
               <option value="gold">👑 Royal Gold</option>
+              <option value="obsidian">🌑 Void Obsidian</option>
+              <option value="stone">🪨 Runic Stone</option>
+              <option value="wood">🪵 Ancient Wood</option>
             </select>
             <small style={styles.helpText}>
               Choose a theme to apply special 3D materials, bump mapping, and textures.
