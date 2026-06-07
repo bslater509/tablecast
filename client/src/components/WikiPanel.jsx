@@ -4,6 +4,7 @@
 // Categorizes entries into Locations, NPCs, Lore, and Session Logs.
 // =============================================================================
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -239,8 +240,10 @@ function NpcStatblock({ npc, socket, isDM, onHpChange }) {
 }
 
 export default function WikiPanel({ user, isPopout = false }) {
+  const navigate = useNavigate();
   const { socket } = useSocket();
   const [articles, setArticles] = useState([]);
+  const [linkedSession, setLinkedSession] = useState(null);
   const [npcs, setNpcs] = useState([]);
   const [monsters, setMonsters] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -589,6 +592,31 @@ export default function WikiPanel({ user, isPopout = false }) {
 
     loadData();
   }, [isDM]);
+
+  useEffect(() => {
+    async function loadLinkedSession() {
+      if (!selectedArticle || selectedArticle.category !== "LOG" || !isDM) {
+        setLinkedSession(null);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/sessions", { headers: authHeaders });
+        if (!res.ok) {
+          setLinkedSession(null);
+          return;
+        }
+        const sessions = await res.json();
+        const match = sessions.find((session) => session.wikiLogId === selectedArticle.id);
+        setLinkedSession(match || null);
+      } catch (err) {
+        console.error("[WikiPanel] Failed to load linked session:", err);
+        setLinkedSession(null);
+      }
+    }
+
+    loadLinkedSession();
+  }, [selectedArticle, isDM, authHeaders]);
 
   // Filter list by search query
   const filteredArticles = articles.filter((article) => {
@@ -1972,6 +2000,16 @@ export default function WikiPanel({ user, isPopout = false }) {
               </>
             ) : (
               <>
+                {linkedSession && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/dm/sessions/${linkedSession.id}`)}
+                    style={styles.linkedSessionBadge}
+                    className="touch-target"
+                  >
+                    Linked to Session {linkedSession.sessionNumber || linkedSession.id}
+                  </button>
+                )}
                 <h1 style={styles.articleTitle}>{selectedArticle.title}</h1>
                 
                 {/* Tags list */}
@@ -2699,6 +2737,20 @@ const styles = {
     flex: 1,
     overflowY: "auto",
     padding: "1.25rem",
+  },
+  linkedSessionBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    marginBottom: "0.75rem",
+    padding: "0.35rem 0.75rem",
+    borderRadius: "999px",
+    border: "1px solid rgba(200, 151, 58, 0.3)",
+    background: "rgba(200, 151, 58, 0.12)",
+    color: "var(--color-accent)",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    minHeight: "44px",
   },
   articleTitle: {
     fontSize: "1.5rem",

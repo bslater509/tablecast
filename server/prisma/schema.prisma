@@ -330,6 +330,38 @@ model Roll {
   @@map("rolls")
 }
 
+/// A planned, active, or completed D&D play session with prep notes and recap.
+/// status: "PLANNED" | "ACTIVE" | "COMPLETED"  (enforced at the application layer)
+model GameSession {
+  id Int @id @default(autoincrement())
+
+  title         String
+  sessionNumber Int?
+
+  /// "PLANNED", "ACTIVE", or "COMPLETED"
+  status String @default("PLANNED")
+
+  scheduledFor DateTime?
+
+  agenda        String @default("")
+  prepChecklist String @default("[]") // JSON array of { id, text, done }
+  recap         String @default("")
+
+  /// Optional link to a published WikiArticle with category "LOG"
+  wikiLogId Int?
+
+  linkedWikiIds      String @default("[]") // JSON array of wiki article IDs
+  linkedMapIds       String @default("[]") // JSON array of map IDs
+  linkedEncounterIds String @default("[]") // JSON array of encounter IDs
+
+  isVisibleToPlayers Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("game_sessions")
+}
+
 /// A DM-imported Non-Player Character (Monster) template with a 5e bestiary statblock
 model Monster {
   id    Int    @id @default(autoincrement())

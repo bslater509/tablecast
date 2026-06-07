@@ -155,6 +155,7 @@ async function main() {
     },
   ];
 
+  let sessionOneArticle = null;
   for (const data of articles) {
     const existing = await prisma.wikiArticle.findFirst({
       where: { title: data.title },
@@ -162,12 +163,69 @@ async function main() {
 
     if (!existing) {
       const article = await prisma.wikiArticle.create({ data });
+      if (data.title === "Session 1 — The Missing Caravan") {
+        sessionOneArticle = article;
+      }
       console.log(
         `  ✅ Wiki:        "${article.title}" (id=${article.id}, visible=${article.isVisibleToPlayers})`
       );
     } else {
+      if (data.title === "Session 1 — The Missing Caravan") {
+        sessionOneArticle = existing;
+      }
       console.log(`  ⏭️  Wiki:        "${existing.title}" already exists, skipping.`);
     }
+  }
+
+  // ── Game Sessions ─────────────────────────────────────────────────────────
+  const existingPlannedSession = await prisma.gameSession.findFirst({
+    where: { title: "Session 2 — Into the Neverwinter Wood" },
+  });
+
+  if (!existingPlannedSession) {
+    const plannedSession = await prisma.gameSession.create({
+      data: {
+        title: "Session 2 — Into the Neverwinter Wood",
+        sessionNumber: 2,
+        status: "PLANNED",
+        agenda:
+          "## Planned Beats\n\n" +
+          "1. Party follows goblin tracks into the wood.\n" +
+          "2. Ambush at the old stone bridge.\n" +
+          "3. Discover the hidden goblin cave entrance.\n",
+        prepChecklist: JSON.stringify([
+          { id: "prep-1", text: "Prep goblin ambush encounter", done: false },
+          { id: "prep-2", text: "Review Neverwinter Wood lore", done: true },
+          { id: "prep-3", text: "Print cave map handout", done: false },
+        ]),
+        linkedWikiIds: sessionOneArticle ? JSON.stringify([sessionOneArticle.id]) : "[]",
+        isVisibleToPlayers: true,
+      },
+    });
+    console.log(`  ✅ Session:     "${plannedSession.title}" (id=${plannedSession.id}, status=${plannedSession.status})`);
+  } else {
+    console.log(`  ⏭️  Session:     "${existingPlannedSession.title}" already exists, skipping.`);
+  }
+
+  const existingCompletedSession = await prisma.gameSession.findFirst({
+    where: { title: "Session 1 — The Missing Caravan" },
+  });
+
+  if (!existingCompletedSession && sessionOneArticle) {
+    const completedSession = await prisma.gameSession.create({
+      data: {
+        title: "Session 1 — The Missing Caravan",
+        sessionNumber: 1,
+        status: "COMPLETED",
+        recap: sessionOneArticle.content,
+        wikiLogId: sessionOneArticle.id,
+        linkedWikiIds: JSON.stringify([sessionOneArticle.id]),
+        isVisibleToPlayers: true,
+      },
+    });
+    console.log(`  ✅ Session:     "${completedSession.title}" (id=${completedSession.id}, status=${completedSession.status})`);
+  } else if (existingCompletedSession) {
+    console.log(`  ⏭️  Session:     "${existingCompletedSession.title}" already exists, skipping.`);
   }
 
   console.log("\n🎲 Seeding complete!");
