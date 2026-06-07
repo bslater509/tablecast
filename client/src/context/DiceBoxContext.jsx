@@ -33,6 +33,9 @@ export function DiceBoxProvider({ children }) {
       diceBoxRef.current = box;
       setIsReady(true);
       console.log("[3D Dice] DiceBox initialized successfully.");
+      
+      // Force an immediate window resize event to trigger correct layout size calculations
+      window.dispatchEvent(new Event("resize"));
 
       // Setup global complete listener
       box.onRollComplete = (results) => {
@@ -85,6 +88,9 @@ export function DiceBoxProvider({ children }) {
 
     if (box) {
       console.log("[3D Dice] Simulating roll:", dice3d, "with color:", color);
+      
+      // Force viewport resize event just in case layout changed before active roll
+      window.dispatchEvent(new Event("resize"));
       
       // Roll the dice. Support both single string or array of strings.
       box.roll(dice3d, {

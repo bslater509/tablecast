@@ -315,3 +315,10 @@ body {
   from { transform: scale(0.9); }
   to { transform: scale(1); }
 }
+
+/* 3D Dice Canvas styles to ensure layout dimensions are measured correctly */
+#dice-box-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
