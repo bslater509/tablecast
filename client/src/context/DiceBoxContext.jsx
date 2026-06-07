@@ -103,8 +103,23 @@ export function DiceBoxProvider({ children }) {
       }
 
       // Roll the dice. Support both single string or array of strings.
-      box.roll(dice3d).catch(err => {
-        console.error("[3D Dice] Roll error:", err);
+      try {
+        box.roll(dice3d, {
+          themeColor: color || "#7c3aed"
+        }).catch(err => {
+          console.error("[3D Dice] Roll error:", err);
+          // Recover queue state on error
+          window.dispatchEvent(
+            new CustomEvent("dice:roll:complete", {
+              detail: { messageId: nextRoll.messageId },
+            })
+          );
+          queueRef.current.shift();
+          setQueue([...queueRef.current]);
+          setIsRolling(false);
+        });
+      } catch (err) {
+        console.error("[3D Dice] Roll synchronous error:", err);
         // Recover queue state on error
         window.dispatchEvent(
           new CustomEvent("dice:roll:complete", {
@@ -114,7 +129,7 @@ export function DiceBoxProvider({ children }) {
         queueRef.current.shift();
         setQueue([...queueRef.current]);
         setIsRolling(false);
-      });
+      }
     } else {
       setIsRolling(false);
     }
