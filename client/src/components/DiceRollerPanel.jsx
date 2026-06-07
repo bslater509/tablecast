@@ -120,6 +120,7 @@ export default function DiceRollerPanel({ user }) {
   const [modifier, setModifier] = useState(0);
   const [rollLabel, setRollLabel] = useState("");
   const [advantage, setAdvantage] = useState("normal"); // "normal" | "advantage" | "disadvantage"
+  const [recentRolls, setRecentRolls] = useState([]);
 
   // Sender Name: Use the assigned character name (if any), fallback to username.
   const senderName = user?.characters?.[0]?.name || user?.username || "Anonymous";
@@ -238,6 +239,18 @@ export default function DiceRollerPanel({ user }) {
     
     // Create descriptive summary text
     let descriptionText = `rolled ${getFormulaPreview()}! Total: ${finalTotal}`;
+
+    // Update local history
+    const newRollRecord = {
+      id: Date.now(),
+      label: rollLabel.trim() || "Dice Roll",
+      formula: completedFormula,
+      total: finalTotal,
+      rolls: rolls,
+      modifier: modifier,
+      timestamp: Date.now(),
+    };
+    setRecentRolls((prev) => [newRollRecord, ...prev].slice(0, 5));
 
     // Emit to socket server
     socket.emit("chat:send", {
@@ -412,6 +425,51 @@ export default function DiceRollerPanel({ user }) {
               </button>
             </div>
           </div>
+
+          {/* Recent Rolls Section */}
+          {recentRolls.length > 0 && (
+            <div style={styles.inputsSection} className="glass-panel gold-border-glow">
+              <label style={styles.inputLabel}>Recent Rolls</label>
+              <div style={styles.rollsList}>
+                {recentRolls.map((roll, idx) => (
+                  <div
+                    key={roll.id}
+                    style={{
+                      ...styles.rollResultItem,
+                      borderBottom: idx < recentRolls.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                      paddingTop: idx > 0 ? "0.75rem" : "0",
+                      paddingBottom: "0.75rem",
+                    }}
+                    className={idx === 0 ? "fade-in" : ""}
+                  >
+                    <div style={styles.rollResultHeader}>
+                      <span style={{
+                        ...styles.rollResultLabel,
+                        color: idx === 0 ? "var(--color-accent)" : "var(--color-text)",
+                        fontWeight: idx === 0 ? "bold" : "600",
+                      }}>
+                        {roll.label}
+                      </span>
+                      <span style={{
+                        ...styles.rollResultTotal,
+                        color: idx === 0 ? "var(--color-accent)" : "var(--color-muted)",
+                        fontSize: idx === 0 ? "1.5rem" : "1.1rem",
+                        textShadow: idx === 0 ? "0 0 10px rgba(200,151,58,0.3)" : "none",
+                      }}>
+                        {roll.total}
+                      </span>
+                    </div>
+                    <div style={styles.rollResultDetails}>
+                      <span style={styles.rollResultFormula}>{roll.formula}</span>
+                      <span style={styles.rollResultBreakdown}>
+                        (Rolled: {roll.rolls.join(", ")} {roll.modifier >= 0 ? `+` : ``}{roll.modifier})
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -679,5 +737,41 @@ const styles = {
     cursor: "pointer",
     transition: "all 0.2s ease",
     whiteSpace: "nowrap",
+  },
+  rollsList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    marginTop: "0.5rem",
+  },
+  rollResultItem: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.25rem",
+  },
+  rollResultHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  rollResultLabel: {
+    fontSize: "0.9rem",
+  },
+  rollResultTotal: {
+    fontWeight: 800,
+    fontFamily: "monospace",
+  },
+  rollResultDetails: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.1rem",
+    fontSize: "0.75rem",
+    color: "var(--color-muted)",
+  },
+  rollResultFormula: {
+    fontStyle: "italic",
+  },
+  rollResultBreakdown: {
+    opacity: 0.8,
   },
 };
