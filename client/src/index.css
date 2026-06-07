@@ -731,3 +731,71 @@ textarea:focus-visible {
   background: var(--color-surface-hover) !important;
   color: var(--color-accent) !important;
 }
+
+/* =============================================================================
+   Wiki Tree Sidebar — Responsive Drawer
+   On desktop: persistent sidebar. On mobile: slide-over drawer.
+   ============================================================================= */
+.wiki-tree-sidebar {
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+}
+
+.wiki-sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .wiki-tree-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 85vw;
+    height: 100%;
+    z-index: 1000;
+    background: var(--color-surface) !important;
+    border-right: 1px solid var(--color-border) !important;
+    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.6);
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .wiki-tree-sidebar.wiki-sidebar-open {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .wiki-sidebar-overlay {
+    display: block;
+  }
+
+  /* Show hamburger menu button on mobile */
+  .wiki-tree-sidebar .wiki-sidebar-close-btn {
+    display: flex !important;
+  }
+}
+
+/* Hamburger menu button visibility on mobile */
+@media (max-width: 767px) {
+  .wiki-topbar-menu-btn {
+    display: flex !important;
+  }
+}
+
+/* Sidebar section header hover */
+.sidebar-section-header:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.sidebar-category-btn:hover {
+  background: var(--color-accent-dim) !important;
+}
+
+.sidebar-article-btn:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}

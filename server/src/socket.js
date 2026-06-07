@@ -79,7 +79,9 @@ function registerSocketHandlers(io) {
           if (!query) return;
 
           // Load AI settings from Database
-          const { provider, apiKey, ollamaUrl, ollamaModel } = await loadAiSettings();
+          const aiSettings = await loadAiSettings();
+          const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+          const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
 
           if (!provider) {
             return emitPersistedChatMessage(io, {
@@ -96,7 +98,7 @@ Answer the question accurately. Rely on the local database context below if appl
 ${ruleContext}
 Keep your answer clear, concise, and formatted in Markdown.`;
 
-          const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, query);
+          const reply = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, query);
           await emitPersistedChatMessage(io, {
             sender: "D&D AI Assistant",
             text: reply,
@@ -144,7 +146,9 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           }
 
           // Load AI settings
-          const { provider, apiKey, ollamaUrl, ollamaModel } = await loadAiSettings();
+          const aiSettings = await loadAiSettings();
+          const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+          const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
 
           if (!provider) {
             return emitPersistedChatMessage(io, {
@@ -157,7 +161,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           const ruleContext = await findRelevantRules(messageText, userObj);
           const systemPrompt = buildNpcRoleplaySystemPrompt(npc, ruleContext);
 
-          const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, messageText);
+          const reply = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, messageText);
           await emitPersistedChatMessage(io, {
             sender: npc.name,
             text: reply,

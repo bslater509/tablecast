@@ -5,10 +5,11 @@
 // =============================================================================
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Menu } from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import Autocomplete from "./Autocomplete";
+import WikiTreeSidebar from "./WikiTreeSidebar";
 import { useSocket } from "../context/SocketContext";
 
 marked.setOptions({
@@ -285,6 +286,9 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [showAssistDropdown, setShowAssistDropdown] = useState(null); // field name or null
   const [assistLoadingField, setAssistLoadingField] = useState(null);
   const [assistUndo, setAssistUndo] = useState(null); // { fieldId, previousText, isNpcField }
+
+  // Sidebar drawer state (mobile)
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Determine if user has DM privileges
   const isDM = user?.role === "DM";
@@ -1234,6 +1238,247 @@ export default function WikiPanel({ user, isPopout = false }) {
     ? filteredMonsters
     : categoryArticles;
 
+  // ========================================================================
+  // Shared render functions for DM split-pane layout (avoids duplication)
+  // ========================================================================
+  function renderReaderContent() {
+    return (
+      <div style={styles.reader} className="glass-panel gold-border-glow">
+        {/* Reader Header */}
+        <div style={styles.readerHeader}>
+          <button
+            id="wiki-back-btn"
+            onClick={handleBack}
+            style={styles.backBtn}
+            className="touch-target btn-hover-scale"
+          >
+            Back
+          </button>
+          <div style={styles.headerRight}>
+            {isDM && (
+              <div style={styles.dmControlsRow}>
+                <button
+                  onClick={() => handleStartEdit(selectedArticle)}
+                  style={styles.editBtn}
+                  className="touch-target btn-hover-scale"
+                >
+                  Edit {activeCategoryTab === "NPC" ? "NPC" : "Article"}
+                </button>
+                <button
+                  onClick={() => triggerDelete(selectedArticle)}
+                  style={styles.deleteBtn}
+                  className="touch-target btn-hover-scale"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+            {activeCategoryTab === "NPC" ? (
+              !selectedArticle.isVisibleToPlayers && (
+                <span style={styles.secretBadge}>DM Secret</span>
+              )
+            ) : (
+              !selectedArticle.isVisibleToPlayers && (
+                <span style={styles.secretBadge}>DM Secret</span>
+              )
+            )}
+            <span style={styles.timeBadge}>
+              Updated: {new Date(selectedArticle.updatedAt).toLocaleDateString()}
+            </span>
+          </div>
+        </div>
+
+        {/* Reader Body */}
+        <div style={styles.readerScroll}>
+          {(activeCategoryTab === "NPC" || activeCategoryTab === "MONSTER") ? (
+            <>
+              <NpcStatblock
+                npc={selectedArticle}
+                socket={socket}
+                isDM={isDM}
+                onHpChange={handleHpChange}
+              />
+              <h3 style={styles.npcBioHeader}>Narrative & Biography</h3>
+              {selectedArticle.largeImageUrl && (
+                <div
+                  className="npc-banner-container"
+                  onClick={() => setLightboxImage(selectedArticle.largeImageUrl)}
+                  title="Click to view full uncropped image"
+                >
+                  <img
+                    src={selectedArticle.largeImageUrl}
+                    alt={selectedArticle.name}
+                    className="npc-banner-image"
+                  />
+                </div>
+              )}
+              <div style={styles.npcBioDetails}>
+                {selectedArticle.alignment && (
+                  <div style={styles.npcBioSection}>
+                    <h4 style={styles.npcBioSectionTitle}>Alignment</h4>
+                    <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.alignment) }} />
+                  </div>
+                )}
+                {selectedArticle.appearance && (
+                  <div style={styles.npcBioSection}>
+                    <h4 style={styles.npcBioSectionTitle}>Appearance</h4>
+                    <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.appearance) }} />
+                  </div>
+                )}
+                {selectedArticle.personality && (
+                  <div style={styles.npcBioSection}>
+                    <h4 style={styles.npcBioSectionTitle}>Personality & Traits</h4>
+                    <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.personality) }} />
+                  </div>
+                )}
+                {selectedArticle.history && (
+                  <div style={styles.npcBioSection}>
+                    <h4 style={styles.npcBioSectionTitle}>History & Goals</h4>
+                    <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.history) }} />
+                  </div>
+                )}
+                {selectedArticle.partyRelationship && (
+                  <div style={styles.npcBioSection}>
+                    <h4 style={styles.npcBioSectionTitle}>Party Relationship</h4>
+                    <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.partyRelationship) }} />
+                  </div>
+                )}
+                {selectedArticle.description && (
+                  <div style={{ ...styles.npcBioSection, borderTop: "1px dashed var(--color-border)", paddingTop: "1rem", marginTop: "1rem" }}>
+                    <h4 style={{ ...styles.npcBioSectionTitle, color: "var(--color-warning)" }}>Legacy Notes / General Description</h4>
+                    <div className="wiki-content" style={{ ...styles.npcBioText, opacity: 0.8 }} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.description) }} />
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              {linkedSession && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/dm/sessions/${linkedSession.id}`)}
+                  style={styles.linkedSessionBadge}
+                  className="touch-target"
+                >
+                  Linked to Session {linkedSession.sessionNumber || linkedSession.id}
+                </button>
+              )}
+              <h1 style={styles.articleTitle}>{selectedArticle.title}</h1>
+
+              {/* Tags list */}
+              {(() => {
+                try {
+                  const tags = JSON.parse(selectedArticle.tags || "[]");
+                  if (tags.length > 0) {
+                    return (
+                      <div style={styles.tagList}>
+                        {tags.map((tag, i) => (
+                          <span key={tag || i} style={styles.tag}>{tag}</span>
+                        ))}
+                      </div>
+                    );
+                  }
+                } catch (e) {}
+                return null;
+              })()}
+
+              {/* Markdown Content */}
+              <div
+                className="wiki-content"
+                style={styles.contentBody}
+                dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.content) }}
+              />
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderListScroll() {
+    return (
+      <div style={styles.listScroll}>
+        {loading && <p style={styles.infoText}>Consulting the archives...</p>}
+        {error && <p style={styles.errorText}>Error: {error}</p>}
+
+        {!loading && !error && listItems.length === 0 && (
+          <p style={styles.infoText}>No entries found in this section.</p>
+        )}
+
+        {!loading && !error && (activeCategoryTab === "NPC" || activeCategoryTab === "MONSTER") ? (
+          listItems.map((npc) => (
+            <div
+              key={npc.id}
+              id={`wiki-npc-${npc.id}`}
+              onClick={() => setSelectedArticle(npc)}
+              style={styles.articleCard}
+              className="glass-panel btn-hover-scale"
+            >
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>{npc.name}</h3>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <span style={styles.cardSubText}>CR {npc.cr} • AC {npc.ac}</span>
+                  {!npc.isVisibleToPlayers && (
+                    <span style={styles.secretDot} title="Visible to DM only">🔒 DM Secret</span>
+                  )}
+                </div>
+              </div>
+              <p style={styles.cardPreview}>
+                {(() => {
+                  const parts = [
+                    npc.alignment ? `[${npc.alignment}]` : "",
+                    npc.appearance,
+                    npc.personality,
+                    npc.history,
+                    npc.description
+                  ].filter(Boolean);
+                  const fullText = parts.join(" ").replace(/[#*`]/g, "").trim();
+                  return fullText ? (fullText.slice(0, 100) + (fullText.length > 100 ? "..." : "")) : "No details recorded.";
+                })()}
+              </p>
+            </div>
+          ))
+        ) : (
+          !loading && !error && listItems.map((article) => {
+            let parsedTags = [];
+            try {
+              parsedTags = JSON.parse(article.tags || "[]");
+            } catch (e) {}
+
+            return (
+              <div
+                key={article.id}
+                id={`wiki-article-${article.id}`}
+                onClick={() => setSelectedArticle(article)}
+                style={styles.articleCard}
+                className="glass-panel btn-hover-scale"
+              >
+                <div style={styles.cardHeader}>
+                  <h3 style={styles.cardTitle}>{article.title}</h3>
+                  {!article.isVisibleToPlayers && (
+                    <span style={styles.secretDot} title="Visible to DM only">🔒 DM Secret</span>
+                  )}
+                </div>
+                <p style={styles.cardPreview}>
+                  {article.content
+                    ? article.content.replace(/[#*`]/g, "").slice(0, 100) + (article.content.length > 100 ? "..." : "")
+                    : "No details recorded."}
+                </p>
+                {parsedTags.length > 0 && (
+                  <div style={styles.cardTags}>
+                    {parsedTags.slice(0, 3).map((tag, idx) => (
+                      <span key={tag || idx} style={styles.cardTag}>{tag}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={styles.container} className="fade-in">
       {isEditing ? (
@@ -1888,159 +2133,75 @@ export default function WikiPanel({ user, isPopout = false }) {
             </div>
           </form>
         )
-      ) : selectedArticle ? (
-        /*  ARTICLE / NPC READER VIEW  */
-        <div style={styles.reader} className="glass-panel gold-border-glow">
-          {/* Reader Header */}
-          <div style={styles.readerHeader}>
-            <button
-              id="wiki-back-btn"
-              onClick={handleBack}
-              style={styles.backBtn}
-              className="touch-target btn-hover-scale"
-            >
-              Back
-            </button>
-            <div style={styles.headerRight}>
-              {isDM && (
-                <div style={styles.dmControlsRow}>
+      ) : isDM && !isPopout ? (
+        /*  DM: SPLIT-PANE LAYOUT  */
+        <div style={styles.splitPaneLayout}>
+          <WikiTreeSidebar
+            articles={articles}
+            npcs={npcs}
+            monsters={monsters}
+            activeCategoryTab={activeCategoryTab}
+            selectedArticle={selectedArticle}
+            searchQuery={searchQuery}
+            onSelectCategory={(tab) => setActiveCategoryTab(tab)}
+            onSelectArticle={(item) => setSelectedArticle(item)}
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            isDM={isDM}
+          />
+          <div style={styles.splitContent}>
+            {selectedArticle ? renderReaderContent() : (
+              <div style={styles.listView}>
+                <div style={styles.wikiTopBar}>
                   <button
-                    onClick={() => handleStartEdit(selectedArticle)}
-                    style={styles.editBtn}
-                    className="touch-target btn-hover-scale"
+                    onClick={() => setSidebarOpen(true)}
+                    style={styles.menuBtn}
+                    className="touch-target wiki-topbar-menu-btn"
+                    aria-label="Open wiki index"
                   >
-                    Edit {activeCategoryTab === "NPC" ? "NPC" : "Article"}
+                    <Menu size={20} />
                   </button>
-                  <button
-                    onClick={() => triggerDelete(selectedArticle)}
-                    style={styles.deleteBtn}
-                    className="touch-target btn-hover-scale"
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
-              {activeCategoryTab === "NPC" ? (
-                !selectedArticle.isVisibleToPlayers && (
-                  <span style={styles.secretBadge}>DM Secret</span>
-                )
-              ) : (
-                !selectedArticle.isVisibleToPlayers && (
-                  <span style={styles.secretBadge}>DM Secret</span>
-                )
-              )}
-              <span style={styles.timeBadge}>
-                Updated: {new Date(selectedArticle.updatedAt).toLocaleDateString()}
-              </span>
-            </div>
-          </div>
-
-          {/* Reader Body */}
-          <div style={styles.readerScroll}>
-            {(activeCategoryTab === "NPC" || activeCategoryTab === "MONSTER") ? (
-              <>
-                <NpcStatblock
-                  npc={selectedArticle}
-                  socket={socket}
-                  isDM={isDM}
-                  onHpChange={handleHpChange}
-                />
-                <h3 style={styles.npcBioHeader}>Narrative & Biography</h3>
-                {selectedArticle.largeImageUrl && (
-                  <div
-                    className="npc-banner-container"
-                    onClick={() => setLightboxImage(selectedArticle.largeImageUrl)}
-                    title="Click to view full uncropped image"
-                  >
-                    <img
-                      src={selectedArticle.largeImageUrl}
-                      alt={selectedArticle.name}
-                      className="npc-banner-image"
-                    />
-                  </div>
-                )}
-                <div style={styles.npcBioDetails}>
-                  {selectedArticle.alignment && (
-                    <div style={styles.npcBioSection}>
-                      <h4 style={styles.npcBioSectionTitle}>Alignment</h4>
-                      <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.alignment) }} />
-                    </div>
+                  <input
+                    id="wiki-search-input"
+                    type="text"
+                    placeholder={`Search ${(activeCategoryTab || "all").toLowerCase()} entries...`}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={styles.searchInput}
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      style={styles.clearBtn}
+                      className="touch-target"
+                    >
+                      ✕
+                    </button>
                   )}
-                  {selectedArticle.appearance && (
-                    <div style={styles.npcBioSection}>
-                      <h4 style={styles.npcBioSectionTitle}>Appearance</h4>
-                      <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.appearance) }} />
-                    </div>
-                  )}
-                  {selectedArticle.personality && (
-                    <div style={styles.npcBioSection}>
-                      <h4 style={styles.npcBioSectionTitle}>Personality & Traits</h4>
-                      <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.personality) }} />
-                    </div>
-                  )}
-                  {selectedArticle.history && (
-                    <div style={styles.npcBioSection}>
-                      <h4 style={styles.npcBioSectionTitle}>History & Goals</h4>
-                      <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.history) }} />
-                    </div>
-                  )}
-                  {selectedArticle.partyRelationship && (
-                    <div style={styles.npcBioSection}>
-                      <h4 style={styles.npcBioSectionTitle}>Party Relationship</h4>
-                      <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.partyRelationship) }} />
-                    </div>
-                  )}
-                  {selectedArticle.description && (
-                    <div style={{ ...styles.npcBioSection, borderTop: "1px dashed var(--color-border)", paddingTop: "1rem", marginTop: "1rem" }}>
-                      <h4 style={{ ...styles.npcBioSectionTitle, color: "var(--color-warning)" }}>Legacy Notes / General Description</h4>
-                      <div className="wiki-content" style={{ ...styles.npcBioText, opacity: 0.8 }} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.description) }} />
-                    </div>
+                  {isDM && (
+                    <button
+                      onClick={handleStartCreatePrompt}
+                      style={styles.createBtn}
+                      className="touch-target btn-hover-scale"
+                    >
+                      {activeCategoryTab === "NPC"
+                        ? "+ New NPC"
+                        : activeCategoryTab === "MONSTER"
+                          ? "+ New Monster"
+                          : "+ New Entry"}
+                    </button>
                   )}
                 </div>
-              </>
-            ) : (
-              <>
-                {linkedSession && (
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/dm/sessions/${linkedSession.id}`)}
-                    style={styles.linkedSessionBadge}
-                    className="touch-target"
-                  >
-                    Linked to Session {linkedSession.sessionNumber || linkedSession.id}
-                  </button>
-                )}
-                <h1 style={styles.articleTitle}>{selectedArticle.title}</h1>
-                
-                {/* Tags list */}
-                {(() => {
-                  try {
-                    const tags = JSON.parse(selectedArticle.tags || "[]");
-                    if (tags.length > 0) {
-                      return (
-                        <div style={styles.tagList}>
-                          {tags.map((tag, i) => (
-                            <span key={tag || i} style={styles.tag}>{tag}</span>
-                          ))}
-                        </div>
-                      );
-                    }
-                  } catch (e) {}
-                  return null;
-                })()}
-
-                {/* Markdown Content */}
-                <div
-                  className="wiki-content"
-                  style={styles.contentBody}
-                  dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.content) }}
-                />
-              </>
+                {renderListScroll()}
+              </div>
             )}
           </div>
         </div>
+      ) : selectedArticle ? (
+        /*  PLAYER/POPOUT: ARTICLE / NPC READER VIEW  */
+        renderReaderContent()
       ) : (
-        /*  SEARCH LIST VIEW  */
+        /*  PLAYER/POPOUT: SEARCH LIST VIEW  */
         <div style={styles.listView}>
           {/* Top Section Category Tabs */}
           <div style={styles.sectionTabsContainer} className="glass-panel">
@@ -2188,119 +2349,36 @@ export default function WikiPanel({ user, isPopout = false }) {
             )}
           </div>
 
-
-      {/* Search and Action Row */}
-      <div style={styles.searchBarContainer}>
-
-
-        <input
-          id="wiki-search-input"
-          type="text"
-          placeholder={`Search ${activeCategoryTab.toLowerCase()}s...`}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={styles.searchInput}
-        />
-        {searchQuery && (
-          <button
-            onClick={() => setSearchQuery("")}
-            style={{ ...styles.clearBtn, right: isDM && activeCategoryTab === "NPC" ? "155px" : "15px" }}
-            className="touch-target"
-          >
-            ✕
-          </button>
-        )}
-        {isDM && (
-          <button
-            onClick={handleStartCreatePrompt}
-            style={styles.createBtn}
-            className="touch-target btn-hover-scale"
-          >
-            {activeCategoryTab === "NPC" ? "+ New NPC" : activeCategoryTab === "MONSTER" ? "+ New Monster" : "+ New Entry"}
-          </button>
-        )}
-      </div>
-
-          {/* List display */}
-          <div style={styles.listScroll}>
-            {loading && <p style={styles.infoText}>Consulting the archives...</p>}
-            {error && <p style={styles.errorText}>Error: {error}</p>}
-            
-            {!loading && !error && listItems.length === 0 && (
-              <p style={styles.infoText}>No entries found in this section.</p>
+          <div style={styles.searchBarContainer}>
+            <input
+              id="wiki-search-input"
+              type="text"
+              placeholder={`Search ${activeCategoryTab.toLowerCase()}s...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={styles.searchInput}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                style={{ ...styles.clearBtn, right: isDM && activeCategoryTab === "NPC" ? "155px" : "15px" }}
+                className="touch-target"
+              >
+                ✕
+              </button>
             )}
-
-            {!loading && !error && (activeCategoryTab === "NPC" || activeCategoryTab === "MONSTER") ? (
-              listItems.map((npc) => (
-                <div
-                  key={npc.id}
-                  id={`wiki-npc-${npc.id}`}
-                  onClick={() => setSelectedArticle(npc)}
-                  style={styles.articleCard}
-                  className="glass-panel btn-hover-scale"
-                >
-                  <div style={styles.cardHeader}>
-                    <h3 style={styles.cardTitle}>{npc.name}</h3>
-                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                      <span style={styles.cardSubText}>CR {npc.cr} • AC {npc.ac}</span>
-                      {!npc.isVisibleToPlayers && (
-                        <span style={styles.secretDot} title="Visible to DM only">🔒 DM Secret</span>
-                      )}
-                    </div>
-                  </div>
-                  <p style={styles.cardPreview}>
-                    {(() => {
-                      const parts = [
-                        npc.alignment ? `[${npc.alignment}]` : "",
-                        npc.appearance,
-                        npc.personality,
-                        npc.history,
-                        npc.description
-                      ].filter(Boolean);
-                      const fullText = parts.join(" ").replace(/[#*`]/g, "").trim();
-                      return fullText ? (fullText.slice(0, 100) + (fullText.length > 100 ? "..." : "")) : "No details recorded.";
-                    })()}
-                  </p>
-                </div>
-              ))
-            ) : (
-              !loading && !error && listItems.map((article) => {
-                let parsedTags = [];
-                try {
-                  parsedTags = JSON.parse(article.tags || "[]");
-                } catch (e) {}
-
-                return (
-                  <div
-                    key={article.id}
-                    id={`wiki-article-${article.id}`}
-                    onClick={() => setSelectedArticle(article)}
-                    style={styles.articleCard}
-                    className="glass-panel btn-hover-scale"
-                  >
-                    <div style={styles.cardHeader}>
-                      <h3 style={styles.cardTitle}>{article.title}</h3>
-                      {!article.isVisibleToPlayers && (
-                        <span style={styles.secretDot} title="Visible to DM only">🔒 DM Secret</span>
-                      )}
-                    </div>
-                    <p style={styles.cardPreview}>
-                      {article.content
-                        ? article.content.replace(/[#*`]/g, "").slice(0, 100) + (article.content.length > 100 ? "..." : "")
-                        : "No details recorded."}
-                    </p>
-                    {parsedTags.length > 0 && (
-                      <div style={styles.cardTags}>
-                        {parsedTags.slice(0, 3).map((tag, idx) => (
-                          <span key={tag || idx} style={styles.cardTag}>{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
+            {isDM && (
+              <button
+                onClick={handleStartCreatePrompt}
+                style={styles.createBtn}
+                className="touch-target btn-hover-scale"
+              >
+                {activeCategoryTab === "NPC" ? "+ New NPC" : activeCategoryTab === "MONSTER" ? "+ New Monster" : "+ New Entry"}
+              </button>
             )}
           </div>
+
+          {renderListScroll()}
         </div>
       )}
 
@@ -2513,6 +2591,44 @@ const styles = {
     height: "100%",
     padding: "0.75rem",
     gap: "0.75rem",
+    position: "relative",
+  },
+  /* DM split-pane layout */
+  splitPaneLayout: {
+    display: "flex",
+    flexDirection: "row",
+    height: "100%",
+    gap: 0,
+    overflow: "hidden",
+    borderRadius: "8px",
+    border: "1px solid var(--color-border-light)",
+  },
+  splitContent: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    minWidth: 0,
+  },
+  /* Top bar for DM wiki list view */
+  wikiTopBar: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    padding: "0.6rem 0.75rem",
+    borderBottom: "1px solid var(--color-border-light)",
+    background: "rgba(0, 0, 0, 0.15)",
+    flexShrink: 0,
+  },
+  menuBtn: {
+    display: "none",
+    background: "transparent",
+    border: "1px solid var(--color-border-light)",
+    borderRadius: "6px",
+    color: "var(--color-muted)",
+    cursor: "pointer",
+    padding: "0.35rem",
+    flexShrink: 0,
   },
   listView: {
     display: "flex",

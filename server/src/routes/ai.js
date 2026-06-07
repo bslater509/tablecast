@@ -433,22 +433,24 @@ function buildAssistUserMessage(field, action, text, context = {}) {
 }
 
 async function loadAiSettings() {
-  const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"];
+  const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel", "ai.model"];
   const records = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
 
   let provider = "";
   let apiKey = "";
   let ollamaUrl = "http://localhost:11434";
   let ollamaModel = "llama3";
+  let model = "gpt-5-nano";
 
   for (const r of records) {
     if (r.key === "ai.provider") provider = r.value;
     if (r.key === "ai.apiKey") apiKey = r.value;
     if (r.key === "ai.ollamaUrl") ollamaUrl = r.value;
     if (r.key === "ai.ollamaModel") ollamaModel = r.value;
+    if (r.key === "ai.model") model = r.value;
   }
 
-  return { provider, apiKey, ollamaUrl, ollamaModel };
+  return { provider, apiKey, ollamaUrl, ollamaModel, model };
 }
 
 // ---------------------------------------------------------------------------
@@ -630,6 +632,26 @@ async function performAiStream(provider, apiKey, ollamaUrl, ollamaModel, systemP
       return;
     }
 
+    case "opencode": {
+      if (!apiKey) throw new Error("Missing OpenCode Zen API Key.");
+      const model = ollamaModel || "gpt-5-nano";
+      const response = await fetch("https://opencode.ai/zen/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: true
+        }),
+        signal
+      });
+      await pumpOpenAiCompatibleStream(response, res);
+      return;
+    }
+
     default: {
       const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history);
       writeSseEvent(res, { type: "token", text: reply });
@@ -800,6 +822,32 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
       return reply;
     }
 
+    case "opencode": {
+      if (!apiKey) throw new Error("Missing OpenCode Zen API Key.");
+      const model = ollamaModel || "gpt-5-nano";
+      const url = "https://opencode.ai/zen/v1/chat/completions";
+      const messages = buildChatMessages(systemPrompt, userMessage, history);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({ model, messages })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        throw new Error(`OpenCode Zen responded with status: ${response.status}${errText ? ` - ${errText}` : ""}`);
+      }
+
+      const data = await response.json();
+      const reply = data.choices?.[0]?.message?.content;
+      if (!reply) throw new Error("Empty response from OpenCode Zen API.");
+      return reply;
+    }
+
     default:
       throw new Error(`Unknown AI Provider: ${provider}`);
   }
@@ -845,13 +893,46 @@ router.get("/models", requireDm, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/ai/zen-models - Fetch available models from OpenCode Zen
+// ---------------------------------------------------------------------------
+router.get("/zen-models", requireDm, async (req, res) => {
+  try {
+    const savedKey = await prisma.appSetting.findUnique({ where: { key: "ai.apiKey" } });
+    const apiKey = savedKey?.value || "";
+
+    if (!apiKey) {
+      return res.status(400).json({ error: "No API key configured. Save your OpenCode Zen API key first." });
+    }
+
+    const response = await fetch("https://opencode.ai/zen/v1/models", {
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      }
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      throw new Error(`Zen API returned status ${response.status}${errText ? ` - ${errText}` : ""}`);
+    }
+
+    const data = await response.json();
+    const models = (data.data || []).map(m => m.id).sort();
+    res.json({ models });
+  } catch (err) {
+    console.error("[AI Zen Models] Fetch failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/ai/settings - Load AI settings (masked API keys)
 // ---------------------------------------------------------------------------
 router.get("/settings", requireDm, async (req, res) => {
   try {
     const settings = await prisma.appSetting.findMany({
       where: {
-        key: { in: ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"] }
+        key: { in: ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel", "ai.model"] }
       }
     });
 
@@ -860,6 +941,7 @@ router.get("/settings", requireDm, async (req, res) => {
       apiKey: "",
       ollamaUrl: "http://localhost:11434",
       ollamaModel: "llama3",
+      model: "gpt-5-nano",
       hasKey: false
     };
 
@@ -867,9 +949,9 @@ router.get("/settings", requireDm, async (req, res) => {
       if (s.key === "ai.provider") config.provider = s.value;
       if (s.key === "ai.ollamaUrl") config.ollamaUrl = s.value;
       if (s.key === "ai.ollamaModel") config.ollamaModel = s.value;
+      if (s.key === "ai.model") config.model = s.value;
       if (s.key === "ai.apiKey" && s.value) {
         config.hasKey = true;
-        // Return masked key
         const len = s.value.length;
         if (len > 8) {
           config.apiKey = s.value.substring(0, 4) + "..." + s.value.substring(len - 4);
@@ -891,7 +973,7 @@ router.get("/settings", requireDm, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.put("/settings", requireDm, async (req, res) => {
   try {
-    const { provider, apiKey, ollamaUrl, ollamaModel } = req.body;
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = req.body;
 
     if (provider) {
       await prisma.appSetting.upsert({
@@ -917,6 +999,14 @@ router.put("/settings", requireDm, async (req, res) => {
       });
     }
 
+    if (model !== undefined) {
+      await prisma.appSetting.upsert({
+        where: { key: "ai.model" },
+        update: { value: model },
+        create: { key: "ai.model", value: model }
+      });
+    }
+
     // Only update API Key if it's not the masked fallback placeholder
     if (apiKey !== undefined && apiKey !== "" && !apiKey.includes("...")) {
       await prisma.appSetting.upsert({
@@ -938,21 +1028,21 @@ router.put("/settings", requireDm, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post("/test", requireDm, async (req, res) => {
   try {
-    const { provider, apiKey, ollamaUrl, ollamaModel } = req.body;
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = req.body;
 
     let testKey = apiKey;
     if (apiKey && apiKey.includes("...")) {
-      // Load actual key from DB if user passed the masked key placeholder
       const saved = await prisma.appSetting.findUnique({ where: { key: "ai.apiKey" } });
       testKey = saved?.value || "";
     }
 
+    const activeModel = model || ollamaModel || "gpt-5-nano";
     const testPrompt = "Reply with exactly 'OK' and nothing else.";
     const response = await performAiCall(
       provider,
       testKey,
       ollamaUrl,
-      ollamaModel,
+      activeModel,
       "You are a test helper.",
       testPrompt
     );
@@ -974,7 +1064,9 @@ router.post("/generate-npc", requireDm, async (req, res) => {
       return res.status(400).json({ error: "NPC prompt description is required." });
     }
 
-    const { provider, apiKey, ollamaUrl, ollamaModel } = await loadAiSettings();
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
 
     if (!provider) {
       return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
@@ -1020,7 +1112,7 @@ The JSON must strictly conform to these fields:
   ]
 }`;
 
-    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, `Create NPC: ${prompt.trim()}`);
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, `Create NPC: ${prompt.trim()}`);
 
     // Parse JSON safely
     let cleanJsonStr = rawResponse.trim();
@@ -1061,7 +1153,9 @@ router.post("/expand-text", requireDm, async (req, res) => {
       return res.status(400).json({ error: "This action requires existing text in the field. Try Generate instead." });
     }
 
-    const { provider, apiKey, ollamaUrl, ollamaModel } = await loadAiSettings();
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
 
     if (!provider) {
       return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
@@ -1086,7 +1180,7 @@ router.post("/expand-text", requireDm, async (req, res) => {
 
     const systemPrompt = buildAssistSystemPrompt(fieldName, actionName);
     const userMessage = buildAssistUserMessage(fieldName, actionName, currentText, assistContext);
-    const rawReply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage);
+    const rawReply = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage);
     const reply = cleanAiFieldOutput(rawReply, fieldName);
 
     if (!reply) {
@@ -1115,21 +1209,7 @@ router.post("/chat", async (req, res) => {
       return res.status(401).json({ error: "Authentication required to use AI Chat." });
     }
 
-    // Load actual configurations from DB
-    const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"];
-    const records = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
-
-    let provider = "";
-    let apiKey = "";
-    let ollamaUrl = "http://localhost:11434";
-    let ollamaModel = "llama3";
-
-    for (const r of records) {
-      if (r.key === "ai.provider") provider = r.value;
-      if (r.key === "ai.apiKey") apiKey = r.value;
-      if (r.key === "ai.ollamaUrl") ollamaUrl = r.value;
-      if (r.key === "ai.ollamaModel") ollamaModel = r.value;
-    }
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = await loadAiSettings();
 
     if (!provider) {
       return res.status(400).json({ error: "AI assistant is not configured. Please ask the DM to set up API keys in Settings." });
@@ -1153,6 +1233,8 @@ Keep your responses concise, readable, and structured in Markdown.`;
       }
     }
 
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
     if (wantsStream) {
       beginSseResponse(res);
       const controller = new AbortController();
@@ -1165,7 +1247,7 @@ Keep your responses concise, readable, and structured in Markdown.`;
           provider,
           apiKey,
           ollamaUrl,
-          ollamaModel,
+          activeModel,
           systemPrompt,
           message,
           history,
@@ -1186,7 +1268,7 @@ Keep your responses concise, readable, and structured in Markdown.`;
     }
 
     // 3. Make the API call to the configured LLM provider
-    const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, message, history);
+    const reply = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, message, history);
 
     res.json({ reply, context: referenceContext });
   } catch (err) {

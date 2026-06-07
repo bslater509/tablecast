@@ -42,11 +42,14 @@ function SettingsPanel({ user }) {
   const [aiApiKey, setAiApiKey] = useState("");
   const [aiOllamaUrl, setAiOllamaUrl] = useState("http://localhost:11434");
   const [aiOllamaModel, setAiOllamaModel] = useState("llama3");
+  const [aiModel, setAiModel] = useState("gpt-5-nano");
   const [aiTesting, setAiTesting] = useState(false);
   const [aiTestResult, setAiTestResult] = useState(null);
   const [savingAi, setSavingAi] = useState(false);
   const [availableAiModels, setAvailableAiModels] = useState([]);
   const [fetchingAiModels, setFetchingAiModels] = useState(false);
+  const [availableZenModels, setAvailableZenModels] = useState([]);
+  const [fetchingZenModels, setFetchingZenModels] = useState(false);
 
   const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
@@ -123,6 +126,7 @@ function SettingsPanel({ user }) {
         setAiApiKey(data.apiKey || "");
         setAiOllamaUrl(data.ollamaUrl || "http://localhost:11434");
         setAiOllamaModel(data.ollamaModel || "llama3");
+        setAiModel(data.model || "gpt-5-nano");
       }
     } catch (err) {
       console.error("Failed to load AI settings:", err);
@@ -365,16 +369,18 @@ function SettingsPanel({ user }) {
     if (savingAi) return;
     setSavingAi(true);
     try {
-      const res = await fetch("/api/ai/settings", {
-        method: "PUT",
+      const res = await fetch("/api/ai/test", {
+        method: "POST",
         headers: jsonAuthHeaders,
         body: JSON.stringify({
           provider: aiProvider,
           apiKey: aiApiKey,
           ollamaUrl: aiOllamaUrl,
           ollamaModel: aiOllamaModel,
+          model: aiModel,
         }),
       });
+      const data = await res.json();
       if (res.ok) {
         alert("AI settings saved successfully!");
         fetchAiSettings();
@@ -417,6 +423,30 @@ function SettingsPanel({ user }) {
     }
   };
 
+  const handleFetchZenModels = async () => {
+    if (fetchingZenModels) return;
+    setFetchingZenModels(true);
+    setAvailableZenModels([]);
+    try {
+      const res = await fetch("/api/ai/zen-models", { headers: authHeaders });
+      const data = await res.json();
+      if (res.ok) {
+        setAvailableZenModels(data.models || []);
+        if (data.models && data.models.length > 0) {
+          if (!data.models.includes(aiModel)) {
+            setAiModel(data.models[0]);
+          }
+        }
+      } else {
+        alert(`Failed to fetch Zen models: ${data.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      alert(`Network error fetching Zen models: ${err.message}`);
+    } finally {
+      setFetchingZenModels(false);
+    }
+  };
+
   const handleTestAiSettings = async () => {
     if (aiTesting) return;
     setAiTesting(true);
@@ -430,11 +460,8 @@ function SettingsPanel({ user }) {
           apiKey: aiApiKey,
           ollamaUrl: aiOllamaUrl,
           ollamaModel: aiOllamaModel,
+          model: aiModel,
         }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setAiTestResult({ success: true, message: `Connection test successful! Reply: ${data.reply}` });
       } else {
         setAiTestResult({ success: false, message: `Connection test failed: ${data.error}` });
       }
@@ -1105,29 +1132,11 @@ function SettingsPanel({ user }) {
                   <option value="anthropic">Anthropic (Claude 3.5 Sonnet)</option>
                   <option value="ollama">Local Ollama (Offline LAN)</option>
                   <option value="lmstudio">LM Studio (Local OpenAI-compatible)</option>
+                  <option value="opencode">OpenCode Zen (Multi-Model LLM Gateway)</option>
                 </select>
               </div>
 
-              {aiProvider !== "ollama" && aiProvider !== "lmstudio" ? (
-                <div style={styles.inputGroup}>
-                  <label htmlFor="ai-key-input" style={styles.label}>
-                    API Key
-                  </label>
-                  <input
-                    id="ai-key-input"
-                    type="password"
-                    placeholder={aiApiKey ? "Leave empty to keep saved key" : "Enter API Key"}
-                    value={aiApiKey}
-                    onChange={(e) => setAiApiKey(e.target.value)}
-                    style={styles.input}
-                    className="form-input"
-                    disabled={savingAi}
-                  />
-                  <small style={styles.helpText}>
-                    API key will be saved securely. If you see a masked key (e.g. `abcd...1234`), leave it unchanged to keep the saved key.
-                  </small>
-                </div>
-              ) : (
+              {aiProvider === "ollama" || aiProvider === "lmstudio" ? (
                 <>
                   <div style={styles.inputGroup}>
                     <label htmlFor="ai-ollama-url-input" style={styles.label}>
@@ -1215,6 +1224,96 @@ function SettingsPanel({ user }) {
                     )}
                   </div>
                 </>
+              ) : (
+                <div style={styles.inputGroup}>
+                  <label htmlFor="ai-key-input" style={styles.label}>
+                    API Key
+                  </label>
+                  <input
+                    id="ai-key-input"
+                    type="password"
+                    placeholder={aiApiKey ? "Leave empty to keep saved key" : "Enter API Key"}
+                    value={aiApiKey}
+                    onChange={(e) => setAiApiKey(e.target.value)}
+                    style={styles.input}
+                    className="form-input"
+                    disabled={savingAi}
+                  />
+                  <small style={styles.helpText}>
+                    API key will be saved securely. If you see a masked key (e.g. `abcd...1234`), leave it unchanged to keep the saved key.
+                  </small>
+                </div>
+              )}
+
+              {aiProvider === "opencode" && (
+                <div style={styles.inputGroup}>
+                  <label htmlFor="ai-zen-model-input" style={styles.label}>
+                    Zen Model Name
+                  </label>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <input
+                      id="ai-zen-model-input"
+                      type="text"
+                      placeholder="e.g. gpt-5-nano, claude-sonnet-4-6, gemini-3.1-pro"
+                      value={aiModel}
+                      onChange={(e) => setAiModel(e.target.value)}
+                      style={{ ...styles.input, flex: 1 }}
+                      className="form-input"
+                      disabled={savingAi}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={handleFetchZenModels}
+                      disabled={fetchingZenModels}
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        border: "1px solid rgba(200, 151, 58, 0.35)",
+                        borderRadius: "6px",
+                        background: "rgba(200, 151, 58, 0.08)",
+                        color: "var(--color-accent)",
+                        fontWeight: "bold",
+                        fontSize: "0.8rem",
+                        cursor: "pointer",
+                        minHeight: "44px",
+                        whiteSpace: "nowrap"
+                      }}
+                      className="touch-target btn-hover-scale"
+                    >
+                      {fetchingZenModels ? "Fetching..." : "Fetch Models"}
+                    </button>
+                  </div>
+                  <small style={styles.helpText}>
+                    Model ID from OpenCode Zen. See <a href="https://opencode.ai/zen" target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-accent)" }}>Zen model list</a> for available models.
+                  </small>
+
+                  {availableZenModels.length > 0 && (
+                    <div style={{ marginTop: "0.35rem" }}>
+                      <label style={{ ...styles.label, fontSize: "0.75rem", color: "var(--color-muted)" }}>
+                        Select from available models:
+                      </label>
+                      <select
+                        value={aiModel}
+                        onChange={(e) => setAiModel(e.target.value)}
+                        style={{
+                          ...styles.input,
+                          padding: "0.5rem",
+                          fontSize: "0.85rem",
+                          marginTop: "0.15rem",
+                          background: "rgba(0, 0, 0, 0.3)",
+                          color: "var(--color-text)",
+                          border: "1px solid var(--color-border)"
+                        }}
+                      >
+                        {availableZenModels.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
               )}
 
               {aiTestResult && (
