@@ -4,9 +4,8 @@
 // Emits the roll event via Socket.io and integrates with the 3D Dice Box.
 // =============================================================================
 import { useState, useEffect } from "react";
-import { ExternalLink } from "lucide-react";
+import { Dices, ExternalLink, History, Minus, Plus, RotateCcw } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
-import { useDiceBox } from "../context/DiceBoxContext";
 
 function checkWebGLSupport() {
   try {
@@ -194,6 +193,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
 
   // Check if any dice are selected
   const hasDiceSelected = Object.values(quantities).some((qty) => qty > 0);
+  const selectedDiceCount = Object.values(quantities).reduce((sum, qty) => sum + qty, 0);
 
   // Helper to change individual quantities
   const adjustQuantity = (dieId, amount) => {
@@ -325,8 +325,36 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
     });
   };
 
+  const formulaPreview = getFormulaPreview();
+  const rollButtonStyle = {
+    ...styles.rollBtn,
+    background: hasDiceSelected
+      ? "linear-gradient(135deg, var(--color-accent) 0%, #a87427 100%)"
+      : "rgba(255, 255, 255, 0.04)",
+    color: hasDiceSelected ? "#0f0e17" : "var(--color-muted)",
+    boxShadow: hasDiceSelected ? "0 0 15px rgba(200, 151, 58, 0.45)" : "none",
+  };
+
+  const renderRollAction = () => (
+    <>
+      <div style={styles.formulaPreview}>
+        <span style={styles.formulaLabel}>Formula Preview</span>
+        <span style={styles.formulaText}>{formulaPreview}</span>
+      </div>
+      <button
+        onClick={handleRoll}
+        disabled={!hasDiceSelected}
+        style={rollButtonStyle}
+        className="touch-target btn-hover-scale"
+      >
+        <Dices size={18} />
+        ROLL DICE
+      </button>
+    </>
+  );
+
   return (
-    <div style={styles.container}>
+    <div style={styles.container} className={`dice-roller-shell ${isPopout ? "dice-roller-popout" : ""}`}>
       {/* Sub-tab Toggle Navigation */}
       <div style={styles.subTabNav} className="glass-panel">
         <button
@@ -339,6 +367,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
           }}
           className="touch-target"
         >
+          <Dices size={16} />
           Roll Dice
         </button>
         <button
@@ -351,6 +380,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
           }}
           className="touch-target"
         >
+          <History size={16} />
           Roll History
         </button>
         {!isPopout && user?.role === "DM" && (
@@ -382,174 +412,193 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
           ...styles.scrollWrapper,
           paddingBottom: activeSubTab === "roller" ? "130px" : "20px",
         }}
+        className="dice-roller-scroll"
       >
-        <div style={styles.content}>
+        <div style={styles.content} className="dice-roller-content">
           {activeSubTab === "roller" ? (
-            <>
+            <div style={styles.rollerLayout} className="dice-roller-layout">
               {/* Header Status */}
-              <div style={styles.headerRow}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <h2 style={styles.title}>Dice Roller</h2>
-                  <span
-                    style={{
-                      fontSize: "0.68rem",
-                      color: webGlSupported ? "var(--color-success)" : "var(--color-danger)",
-                      background: webGlSupported ? "rgba(111, 207, 151, 0.1)" : "rgba(235, 87, 87, 0.1)",
-                      padding: "0.15rem 0.45rem",
-                      borderRadius: "4px",
-                      border: webGlSupported ? "1px solid rgba(111, 207, 151, 0.25)" : "1px solid rgba(235, 87, 87, 0.25)",
-                      fontWeight: 600,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {webGlSupported ? "3D Dice Active" : "WebGL Offline"}
-                  </span>
-                </div>
-                <button
-                  onClick={handleClear}
-                  style={styles.clearBtn}
-                  className="touch-target btn-hover-scale glass-panel"
-                >
-                  Clear Pool
-                </button>
-              </div>
-
-              {/* Dice Selection Grid */}
-              <div style={styles.diceGrid}>
-                {DICE_TYPES.map((die) => {
-                  const qty = quantities[die.id] || 0;
-                  return (
-                    <div
-                      key={die.id}
+              <div style={styles.primaryColumn} className="dice-roller-primary">
+                <div style={styles.headerRow}>
+                  <div style={styles.headerTitleGroup}>
+                    <h2 style={styles.title}>Dice Roller</h2>
+                    <span
                       style={{
-                        ...styles.dieCard,
-                        borderColor: qty > 0 ? die.color : "rgba(255,255,255,0.06)",
-                        background: qty > 0 ? `rgba(${hexToRgb(die.color)}, 0.08)` : "rgba(255,255,255,0.02)",
+                        ...styles.statusBadge,
+                        color: webGlSupported ? "var(--color-success)" : "var(--color-danger)",
+                        background: webGlSupported ? "rgba(111, 207, 151, 0.1)" : "rgba(235, 87, 87, 0.1)",
+                        border: webGlSupported ? "1px solid rgba(111, 207, 151, 0.25)" : "1px solid rgba(235, 87, 87, 0.25)",
                       }}
-                      className="glass-panel"
                     >
-                      <div
-                        onClick={() => handleDieTap(die.id)}
-                        style={styles.dieVisualArea}
-                        title="Tap to add die"
-                      >
-                        {die.svg(qty > 0 ? die.color : "var(--color-muted)")}
-                        <span style={{ ...styles.dieLabel, color: qty > 0 ? die.color : "var(--color-muted)" }}>
-                          {die.label.toUpperCase()}
-                        </span>
-                      </div>
+                      {webGlSupported ? "3D Dice Active" : "WebGL Offline"}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleClear}
+                    style={styles.clearBtn}
+                    className="touch-target btn-hover-scale glass-panel"
+                  >
+                    <RotateCcw size={15} />
+                    Clear Pool
+                  </button>
+                </div>
 
-                      <div style={styles.controlsRow}>
+                {/* Dice Selection Grid */}
+                <div style={styles.diceGrid} className="dice-roller-grid">
+                  {DICE_TYPES.map((die) => {
+                    const qty = quantities[die.id] || 0;
+                    return (
+                      <div
+                        key={die.id}
+                        style={{
+                          ...styles.dieCard,
+                          borderColor: qty > 0 ? die.color : "rgba(255,255,255,0.06)",
+                          background: qty > 0 ? `rgba(${hexToRgb(die.color)}, 0.08)` : "rgba(255,255,255,0.02)",
+                        }}
+                        className="glass-panel"
+                      >
                         <button
-                          onClick={() => adjustQuantity(die.id, -1)}
-                          style={styles.adjustBtn}
-                          className="touch-target"
-                          disabled={qty === 0}
+                          onClick={() => handleDieTap(die.id)}
+                          style={styles.dieVisualArea}
+                          title="Tap to add die"
+                          className="touch-target dice-visual-button"
                         >
-                          －
+                          {die.svg(qty > 0 ? die.color : "var(--color-muted)")}
+                          <span style={{ ...styles.dieLabel, color: qty > 0 ? die.color : "var(--color-muted)" }}>
+                            {die.label.toUpperCase()}
+                          </span>
                         </button>
-                        <span style={{ ...styles.quantityDisplay, color: qty > 0 ? "var(--color-text)" : "var(--color-muted)" }}>
-                          {qty}
-                        </span>
-                        <button
-                          onClick={() => adjustQuantity(die.id, 1)}
-                          style={styles.adjustBtn}
-                          className="touch-target"
-                        >
-                          ＋
-                        </button>
+
+                        <div style={styles.controlsRow}>
+                          <button
+                            onClick={() => adjustQuantity(die.id, -1)}
+                            style={styles.adjustBtn}
+                            className="touch-target"
+                            disabled={qty === 0}
+                            aria-label={`Remove ${die.label}`}
+                          >
+                            <Minus size={17} />
+                          </button>
+                          <span style={{ ...styles.quantityDisplay, color: qty > 0 ? "var(--color-text)" : "var(--color-muted)" }}>
+                            {qty}
+                          </span>
+                          <button
+                            onClick={() => adjustQuantity(die.id, 1)}
+                            style={styles.adjustBtn}
+                            className="touch-target"
+                            aria-label={`Add ${die.label}`}
+                          >
+                            <Plus size={17} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Modifier and Label Section */}
-              <div style={styles.inputsSection} className="glass-panel">
-                <div style={styles.inputGroup}>
-                  <label style={styles.inputLabel}>Flat Modifier</label>
-                  <div style={styles.modifierControl}>
-                    <button
-                      onClick={() => setModifier((m) => m - 1)}
-                      style={styles.modAdjustBtn}
-                      className="touch-target"
-                    >
-                      －
-                    </button>
-                    <input
-                      type="number"
-                      value={modifier}
-                      onChange={(e) => setModifier(parseInt(e.target.value) || 0)}
-                      style={styles.modInput}
-                      className="form-input"
-                    />
-                    <button
-                      onClick={() => setModifier((m) => m + 1)}
-                      style={styles.modAdjustBtn}
-                      className="touch-target"
-                    >
-                      ＋
-                    </button>
+              <aside style={styles.buildPanel} className="glass-panel dice-roller-build-panel">
+                <div style={styles.buildPanelHeader}>
+                  <div>
+                    <h3 style={styles.panelTitle}>Roll Setup</h3>
+                    <p style={styles.panelMeta}>
+                      {selectedDiceCount > 0 ? `${selectedDiceCount} dice selected` : "No dice selected"}
+                    </p>
                   </div>
                 </div>
 
-                <div style={styles.inputGroup}>
-                  <label style={styles.inputLabel}>Roll Name / Purpose</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Stealth check, Fireball damage"
-                    value={rollLabel}
-                    onChange={(e) => setRollLabel(e.target.value)}
-                    style={styles.textInput}
-                    className="form-input"
-                    maxLength={40}
-                  />
-                </div>
-              </div>
+                {/* Modifier and Label Section */}
+                <div style={styles.setupStack}>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.inputLabel}>Roll Name / Purpose</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Stealth check, Fireball damage"
+                      value={rollLabel}
+                      onChange={(e) => setRollLabel(e.target.value)}
+                      style={styles.textInput}
+                      className="form-input"
+                      maxLength={40}
+                    />
+                  </div>
 
-              {/* D20 Advantage/Disadvantage Section */}
-              <div style={styles.inputsSection} className="glass-panel">
-                <label style={styles.inputLabel}>d20 Modifiers</label>
-                <div style={styles.advantageGrid}>
-                  <button
-                    onClick={() => handleAdvantageToggle("normal")}
-                    style={{
-                      ...styles.advBtn,
-                      background: advantage === "normal" ? "rgba(255, 255, 255, 0.1)" : "transparent",
-                      borderColor: advantage === "normal" ? "var(--color-accent)" : "rgba(255,255,255,0.06)",
-                      color: advantage === "normal" ? "var(--color-accent)" : "var(--color-muted)",
-                    }}
-                    className="touch-target"
-                  >
-                    Normal
-                  </button>
-                  <button
-                    onClick={() => handleAdvantageToggle("advantage")}
-                    style={{
-                      ...styles.advBtn,
-                      background: advantage === "advantage" ? "rgba(111, 207, 151, 0.15)" : "transparent",
-                      borderColor: advantage === "advantage" ? "var(--color-success)" : "rgba(255,255,255,0.06)",
-                      color: advantage === "advantage" ? "var(--color-success)" : "var(--color-muted)",
-                    }}
-                    className="touch-target"
-                  >
-                    Advantage
-                  </button>
-                  <button
-                    onClick={() => handleAdvantageToggle("disadvantage")}
-                    style={{
-                      ...styles.advBtn,
-                      background: advantage === "disadvantage" ? "rgba(235, 87, 87, 0.15)" : "transparent",
-                      borderColor: advantage === "disadvantage" ? "var(--color-danger)" : "rgba(255,255,255,0.06)",
-                      color: advantage === "disadvantage" ? "var(--color-danger)" : "var(--color-muted)",
-                    }}
-                    className="touch-target"
-                  >
-                    Disadvantage
-                  </button>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.inputLabel}>Flat Modifier</label>
+                    <div style={styles.modifierControl}>
+                      <button
+                        onClick={() => setModifier((m) => m - 1)}
+                        style={styles.modAdjustBtn}
+                        className="touch-target"
+                        aria-label="Decrease modifier"
+                      >
+                        <Minus size={17} />
+                      </button>
+                      <input
+                        type="number"
+                        value={modifier}
+                        onChange={(e) => setModifier(parseInt(e.target.value) || 0)}
+                        style={styles.modInput}
+                        className="form-input"
+                      />
+                      <button
+                        onClick={() => setModifier((m) => m + 1)}
+                        style={styles.modAdjustBtn}
+                        className="touch-target"
+                        aria-label="Increase modifier"
+                      >
+                        <Plus size={17} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={styles.inputGroup}>
+                    <label style={styles.inputLabel}>d20 Modifiers</label>
+                    <div style={styles.advantageGrid} className="dice-advantage-grid">
+                      <button
+                        onClick={() => handleAdvantageToggle("normal")}
+                        style={{
+                          ...styles.advBtn,
+                          background: advantage === "normal" ? "rgba(255, 255, 255, 0.1)" : "transparent",
+                          borderColor: advantage === "normal" ? "var(--color-accent)" : "rgba(255,255,255,0.06)",
+                          color: advantage === "normal" ? "var(--color-accent)" : "var(--color-muted)",
+                        }}
+                        className="touch-target"
+                      >
+                        Normal
+                      </button>
+                      <button
+                        onClick={() => handleAdvantageToggle("advantage")}
+                        style={{
+                          ...styles.advBtn,
+                          background: advantage === "advantage" ? "rgba(111, 207, 151, 0.15)" : "transparent",
+                          borderColor: advantage === "advantage" ? "var(--color-success)" : "rgba(255,255,255,0.06)",
+                          color: advantage === "advantage" ? "var(--color-success)" : "var(--color-muted)",
+                        }}
+                        className="touch-target"
+                      >
+                        Advantage
+                      </button>
+                      <button
+                        onClick={() => handleAdvantageToggle("disadvantage")}
+                        style={{
+                          ...styles.advBtn,
+                          background: advantage === "disadvantage" ? "rgba(235, 87, 87, 0.15)" : "transparent",
+                          borderColor: advantage === "disadvantage" ? "var(--color-danger)" : "rgba(255,255,255,0.06)",
+                          color: advantage === "disadvantage" ? "var(--color-danger)" : "var(--color-muted)",
+                        }}
+                        className="touch-target"
+                      >
+                        Disadvantage
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </>
+
+                <div style={styles.desktopRollSummary} className="dice-roll-desktop-summary">
+                  {renderRollAction()}
+                </div>
+              </aside>
+            </div>
           ) : (
             /* Roll History List Tab */
             <div style={styles.historyContainer}>
@@ -620,26 +669,8 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
 
       {/* Floating Action / Roll Summary Footer (Only on Roller Tab) */}
       {activeSubTab === "roller" && (
-        <div style={styles.footer} className="glass-panel gold-border-glow">
-          <div style={styles.formulaPreview}>
-            <span style={styles.formulaLabel}>Formula Preview</span>
-            <span style={styles.formulaText}>{getFormulaPreview()}</span>
-          </div>
-          <button
-            onClick={handleRoll}
-            disabled={!hasDiceSelected}
-            style={{
-              ...styles.rollBtn,
-              background: hasDiceSelected
-                ? "linear-gradient(135deg, var(--color-accent) 0%, #a87427 100%)"
-                : "rgba(255, 255, 255, 0.04)",
-              color: hasDiceSelected ? "#0f0e17" : "var(--color-muted)",
-              boxShadow: hasDiceSelected ? "0 0 15px rgba(200, 151, 58, 0.45)" : "none",
-            }}
-            className="touch-target btn-hover-scale"
-          >
-            ROLL DICE
-          </button>
+        <div style={styles.footer} className="glass-panel gold-border-glow dice-roll-mobile-footer">
+          {renderRollAction()}
         </div>
       )}
     </div>
@@ -682,6 +713,7 @@ const styles = {
     cursor: "pointer",
     padding: "0.45rem",
     transition: "all 0.2s",
+    gap: "0.4rem",
   },
   scrollWrapper: {
     flex: 1,
@@ -689,22 +721,49 @@ const styles = {
     padding: "1rem",
   },
   content: {
-    maxWidth: "500px",
+    maxWidth: "1080px",
     margin: "0 auto",
     display: "flex",
     flexDirection: "column",
     gap: "1.25rem",
     width: "100%",
   },
+  rollerLayout: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "1rem",
+    width: "100%",
+  },
+  primaryColumn: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+    minWidth: 0,
+  },
   headerRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: "0.75rem",
+  },
+  headerTitleGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    minWidth: 0,
+    flexWrap: "wrap",
   },
   title: {
     fontSize: "1.25rem",
     color: "var(--color-accent)",
     fontWeight: "bold",
+  },
+  statusBadge: {
+    fontSize: "0.68rem",
+    padding: "0.15rem 0.45rem",
+    borderRadius: "4px",
+    fontWeight: 600,
+    whiteSpace: "nowrap",
   },
   clearBtn: {
     padding: "0.45rem 0.85rem",
@@ -714,6 +773,8 @@ const styles = {
     cursor: "pointer",
     background: "rgba(255,255,255,0.02)",
     border: "1px solid rgba(255,255,255,0.08)",
+    gap: "0.4rem",
+    whiteSpace: "nowrap",
   },
   diceGrid: {
     display: "grid",
@@ -721,7 +782,7 @@ const styles = {
     gap: "0.75rem",
   },
   dieCard: {
-    borderRadius: "10px",
+    borderRadius: "8px",
     borderWidth: "1px",
     borderStyle: "solid",
     padding: "0.75rem",
@@ -735,10 +796,14 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
+    justifyContent: "center",
     cursor: "pointer",
     width: "100%",
+    minHeight: "76px",
     padding: "0.25rem 0",
     gap: "0.35rem",
+    border: "none",
+    background: "transparent",
   },
   dieLabel: {
     fontSize: "0.72rem",
@@ -776,11 +841,43 @@ const styles = {
   },
   inputsSection: {
     padding: "1rem",
-    borderRadius: "10px",
+    borderRadius: "8px",
     display: "flex",
     flexDirection: "column",
     gap: "1rem",
     border: "1px solid var(--glass-border)",
+  },
+  buildPanel: {
+    padding: "1rem",
+    borderRadius: "8px",
+    border: "1px solid var(--glass-border)",
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+    minWidth: 0,
+  },
+  buildPanelHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "0.75rem",
+    paddingBottom: "0.75rem",
+    borderBottom: "1px solid rgba(255,255,255,0.07)",
+  },
+  panelTitle: {
+    fontSize: "1rem",
+    color: "var(--color-text)",
+    fontWeight: 700,
+  },
+  panelMeta: {
+    marginTop: "0.2rem",
+    fontSize: "0.8rem",
+    color: "var(--color-muted)",
+  },
+  setupStack: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
   },
   inputGroup: {
     display: "flex",
@@ -801,7 +898,7 @@ const styles = {
     borderRadius: "6px",
     border: "1px solid rgba(255,255,255,0.08)",
     overflow: "hidden",
-    maxWidth: "180px",
+    width: "100%",
   },
   modAdjustBtn: {
     width: "44px",
@@ -839,7 +936,7 @@ const styles = {
   },
   advantageGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
+    gridTemplateColumns: "1fr",
     gap: "0.5rem",
   },
   advBtn: {
@@ -865,6 +962,14 @@ const styles = {
     justifyContent: "space-between",
     gap: "1rem",
     zIndex: 1000,
+  },
+  desktopRollSummary: {
+    display: "none",
+    flexDirection: "column",
+    gap: "0.85rem",
+    marginTop: "auto",
+    paddingTop: "1rem",
+    borderTop: "1px solid rgba(255,255,255,0.07)",
   },
   formulaPreview: {
     display: "flex",
@@ -897,6 +1002,7 @@ const styles = {
     cursor: "pointer",
     transition: "all 0.2s ease",
     whiteSpace: "nowrap",
+    gap: "0.5rem",
   },
   // History tab specific styles
   historyContainer: {

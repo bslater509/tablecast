@@ -248,6 +248,68 @@ textarea:focus-visible {
 .wiki-content h3 { font-size: 1.1rem; }
 .wiki-content h4 { font-size: 1rem; }
 
+/* Dice roller responsive shell */
+.dice-visual-button {
+  color: inherit;
+}
+
+.dice-roll-mobile-footer {
+  display: flex;
+}
+
+.dice-roll-desktop-summary {
+  display: none;
+}
+
+.dice-roller-popout .dice-roll-mobile-footer {
+  bottom: 0 !important;
+}
+
+@media (min-width: 520px) {
+  .dice-roller-shell .dice-roller-grid {
+    grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)) !important;
+  }
+
+  .dice-roller-shell .dice-advantage-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 820px) {
+  .dice-roller-shell .dice-roller-scroll {
+    padding-bottom: 1rem !important;
+  }
+
+  .dice-roller-shell .dice-roller-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px) !important;
+    align-items: start;
+  }
+
+  .dice-roller-shell .dice-roller-grid {
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)) !important;
+  }
+
+  .dice-roller-shell .dice-roller-build-panel {
+    position: sticky;
+    top: 1rem;
+    min-height: calc(100vh - 150px);
+  }
+
+  .dice-roller-shell .dice-roll-mobile-footer {
+    display: none !important;
+  }
+
+  .dice-roller-shell .dice-roll-desktop-summary {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 1040px) {
+  .dice-roller-shell .dice-roller-grid {
+    grid-template-columns: repeat(4, minmax(120px, 1fr)) !important;
+  }
+}
+
 /* NPC Portrait Banner & Lightbox styles */
 .npc-banner-container {
   width: 100%;
