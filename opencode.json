@@ -7,7 +7,7 @@
     "opencode-pty"
   ],
   "permission": {
-    "edit": "ask",
-    "bash": "ask"
+    "edit": "allow",
+    "bash": "allow"
   }
 }

@@ -2148,6 +2148,7 @@ export default function WikiPanel({ user, isPopout = false }) {
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
             isDM={isDM}
+            onCreateNew={(tab) => handleSelectCategoryToCreate(tab)}
           />
           <div style={styles.splitContent}>
             {selectedArticle ? renderReaderContent() : (

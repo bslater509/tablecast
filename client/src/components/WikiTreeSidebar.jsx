@@ -91,6 +91,7 @@ export default function WikiTreeSidebar({
   isOpen,
   onClose,
   isDM,
+  onCreateNew,
 }) {
   const [expandedSections, setExpandedSections] = useState([
     "campaign",
@@ -220,6 +221,20 @@ export default function WikiTreeSidebar({
                               >
                                 {count}
                               </span>
+                              {active && isDM && onCreateNew && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCreateNew(cat.tab);
+                                  }}
+                                  style={styles.addBtn}
+                                  className="touch-target sidebar-add-btn"
+                                  title={`New ${cat.label}`}
+                                  aria-label={`New ${cat.label}`}
+                                >
+                                  +
+                                </button>
+                              )}
                             </button>
 
                             {/* Article list under active category */}
@@ -442,5 +457,24 @@ const styles = {
     fontSize: "0.68rem",
     color: "var(--color-muted)",
     fontStyle: "italic",
+  },
+  addBtn: {
+    background: "var(--color-accent-dim)",
+    border: "none",
+    color: "var(--color-accent)",
+    cursor: "pointer",
+    fontSize: "1rem",
+    fontWeight: 700,
+    lineHeight: 1,
+    width: "22px",
+    height: "22px",
+    borderRadius: "4px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
+    flexShrink: 0,
+    marginLeft: "0.25rem",
+    transition: "all 0.15s",
   },
 };

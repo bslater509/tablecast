@@ -799,3 +799,8 @@ textarea:focus-visible {
 .sidebar-article-btn:hover {
   background: rgba(255, 255, 255, 0.05) !important;
 }
+
+.sidebar-add-btn:hover {
+  background: var(--color-accent) !important;
+  color: var(--color-bg) !important;
+}
