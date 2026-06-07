@@ -14,9 +14,8 @@ async function run() {
     console.log(`[Browser Console ${msg.type()}]`, msg.text());
   });
 
-  // Log page errors
   page.on("pageerror", (err) => {
-    console.error("[Browser Error]", err.message);
+    console.error("[Browser Error Stack]", err.stack || err.message);
   });
 
   // Log failed network requests
