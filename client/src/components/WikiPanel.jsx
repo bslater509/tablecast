@@ -283,6 +283,8 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [npcGenPrompt, setNpcGenPrompt] = useState("");
   const [npcGenLoading, setNpcGenLoading] = useState(false);
   const [npcGenError, setNpcGenError] = useState(null);
+  const [npcGenOptions, setNpcGenOptions] = useState(null); // [{name, race, class, cr, briefDescription}, ...]
+  const [npcGenStep, setNpcGenStep] = useState("prompt"); // "prompt" | "choose" | "generating_full"
   const [showAssistDropdown, setShowAssistDropdown] = useState(null); // field name or null
   const [assistLoadingField, setAssistLoadingField] = useState(null);
   const [assistUndo, setAssistUndo] = useState(null); // { fieldId, previousText, isNpcField }
@@ -420,18 +422,54 @@ export default function WikiPanel({ user, isPopout = false }) {
     return () => window.removeEventListener("click", handleClose);
   }, []);
 
-  async function handleGenerateNpc(e) {
+  // Step 1: Generate multiple NPC options
+  async function handleGenerateOptions(e) {
     e.preventDefault();
     if (!npcGenPrompt.trim() || npcGenLoading) return;
 
     setNpcGenLoading(true);
     setNpcGenError(null);
+    setNpcGenOptions(null);
+
+    try {
+      const res = await fetch("/api/ai/generate-npc-options", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ prompt: npcGenPrompt.trim() }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to generate NPC options.");
+      }
+
+      const data = await res.json();
+      setNpcGenOptions(data.options || []);
+      setNpcGenStep("choose");
+    } catch (err) {
+      console.error("[AI NPC Options] Error:", err);
+      setNpcGenError(err.message);
+    } finally {
+      setNpcGenLoading(false);
+    }
+  }
+
+  // Step 2: User selected an option — generate the full NPC
+  async function handleSelectOption(option) {
+    if (npcGenLoading) return;
+
+    setNpcGenLoading(true);
+    setNpcGenError(null);
+    setNpcGenStep("generating_full");
 
     try {
       const res = await fetch("/api/ai/generate-npc", {
         method: "POST",
         headers: jsonAuthHeaders,
-        body: JSON.stringify({ prompt: npcGenPrompt.trim() }),
+        body: JSON.stringify({
+          prompt: npcGenPrompt.trim(),
+          selectedOption: option,
+        }),
       });
 
       if (!res.ok) {
@@ -440,7 +478,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       }
 
       const aiData = await res.json();
-      
+
       // Calculate ability modifiers
       const mods = {};
       const stats = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
@@ -475,14 +513,28 @@ export default function WikiPanel({ user, isPopout = false }) {
         modifiers: JSON.stringify(mods)
       }));
 
+      // Close modal and reset
       setShowNpcGenModal(false);
       setNpcGenPrompt("");
+      setNpcGenOptions(null);
+      setNpcGenStep("prompt");
     } catch (err) {
       console.error("[AI NPC Generator] Error:", err);
       setNpcGenError(err.message);
+      setNpcGenStep("choose"); // Go back to choice screen on error
     } finally {
       setNpcGenLoading(false);
     }
+  }
+
+  // Reset NPC gen modal to initial prompt step
+  function resetNpcGenModal() {
+    setShowNpcGenModal(false);
+    setNpcGenPrompt("");
+    setNpcGenError(null);
+    setNpcGenOptions(null);
+    setNpcGenStep("prompt");
+    setNpcGenLoading(false);
   }
 
   const renderAiAssistButton = (fieldName) => {
@@ -2358,18 +2410,14 @@ export default function WikiPanel({ user, isPopout = false }) {
       {/* AI NPC GENERATOR MODAL */}
       {showNpcGenModal && (
         <div style={styles.modalOverlay} className="fade-in">
-          <div style={{ ...styles.categoryPromptBox, width: "90%", maxWidth: "480px" }} className="glass-panel gold-border-glow">
+          <div style={{ ...styles.categoryPromptBox, width: "90%", maxWidth: "520px" }} className="glass-panel gold-border-glow">
             <header style={styles.modalHeader}>
               <h3 style={{ ...styles.modalTitle, color: "var(--color-accent)", display: "flex", alignItems: "center", gap: "0.25rem" }}>
                 <span>✨ AI NPC Generator</span>
               </h3>
               <button
                 type="button"
-                onClick={() => {
-                  setShowNpcGenModal(false);
-                  setNpcGenPrompt("");
-                  setNpcGenError(null);
-                }}
+                onClick={resetNpcGenModal}
                 disabled={npcGenLoading}
                 style={styles.modalCloseBtn}
                 className="touch-target"
@@ -2377,57 +2425,167 @@ export default function WikiPanel({ user, isPopout = false }) {
                 ✕
               </button>
             </header>
-            <form onSubmit={handleGenerateNpc} style={styles.modalBody}>
-              <p style={{ marginBottom: "1rem", color: "var(--color-muted)", fontSize: "0.85rem", lineHeight: "1.4" }}>
-                Describe the NPC you want the AI to design. The AI will populate their combat stats (AC, HP, Abilities, Actions) and narrative profile fields.
-              </p>
-              
-              <div style={{ ...styles.formGroup, marginBottom: "1.25rem" }}>
-                <label style={styles.label}>Prompt Description</label>
-                <textarea
-                  placeholder="e.g., An elderly male wood elf druid named Sylas who is blind but speaks in riddles. He carries a gnarled oak staff and protects the Whispering Wood. Moderate difficulty combatant (CR 2-3)."
-                  value={npcGenPrompt}
-                  onChange={(e) => setNpcGenPrompt(e.target.value)}
-                  style={{ ...styles.textarea, height: "120px", width: "100%", padding: "0.6rem" }}
-                  className="form-input"
-                  required
-                  disabled={npcGenLoading}
-                />
-              </div>
 
-              {npcGenError && (
-                <p style={{ ...styles.editorErrorText, marginBottom: "1rem" }}>⚠️ {npcGenError}</p>
-              )}
+            {/* Step 1: Prompt Screen */}
+            {npcGenStep === "prompt" && (
+              <form onSubmit={handleGenerateOptions} style={styles.modalBody}>
+                <p style={{ marginBottom: "1rem", color: "var(--color-muted)", fontSize: "0.85rem", lineHeight: "1.4" }}>
+                  Describe the kind of NPC you want, and the AI will suggest 4 different concepts to choose from.
+                </p>
 
-              <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowNpcGenModal(false);
-                    setNpcGenPrompt("");
-                    setNpcGenError(null);
-                  }}
-                  disabled={npcGenLoading}
-                  style={styles.backBtn}
-                  className="touch-target"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={npcGenLoading || !npcGenPrompt.trim()}
-                  style={{
-                    ...styles.saveBtn,
-                    background: npcGenLoading ? "rgba(200,151,58,0.2)" : "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)",
-                    color: npcGenLoading ? "var(--color-muted)" : "#fffffe",
-                    cursor: npcGenLoading || !npcGenPrompt.trim() ? "not-allowed" : "pointer"
-                  }}
-                  className="touch-target btn-hover-scale"
-                >
-                  {npcGenLoading ? "✨ Writing Statblock..." : "✨ Generate"}
-                </button>
+                <div style={{ ...styles.formGroup, marginBottom: "1.25rem" }}>
+                  <label style={styles.label}>Prompt Description</label>
+                  <textarea
+                    placeholder="e.g., A mysterious forest guardian, a shady tavern informant, or a grizzled dwarven veteran — what kind of NPC do you need?"
+                    value={npcGenPrompt}
+                    onChange={(e) => setNpcGenPrompt(e.target.value)}
+                    style={{ ...styles.textarea, height: "100px", width: "100%", padding: "0.6rem" }}
+                    className="form-input"
+                    required
+                    disabled={npcGenLoading}
+                  />
+                </div>
+
+                {npcGenError && (
+                  <p style={{ ...styles.editorErrorText, marginBottom: "1rem" }}>⚠️ {npcGenError}</p>
+                )}
+
+                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={resetNpcGenModal}
+                    disabled={npcGenLoading}
+                    style={styles.backBtn}
+                    className="touch-target"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={npcGenLoading || !npcGenPrompt.trim()}
+                    style={{
+                      ...styles.saveBtn,
+                      background: npcGenLoading
+                        ? "rgba(200,151,58,0.2)"
+                        : "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)",
+                      color: npcGenLoading ? "var(--color-muted)" : "#fffffe",
+                      cursor: npcGenLoading || !npcGenPrompt.trim() ? "not-allowed" : "pointer",
+                    }}
+                    className="touch-target btn-hover-scale"
+                  >
+                    {npcGenLoading ? "✨ Generating Options..." : "✨ Generate Options"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step 2: Choose Screen */}
+            {(npcGenStep === "choose" || npcGenStep === "generating_full") && npcGenOptions && (
+              <div style={styles.modalBody}>
+                <p style={{ marginBottom: "0.75rem", color: "var(--color-muted)", fontSize: "0.85rem", lineHeight: "1.4" }}>
+                  Choose an NPC concept to flesh out into a full statblock:
+                </p>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "1rem" }}>
+                  {npcGenOptions.map((option, idx) => {
+                    const cardColors = [
+                      "linear-gradient(135deg, #7c3aed20, #5b21b620)",
+                      "linear-gradient(135deg, #0891b220, #065f4620)",
+                      "linear-gradient(135deg, #d9770620, #92400e20)",
+                      "linear-gradient(135deg, #dc262620, #991b1b20)",
+                    ];
+                    const cardAccents = ["#7c3aed", "#0891b2", "#d97706", "#dc2626"];
+                    const isDisabled = npcGenStep === "generating_full";
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectOption(option)}
+                        disabled={isDisabled}
+                        style={{
+                          ...styles.npcOptionCard,
+                          background: cardColors[idx % cardColors.length],
+                          borderLeft: `3px solid ${cardAccents[idx % cardAccents.length]}`,
+                          opacity: isDisabled ? 0.5 : 1,
+                          cursor: isDisabled ? "not-allowed" : "pointer",
+                        }}
+                        className="touch-target"
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.3rem" }}>
+                          <span style={{ fontWeight: "700", fontSize: "1rem", color: "var(--color-text)" }}>
+                            {option.name || `Option ${idx + 1}`}
+                          </span>
+                          <span style={{
+                            fontSize: "0.7rem",
+                            background: "var(--color-accent-dim)",
+                            color: "var(--color-accent)",
+                            padding: "0.15rem 0.5rem",
+                            borderRadius: "8px",
+                            fontWeight: "600",
+                            whiteSpace: "nowrap",
+                          }}>
+                            CR {option.cr || "?"}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "0.8rem", color: "var(--color-muted)", marginBottom: "0.25rem" }}>
+                          {option.race || "?"} · {option.class || "?"}
+                        </div>
+                        {option.briefDescription && (
+                          <div style={{ fontSize: "0.82rem", color: "var(--color-muted)", lineHeight: "1.35", opacity: 0.85 }}>
+                            {option.briefDescription}
+                          </div>
+                        )}
+                        <div style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: cardAccents[idx % cardAccents.length], fontWeight: "500" }}>
+                          {isDisabled ? "Writing statblock..." : "Select →"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {npcGenError && (
+                  <p style={{ ...styles.editorErrorText, marginBottom: "1rem" }}>⚠️ {npcGenError}</p>
+                )}
+
+                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "space-between" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNpcGenStep("prompt");
+                      setNpcGenError(null);
+                      setNpcGenOptions(null);
+                    }}
+                    disabled={npcGenStep === "generating_full"}
+                    style={styles.backBtn}
+                    className="touch-target"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNpcGenOptions(null);
+                      setNpcGenError(null);
+                      setNpcGenStep("prompt");
+                    }}
+                    disabled={npcGenStep === "generating_full"}
+                    style={styles.backBtn}
+                    className="touch-target"
+                  >
+                    🔄 Try Again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetNpcGenModal}
+                    disabled={npcGenStep === "generating_full"}
+                    style={styles.backBtn}
+                    className="touch-target"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </form>
+            )}
           </div>
         </div>
       )}
@@ -2766,6 +2924,15 @@ const styles = {
     borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
     background: "rgba(0,0,0,0.15)",
     flexShrink: 0,
+  },
+  npcOptionCard: {
+    width: "100%",
+    textAlign: "left",
+    padding: "0.7rem 0.85rem",
+    borderRadius: "6px",
+    border: "1px solid rgba(255,255,255,0.08)",
+    transition: "transform 0.15s, box-shadow 0.15s",
+    minHeight: "44px",
   },
   backBtn: {
     padding: "0.45rem 0.85rem",

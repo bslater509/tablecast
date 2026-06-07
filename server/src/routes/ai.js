@@ -1055,9 +1055,9 @@ router.post("/test", requireDm, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/ai/generate-npc - AI NPC Creator (DM only)
+// POST /api/ai/generate-npc-options - Generate multiple NPC concepts (DM only)
 // ---------------------------------------------------------------------------
-router.post("/generate-npc", requireDm, async (req, res) => {
+router.post("/generate-npc-options", requireDm, async (req, res) => {
   try {
     const { prompt } = req.body;
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -1077,10 +1077,86 @@ router.post("/generate-npc", requireDm, async (req, res) => {
       ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
       : "";
 
+    const systemPrompt = `You are a D&D 5e NPC concept generator for a Tabletop RPG.
+Given a DM's description, generate exactly 4 distinct, creative NPC concepts (options) that the DM can choose from.
+Each option should be a different take on the prompt — vary races, classes, alignments, and personalities across options.
+${campaignBlock}
+You MUST respond with a single JSON object containing an "options" array (and NO other text). Do not wrap in codeblocks.
+{
+  "options": [
+    {
+      "name": "NPC full name",
+      "race": "NPC race",
+      "class": "NPC class or occupation",
+      "cr": "challenge rating as string e.g. '1/2', '3'",
+      "briefDescription": "One or two sentences describing this NPC concept and their role/personality"
+    }
+  ]
+}
+Generate exactly 4 options. Make each one feel distinct and interesting.`;
+
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, `Generate NPC options for: ${prompt.trim()}`);
+
+    // Parse JSON safely
+    let cleanJsonStr = rawResponse.trim();
+    if (cleanJsonStr.startsWith("```")) {
+      const match = cleanJsonStr.match(/```(?:json)?([\s\S]+?)```/);
+      if (match) {
+        cleanJsonStr = match[1].trim();
+      }
+    }
+
+    let optionsData;
+    try {
+      optionsData = JSON.parse(cleanJsonStr);
+    } catch (e) {
+      console.error("[AI NPC Options] JSON parse failed on text:", rawResponse);
+      throw new Error("Failed to generate valid NPC options from the AI response.");
+    }
+
+    if (!optionsData.options || !Array.isArray(optionsData.options) || optionsData.options.length === 0) {
+      throw new Error("AI returned an empty options list.");
+    }
+
+    res.json({ options: optionsData.options });
+  } catch (err) {
+    console.error("[AI NPC Options] Failed:", err.message);
+    res.status(500).json({ error: err.message || "Failed to generate NPC options." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/ai/generate-npc - AI NPC Creator (DM only)
+// ---------------------------------------------------------------------------
+router.post("/generate-npc", requireDm, async (req, res) => {
+  try {
+    const { prompt, selectedOption } = req.body;
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return res.status(400).json({ error: "NPC prompt description is required." });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    const campaignWiki = await fetchCampaignWikiSnippet(prompt);
+    const campaignBlock = campaignWiki
+      ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
+      : "";
+
+    const selectedBlock = selectedOption
+      ? `\nThe DM has selected this specific concept to flesh out into a full NPC:\n${JSON.stringify(selectedOption, null, 2)}\n`
+      : "";
+
     const systemPrompt = `You are a D&D 5e NPC and monster statblock generator. 
 Given a description of an NPC, generate a complete NPC profile.
 Match the requested difficulty/CR to the prompt. Narrative fields (appearance, personality, history, partyRelationship) should complement each other without repeating the same sentences.
 ${campaignBlock}
+${selectedBlock}
 You MUST respond with a single JSON object (and NO other text). Do not wrap the JSON in codeblocks unless you are using Markdown, but it is preferred to output raw JSON. If you output code blocks, use \`\`\`json.
 The JSON must strictly conform to these fields:
 {
@@ -1112,7 +1188,13 @@ The JSON must strictly conform to these fields:
   ]
 }`;
 
-    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, `Create NPC: ${prompt.trim()}`);
+    // Build user message with selected option context if available
+    let userMessage = `Create NPC: ${prompt.trim()}`;
+    if (selectedOption) {
+      userMessage = `Create the full NPC statblock for "${selectedOption.name}" (${selectedOption.race} ${selectedOption.class}). Original request: ${prompt.trim()}`;
+    }
+
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage);
 
     // Parse JSON safely
     let cleanJsonStr = rawResponse.trim();
