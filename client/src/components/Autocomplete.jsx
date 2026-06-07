@@ -2,7 +2,7 @@
 // Tablecast  Reusable Touch-Friendly Autocomplete Input
 // Fetches recommendations dynamically from the 5etools references database.
 // =============================================================================
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
 function Autocomplete({
   category,

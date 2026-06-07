@@ -9,7 +9,6 @@ import { ExternalLink, Menu } from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
-import Autocomplete from "./Autocomplete";
 import WikiTreeSidebar from "./WikiTreeSidebar";
 import { useSocket } from "../context/SocketContext";
 

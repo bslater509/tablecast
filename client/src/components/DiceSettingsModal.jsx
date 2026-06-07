@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Check, Dices, X } from "lucide-react";
 import {
   DICE_COLOR_PRESETS,

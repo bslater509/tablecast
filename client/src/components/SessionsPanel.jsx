@@ -2,7 +2,7 @@
 // Tablecast  Session Planning & Management Panel
 // DM prep hub with lifecycle management; read-only mode for players.
 // =============================================================================
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { marked } from "marked";
 import DOMPurify from "dompurify";

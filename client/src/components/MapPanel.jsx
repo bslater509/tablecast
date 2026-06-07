@@ -325,21 +325,19 @@ export default function MapPanel({ user, isPopout = false }) {
     // A map was deleted
     const handleMapDeleted = (payload) => {
       const deletedId = Number(payload.mapId);
-      setMapsList(prev => {
-        const updated = prev.filter(m => m.id !== deletedId);
-        // If the deleted map is the currently active map, select another one or clear
-        if (activeMap && activeMap.id === deletedId) {
-          if (updated.length > 0) {
-            fetchMapDetails(updated[0].id);
-          } else {
-            setActiveMap(null);
-            setTokens([]);
-            imageRef.current = null;
-            setMapImageLoaded(false);
-          }
+      setMapsList(prev => prev.filter(m => m.id !== deletedId));
+      // If the deleted map is the currently active map, select another one or clear
+      if (activeMap && activeMap.id === deletedId) {
+        const remaining = mapsList.filter(m => m.id !== deletedId);
+        if (remaining.length > 0) {
+          fetchMapDetails(remaining[0].id);
+        } else {
+          setActiveMap(null);
+          setTokens([]);
+          imageRef.current = null;
+          setMapImageLoaded(false);
         }
-        return updated;
-      });
+      }
     };
 
     const handleEncounterRefresh = (payload) => {

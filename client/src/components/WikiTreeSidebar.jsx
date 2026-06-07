@@ -222,7 +222,7 @@ export default function WikiTreeSidebar({
                                 {count}
                               </span>
                               {active && isDM && onCreateNew && (
-                                <button
+                                <span
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onCreateNew(cat.tab);
@@ -231,9 +231,12 @@ export default function WikiTreeSidebar({
                                   className="touch-target sidebar-add-btn"
                                   title={`New ${cat.label}`}
                                   aria-label={`New ${cat.label}`}
+                                  role="button"
+                                  tabIndex={0}
+                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onCreateNew(cat.tab); } }}
                                 >
                                   +
-                                </button>
+                                </span>
                               )}
                             </button>
 

@@ -2,7 +2,7 @@
 // Tablecast  DM 5e Importer Panel
 // DM searches the 5etools repositories and imports them directly into the DB.
 // =============================================================================
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { BookOpen, Box, Database, Download, Shield, Sparkles, Users } from "lucide-react";
 
 const CATEGORIES = [

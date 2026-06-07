@@ -2,7 +2,7 @@
 // Tablecast  D&D 5e Reference Library Panel
 // Supports tabbed searching and formatting of spells, items, monsters, and rules.
 // =============================================================================
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { BookOpen, Box, ExternalLink, Shield, Sparkles, Users } from "lucide-react";
 
 const CATEGORIES = [

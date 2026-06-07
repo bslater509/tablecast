@@ -2,7 +2,7 @@
 // Tablecast  AI Assistant Panel
 // Supports tabbed interaction: Rules Helper and NPC Chat/Roleplay
 // =============================================================================
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 

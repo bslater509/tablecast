@@ -3,7 +3,7 @@
 // An interactive, auto-calculating D&D 5e Character Sheet.
 // Integrates click-to-roll with Socket.io and auto-saves to backend SQLite.
 // =============================================================================
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useSocket } from "../context/SocketContext";
 import Autocomplete from "./Autocomplete";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
@@ -174,11 +174,9 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
   // Trigger state update and initiate save
   function updateCharacterState(updater) {
-    setCharacter((prev) => {
-      const next = updater(prev);
-      saveToServer(next);
-      return next;
-    });
+    const next = updater(character);
+    setCharacter(next);
+    saveToServer(next);
   }
 
   // AI Character generation helpers

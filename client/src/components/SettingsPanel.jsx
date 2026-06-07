@@ -2,7 +2,7 @@
 // Tablecast  DM Settings & Cloud Backups Panel (Phase 6)
 // Provides controls for zip compression & rclone Google Drive synchronization.
 // =============================================================================
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Bot, Cloud, KeyRound } from "lucide-react";
 
 function SettingsPanel({ user }) {

@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
 
   server: {
+    host: "0.0.0.0",
     // During local development, proxy API and Socket.io requests to the backend
     proxy: {
       "/api": {

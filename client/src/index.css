@@ -387,12 +387,7 @@ textarea:focus-visible {
   max-height: 85vh;
   display: block;
   object-fit: contain;
-}
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 
 @keyframes zoomIn {
   from { transform: scale(0.9); }
@@ -807,4 +802,41 @@ textarea:focus-visible {
 .sidebar-add-btn:hover {
   background: var(--color-accent) !important;
   color: var(--color-bg) !important;
+}
+
+/* Missing CSS classes for various UI components */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.1);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.dotAnim {
+  display: inline-block;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.hp-adjuster-widget {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dice-roller-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.dice-roller-primary {
+  flex: 1;
+  overflow: auto;
 }
