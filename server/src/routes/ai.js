@@ -809,7 +809,7 @@ Respond to the user's message as "${npc.name}". Keep it immersive and engaging!`
     // 3. Make the API call to the configured LLM provider
     const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, message, history);
 
-    res.json({ reply });
+    res.json({ reply, context: referenceContext });
   } catch (err) {
     console.error("[AI Chat] Chat operation failed:", err.message);
     res.status(500).json({ error: err.message || "Failed to query AI assistant." });
