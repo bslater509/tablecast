@@ -598,13 +598,6 @@ export default function WikiPanel({ user, isPopout = false }) {
         personality: item.personality || "",
         history: item.history || "",
         partyRelationship: item.partyRelationship || "",
-        description: item.description || "",
-      });
-        appearance: item.appearance || "",
-        personality: item.personality || "",
-        history: item.history || "",
-        partyRelationship: item.partyRelationship || "",
-        description: item.description || "",
       });
     } else {
       setEditTitle(item.title);
