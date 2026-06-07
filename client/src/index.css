@@ -387,8 +387,15 @@ body {
     flex: 1;
   }
 
-  .dm-sidebar-btn {
+  .dm-sidebar-item {
+    display: flex;
+    align-items: center;
     width: 100%;
+    gap: 0.25rem;
+  }
+
+  .dm-sidebar-btn {
+    flex: 1;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -412,6 +419,27 @@ body {
   .dm-sidebar-btn.active {
     color: var(--color-accent);
     background: var(--color-accent-dim);
+    border-color: var(--color-border);
+  }
+
+  .dm-sidebar-popout-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--color-muted);
+    font-size: 1rem;
+    padding: 0.65rem 0.5rem;
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .dm-sidebar-popout-btn:hover {
+    color: var(--color-accent);
+    background: rgba(255, 255, 255, 0.03);
     border-color: var(--color-border);
   }
 

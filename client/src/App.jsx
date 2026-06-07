@@ -279,11 +279,13 @@ function App() {
         <Route path="/dm/*" element={<DmLayout user={user} onLogout={handleLogout} onOpenDiceSettings={() => setDiceModalOpen(true)} />} />
         
         {/* Standalone Popout Panel Routes */}
+        <Route path="/dm/popout/map" element={<MapPanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/chat" element={<ChatPanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/wiki" element={<WikiPanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/reference" element={<ReferencePanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/dice" element={<DiceRollerPanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/connection" element={<ConnectionHelpPanel user={user} />} />
+        <Route path="/dm/popout/characters" element={<CharacterList user={user} onSelectCharacter={(char) => window.open(`/dm/popout/characters/${char.id}`, '_blank', 'width=600,height=800,resizable=yes')} isPopout={true} />} />
         <Route path="/dm/popout/characters/:id" element={<CharacterSheetWrapper user={user} basePath="/dm/popout/characters" isPopout={true} />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -857,41 +859,83 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
       <aside className="dm-sidebar-nav">
         <div className="dm-sidebar-title">Tablecast DM</div>
         <div className="dm-sidebar-links">
-          <button
-            onClick={() => navigate("/dm/map")}
-            className={`dm-sidebar-btn ${currentTab === "map" ? "active" : ""}`}
-          >
-            <span className="dm-sidebar-icon">🗺️</span>
-            Map VTT
-          </button>
-          <button
-            onClick={() => navigate("/dm/characters")}
-            className={`dm-sidebar-btn ${currentTab === "characters" ? "active" : ""}`}
-          >
-            <span className="dm-sidebar-icon">👥</span>
-            Characters
-          </button>
-          <button
-            onClick={() => navigate("/dm/dice")}
-            className={`dm-sidebar-btn ${currentTab === "dice" ? "active" : ""}`}
-          >
-            <span className="dm-sidebar-icon">🎲</span>
-            Dice Roller
-          </button>
-          <button
-            onClick={() => navigate("/dm/chat-journal/chat")}
-            className={`dm-sidebar-btn ${currentTab === "chat-journal" ? "active" : ""}`}
-          >
-            <span className="dm-sidebar-icon">💬</span>
-            Chat & Wiki
-          </button>
-          <button
-            onClick={() => navigate("/dm/settings")}
-            className={`dm-sidebar-btn ${currentTab === "settings" ? "active" : ""}`}
-          >
-            <span className="dm-sidebar-icon">⚙️</span>
-            Settings
-          </button>
+          <div className="dm-sidebar-item">
+            <button
+              onClick={() => navigate("/dm/map")}
+              className={`dm-sidebar-btn ${currentTab === "map" ? "active" : ""}`}
+            >
+              <span className="dm-sidebar-icon">🗺️</span>
+              Map VTT
+            </button>
+            <button
+              onClick={() => window.open("/dm/popout/map", "_blank", "width=1000,height=700,resizable=yes,scrollbars=yes")}
+              className="dm-sidebar-popout-btn touch-target btn-hover-scale"
+              title="Pop out Map"
+            >
+              ⧉
+            </button>
+          </div>
+
+          <div className="dm-sidebar-item">
+            <button
+              onClick={() => navigate("/dm/characters")}
+              className={`dm-sidebar-btn ${currentTab === "characters" ? "active" : ""}`}
+            >
+              <span className="dm-sidebar-icon">👥</span>
+              Characters
+            </button>
+            <button
+              onClick={() => window.open("/dm/popout/characters", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
+              className="dm-sidebar-popout-btn touch-target btn-hover-scale"
+              title="Pop out Characters List"
+            >
+              ⧉
+            </button>
+          </div>
+
+          <div className="dm-sidebar-item">
+            <button
+              onClick={() => navigate("/dm/dice")}
+              className={`dm-sidebar-btn ${currentTab === "dice" ? "active" : ""}`}
+            >
+              <span className="dm-sidebar-icon">🎲</span>
+              Dice Roller
+            </button>
+            <button
+              onClick={() => window.open("/dm/popout/dice", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
+              className="dm-sidebar-popout-btn touch-target btn-hover-scale"
+              title="Pop out Dice Roller"
+            >
+              ⧉
+            </button>
+          </div>
+
+          <div className="dm-sidebar-item">
+            <button
+              onClick={() => navigate("/dm/chat-journal/chat")}
+              className={`dm-sidebar-btn ${currentTab === "chat-journal" ? "active" : ""}`}
+            >
+              <span className="dm-sidebar-icon">💬</span>
+              Chat & Wiki
+            </button>
+            <button
+              onClick={() => window.open("/dm/popout/chat", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
+              className="dm-sidebar-popout-btn touch-target btn-hover-scale"
+              title="Pop out Chat & Logs"
+            >
+              ⧉
+            </button>
+          </div>
+
+          <div className="dm-sidebar-item">
+            <button
+              onClick={() => navigate("/dm/settings")}
+              className={`dm-sidebar-btn ${currentTab === "settings" ? "active" : ""}`}
+            >
+              <span className="dm-sidebar-icon">⚙️</span>
+              Settings
+            </button>
+          </div>
         </div>
       </aside>
 

@@ -23,7 +23,7 @@ const TOKEN_IMPORT_PRESETS = [
   { label: "Bandit", imageUrl: "/5etoolsimg/adventure/BQGT/004-00-004.bandit.webp" },
 ];
 
-export default function MapPanel({ user }) {
+export default function MapPanel({ user, isPopout = false }) {
   const { socket, isConnected } = useSocket();
 
   // Map & token state
