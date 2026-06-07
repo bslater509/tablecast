@@ -262,6 +262,208 @@ async function findRelevantRules(message, user) {
 }
 
 // ---------------------------------------------------------------------------
+// AI Assist & NPC Profile Helpers
+// ---------------------------------------------------------------------------
+const ASSIST_ACTIONS_REQUIRING_TEXT = new Set([
+  "expand", "summarize", "clarify", "make_dramatic", "style_5e", "read_aloud",
+]);
+
+function buildNpcProfileContext(npc, excludeField = null) {
+  if (!npc) return "";
+  const lines = [
+    `- Name: ${npc.name}`,
+    `- Race: ${npc.race || "unknown"}`,
+    `- Class/Occupation: ${npc.class || "NPC"}`,
+    `- Level: ${npc.level}`,
+    `- Alignment: ${npc.alignment || "unknown"}`,
+    `- AC: ${npc.ac} | HP: ${npc.hp}/${npc.maxHp} | CR: ${npc.cr}`,
+    `- Stats: STR:${npc.strength} DEX:${npc.dexterity} CON:${npc.constitution} INT:${npc.intelligence} WIS:${npc.wisdom} CHA:${npc.charisma}`,
+  ];
+  if (npc.appearance && excludeField !== "appearance") lines.push(`- Appearance: ${npc.appearance}`);
+  if (npc.personality && excludeField !== "personality") lines.push(`- Personality: ${npc.personality}`);
+  if (npc.history && excludeField !== "history") lines.push(`- History: ${npc.history}`);
+  if (npc.partyRelationship && excludeField !== "partyRelationship") lines.push(`- Party Relationship: ${npc.partyRelationship}`);
+  if (npc.description) lines.push(`- Summary: ${npc.description}`);
+  if (npc.actions) lines.push(`- Actions: ${npc.actions}`);
+  if (npc.inventory) lines.push(`- Inventory: ${npc.inventory}`);
+  return lines.join("\n");
+}
+
+function buildNpcRoleplaySystemPrompt(npc, referenceContext) {
+  return `You are roleplaying as the D&D NPC named "${npc.name}".
+Stay in character AT ALL TIMES. Respond in character, using fantasy-themed tone and speech patterns appropriate for "${npc.name}".
+
+NPC PROFILE:
+${buildNpcProfileContext(npc)}
+
+Local campaign context (if any rules are mentioned):
+${referenceContext}
+
+Respond to the user's message as "${npc.name}". Keep it immersive, flavorful, and relatively short.`;
+}
+
+function cleanAiFieldOutput(text, field) {
+  if (typeof text !== "string") return "";
+  let out = text.trim();
+  out = out.replace(/^```(?:markdown|md|json)?\n?([\s\S]*?)```$/m, "$1").trim();
+  out = out.replace(/^(here('s| is) (an |the )?(expanded|rewritten|generated|updated)[^:]*:\s*)/i, "");
+  out = out.replace(/^["']([\s\S]*)["']$/, "$1").trim();
+  if (field === "alignment") {
+    const firstLine = out.split("\n").map((l) => l.trim()).find(Boolean);
+    out = (firstLine || out).slice(0, 120);
+  }
+  return out.trim();
+}
+
+async function fetchCampaignWikiSnippet(queryText, limit = 5) {
+  const words = (queryText || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .split(/\s+/)
+    .filter((w) => w.length > 3)
+    .slice(0, 5);
+
+  const articles = [];
+  for (const word of words) {
+    try {
+      const found = await prisma.wikiArticle.findMany({
+        where: {
+          OR: [
+            { title: { contains: word } },
+            { content: { contains: word } },
+            { tags: { contains: word } },
+          ],
+        },
+        take: 2,
+        orderBy: { updatedAt: "desc" },
+      });
+      for (const art of found) {
+        if (!articles.some((a) => a.id === art.id)) articles.push(art);
+      }
+    } catch (err) {
+      console.error("[AI Assist] Wiki context lookup failed:", err.message);
+    }
+  }
+
+  if (articles.length === 0) {
+    try {
+      const recent = await prisma.wikiArticle.findMany({
+        orderBy: { updatedAt: "desc" },
+        take: 3,
+      });
+      articles.push(...recent);
+    } catch (err) {
+      console.error("[AI Assist] Recent wiki lookup failed:", err.message);
+    }
+  }
+
+  return articles.slice(0, limit).map((a) => {
+    const snippet = (a.content || "").replace(/\s+/g, " ").slice(0, 220);
+    return `- ${a.title} (${a.category}): ${snippet}${a.content?.length > 220 ? "…" : ""}`;
+  }).join("\n");
+}
+
+function buildAssistSystemPrompt(field, action) {
+  const outputRule = "Return ONLY the final field content. No labels, no preamble, no quotes around the whole answer.";
+
+  const prompts = {
+    alignment: {
+      generate: `Suggest a D&D 5e alignment that fits this NPC based on their profile. Optionally add one brief sentence explaining why. ${outputRule} Max 40 words.`,
+      clarify: `Clarify or refine the alignment text for this NPC. Keep it concise and grounded in their personality and history. ${outputRule} Max 40 words.`,
+    },
+    appearance: {
+      generate: `Write a physical appearance description for this NPC (2–4 sentences). Include distinctive visual details suitable for read-aloud at the table. Use light markdown if helpful. ${outputRule} 50–120 words.`,
+      expand: `Expand the appearance description with sensory details and distinctive visual traits. Preserve existing facts. ${outputRule}`,
+      read_aloud: `Rewrite the appearance as a DM read-aloud box in markdown blockquote format (> ...). ${outputRule}`,
+      make_dramatic: `Rewrite the appearance with dramatic, evocative fantasy prose while preserving facts. ${outputRule}`,
+    },
+    personality: {
+      generate: `Write personality traits for this NPC: traits, mannerisms, ideals, bonds, or flaws in a short paragraph or bullet list. ${outputRule} 40–100 words.`,
+      expand: `Expand the personality section with traits, speech patterns, and roleplay hooks. Preserve existing facts. ${outputRule}`,
+      summarize: `Summarize the personality into a tight bulleted list for quick DM reference. ${outputRule}`,
+      add_flaw: `Add a compelling flaw, secret, or contradiction to this NPC's personality. Integrate with existing traits if present. ${outputRule}`,
+    },
+    history: {
+      generate: `Write a brief backstory for this NPC (goals, past events, motivations). ${outputRule} 60–150 words.`,
+      expand: `Expand the backstory with hooks, secrets, and connections. Preserve existing facts. ${outputRule}`,
+      summarize: `Summarize the history into key bullet points for quick DM reference. ${outputRule}`,
+      campaign_tie: `Connect this NPC's history to the campaign lore provided in context. Add plausible ties without contradicting existing facts. ${outputRule}`,
+    },
+    partyRelationship: {
+      generate: `Describe how this NPC feels about and interacts with the player party (attitude, trust, goals, potential conflict). ${outputRule} 40–100 words.`,
+      expand: `Expand the party relationship with specific attitudes, rumors, and roleplay hooks. Preserve existing facts. ${outputRule}`,
+      friendly: `Rewrite the relationship so the NPC is broadly friendly or helpful toward the party while staying in character. ${outputRule}`,
+      hostile: `Rewrite the relationship so the NPC is suspicious, antagonistic, or opposed to the party while staying plausible. ${outputRule}`,
+    },
+    markdown: {
+      generate: `Draft campaign wiki content in markdown based on the article title, category, and tags in context. Include useful DM details and hooks. ${outputRule}`,
+      expand: `Expand this campaign wiki entry. Preserve facts; add sensory detail, lore depth, and DM hooks. ${outputRule}`,
+      summarize: `Provide a clean bulleted summary capturing all key points for quick DM reference. ${outputRule}`,
+      make_dramatic: `Rewrite with dramatic, classic D&D fantasy tone while preserving facts. ${outputRule}`,
+      style_5e: `Rewrite to sound like an official D&D 5e sourcebook entry using core-book conventions. ${outputRule}`,
+    },
+  };
+
+  const fieldPrompts = prompts[field] || prompts.markdown;
+  return fieldPrompts[action] || `You are a D&D campaign helper assisting a Dungeon Master. Rewrite or generate the requested field content. ${outputRule}`;
+}
+
+function buildAssistUserMessage(field, action, text, context = {}) {
+  const parts = [`TASK: ${action}`, `FIELD: ${field}`];
+
+  if (context.entityType === "npc" && context.npc) {
+    parts.push("\nNPC CONTEXT:");
+    parts.push(buildNpcProfileContext(context.npc, field !== "markdown" ? field : null));
+    if (field !== "markdown") {
+      parts.push("\nNOTE: Write only for the requested field. Do not repeat other fields verbatim.");
+    }
+  }
+
+  if (context.entityType === "article" && context.article) {
+    parts.push("\nARTICLE CONTEXT:");
+    parts.push(`- Title: ${context.article.title || "Untitled"}`);
+    parts.push(`- Category: ${context.article.category || "LORE"}`);
+    if (context.article.tags?.length) {
+      parts.push(`- Tags: ${context.article.tags.join(", ")}`);
+    }
+  }
+
+  if (context.campaignWiki) {
+    parts.push("\nCAMPAIGN LORE (for reference):");
+    parts.push(context.campaignWiki);
+  }
+
+  const trimmed = (text || "").trim();
+  if (trimmed) {
+    parts.push("\nCURRENT TEXT:");
+    parts.push(trimmed);
+  } else {
+    parts.push("\nCURRENT TEXT: (empty — generate fresh content from context above)");
+  }
+
+  return parts.join("\n");
+}
+
+async function loadAiSettings() {
+  const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"];
+  const records = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
+
+  let provider = "";
+  let apiKey = "";
+  let ollamaUrl = "http://localhost:11434";
+  let ollamaModel = "llama3";
+
+  for (const r of records) {
+    if (r.key === "ai.provider") provider = r.value;
+    if (r.key === "ai.apiKey") apiKey = r.value;
+    if (r.key === "ai.ollamaUrl") ollamaUrl = r.value;
+    if (r.key === "ai.ollamaModel") ollamaModel = r.value;
+  }
+
+  return { provider, apiKey, ollamaUrl, ollamaModel };
+}
+
+// ---------------------------------------------------------------------------
 // HTTP AI Call Core Function
 // ---------------------------------------------------------------------------
 async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history = []) {
@@ -620,27 +822,21 @@ router.post("/generate-npc", requireDm, async (req, res) => {
       return res.status(400).json({ error: "NPC prompt description is required." });
     }
 
-    const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"];
-    const records = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
-
-    let provider = "";
-    let apiKey = "";
-    let ollamaUrl = "http://localhost:11434";
-    let ollamaModel = "llama3";
-
-    for (const r of records) {
-      if (r.key === "ai.provider") provider = r.value;
-      if (r.key === "ai.apiKey") apiKey = r.value;
-      if (r.key === "ai.ollamaUrl") ollamaUrl = r.value;
-      if (r.key === "ai.ollamaModel") ollamaModel = r.value;
-    }
+    const { provider, apiKey, ollamaUrl, ollamaModel } = await loadAiSettings();
 
     if (!provider) {
       return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
     }
 
+    const campaignWiki = await fetchCampaignWikiSnippet(prompt);
+    const campaignBlock = campaignWiki
+      ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
+      : "";
+
     const systemPrompt = `You are a D&D 5e NPC and monster statblock generator. 
 Given a description of an NPC, generate a complete NPC profile.
+Match the requested difficulty/CR to the prompt. Narrative fields (appearance, personality, history, partyRelationship) should complement each other without repeating the same sentences.
+${campaignBlock}
 You MUST respond with a single JSON object (and NO other text). Do not wrap the JSON in codeblocks unless you are using Markdown, but it is preferred to output raw JSON. If you output code blocks, use \`\`\`json.
 The JSON must strictly conform to these fields:
 {
@@ -672,7 +868,7 @@ The JSON must strictly conform to these fields:
   ]
 }`;
 
-    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, `Create NPC: ${prompt}`);
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, `Create NPC: ${prompt.trim()}`);
 
     // Parse JSON safely
     let cleanJsonStr = rawResponse.trim();
@@ -704,42 +900,47 @@ The JSON must strictly conform to these fields:
 // ---------------------------------------------------------------------------
 router.post("/expand-text", requireDm, async (req, res) => {
   try {
-    const { text, action } = req.body;
-    if (!text || typeof text !== "string") {
-      return res.status(400).json({ error: "Text content is required." });
+    const { text, action, field, context } = req.body;
+    const fieldName = typeof field === "string" && field.trim() ? field.trim() : "markdown";
+    const actionName = typeof action === "string" && action.trim() ? action.trim() : "expand";
+    const currentText = typeof text === "string" ? text : "";
+
+    if (ASSIST_ACTIONS_REQUIRING_TEXT.has(actionName) && !currentText.trim()) {
+      return res.status(400).json({ error: "This action requires existing text in the field. Try Generate instead." });
     }
 
-    const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"];
-    const records = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
-
-    let provider = "";
-    let apiKey = "";
-    let ollamaUrl = "http://localhost:11434";
-    let ollamaModel = "llama3";
-
-    for (const r of records) {
-      if (r.key === "ai.provider") provider = r.value;
-      if (r.key === "ai.apiKey") apiKey = r.value;
-      if (r.key === "ai.ollamaUrl") ollamaUrl = r.value;
-      if (r.key === "ai.ollamaModel") ollamaModel = r.value;
-    }
+    const { provider, apiKey, ollamaUrl, ollamaModel } = await loadAiSettings();
 
     if (!provider) {
       return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
     }
 
-    let systemPrompt = "You are a D&D campaign helper assisting a Dungeon Master. Rewrite or generate the text as requested.";
-    if (action === "expand") {
-      systemPrompt = "Expand on the provided D&D lore description, adding flavor, sensory details, and worldbuilding depth in markdown.";
-    } else if (action === "summarize") {
-      systemPrompt = "Provide a clean, bulleted summary of the provided text, capturing all key points for a DM's quick reference.";
-    } else if (action === "make_dramatic") {
-      systemPrompt = "Rewrite the text to be dramatic, dark, and filled with classic D&D fantasy descriptions.";
-    } else if (action === "style_5e") {
-      systemPrompt = "Format and rewrite the text to sound like an official D&D 5e sourcebook page, using terms and layout conventions from the core books.";
+    const assistContext = context && typeof context === "object" ? { ...context } : {};
+    const needsCampaign =
+      actionName === "campaign_tie" ||
+      actionName === "generate" ||
+      fieldName === "markdown";
+
+    if (needsCampaign) {
+      const queryParts = [
+        currentText,
+        assistContext.npc?.name,
+        assistContext.npc?.race,
+        assistContext.article?.title,
+        ...(assistContext.article?.tags || []),
+      ].filter(Boolean);
+      assistContext.campaignWiki = await fetchCampaignWikiSnippet(queryParts.join(" "));
     }
 
-    const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, text);
+    const systemPrompt = buildAssistSystemPrompt(fieldName, actionName);
+    const userMessage = buildAssistUserMessage(fieldName, actionName, currentText, assistContext);
+    const rawReply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage);
+    const reply = cleanAiFieldOutput(rawReply, fieldName);
+
+    if (!reply) {
+      throw new Error("AI returned empty content.");
+    }
+
     res.json({ reply });
   } catch (err) {
     console.error("[AI Expand] Failed:", err.message);
@@ -796,24 +997,7 @@ Keep your responses concise, readable, and structured in Markdown.`;
     if (npcId) {
       const npc = await prisma.npc.findUnique({ where: { id: Number(npcId) } });
       if (npc) {
-        systemPrompt = `You are roleplaying as the D&D NPC named "${npc.name}".
-Stay in character AT ALL TIMES. Respond in character, using fantasy-themed tone and speech patterns appropriate for "${npc.name}".
-
-NPC PROFILE:
-- Name: ${npc.name}
-- Race: ${npc.race || "unknown"}
-- Class/Description: ${npc.class || "NPC"}
-- Level: ${npc.level}
-- AC: ${npc.ac} | HP: ${npc.hp}/${npc.maxHp} | CR: ${npc.cr}
-- Stats: STR:${npc.strength} DEX:${npc.dexterity} CON:${npc.constitution} INT:${npc.intelligence} WIS:${npc.wisdom} CHA:${npc.charisma}
-- Actions: ${npc.actions}
-- Inventory: ${npc.inventory}
-- Biography/Description: ${npc.description || ""}
-
-Local campaign context (if any rules are mentioned):
-${referenceContext}
-
-Respond to the user's message as "${npc.name}". Keep it immersive and engaging!`;
+        systemPrompt = buildNpcRoleplaySystemPrompt(npc, referenceContext);
       }
     }
 
@@ -829,5 +1013,7 @@ Respond to the user's message as "${npc.name}". Keep it immersive and engaging!`
 
 router.performAiCall = performAiCall;
 router.findRelevantRules = findRelevantRules;
+router.buildNpcProfileContext = buildNpcProfileContext;
+router.buildNpcRoleplaySystemPrompt = buildNpcRoleplaySystemPrompt;
 
 module.exports = router;

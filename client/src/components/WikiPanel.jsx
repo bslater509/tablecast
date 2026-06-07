@@ -15,6 +15,48 @@ marked.setOptions({
   breaks: true,
 });
 
+const AI_FIELD_ACTIONS = {
+  alignment: [
+    { action: "generate", label: "Suggest Alignment" },
+    { action: "clarify", label: "Clarify Morality", requiresText: true },
+  ],
+  appearance: [
+    { action: "generate", label: "Generate" },
+    { action: "expand", label: "Expand Details", requiresText: true },
+    { action: "read_aloud", label: "Read-Aloud Box", requiresText: true },
+    { action: "make_dramatic", label: "Make Dramatic", requiresText: true },
+  ],
+  personality: [
+    { action: "generate", label: "Generate Traits" },
+    { action: "expand", label: "Expand", requiresText: true },
+    { action: "summarize", label: "Summarize", requiresText: true },
+    { action: "add_flaw", label: "Add Flaw/Secret" },
+  ],
+  history: [
+    { action: "generate", label: "Generate Backstory" },
+    { action: "expand", label: "Expand", requiresText: true },
+    { action: "summarize", label: "Summarize", requiresText: true },
+    { action: "campaign_tie", label: "Tie to Campaign" },
+  ],
+  partyRelationship: [
+    { action: "generate", label: "Generate" },
+    { action: "friendly", label: "Make Friendly" },
+    { action: "hostile", label: "Make Hostile" },
+    { action: "expand", label: "Expand", requiresText: true },
+  ],
+  markdown: [
+    { action: "generate", label: "Generate Draft" },
+    { action: "expand", label: "Expand Lore", requiresText: true },
+    { action: "summarize", label: "Summarize", requiresText: true },
+    { action: "make_dramatic", label: "Make Dramatic", requiresText: true },
+    { action: "style_5e", label: "Format 5e Style", requiresText: true },
+  ],
+};
+
+const ASSIST_ACTIONS_REQUIRING_TEXT = new Set([
+  "expand", "summarize", "clarify", "make_dramatic", "style_5e", "read_aloud",
+]);
+
 // Interactive 5e Statblock Sub-component for NPCs
 function NpcStatblock({ npc, socket, isDM, onHpChange }) {
   const getMod = (score) => {
@@ -238,6 +280,8 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [npcGenLoading, setNpcGenLoading] = useState(false);
   const [npcGenError, setNpcGenError] = useState(null);
   const [showAssistDropdown, setShowAssistDropdown] = useState(null); // field name or null
+  const [assistLoadingField, setAssistLoadingField] = useState(null);
+  const [assistUndo, setAssistUndo] = useState(null); // { fieldId, previousText, isNpcField }
 
   // Determine if user has DM privileges
   const isDM = user?.role === "DM";
@@ -255,30 +299,76 @@ export default function WikiPanel({ user, isPopout = false }) {
     }
   };
 
+  const buildAssistContext = (fieldId) => {
+    if (fieldId === "markdown") {
+      return {
+        entityType: "article",
+        article: {
+          title: editTitle,
+          category: editCategory,
+          tags: editTags,
+        },
+      };
+    }
+    if (!editingNpc) return {};
+    return {
+      entityType: "npc",
+      npc: {
+        name: editingNpc.name,
+        race: editingNpc.race,
+        class: editingNpc.class,
+        level: editingNpc.level,
+        alignment: editingNpc.alignment,
+        ac: editingNpc.ac,
+        hp: editingNpc.hp,
+        maxHp: editingNpc.maxHp,
+        cr: editingNpc.cr,
+        strength: editingNpc.strength,
+        dexterity: editingNpc.dexterity,
+        constitution: editingNpc.constitution,
+        intelligence: editingNpc.intelligence,
+        wisdom: editingNpc.wisdom,
+        charisma: editingNpc.charisma,
+        appearance: editingNpc.appearance,
+        personality: editingNpc.personality,
+        history: editingNpc.history,
+        partyRelationship: editingNpc.partyRelationship,
+        description: editingNpc.description,
+      },
+    };
+  };
+
   const handleApplyAssist = async (fieldId, action) => {
     const isNpcField = fieldId !== "markdown";
     let currentText = "";
-    
+
     if (isNpcField) {
-      currentText = editingNpc[fieldId] || "";
+      currentText = editingNpc?.[fieldId] || "";
     } else {
       currentText = editContent || "";
     }
 
-    if (!currentText.trim()) {
-      alert("Please enter some text in the field first before using AI Assist.");
+    if (ASSIST_ACTIONS_REQUIRING_TEXT.has(action) && !currentText.trim()) {
+      setEditorError("Add a seed phrase in this field, or choose Generate.");
       setShowAssistDropdown(null);
       return;
     }
 
-    setEditorError("AI is thinking... please wait.");
+    setEditorError(null);
+    setAssistLoadingField(fieldId);
     setShowAssistDropdown(null);
+    setAssistUndo({ fieldId, previousText: currentText, isNpcField });
 
     try {
       const res = await fetch("/api/ai/expand-text", {
         method: "POST",
         headers: jsonAuthHeaders,
-        body: JSON.stringify({ text: currentText, action }),
+        body: JSON.stringify({
+          text: currentText,
+          action,
+          field: fieldId,
+          context: buildAssistContext(fieldId),
+        }),
       });
 
       if (!res.ok) {
@@ -287,20 +377,33 @@ export default function WikiPanel({ user, isPopout = false }) {
       }
 
       const data = await res.json();
-      
+
       if (isNpcField) {
-        setEditingNpc(prev => ({
+        setEditingNpc((prev) => ({
           ...prev,
-          [fieldId]: data.reply
+          [fieldId]: data.reply,
         }));
       } else {
         setEditContent(data.reply);
       }
-      setEditorError(null);
     } catch (err) {
       console.error("[AI Assist Error]", err);
+      setAssistUndo(null);
       setEditorError(`AI Assist failed: ${err.message}`);
+    } finally {
+      setAssistLoadingField(null);
     }
+  };
+
+  const handleAssistUndo = () => {
+    if (!assistUndo) return;
+    const { fieldId, previousText, isNpcField } = assistUndo;
+    if (isNpcField) {
+      setEditingNpc((prev) => ({ ...prev, [fieldId]: previousText }));
+    } else {
+      setEditContent(previousText);
+    }
+    setAssistUndo(null);
   };
 
   // Close dropdown on click outside
@@ -376,27 +479,74 @@ export default function WikiPanel({ user, isPopout = false }) {
   }
 
   const renderAiAssistButton = (fieldName) => {
+    const actions = AI_FIELD_ACTIONS[fieldName] || AI_FIELD_ACTIONS.markdown;
+    const isLoading = assistLoadingField === fieldName;
+    const currentText = fieldName === "markdown"
+      ? (editContent || "")
+      : (editingNpc?.[fieldName] || "");
+
     return (
       <div style={{ position: "relative", display: "inline-block" }}>
         <button
           type="button"
           title="AI Assist"
+          disabled={isLoading}
           onClick={(e) => handleToggleAssistDropdown(e, fieldName)}
-          style={{ ...styles.toolbarBtn, color: "var(--color-accent)", width: "auto", padding: "0 0.5rem", gap: "0.25rem" }}
+          style={{
+            ...styles.toolbarBtn,
+            color: "var(--color-accent)",
+            width: "auto",
+            padding: "0 0.5rem",
+            gap: "0.25rem",
+            opacity: isLoading ? 0.6 : 1,
+          }}
           className="touch-target btn-hover-scale"
         >
-          ✨ AI Assist
+          {isLoading ? "✨ Thinking…" : "✨ AI Assist"}
         </button>
-        {showAssistDropdown === fieldName && (
+        {showAssistDropdown === fieldName && !isLoading && (
           <div style={styles.assistDropdown} onClick={(e) => e.stopPropagation()}>
-            <button type="button" onClick={() => handleApplyAssist(fieldName, "expand")} className="assist-option" style={styles.assistOption}>Expand Lore</button>
-            <button type="button" onClick={() => handleApplyAssist(fieldName, "summarize")} className="assist-option" style={styles.assistOption}>Summarize</button>
-            <button type="button" onClick={() => handleApplyAssist(fieldName, "make_dramatic")} className="assist-option" style={styles.assistOption}>Make Dramatic</button>
-            <button type="button" onClick={() => handleApplyAssist(fieldName, "style_5e")} className="assist-option" style={styles.assistOption}>Format 5e Style</button>
+            {actions.map(({ action, label, requiresText }) => {
+              const disabled = requiresText && !currentText.trim();
+              return (
+                <button
+                  key={action}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => handleApplyAssist(fieldName, action)}
+                  className="assist-option"
+                  style={{
+                    ...styles.assistOption,
+                    opacity: disabled ? 0.4 : 1,
+                    cursor: disabled ? "not-allowed" : "pointer",
+                  }}
+                  title={disabled ? "Add text first or use Generate" : label}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
     );
+  };
+
+  const renderAssistStatusBar = () => {
+    if (assistLoadingField) {
+      return <p style={styles.assistStatusText}>✨ AI is working on {assistLoadingField}…</p>;
+    }
+    if (assistUndo) {
+      return (
+        <p style={styles.assistStatusText}>
+          AI update applied.{" "}
+          <button type="button" onClick={handleAssistUndo} style={styles.assistUndoBtn} className="touch-target">
+            Undo
+          </button>
+        </p>
+      );
+    }
+    return null;
   };
 
   const calculateModifier = (score) => {
@@ -814,6 +964,9 @@ export default function WikiPanel({ user, isPopout = false }) {
     setIsEditing(false);
     setEditingNpc(null);
     setEditorError(null);
+    setAssistLoadingField(null);
+    setAssistUndo(null);
+    setShowAssistDropdown(null);
   }
 
   // Delete flow confirmation triggers
@@ -1084,6 +1237,7 @@ export default function WikiPanel({ user, isPopout = false }) {
             </header>
 
             <div style={styles.editorBody}>
+              {renderAssistStatusBar()}
               {editorError && <p style={styles.editorErrorText}>⚠️ {editorError}</p>}
 
               {/* Identity & Basic Combat Stats */}
@@ -1558,6 +1712,7 @@ export default function WikiPanel({ user, isPopout = false }) {
             </header>
 
             <div style={styles.editorBody}>
+              {renderAssistStatusBar()}
               {editorError && <p style={styles.editorErrorText}>⚠️ {editorError}</p>}
 
               <div style={styles.formRow}>
@@ -2645,6 +2800,25 @@ const styles = {
     padding: "0.5rem",
     borderRadius: "4px",
     margin: 0,
+  },
+  assistStatusText: {
+    color: "var(--color-accent)",
+    fontSize: "0.8rem",
+    background: "rgba(200, 151, 58, 0.08)",
+    border: "1px solid rgba(200, 151, 58, 0.2)",
+    padding: "0.5rem",
+    borderRadius: "4px",
+    margin: 0,
+  },
+  assistUndoBtn: {
+    background: "transparent",
+    border: "none",
+    color: "var(--color-accent)",
+    textDecoration: "underline",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+    padding: 0,
+    fontWeight: "600",
   },
   formRow: {
     display: "flex",

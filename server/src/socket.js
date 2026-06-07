@@ -63,7 +63,7 @@ function registerSocketHandlers(io) {
 
       // --- Intercept AI Assistant Commands ---
       try {
-        const { performAiCall, findRelevantRules } = require("./routes/ai");
+        const { performAiCall, findRelevantRules, buildNpcRoleplaySystemPrompt } = require("./routes/ai");
 
         // Fetch user from DB to evaluate role and permissions
         let userObj = null;
@@ -182,24 +182,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           }
 
           const ruleContext = await findRelevantRules(messageText, userObj);
-          const systemPrompt = `You are roleplaying as the D&D NPC named "${npc.name}".
-Stay in character AT ALL TIMES. Respond in character, using fantasy-themed tone and speech patterns appropriate for "${npc.name}".
-
-NPC PROFILE:
-- Name: ${npc.name}
-- Race: ${npc.race || "unknown"}
-- Class/Description: ${npc.class || "NPC"}
-- Level: ${npc.level}
-- AC: ${npc.ac} | HP: ${npc.hp}/${npc.maxHp} | CR: ${npc.cr}
-- Stats: STR:${npc.strength} DEX:${npc.dexterity} CON:${npc.constitution} INT:${npc.intelligence} WIS:${npc.wisdom} CHA:${npc.charisma}
-- Actions: ${npc.actions}
-- Inventory: ${npc.inventory}
-- Biography/Description: ${npc.description || ""}
-
-Local campaign context (if any rules are mentioned):
-${ruleContext}
-
-Respond to the user's message as "${npc.name}". Keep it immersive, flavorful, and relatively short.`;
+          const systemPrompt = buildNpcRoleplaySystemPrompt(npc, ruleContext);
 
           const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, messageText);
           await emitPersistedChatMessage(io, {
