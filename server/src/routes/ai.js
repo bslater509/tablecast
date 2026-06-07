@@ -345,18 +345,6 @@ async function fetchCampaignWikiSnippet(queryText, limit = 5) {
     }
   }
 
-  if (articles.length === 0) {
-    try {
-      const recent = await prisma.wikiArticle.findMany({
-        orderBy: { updatedAt: "desc" },
-        take: 3,
-      });
-      articles.push(...recent);
-    } catch (err) {
-      console.error("[AI Assist] Recent wiki lookup failed:", err.message);
-    }
-  }
-
   return articles.slice(0, limit).map((a) => {
     const snippet = (a.content || "").replace(/\s+/g, " ").slice(0, 220);
     return `- ${a.title} (${a.category}): ${snippet}${a.content?.length > 220 ? "…" : ""}`;
