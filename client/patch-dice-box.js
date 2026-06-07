@@ -6,7 +6,7 @@ const targetDir = path.join(__dirname, 'node_modules', '@3d-dice', 'dice-box', '
 const filesToPatch = [
   {
     name: 'world.onscreen.js',
-    search: `    r.Vertex_Definitions(\`
+    search: `r.Vertex_Definitions(\`
       attribute vec3 customColor;
       varying vec3 vColor;
     \`).Vertex_MainEnd(\`
@@ -18,10 +18,7 @@ const filesToPatch = [
     \`), r.AddAttribute("customColor");
     const n = r.clone(t + "_dark");
     i.diffuseTexture && i.diffuseTexture.dark && (s.material.diffuseTexture = e.material.diffuseTexture.dark, n.diffuseTexture = await this.getTexture("diffuse", s)), n.AddAttribute("customColor");`,
-    replace: `    if (i.alpha !== undefined) r.alpha = i.alpha;
-    if (i.backFaceCulling !== undefined) r.backFaceCulling = i.backFaceCulling;
-
-    r.Vertex_Definitions(\`
+    replace: `r.Vertex_Definitions(\`
       attribute vec3 customColor;
       varying vec3 vColor;
     \`).Vertex_MainEnd(\`
@@ -31,18 +28,17 @@ const filesToPatch = [
     \`).Fragment_Custom_Diffuse(\`
       baseColor.rgb = mix(vColor.rgb * baseColor.rgb, baseColor.rgb, baseColor.a);
     \`);
-
+    if (i.alpha !== undefined) r.alpha = i.alpha;
+    if (i.backFaceCulling !== undefined) r.backFaceCulling = i.backFaceCulling;
     if (i.alpha !== undefined && i.alpha < 1.0) {
       r.Fragment_Custom_Alpha(\`
         alpha = mix(\` + i.alpha + \`, 1.0, baseColor.a);
       \`);
     }
-
     r.AddAttribute("customColor");
     const n = r.clone(t + "_dark");
     if (i.alpha !== undefined) n.alpha = i.alpha;
     if (i.backFaceCulling !== undefined) n.backFaceCulling = i.backFaceCulling;
-
     i.diffuseTexture && i.diffuseTexture.dark && (s.material.diffuseTexture = e.material.diffuseTexture.dark, n.diffuseTexture = await this.getTexture("diffuse", s)), n.AddAttribute("customColor");`
   },
   {
@@ -80,7 +76,7 @@ function patchFile(fileInfo) {
   }
 
   const content = fs.readFileSync(filePath, 'utf8');
-  if (content.includes('Fragment_Custom_Alpha') || content.includes('alpha = mix(')) {
+  if (content.includes('alpha = mix(')) {
     console.log(`[DiceBox Patch] ${fileInfo.name} is already patched.`);
     return;
   }
