@@ -8,13 +8,13 @@
     "type": "color",
     "diffuseTexture": {
       "light": "diffuse-light.png",
-      "dark": "../default/diffuse-dark.png"
+      "dark": "diffuse-dark.png"
     },
-    "diffuseLevel": 1.1,
+    "diffuseLevel": 1.04,
     "bumpTexture": "../default/normal.png",
-    "bumpLevel": 2.5,
+    "bumpLevel": 2.0,
     "specularTexture": "../default/specular.jpg",
-    "specularPower": 0.2
+    "specularPower": 0.18
   },
   "diceAvailable": ["d4","d6","d8","d10","d12","d20","d100"]
 }

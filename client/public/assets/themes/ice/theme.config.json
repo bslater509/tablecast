@@ -1,22 +1,22 @@
 {
-  "name": "Frosty Ice",
+  "name": "Frost Shard",
   "systemName": "ice",
   "author": "Antigravity",
   "version": 1.0,
   "meshFile": "../default/default.json",
   "material": {
     "type": "color",
-    "alpha": 0.65,
+    "alpha": 0.68,
     "backFaceCulling": false,
     "diffuseTexture": {
       "light": "diffuse-light.png",
-      "dark": "../default/diffuse-dark.png"
+      "dark": "diffuse-dark.png"
     },
-    "diffuseLevel": 0.8,
+    "diffuseLevel": 0.72,
     "bumpTexture": "../default/normal.png",
-    "bumpLevel": 0.3,
+    "bumpLevel": 0.16,
     "specularTexture": "../default/specular.jpg",
-    "specularPower": 6.0
+    "specularPower": 16.0
   },
   "diceAvailable": ["d4","d6","d8","d10","d12","d20","d100"]
 }

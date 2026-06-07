@@ -1,22 +1,22 @@
 {
-  "name": "Clear Glass",
+  "name": "Astral Glass",
   "systemName": "glass",
   "author": "Antigravity",
   "version": 1.0,
   "meshFile": "../default/default.json",
   "material": {
     "type": "color",
-    "alpha": 0.35,
+    "alpha": 0.42,
     "backFaceCulling": false,
     "diffuseTexture": {
-      "light": "../default/diffuse-light.png",
-      "dark": "../default/diffuse-dark.png"
+      "light": "diffuse-light.png",
+      "dark": "diffuse-dark.png"
     },
-    "diffuseLevel": 0.4,
+    "diffuseLevel": 0.32,
     "bumpTexture": "../default/normal.png",
-    "bumpLevel": 0.05,
+    "bumpLevel": 0.02,
     "specularTexture": "../default/specular.jpg",
-    "specularPower": 10.0
+    "specularPower": 24.0
   },
   "diceAvailable": ["d4","d6","d8","d10","d12","d20","d100"]
 }

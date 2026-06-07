@@ -1,5 +1,5 @@
 {
-  "name": "Ancient Wood",
+  "name": "Elderwood",
   "systemName": "wood",
   "author": "Antigravity",
   "version": 1.0,
@@ -8,13 +8,13 @@
     "type": "color",
     "diffuseTexture": {
       "light": "diffuse-light.png",
-      "dark": "../default/diffuse-dark.png"
+      "dark": "diffuse-dark.png"
     },
-    "diffuseLevel": 0.9,
+    "diffuseLevel": 0.95,
     "bumpTexture": "../default/normal.png",
-    "bumpLevel": 1.5,
+    "bumpLevel": 1.35,
     "specularTexture": "../default/specular.jpg",
-    "specularPower": 1.0
+    "specularPower": 0.55
   },
   "diceAvailable": ["d4","d6","d8","d10","d12","d20","d100"]
 }

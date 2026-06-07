@@ -348,7 +348,7 @@ const styles = {
   },
   presetGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(8, minmax(34px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(44px, 1fr))",
     gap: "0.5rem",
   },
   presetBtn: {
