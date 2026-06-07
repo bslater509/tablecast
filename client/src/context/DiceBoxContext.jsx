@@ -12,6 +12,16 @@ export function DiceBoxProvider({ children }) {
   // Keep queue in state to trigger re-renders when queue changes
   const [queue, setQueue] = useState([]);
   const queueRef = useRef([]);
+  const [toasts, setToasts] = useState([]);
+
+  // Trigger toast notifications
+  const showToast = useCallback((toast) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, ...toast }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -51,6 +61,15 @@ export function DiceBoxProvider({ children }) {
             })
           );
 
+          // Trigger global roll result toast notification
+          showToast({
+            sender: activeRoll.sender || "Someone",
+            rollName: activeRoll.rollName || "Dice Roll",
+            formula: activeRoll.formula || "1d20",
+            total: activeRoll.total !== undefined ? activeRoll.total : "?",
+            color: activeRoll.color,
+          });
+
           // Remove completed roll from queue
           queueRef.current.shift();
           setQueue([...queueRef.current]);
@@ -74,7 +93,7 @@ export function DiceBoxProvider({ children }) {
         diceBoxRef.current = null;
       }
     };
-  }, []);
+  }, [showToast]);
 
   // Process the queue
   useEffect(() => {
@@ -136,7 +155,7 @@ export function DiceBoxProvider({ children }) {
   }, [isReady, isRolling, queue]);
 
   // Queue a roll
-  const trigger3DRoll = useCallback((messageId, dice3d, color, theme) => {
+  const trigger3DRoll = useCallback((messageId, dice3d, color, theme, sender, rollName, formula, total) => {
     if (!dice3d || dice3d.length === 0) {
       // Immediate completion if no 3D dice configured
       window.dispatchEvent(
@@ -147,8 +166,8 @@ export function DiceBoxProvider({ children }) {
       return;
     }
 
-    console.log("[3D Dice] Queueing roll:", dice3d, "with theme:", theme);
-    queueRef.current.push({ messageId, dice3d, color, theme });
+    console.log("[3D Dice] Queueing roll:", dice3d, "with theme:", theme, "for:", sender);
+    queueRef.current.push({ messageId, dice3d, color, theme, sender, rollName, formula, total });
     setQueue([...queueRef.current]);
   }, [setQueue]);
 
@@ -164,7 +183,11 @@ export function DiceBoxProvider({ children }) {
           msg.id,
           msg.rollDetails.dice3d,
           msg.rollDetails.diceColor,
-          msg.rollDetails.diceTheme
+          msg.rollDetails.diceTheme,
+          msg.sender,
+          msg.rollDetails.rollName,
+          msg.rollDetails.formula,
+          msg.rollDetails.total
         );
       }
     }
@@ -194,6 +217,32 @@ export function DiceBoxProvider({ children }) {
           opacity: isRolling ? 1 : 0,
         }}
       />
+      {/* Global Toasts Container */}
+      <div style={styles.toastContainer}>
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            style={{
+              ...styles.toast,
+              borderLeft: `4px solid ${t.color || "var(--color-accent, #c8973a)"}`,
+            }}
+            className="glass-panel slide-down"
+          >
+            <div style={styles.toastIcon}>🎲</div>
+            <div style={styles.toastBody}>
+              <div style={styles.toastHeader}>
+                <span style={styles.toastSender}>{t.sender}</span>
+                <span style={styles.toastAction}> rolled </span>
+                <span style={styles.toastFormula}>{t.rollName} ({t.formula})</span>
+              </div>
+              <div style={styles.toastTotalRow}>
+                <span style={styles.toastTotalLabel}>Total:</span>
+                <span style={{ ...styles.toastTotalValue, color: t.color || "var(--color-accent, #c8973a)" }}>{t.total}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </DiceBoxContext.Provider>
   );
 }
@@ -205,3 +254,74 @@ export function useDiceBox() {
   }
   return ctx;
 }
+
+const styles = {
+  toastContainer: {
+    position: "fixed",
+    top: "4rem", // Just below top header banner
+    left: "50%",
+    transform: "translateX(-50%)",
+    zIndex: 10500,
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    width: "90%",
+    maxWidth: "360px",
+    pointerEvents: "none",
+  },
+  toast: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+    padding: "0.75rem 1rem",
+    borderRadius: "8px",
+    background: "rgba(10, 8, 20, 0.92)",
+    backdropFilter: "blur(12px)",
+    border: "1px solid rgba(255, 255, 255, 0.08)",
+    boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+    pointerEvents: "auto",
+  },
+  toastIcon: {
+    fontSize: "1.5rem",
+    display: "flex",
+    alignItems: "center",
+  },
+  toastBody: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.15rem",
+    flex: 1,
+  },
+  toastHeader: {
+    fontSize: "0.82rem",
+    color: "#e2e8f0",
+  },
+  toastSender: {
+    fontWeight: "bold",
+    color: "#ffffff",
+  },
+  toastAction: {
+    color: "#94a3b8",
+  },
+  toastFormula: {
+    color: "#cbd5e1",
+    fontStyle: "italic",
+  },
+  toastTotalRow: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: "0.35rem",
+    marginTop: "0.1rem",
+  },
+  toastTotalLabel: {
+    fontSize: "0.75rem",
+    color: "#94a3b8",
+    fontWeight: 600,
+    textTransform: "uppercase",
+  },
+  toastTotalValue: {
+    fontSize: "1.25rem",
+    fontWeight: "bold",
+    textShadow: "0 0 8px rgba(200, 151, 58, 0.15)",
+  },
+};

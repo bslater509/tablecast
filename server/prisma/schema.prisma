@@ -283,3 +283,19 @@ model EncounterParticipant {
 
   @@map("encounter_participants")
 }
+
+/// A history record of a dice roll made by a player or DM.
+model Roll {
+  id        Int      @id @default(autoincrement())
+  sender    String
+  rollName  String   @default("Dice Roll")
+  formula   String
+  rolls     String   // Store as JSON string: e.g. "[18]" or "[10, 5]"
+  modifier  Int      @default(0)
+  total     Int
+  diceColor String   @default("#7c3aed")
+  createdAt DateTime @default(now())
+
+  @@map("rolls")
+}
+

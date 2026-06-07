@@ -120,6 +120,9 @@ const DICE_TYPES = [
 
 export default function DiceRollerPanel({ user }) {
   const { socket } = useSocket();
+  const [activeSubTab, setActiveSubTab] = useState("roller"); // "roller" | "history"
+  const [history, setHistory] = useState([]);
+
   const [quantities, setQuantities] = useState({
     d4: 0,
     d6: 0,
@@ -132,12 +135,58 @@ export default function DiceRollerPanel({ user }) {
   const [modifier, setModifier] = useState(0);
   const [rollLabel, setRollLabel] = useState("");
   const [advantage, setAdvantage] = useState("normal"); // "normal" | "advantage" | "disadvantage"
-  const [recentRolls, setRecentRolls] = useState([]);
   const [webGlSupported, setWebGlSupported] = useState(true);
 
   useEffect(() => {
     setWebGlSupported(checkWebGLSupport());
   }, []);
+
+  // Fetch initial roll history from database
+  useEffect(() => {
+    async function loadRollHistory() {
+      try {
+        const res = await fetch("/api/rolls");
+        if (res.ok) {
+          const data = await res.json();
+          setHistory(data);
+        }
+      } catch (err) {
+        console.error("Failed to load roll history:", err);
+      }
+    }
+    loadRollHistory();
+  }, []);
+
+  // Real-time synchronization of shared roll history
+  useEffect(() => {
+    if (!socket) return;
+
+    function handleIncomingRoll(msg) {
+      if (msg.type === "roll" && msg.rollDetails) {
+        const newRecord = {
+          id: msg.id,
+          sender: msg.sender,
+          rollName: msg.rollDetails.rollName || "Dice Roll",
+          formula: msg.rollDetails.formula || "",
+          rolls: JSON.stringify(msg.rollDetails.rolls || []),
+          modifier: msg.rollDetails.modifier || 0,
+          total: msg.rollDetails.total || 0,
+          diceColor: msg.rollDetails.diceColor || "#7c3aed",
+          createdAt: new Date(msg.timestamp || Date.now()).toISOString(),
+        };
+        setHistory((prev) => {
+          // Avoid duplicate appends
+          if (prev.some((r) => r.id === newRecord.id)) return prev;
+          return [newRecord, ...prev].slice(0, 50);
+        });
+      }
+    }
+
+    socket.on("chat:message", handleIncomingRoll);
+    return () => {
+      socket.off("chat:message", handleIncomingRoll);
+    };
+  }, [socket]);
 
   // Sender Name: Use the assigned character name (if any), fallback to username.
   const senderName = user?.characters?.[0]?.name || user?.username || "Anonymous";
@@ -251,25 +300,11 @@ export default function DiceRollerPanel({ user }) {
     }
 
     const completedFormula = formulaParts.join(" ");
-    const modSign = modifier >= 0 ? "+" : "";
-    const formattedMod = modifier !== 0 ? ` ${modSign} ${Math.abs(modifier)}` : "";
     
     // Create descriptive summary text
     let descriptionText = `rolled ${getFormulaPreview()}! Total: ${finalTotal}`;
 
-    // Update local history
-    const newRollRecord = {
-      id: Date.now(),
-      label: rollLabel.trim() || "Dice Roll",
-      formula: completedFormula,
-      total: finalTotal,
-      rolls: rolls,
-      modifier: modifier,
-      timestamp: Date.now(),
-    };
-    setRecentRolls((prev) => [newRollRecord, ...prev].slice(0, 5));
-
-    // Emit to socket server
+    // Emit to socket server (which will auto-write to the DB and broadcast)
     socket.emit("chat:send", {
       sender: senderName,
       text: descriptionText,
@@ -287,247 +322,303 @@ export default function DiceRollerPanel({ user }) {
         dice3d: dice3d,
       },
     });
-
-    // Clear quantities after rolling for convenient next rolls (optional, but keep label/modifier)
-    // Actually, keep them selected in case they want to roll again immediately! D&D combat often involves repeating the same rolls.
   };
 
   return (
     <div style={styles.container}>
-      <div style={styles.scrollWrapper}>
+      {/* Sub-tab Toggle Navigation */}
+      <div style={styles.subTabNav} className="glass-panel">
+        <button
+          onClick={() => setActiveSubTab("roller")}
+          style={{
+            ...styles.subTabBtn,
+            background: activeSubTab === "roller" ? "var(--color-accent-dim)" : "transparent",
+            color: activeSubTab === "roller" ? "var(--color-accent)" : "var(--color-muted)",
+            border: activeSubTab === "roller" ? "1px solid var(--color-border)" : "1px solid transparent",
+          }}
+          className="touch-target"
+        >
+          Roll Dice
+        </button>
+        <button
+          onClick={() => setActiveSubTab("history")}
+          style={{
+            ...styles.subTabBtn,
+            background: activeSubTab === "history" ? "var(--color-accent-dim)" : "transparent",
+            color: activeSubTab === "history" ? "var(--color-accent)" : "var(--color-muted)",
+            border: activeSubTab === "history" ? "1px solid var(--color-border)" : "1px solid transparent",
+          }}
+          className="touch-target"
+        >
+          Roll History
+        </button>
+      </div>
+
+      <div
+        style={{
+          ...styles.scrollWrapper,
+          paddingBottom: activeSubTab === "roller" ? "130px" : "20px",
+        }}
+      >
         <div style={styles.content}>
-          <div style={styles.headerRow}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <h2 style={styles.title}>Dice Roller</h2>
-              <span
-                style={{
-                  fontSize: "0.68rem",
-                  color: webGlSupported ? "var(--color-success)" : "var(--color-danger)",
-                  background: webGlSupported ? "rgba(111, 207, 151, 0.1)" : "rgba(235, 87, 87, 0.1)",
-                  padding: "0.15rem 0.45rem",
-                  borderRadius: "4px",
-                  border: webGlSupported ? "1px solid rgba(111, 207, 151, 0.25)" : "1px solid rgba(235, 87, 87, 0.25)",
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {webGlSupported ? "● 3D Dice Active" : "● WebGL Offline"}
-              </span>
-            </div>
-            <button
-              onClick={handleClear}
-              style={styles.clearBtn}
-              className="touch-target btn-hover-scale glass-panel"
-            >
-              Clear Pool
-            </button>
-          </div>
-
-          {/* Dice Selection Grid */}
-          <div style={styles.diceGrid}>
-            {DICE_TYPES.map((die) => {
-              const qty = quantities[die.id] || 0;
-              return (
-                <div
-                  key={die.id}
-                  style={{
-                    ...styles.dieCard,
-                    borderColor: qty > 0 ? die.color : "rgba(255,255,255,0.06)",
-                    background: qty > 0 ? `rgba(${hexToRgb(die.color)}, 0.08)` : "rgba(255,255,255,0.02)",
-                  }}
-                  className="glass-panel"
-                >
-                  <div
-                    onClick={() => handleDieTap(die.id)}
-                    style={styles.dieVisualArea}
-                    title="Tap to add die"
+          {activeSubTab === "roller" ? (
+            <>
+              {/* Header Status */}
+              <div style={styles.headerRow}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <h2 style={styles.title}>Dice Roller</h2>
+                  <span
+                    style={{
+                      fontSize: "0.68rem",
+                      color: webGlSupported ? "var(--color-success)" : "var(--color-danger)",
+                      background: webGlSupported ? "rgba(111, 207, 151, 0.1)" : "rgba(235, 87, 87, 0.1)",
+                      padding: "0.15rem 0.45rem",
+                      borderRadius: "4px",
+                      border: webGlSupported ? "1px solid rgba(111, 207, 151, 0.25)" : "1px solid rgba(235, 87, 87, 0.25)",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
                   >
-                    {die.svg(qty > 0 ? die.color : "var(--color-muted)")}
-                    <span style={{ ...styles.dieLabel, color: qty > 0 ? die.color : "var(--color-muted)" }}>
-                      {die.label.toUpperCase()}
-                    </span>
-                  </div>
+                    {webGlSupported ? "● 3D Dice Active" : "● WebGL Offline"}
+                  </span>
+                </div>
+                <button
+                  onClick={handleClear}
+                  style={styles.clearBtn}
+                  className="touch-target btn-hover-scale glass-panel"
+                >
+                  Clear Pool
+                </button>
+              </div>
 
-                  <div style={styles.controlsRow}>
+              {/* Dice Selection Grid */}
+              <div style={styles.diceGrid}>
+                {DICE_TYPES.map((die) => {
+                  const qty = quantities[die.id] || 0;
+                  return (
+                    <div
+                      key={die.id}
+                      style={{
+                        ...styles.dieCard,
+                        borderColor: qty > 0 ? die.color : "rgba(255,255,255,0.06)",
+                        background: qty > 0 ? `rgba(${hexToRgb(die.color)}, 0.08)` : "rgba(255,255,255,0.02)",
+                      }}
+                      className="glass-panel"
+                    >
+                      <div
+                        onClick={() => handleDieTap(die.id)}
+                        style={styles.dieVisualArea}
+                        title="Tap to add die"
+                      >
+                        {die.svg(qty > 0 ? die.color : "var(--color-muted)")}
+                        <span style={{ ...styles.dieLabel, color: qty > 0 ? die.color : "var(--color-muted)" }}>
+                          {die.label.toUpperCase()}
+                        </span>
+                      </div>
+
+                      <div style={styles.controlsRow}>
+                        <button
+                          onClick={() => adjustQuantity(die.id, -1)}
+                          style={styles.adjustBtn}
+                          className="touch-target"
+                          disabled={qty === 0}
+                        >
+                          －
+                        </button>
+                        <span style={{ ...styles.quantityDisplay, color: qty > 0 ? "var(--color-text)" : "var(--color-muted)" }}>
+                          {qty}
+                        </span>
+                        <button
+                          onClick={() => adjustQuantity(die.id, 1)}
+                          style={styles.adjustBtn}
+                          className="touch-target"
+                        >
+                          ＋
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Modifier and Label Section */}
+              <div style={styles.inputsSection} className="glass-panel">
+                <div style={styles.inputGroup}>
+                  <label style={styles.inputLabel}>Flat Modifier</label>
+                  <div style={styles.modifierControl}>
                     <button
-                      onClick={() => adjustQuantity(die.id, -1)}
-                      style={styles.adjustBtn}
+                      onClick={() => setModifier((m) => m - 1)}
+                      style={styles.modAdjustBtn}
                       className="touch-target"
-                      disabled={qty === 0}
                     >
                       －
                     </button>
-                    <span style={{ ...styles.quantityDisplay, color: qty > 0 ? "var(--color-text)" : "var(--color-muted)" }}>
-                      {qty}
-                    </span>
+                    <input
+                      type="number"
+                      value={modifier}
+                      onChange={(e) => setModifier(parseInt(e.target.value) || 0)}
+                      style={styles.modInput}
+                      className="form-input"
+                    />
                     <button
-                      onClick={() => adjustQuantity(die.id, 1)}
-                      style={styles.adjustBtn}
+                      onClick={() => setModifier((m) => m + 1)}
+                      style={styles.modAdjustBtn}
                       className="touch-target"
                     >
                       ＋
                     </button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
 
-          {/* Modifier and Label Section */}
-          <div style={styles.inputsSection} className="glass-panel">
-            <div style={styles.inputGroup}>
-              <label style={styles.inputLabel}>Flat Modifier</label>
-              <div style={styles.modifierControl}>
-                <button
-                  onClick={() => setModifier((m) => m - 1)}
-                  style={styles.modAdjustBtn}
-                  className="touch-target"
-                >
-                  －
-                </button>
-                <input
-                  type="number"
-                  value={modifier}
-                  onChange={(e) => setModifier(parseInt(e.target.value) || 0)}
-                  style={styles.modInput}
-                  className="form-input"
-                />
-                <button
-                  onClick={() => setModifier((m) => m + 1)}
-                  style={styles.modAdjustBtn}
-                  className="touch-target"
-                >
-                  ＋
-                </button>
+                <div style={styles.inputGroup}>
+                  <label style={styles.inputLabel}>Roll Name / Purpose</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Stealth check, Fireball damage"
+                    value={rollLabel}
+                    onChange={(e) => setRollLabel(e.target.value)}
+                    style={styles.textInput}
+                    className="form-input"
+                    maxLength={40}
+                  />
+                </div>
               </div>
-            </div>
 
-            <div style={styles.inputGroup}>
-              <label style={styles.inputLabel}>Roll Name / Purpose</label>
-              <input
-                type="text"
-                placeholder="e.g. Stealth check, Fireball damage"
-                value={rollLabel}
-                onChange={(e) => setRollLabel(e.target.value)}
-                style={styles.textInput}
-                className="form-input"
-                maxLength={40}
-              />
-            </div>
-          </div>
-
-          {/* D20 Advantage/Disadvantage Section */}
-          <div style={styles.inputsSection} className="glass-panel">
-            <label style={styles.inputLabel}>d20 Modifiers</label>
-            <div style={styles.advantageGrid}>
-              <button
-                onClick={() => handleAdvantageToggle("normal")}
-                style={{
-                  ...styles.advBtn,
-                  background: advantage === "normal" ? "rgba(255, 255, 255, 0.1)" : "transparent",
-                  borderColor: advantage === "normal" ? "var(--color-accent)" : "rgba(255,255,255,0.06)",
-                  color: advantage === "normal" ? "var(--color-accent)" : "var(--color-muted)",
-                }}
-                className="touch-target"
-              >
-                Normal
-              </button>
-              <button
-                onClick={() => handleAdvantageToggle("advantage")}
-                style={{
-                  ...styles.advBtn,
-                  background: advantage === "advantage" ? "rgba(111, 207, 151, 0.15)" : "transparent",
-                  borderColor: advantage === "advantage" ? "var(--color-success)" : "rgba(255,255,255,0.06)",
-                  color: advantage === "advantage" ? "var(--color-success)" : "var(--color-muted)",
-                }}
-                className="touch-target"
-              >
-                Advantage
-              </button>
-              <button
-                onClick={() => handleAdvantageToggle("disadvantage")}
-                style={{
-                  ...styles.advBtn,
-                  background: advantage === "disadvantage" ? "rgba(235, 87, 87, 0.15)" : "transparent",
-                  borderColor: advantage === "disadvantage" ? "var(--color-danger)" : "rgba(255,255,255,0.06)",
-                  color: advantage === "disadvantage" ? "var(--color-danger)" : "var(--color-muted)",
-                }}
-                className="touch-target"
-              >
-                Disadvantage
-              </button>
-            </div>
-          </div>
-
-          {/* Recent Rolls Section */}
-          {recentRolls.length > 0 && (
-            <div style={styles.inputsSection} className="glass-panel gold-border-glow">
-              <label style={styles.inputLabel}>Recent Rolls</label>
-              <div style={styles.rollsList}>
-                {recentRolls.map((roll, idx) => (
-                  <div
-                    key={roll.id}
+              {/* D20 Advantage/Disadvantage Section */}
+              <div style={styles.inputsSection} className="glass-panel">
+                <label style={styles.inputLabel}>d20 Modifiers</label>
+                <div style={styles.advantageGrid}>
+                  <button
+                    onClick={() => handleAdvantageToggle("normal")}
                     style={{
-                      ...styles.rollResultItem,
-                      borderBottom: idx < recentRolls.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
-                      paddingTop: idx > 0 ? "0.75rem" : "0",
-                      paddingBottom: "0.75rem",
+                      ...styles.advBtn,
+                      background: advantage === "normal" ? "rgba(255, 255, 255, 0.1)" : "transparent",
+                      borderColor: advantage === "normal" ? "var(--color-accent)" : "rgba(255,255,255,0.06)",
+                      color: advantage === "normal" ? "var(--color-accent)" : "var(--color-muted)",
                     }}
-                    className={idx === 0 ? "fade-in" : ""}
+                    className="touch-target"
                   >
-                    <div style={styles.rollResultHeader}>
-                      <span style={{
-                        ...styles.rollResultLabel,
-                        color: idx === 0 ? "var(--color-accent)" : "var(--color-text)",
-                        fontWeight: idx === 0 ? "bold" : "600",
-                      }}>
-                        {roll.label}
-                      </span>
-                      <span style={{
-                        ...styles.rollResultTotal,
-                        color: idx === 0 ? "var(--color-accent)" : "var(--color-muted)",
-                        fontSize: idx === 0 ? "1.5rem" : "1.1rem",
-                        textShadow: idx === 0 ? "0 0 10px rgba(200,151,58,0.3)" : "none",
-                      }}>
-                        {roll.total}
-                      </span>
-                    </div>
-                    <div style={styles.rollResultDetails}>
-                      <span style={styles.rollResultFormula}>{roll.formula}</span>
-                      <span style={styles.rollResultBreakdown}>
-                        (Rolled: {roll.rolls.join(", ")} {roll.modifier >= 0 ? `+` : ``}{roll.modifier})
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                    Normal
+                  </button>
+                  <button
+                    onClick={() => handleAdvantageToggle("advantage")}
+                    style={{
+                      ...styles.advBtn,
+                      background: advantage === "advantage" ? "rgba(111, 207, 151, 0.15)" : "transparent",
+                      borderColor: advantage === "advantage" ? "var(--color-success)" : "rgba(255,255,255,0.06)",
+                      color: advantage === "advantage" ? "var(--color-success)" : "var(--color-muted)",
+                    }}
+                    className="touch-target"
+                  >
+                    Advantage
+                  </button>
+                  <button
+                    onClick={() => handleAdvantageToggle("disadvantage")}
+                    style={{
+                      ...styles.advBtn,
+                      background: advantage === "disadvantage" ? "rgba(235, 87, 87, 0.15)" : "transparent",
+                      borderColor: advantage === "disadvantage" ? "var(--color-danger)" : "rgba(255,255,255,0.06)",
+                      color: advantage === "disadvantage" ? "var(--color-danger)" : "var(--color-muted)",
+                    }}
+                    className="touch-target"
+                  >
+                    Disadvantage
+                  </button>
+                </div>
               </div>
+            </>
+          ) : (
+            /* Roll History List Tab */
+            <div style={styles.historyContainer}>
+              <h2 style={styles.title}>Shared Roll Log</h2>
+              {history.length === 0 ? (
+                <div style={styles.emptyHistory} className="glass-panel">
+                  🎲 No rolls recorded yet in this session.
+                </div>
+              ) : (
+                <div style={styles.historyList}>
+                  {history.map((roll, idx) => {
+                    let parsedRolls = [];
+                    try {
+                      parsedRolls = typeof roll.rolls === "string" ? JSON.parse(roll.rolls) : roll.rolls;
+                    } catch (e) {
+                      parsedRolls = [];
+                    }
+                    const rollTime = new Date(roll.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    });
+                    return (
+                      <div
+                        key={roll.id}
+                        style={{
+                          ...styles.historyItem,
+                          borderLeft: `4px solid ${roll.diceColor || "var(--color-accent)"}`,
+                        }}
+                        className="glass-panel fade-in"
+                      >
+                        <div style={styles.historyItemHeader}>
+                          <span style={styles.historySender}>{roll.sender}</span>
+                          <span style={styles.historyTime}>{rollTime}</span>
+                        </div>
+                        <div style={styles.historyItemBody}>
+                          <div style={styles.historyDetails}>
+                            <div style={styles.historyName}>{roll.rollName}</div>
+                            <div style={styles.historyFormula}>{roll.formula}</div>
+                            <div style={styles.historyBreakdown}>
+                              Rolled: ({parsedRolls.join(" + ")}){" "}
+                              {roll.modifier !== 0
+                                ? roll.modifier > 0
+                                  ? `+ ${roll.modifier}`
+                                  : `- ${Math.abs(roll.modifier)}`
+                                : ""}
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              ...styles.historyTotal,
+                              color: roll.diceColor || "var(--color-accent)",
+                              textShadow: `0 0 10px ${roll.diceColor}44`,
+                            }}
+                          >
+                            {roll.total}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Floating Action / Roll Summary Footer */}
-      <div style={styles.footer} className="glass-panel gold-border-glow">
-        <div style={styles.formulaPreview}>
-          <span style={styles.formulaLabel}>Formula Preview</span>
-          <span style={styles.formulaText}>{getFormulaPreview()}</span>
+      {/* Floating Action / Roll Summary Footer (Only on Roller Tab) */}
+      {activeSubTab === "roller" && (
+        <div style={styles.footer} className="glass-panel gold-border-glow">
+          <div style={styles.formulaPreview}>
+            <span style={styles.formulaLabel}>Formula Preview</span>
+            <span style={styles.formulaText}>{getFormulaPreview()}</span>
+          </div>
+          <button
+            onClick={handleRoll}
+            disabled={!hasDiceSelected}
+            style={{
+              ...styles.rollBtn,
+              background: hasDiceSelected
+                ? "linear-gradient(135deg, var(--color-accent) 0%, #a87427 100%)"
+                : "rgba(255, 255, 255, 0.04)",
+              color: hasDiceSelected ? "#0f0e17" : "var(--color-muted)",
+              boxShadow: hasDiceSelected ? "0 0 15px rgba(200, 151, 58, 0.45)" : "none",
+            }}
+            className="touch-target btn-hover-scale"
+          >
+            ROLL DICE
+          </button>
         </div>
-        <button
-          onClick={handleRoll}
-          disabled={!hasDiceSelected}
-          style={{
-            ...styles.rollBtn,
-            background: hasDiceSelected
-              ? "linear-gradient(135deg, var(--color-accent) 0%, #a87427 100%)"
-              : "rgba(255, 255, 255, 0.04)",
-            color: hasDiceSelected ? "#0f0e17" : "var(--color-muted)",
-            boxShadow: hasDiceSelected ? "0 0 15px rgba(200, 151, 58, 0.45)" : "none",
-          }}
-          className="touch-target btn-hover-scale"
-        >
-          ROLL DICE
-        </button>
-      </div>
+      )}
     </div>
   );
 }
@@ -550,11 +641,29 @@ const styles = {
     width: "100%",
     background: "var(--color-bg)",
   },
+  subTabNav: {
+    display: "flex",
+    padding: "0.5rem 0.75rem",
+    gap: "0.5rem",
+    background: "rgba(0,0,0,0.15)",
+    borderBottom: "1px solid rgba(255,255,255,0.04)",
+    flexShrink: 0,
+    zIndex: 10,
+  },
+  subTabBtn: {
+    flex: 1,
+    border: "none",
+    borderRadius: "4px",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: "0.45rem",
+    transition: "all 0.2s",
+  },
   scrollWrapper: {
     flex: 1,
     overflowY: "auto",
     padding: "1rem",
-    paddingBottom: "130px", // space for footer
   },
   content: {
     maxWidth: "500px",
@@ -562,6 +671,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: "1.25rem",
+    width: "100%",
   },
   headerRow: {
     display: "flex",
@@ -634,12 +744,6 @@ const styles = {
     justifyContent: "center",
     userSelect: "none",
     transition: "background 0.15s",
-    ":hover": {
-      background: "rgba(255,255,255,0.05)",
-    },
-    ":active": {
-      background: "rgba(255,255,255,0.1)",
-    },
   },
   quantityDisplay: {
     fontSize: "1.1rem",
@@ -771,40 +875,77 @@ const styles = {
     transition: "all 0.2s ease",
     whiteSpace: "nowrap",
   },
-  rollsList: {
+  // History tab specific styles
+  historyContainer: {
     display: "flex",
     flexDirection: "column",
-    gap: "0.5rem",
-    marginTop: "0.5rem",
+    gap: "1rem",
+    width: "100%",
   },
-  rollResultItem: {
+  emptyHistory: {
+    padding: "2rem",
+    textAlign: "center",
+    color: "var(--color-muted)",
+    fontSize: "0.9rem",
+    borderRadius: "8px",
+    border: "1px dashed var(--color-border)",
+  },
+  historyList: {
     display: "flex",
     flexDirection: "column",
-    gap: "0.25rem",
+    gap: "0.75rem",
+    width: "100%",
   },
-  rollResultHeader: {
+  historyItem: {
+    padding: "0.75rem 1rem",
+    borderRadius: "8px",
+    border: "1px solid var(--glass-border)",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.45rem",
+  },
+  historyItemHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    fontSize: "0.8rem",
   },
-  rollResultLabel: {
-    fontSize: "0.9rem",
+  historySender: {
+    fontWeight: "bold",
+    color: "#ffffff",
   },
-  rollResultTotal: {
-    fontWeight: 800,
-    fontFamily: "monospace",
+  historyTime: {
+    color: "var(--color-muted)",
   },
-  rollResultDetails: {
+  historyItemBody: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "1rem",
+  },
+  historyDetails: {
     display: "flex",
     flexDirection: "column",
-    gap: "0.1rem",
+    gap: "0.15rem",
+    flex: 1,
+  },
+  historyName: {
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    color: "var(--color-text)",
+  },
+  historyFormula: {
+    fontSize: "0.82rem",
+    color: "var(--color-accent)",
+    fontStyle: "italic",
+  },
+  historyBreakdown: {
     fontSize: "0.75rem",
     color: "var(--color-muted)",
   },
-  rollResultFormula: {
-    fontStyle: "italic",
-  },
-  rollResultBreakdown: {
-    opacity: 0.8,
+  historyTotal: {
+    fontSize: "1.5rem",
+    fontWeight: 800,
+    fontFamily: "monospace",
   },
 };

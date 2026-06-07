@@ -36,6 +36,26 @@ function registerSocketHandlers(io) {
       };
 
       console.log(`[Socket] ${message.sender}: ${message.text} (${message.type})`);
+
+      if (message.type === "roll" && message.rollDetails) {
+        try {
+          const rd = message.rollDetails;
+          await prisma.roll.create({
+            data: {
+              sender: message.sender,
+              rollName: rd.rollName || "Dice Roll",
+              formula: rd.formula || "",
+              rolls: JSON.stringify(rd.rolls || []),
+              modifier: rd.modifier || 0,
+              total: rd.total || 0,
+              diceColor: rd.diceColor || "#7c3aed",
+            }
+          });
+        } catch (dbErr) {
+          console.error("[Socket] Failed to save roll to DB:", dbErr);
+        }
+      }
+
       io.emit("chat:message", message);
 
       // --- Intercept AI Assistant Commands ---
