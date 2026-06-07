@@ -26,8 +26,9 @@ function registerSocketHandlers(io) {
       }
 
       const rawText = payload.text.trim();
-      const message = {
+      let message = {
         id: generateId(),
+        userId: sanitizeUserId(payload.userId),
         sender: sanitizeShortText(payload.sender, "Anonymous"),
         text: rawText.slice(0, 2000),
         timestamp: Date.now(),
@@ -56,6 +57,7 @@ function registerSocketHandlers(io) {
         }
       }
 
+      message = await persistChatMessage(message);
       io.emit("chat:message", message);
 
       // --- Intercept AI Assistant Commands ---
@@ -84,11 +86,9 @@ function registerSocketHandlers(io) {
           }
 
           if (!provider) {
-            return io.emit("chat:message", {
-              id: generateId(),
+            return emitPersistedChatMessage(io, {
               sender: "D&D AI Assistant",
               text: "AI is not configured. The DM must set up API keys in settings.",
-              timestamp: Date.now(),
               type: "system"
             });
           }
@@ -101,11 +101,9 @@ ${ruleContext}
 Keep your answer clear, concise, and formatted in Markdown.`;
 
           const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, query);
-          io.emit("chat:message", {
-            id: generateId(),
+          await emitPersistedChatMessage(io, {
             sender: "D&D AI Assistant",
             text: reply,
-            timestamp: Date.now(),
             type: "system"
           });
         }
@@ -129,11 +127,9 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           }
 
           if (!npcName || !messageText) {
-            return io.emit("chat:message", {
-              id: generateId(),
+            return emitPersistedChatMessage(io, {
               sender: "System",
               text: "Usage: `/roleplay [NPC Name]: [message]` or `/roleplay [NPC Name] [message]`",
-              timestamp: Date.now(),
               type: "system"
             });
           }
@@ -144,11 +140,9 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           });
 
           if (!npc) {
-            return io.emit("chat:message", {
-              id: generateId(),
+            return emitPersistedChatMessage(io, {
               sender: "System",
               text: `NPC template matching '${npcName}' not found. Create them in the NPCs panel first.`,
-              timestamp: Date.now(),
               type: "system"
             });
           }
@@ -170,11 +164,9 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           }
 
           if (!provider) {
-            return io.emit("chat:message", {
-              id: generateId(),
+            return emitPersistedChatMessage(io, {
               sender: npc.name,
               text: "*The NPC remains silent. (AI is not configured. The DM must set up API keys in settings.)*",
-              timestamp: Date.now(),
               type: "system"
             });
           }
@@ -200,21 +192,17 @@ ${ruleContext}
 Respond to the user's message as "${npc.name}". Keep it immersive, flavorful, and relatively short.`;
 
           const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, messageText);
-          io.emit("chat:message", {
-            id: generateId(),
+          await emitPersistedChatMessage(io, {
             sender: npc.name,
             text: reply,
-            timestamp: Date.now(),
             type: "npc" // Flag this message as NPC response
           });
         }
       } catch (err) {
         console.error("[Socket AI Error]", err.message);
-        io.emit("chat:message", {
-          id: generateId(),
+        await emitPersistedChatMessage(io, {
           sender: "System",
           text: `AI error: ${err.message}`,
-          timestamp: Date.now(),
           type: "system"
         });
       }
@@ -434,6 +422,59 @@ Respond to the user's message as "${npc.name}". Keep it immersive, flavorful, an
       console.error(`[Socket] Error on ${clientId}:`, err.message);
     });
   });
+}
+
+async function emitPersistedChatMessage(io, partial) {
+  const message = await persistChatMessage({
+    id: generateId(),
+    userId: sanitizeUserId(partial.userId),
+    sender: sanitizeShortText(partial.sender, "System"),
+    text: typeof partial.text === "string" ? partial.text.slice(0, 2000) : "",
+    timestamp: Date.now(),
+    type: sanitizeShortText(partial.type, "system"),
+    rollDetails: partial.rollDetails || null,
+  });
+  io.emit("chat:message", message);
+}
+
+async function persistChatMessage(message) {
+  if (!message.text.trim()) return message;
+
+  try {
+    const saved = await prisma.chatMessage.create({
+      data: {
+        id: message.id,
+        userId: message.userId,
+        sender: message.sender,
+        text: message.text,
+        type: message.type,
+        rollDetails: serializeRollDetails(message.rollDetails),
+      },
+    });
+
+    return {
+      ...message,
+      timestamp: saved.createdAt.getTime(),
+      createdAt: saved.createdAt,
+    };
+  } catch (dbErr) {
+    console.error("[Socket] Failed to save chat message to DB:", dbErr.message);
+    return message;
+  }
+}
+
+function sanitizeUserId(value) {
+  const userId = Number(value);
+  return Number.isInteger(userId) && userId > 0 ? userId : null;
+}
+
+function serializeRollDetails(rollDetails) {
+  if (!rollDetails) return null;
+  const storedRollDetails = {
+    ...rollDetails,
+    status: "done",
+  };
+  return JSON.stringify(storedRollDetails);
 }
 
 function validateTokenMovePayload(payload) {

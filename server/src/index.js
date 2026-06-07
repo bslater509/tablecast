@@ -101,6 +101,7 @@ const backupRouter = require("./routes/backup");
 const referenceRouter = require("./routes/reference");
 const aiRouter = require("./routes/ai");
 const rollsRouter = require("./routes/rolls");
+const chatRouter = require("./routes/chat");
 
 app.use("/api/users", usersRouter);
 app.use("/api/characters", charactersRouter);
@@ -112,6 +113,7 @@ app.use("/api/backup", backupRouter);
 app.use("/api/reference", referenceRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/rolls", rollsRouter);
+app.use("/api/chat", chatRouter);
 
 // ---------------------------------------------------------------------------
 // Serve map and token image uploads

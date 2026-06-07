@@ -39,12 +39,35 @@ model User {
   diceColor String @default("#7c3aed")
 
   // Relations
-  characters Character[]
+  characters   Character[]
+  chatMessages ChatMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("users")
+}
+
+/// A persisted session chat message. This stores regular chat, dice roll chat
+/// cards, NPC replies, and system/AI messages that should survive reloads.
+model ChatMessage {
+  id String @id
+
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  sender String
+  text   String
+  type   String @default("user")
+
+  // JSON object for dice roll payloads. Null for plain chat.
+  rollDetails String?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+  @@map("chat_messages")
 }
 
 /// A D&D 5e character sheet linked to a player User.
@@ -298,4 +321,3 @@ model Roll {
 
   @@map("rolls")
 }
-

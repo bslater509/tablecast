@@ -24,7 +24,27 @@ export default function ChatPanel({ user, isPopout = false }) {
     }
   }, [user]);
 
+  useEffect(() => {
+    let cancelled = false;
 
+    async function loadHistory() {
+      try {
+        const res = await fetch("/api/chat?limit=150");
+        if (!res.ok) throw new Error("Failed to load chat history");
+        const data = await res.json();
+        if (!cancelled) {
+          setMessages((prev) => mergeMessages(data, prev));
+        }
+      } catch (err) {
+        console.error("Failed to load chat history:", err);
+      }
+    }
+
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Listen for completed dice rolls to update UI
   useEffect(() => {
@@ -50,7 +70,7 @@ export default function ChatPanel({ user, isPopout = false }) {
       setMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev;
 
-        return [...prev, msg];
+        return mergeMessages(prev, [msg]);
       });
     }
 
@@ -111,6 +131,7 @@ export default function ChatPanel({ user, isPopout = false }) {
         const formattedModifier = parsed.modifier !== 0 ? ` ${modSign} ${Math.abs(parsed.modifier)}` : "";
         
         socket.emit("chat:send", {
+          userId: user?.id,
           sender: username || "Anonymous",
           text: `rolled ${parsed.qty}d${parsed.sides}${formattedModifier}! Total: ${parsed.total}`,
           type: "roll",
@@ -132,7 +153,7 @@ export default function ChatPanel({ user, isPopout = false }) {
       }
     }
 
-    socket.emit("chat:send", { sender: username || "Anonymous", text: draft });
+    socket.emit("chat:send", { userId: user?.id, sender: username || "Anonymous", text: draft });
     setDraft("");
   }
 
@@ -185,7 +206,13 @@ export default function ChatPanel({ user, isPopout = false }) {
 
   //  Chat UI 
   return (
-    <div style={styles.wrapper}>
+    <div
+      style={{
+        ...styles.wrapper,
+        height: isPopout ? "100vh" : "100%",
+        maxHeight: isPopout ? "100dvh" : "100%",
+      }}
+    >
       {/* Header */}
       <header style={styles.header}>
         <div style={styles.headerLeft}>
@@ -371,6 +398,20 @@ export default function ChatPanel({ user, isPopout = false }) {
       </form>
     </div>
   );
+}
+
+function mergeMessages(...messageLists) {
+  const byId = new Map();
+  for (const list of messageLists) {
+    for (const message of list) {
+      if (message?.id) byId.set(message.id, message);
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) => {
+    const aTime = Number(a.timestamp) || 0;
+    const bTime = Number(b.timestamp) || 0;
+    return aTime - bTime;
+  });
 }
 
 // ---------------------------------------------------------------------------
