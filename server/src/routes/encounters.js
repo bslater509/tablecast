@@ -118,7 +118,7 @@ function includeEncounter() {
   return {
     map: true,
     participants: {
-      include: { token: true, npc: true, character: true },
+      include: { token: true, npc: true, character: true, monster: true },
       orderBy: [{ initiative: "desc" }, { sortOrder: "asc" }, { id: "asc" }],
     },
   };
@@ -241,12 +241,15 @@ router.patch("/participants/:id", requireDm, async (req, res) => {
     const participant = await prisma.encounterParticipant.update({
       where: { id: participantId },
       data,
-      include: { encounter: true, token: true, npc: true, character: true },
+      include: { encounter: true, token: true, npc: true, character: true, monster: true },
     });
 
     if (data.currentHp !== undefined) {
       if (participant.npcId) {
         await prisma.npc.update({ where: { id: participant.npcId }, data: { hp: data.currentHp } }).catch(() => null);
+      }
+      if (participant.monsterId) {
+        await prisma.monster.update({ where: { id: participant.monsterId }, data: { hp: data.currentHp } }).catch(() => null);
       }
       if (participant.tokenId) {
         const stats = parseJson(participant.token?.stats, {});
@@ -360,28 +363,26 @@ router.post("/:id/participants", requireDm, async (req, res) => {
         },
       }));
     } else if (type === "monster") {
-      const monsterName = String(req.body?.monster?.name || req.body?.name || "").trim();
-      const monsterSource = String(req.body?.monster?.source || req.body?.source || "").trim();
-      if (!monsterName) return res.status(400).json({ error: "Monster name is required." });
+      const monsterId = Number(req.body.monsterId);
+      if (!monsterId) return res.status(400).json({ error: "monsterId is required." });
 
-      const monster = referenceSearch.getByName("monsters", monsterName, monsterSource);
-      if (!monster) return res.status(404).json({ error: "Monster reference not found." });
+      const monster = await prisma.monster.findUnique({ where: { id: monsterId } });
+      if (!monster) return res.status(404).json({ error: "Monster not found in database." });
 
       for (let i = 0; i < quantity; i += 1) {
         const label = quantity > 1 ? `${monster.name} ${i + 1}` : monster.name;
-        const npc = await prisma.npc.create({ data: monsterToNpcData(monster, label) });
         created.push(await prisma.encounterParticipant.create({
           data: {
             encounterId,
-            npcId: npc.id,
+            monsterId: monster.id,
             name: label,
-            currentHp: npc.hp,
-            maxHp: npc.maxHp,
-            ac: npc.ac,
+            currentHp: monster.hp,
+            maxHp: monster.maxHp,
+            ac: monster.ac,
             isHidden: Boolean(req.body.isHidden),
             sortOrder: sortStart + i,
-            source: monster.source || monsterSource || "bestiary",
-            imageUrl: npc.imageUrl,
+            source: "local",
+            imageUrl: monster.imageUrl,
             stats: JSON.stringify(monster),
           },
         }));
@@ -413,8 +414,9 @@ router.post("/:id/deploy", requireDm, async (req, res) => {
           mapId: encounter.mapId,
           characterId: participant.characterId,
           npcId: participant.npcId,
+          monsterId: participant.monsterId,
           label: participant.name,
-          imageUrl: participant.imageUrl || participant.npc?.imageUrl || "",
+          imageUrl: participant.imageUrl || participant.npc?.imageUrl || participant.monster?.imageUrl || "",
           x: startX + (index % 5),
           y: startY + Math.floor(index / 5),
           stats: JSON.stringify({

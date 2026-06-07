@@ -7,6 +7,8 @@
 "use strict";
 
 const { Router } = require("express");
+const fs = require("fs");
+const path = require("path");
 const referenceSync = require("../utils/referenceSync");
 const referenceSearch = require("../utils/referenceSearch");
 const tokenImageLookup = require("../utils/tokenImageLookup");
@@ -264,5 +266,330 @@ router.get("/token-image", (req, res) => {
     res.status(500).json({ error: "Failed to resolve token image." });
   }
 });
+
+// ---------------------------------------------------------------------------
+// POST /api/reference/import  Import a reference item into the database (DM only)
+// ---------------------------------------------------------------------------
+router.post("/import", requireDm, async (req, res) => {
+  try {
+    const { category, name, source } = req.body;
+    if (!category || !name || typeof category !== "string" || typeof name !== "string") {
+      return res.status(400).json({ error: "Category and name are required." });
+    }
+
+    const cleanSource = typeof source === "string" ? source : "";
+    const allowedSources = await getAllowedSources();
+    
+    const rawItem = referenceSearch.getByName(category, name, cleanSource, {
+      sources: allowedSources,
+    });
+
+    if (!rawItem) {
+      return res.status(404).json({ error: "Reference item not found in raw repository." });
+    }
+
+    const item = withReferenceInfo(withReferenceImage(rawItem, category), category, allowedSources);
+
+    let localImageUrl = "";
+    let localLargeImageUrl = "";
+
+    if (item.tokenUrl) {
+      localImageUrl = copyReferenceImage(item.tokenUrl);
+    }
+    if (item.imageUrl) {
+      localLargeImageUrl = copyReferenceImage(item.imageUrl);
+    }
+
+    if (!localImageUrl) {
+      localImageUrl = localLargeImageUrl;
+    }
+
+    if (category.toLowerCase() === "monsters") {
+      const existing = await prisma.monster.findFirst({
+        where: { name: item.name },
+      });
+      if (existing) {
+        return res.status(400).json({ error: `Monster "${item.name}" is already imported.` });
+      }
+
+      const actions = [];
+      if (Array.isArray(item.action)) {
+        for (const act of item.action) {
+          const entriesStr = Array.isArray(act.entries) ? act.entries.join(" ") : String(act.entries || "");
+          const hitMatch = entriesStr.match(/\{@hit (\d+)\}/);
+          const toHit = hitMatch ? parseInt(hitMatch[1]) : 0;
+          const dmgMatch = entriesStr.match(/\{@damage ([^}]+)\}/);
+          const damage = dmgMatch ? dmgMatch[1].trim() : "";
+          
+          actions.push({
+            name: act.name || "Action",
+            description: entriesStr.replace(/\{@[a-z]+ ([^}]+)\}/g, "$1").replace(/\{@hit (\d+)\}/g, "+$1").replace(/\{@damage ([^}]+)\}/g, "$1"),
+            toHit,
+            damage,
+          });
+        }
+      }
+
+      const hpVal = clampInt(item.hp?.average, 10, 1, 10000);
+      const acVal = Array.isArray(item.ac)
+        ? clampInt(item.ac[0]?.ac ?? item.ac[0], 10, 0, 1000)
+        : 10;
+
+      const modifiers = {
+        strength: `${getModifier(item.str) >= 0 ? "+" : ""}${getModifier(item.str)}`,
+        dexterity: `${getModifier(item.dex) >= 0 ? "+" : ""}${getModifier(item.dex)}`,
+        constitution: `${getModifier(item.con) >= 0 ? "+" : ""}${getModifier(item.con)}`,
+        intelligence: `${getModifier(item.int) >= 0 ? "+" : ""}${getModifier(item.int)}`,
+        wisdom: `${getModifier(item.wis) >= 0 ? "+" : ""}${getModifier(item.wis)}`,
+        charisma: `${getModifier(item.cha) >= 0 ? "+" : ""}${getModifier(item.cha)}`,
+      };
+
+      const monster = await prisma.monster.create({
+        data: {
+          name: item.name,
+          race: monsterTypeLabel(item.type),
+          class: "Monster",
+          level: Math.max(1, Math.floor(hpVal / 6)),
+          hp: hpVal,
+          maxHp: hpVal,
+          ac: acVal,
+          cr: String(item.cr || "0"),
+          imageUrl: localImageUrl,
+          largeImageUrl: localLargeImageUrl,
+          strength: clampInt(item.str, 10, 1, 100),
+          dexterity: clampInt(item.dex, 10, 1, 100),
+          constitution: clampInt(item.con, 10, 1, 100),
+          intelligence: clampInt(item.int, 10, 1, 100),
+          wisdom: clampInt(item.wis, 10, 1, 100),
+          charisma: clampInt(item.cha, 10, 1, 100),
+          inventory: "[]",
+          modifiers: JSON.stringify(modifiers),
+          actions: JSON.stringify(actions),
+          description: item.infoEntries ? cleanText(Array.isArray(item.infoEntries) ? item.infoEntries.join("\n") : String(item.infoEntries)) : "",
+          alignment: parseAlignmentField(item.alignment),
+          appearance: "Physical details.",
+          personality: "Mannerisms and demeanor.",
+          history: "Backstory.",
+          partyRelationship: "",
+          isVisibleToPlayers: false,
+        },
+      });
+
+      return res.json({ success: true, type: "monster", item: monster });
+    } else {
+      const wikiCategory = category.toUpperCase().slice(0, -1);
+      const finalCategory = wikiCategory === "RULE" ? "RULE" : wikiCategory === "CLAS" ? "CLASS" : wikiCategory;
+      
+      const existing = await prisma.wikiArticle.findFirst({
+        where: { title: item.name, category: finalCategory },
+      });
+      if (existing) {
+        return res.status(400).json({ error: `Wiki Article "${item.name}" is already imported under ${finalCategory}.` });
+      }
+
+      let contentMarkdown = "";
+      if (item.entries) {
+        contentMarkdown = formatEntriesToMarkdown(item.entries);
+      } else if (item.entry) {
+        contentMarkdown = formatEntriesToMarkdown(item.entry);
+      } else if (item.description) {
+        contentMarkdown = formatEntriesToMarkdown(item.description);
+      }
+
+      let detailsHeader = "";
+      if (finalCategory === "SPELL") {
+        detailsHeader = `**Level**: ${item.level === 0 ? "Cantrip" : `Level ${item.level}`}  \n` +
+          `**Casting Time**: ${item.time?.[0]?.number} ${item.time?.[0]?.unit}  \n` +
+          `**Range**: ${item.range?.distance?.amount || ""} ${item.range?.distance?.type || item.range?.type || ""}  \n` +
+          `**Duration**: ${item.duration?.[0]?.duration?.amount || ""} ${item.duration?.[0]?.duration?.type || item.duration?.[0]?.type || ""}  \n\n`;
+      } else if (finalCategory === "ITEM") {
+        detailsHeader = `**Type**: ${item.type || "Item"}  \n` +
+          `**Rarity**: ${item.rarity || "Common"}  \n` +
+          `**Weight**: ${item.weight || "0"} lbs  \n` +
+          `**Value**: ${item.value || "0 gp"}  \n\n`;
+      }
+
+      let imageMarkdown = "";
+      if (localLargeImageUrl) {
+        imageMarkdown = `![${item.name}](${localLargeImageUrl})\n\n`;
+      }
+
+      const wikiArticle = await prisma.wikiArticle.create({
+        data: {
+          title: item.name,
+          content: `${imageMarkdown}${detailsHeader}${contentMarkdown}`,
+          isVisibleToPlayers: true,
+          category: finalCategory,
+          tags: JSON.stringify(["imported", item.source || ""]),
+        },
+      });
+
+      return res.json({ success: true, type: "wiki", item: wikiArticle });
+    }
+  } catch (err) {
+    console.error("[API] POST /api/reference/import error:", err.message);
+    res.status(500).json({ error: `Failed to import reference: ${err.message}` });
+  }
+});
+
+// Helper utilities for importing
+function copyReferenceImage(sourceUrl) {
+  if (!sourceUrl || typeof sourceUrl !== "string") return "";
+  
+  const cleanPath = decodeURIComponent(sourceUrl.replace(/^\/5etoolsimg\//, ""));
+  
+  const imgRoots = [
+    path.resolve(__dirname, "../../5etoolsimg"),
+    path.resolve(__dirname, "../../../5etoolsimg"),
+  ].filter((dir) => fs.existsSync(dir));
+  
+  if (imgRoots.length === 0) return "";
+  
+  let srcFilePath = "";
+  for (const root of imgRoots) {
+    const fullPath = path.join(root, cleanPath);
+    if (fs.existsSync(fullPath)) {
+      srcFilePath = fullPath;
+      break;
+    }
+  }
+  
+  if (!srcFilePath) return "";
+  
+  const ext = path.extname(srcFilePath);
+  const base = path.basename(srcFilePath, ext);
+  const uniqueName = `imported_${base.replace(/[^a-z0-9]+/gi, "_")}_${Date.now()}${ext}`;
+  const destDir = path.resolve(__dirname, "../../uploads");
+  
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true });
+  }
+  
+  const destFilePath = path.join(destDir, uniqueName);
+  try {
+    fs.copyFileSync(srcFilePath, destFilePath);
+    return `/uploads/${uniqueName}`;
+  } catch (err) {
+    console.error(`[Importer] Failed to copy reference image ${srcFilePath}:`, err.message);
+    return "";
+  }
+}
+
+function getModifier(val) {
+  const score = val !== undefined && val !== null ? Number(val) : 10;
+  return Math.floor((score - 10) / 2);
+}
+
+function clampInt(val, def, min, max) {
+  const num = Number(val);
+  if (isNaN(num)) return def;
+  return Math.max(min, Math.min(max, Math.floor(num)));
+}
+
+function monsterTypeLabel(type) {
+  if (!type) return "Monster";
+  if (typeof type === "string") return type;
+  if (type.type) {
+    if (Array.isArray(type.tags) && type.tags.length > 0) {
+      return `${type.type} (${type.tags.join(", ")})`;
+    }
+    return type.type;
+  }
+  return "Monster";
+}
+
+function cleanText(text) {
+  if (typeof text !== "string") return "";
+  return text
+    .replace(/\{@spell ([^}|]+)[^}]*\}/g, "$1")
+    .replace(/\{@dice ([^}|]+)[^}]*\}/g, "($1)")
+    .replace(/\{@item ([^}|]+)[^}]*\}/g, "$1")
+    .replace(/\{@creature ([^}|]+)[^}]*\}/g, "$1")
+    .replace(/\{@condition ([^}|]+)[^}]*\}/g, "$1")
+    .replace(/\{@filter ([^|]+)\|[^}]+\}/g, "$1")
+    .replace(/\{@table ([^}|]+)[^}]*\}/g, "$1")
+    .replace(/\{@style ([^}|]+)[^}]*\}/g, "$1")
+    .replace(/\{@[a-z]+ ([^}|]+)[^}]*\}/g, "$1");
+}
+
+function formatEntriesToMarkdown(entries) {
+  if (!entries) return "";
+  if (typeof entries === "string") return cleanText(entries);
+  if (Array.isArray(entries)) {
+    return entries.map((entry) => {
+      if (typeof entry === "string") return cleanText(entry);
+      if (!entry || typeof entry !== "object") return "";
+      
+      if (entry.type === "list" && Array.isArray(entry.items)) {
+        return entry.items.map((item) => `* ${typeof item === "string" ? cleanText(item) : formatEntriesToMarkdown(item.entries || item)}`).join("\n");
+      }
+      if ((entry.type === "entries" || entry.type === "section") && Array.isArray(entry.entries)) {
+        const header = entry.name ? `### ${entry.name}\n\n` : "";
+        return `${header}${formatEntriesToMarkdown(entry.entries)}`;
+      }
+      if (entry.type === "item" && entry.entry) {
+        const header = entry.name ? `**${cleanText(entry.name)}**: ` : "";
+        return `${header}${cleanText(entry.entry)}`;
+      }
+      if (entry.type === "insetReadaloud" && Array.isArray(entry.entries)) {
+        return `> ${formatEntriesToMarkdown(entry.entries).replace(/\n/g, "\n> ")}`;
+      }
+      if (entry.type === "quote" && Array.isArray(entry.entries)) {
+        const byLine = entry.by ? `\n\n— *${cleanText(entry.by)}*` : "";
+        return `> ${formatEntriesToMarkdown(entry.entries).replace(/\n/g, "\n> ")}${byLine}`;
+      }
+      if (entry.type === "table" && Array.isArray(entry.rows)) {
+        let tableStr = "";
+        if (entry.caption) tableStr += `##### ${entry.caption}\n\n`;
+        if (entry.colLabels) {
+          tableStr += `| ${entry.colLabels.map(cleanText).join(" | ")} |\n`;
+          tableStr += `| ${entry.colLabels.map(() => "---").join(" | ")} |\n`;
+        }
+        tableStr += entry.rows.map((row) => `| ${row.map(cleanText).join(" | ")} |`).join("\n");
+        return tableStr;
+      }
+      if (entry.name && entry.entries) {
+        return `### ${cleanText(entry.name)}\n\n${formatEntriesToMarkdown(entry.entries)}`;
+      }
+      return "";
+    }).join("\n\n");
+  }
+  if (typeof entries === "object") {
+    if (entries.entries) return formatEntriesToMarkdown(entries.entries);
+    if (entries.name) return cleanText(entries.name);
+  }
+  return "";
+}
+
+function parseAlignmentField(alignment) {
+  if (!alignment) return "Unaligned";
+  if (typeof alignment === "string") return alignment;
+  if (!Array.isArray(alignment)) return "Unaligned";
+
+  const codes = alignment.map(item => {
+    if (typeof item === "string") return item;
+    if (item && typeof item === "object" && Array.isArray(item.alignment)) {
+      return item.alignment;
+    }
+    return "";
+  }).flat().filter(Boolean);
+
+  if (codes.length === 0) return "Unaligned";
+  if (codes.includes("A")) return "Any alignment";
+  if (codes.includes("U")) return "Unaligned";
+
+  const mapping = {
+    L: "Lawful",
+    C: "Chaotic",
+    G: "Good",
+    E: "Evil",
+    N: "Neutral"
+  };
+
+  if (codes.length === 1 && codes[0] === "N") return "Neutral";
+
+  const words = codes.map(c => mapping[c] || c);
+  return words.join(" ");
+}
 
 module.exports = router;

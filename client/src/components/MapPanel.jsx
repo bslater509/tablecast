@@ -47,6 +47,8 @@ export default function MapPanel({ user, isPopout = false }) {
   const [availableNpcs, setAvailableNpcs] = useState([]);
   const [tokenType, setTokenType] = useState("character"); // "character", "npc", "monster"
   const [newTokenNpcId, setNewTokenNpcId] = useState("");
+  const [newTokenMonsterId, setNewTokenMonsterId] = useState("");
+  const [availableMonsters, setAvailableMonsters] = useState([]);
   const [activeEncounter, setActiveEncounter] = useState(null);
   const [showEncounterDrawer, setShowEncounterDrawer] = useState(false);
   const [encounterName, setEncounterName] = useState("");
@@ -114,6 +116,7 @@ export default function MapPanel({ user, isPopout = false }) {
     loadMaps();
     loadCharacters();
     loadNpcs();
+    loadMonsters();
   }, []);
 
   async function loadMaps(autoSelectId = null) {
@@ -160,6 +163,18 @@ export default function MapPanel({ user, isPopout = false }) {
       }
     } catch (err) {
       console.error("Failed to load NPCs list:", err);
+    }
+  }
+
+  async function loadMonsters() {
+    try {
+      const res = await fetch("/api/monsters");
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableMonsters(data);
+      }
+    } catch (err) {
+      console.error("Failed to load Monsters list:", err);
     }
   }
 
@@ -546,7 +561,7 @@ export default function MapPanel({ user, isPopout = false }) {
         ctx.fill();
 
         // Image rendering with cropping
-        const imgUrl = token.imageUrl || token.character?.imageUrl || token.npc?.imageUrl;
+        const imgUrl = token.imageUrl || token.character?.imageUrl || token.npc?.imageUrl || token.monster?.imageUrl;
         let tokenImg = tokenImagesRef.current[token.id];
 
         if (imgUrl && !tokenImg) {
@@ -979,6 +994,7 @@ export default function MapPanel({ user, isPopout = false }) {
     let imageUrl = newTokenImageUrl.trim();
     let charId = null;
     let npcId = null;
+    let monsterId = null;
 
     if (tokenType === "character" && newTokenCharacterId) {
       const char = availableCharacters.find(c => c.id === Number(newTokenCharacterId));
@@ -992,6 +1008,13 @@ export default function MapPanel({ user, isPopout = false }) {
         label = npc.name;
         npcId = npc.id;
         imageUrl = npc.imageUrl || imageUrl;
+      }
+    } else if (tokenType === "monster" && newTokenMonsterId) {
+      const monster = availableMonsters.find(m => m.id === Number(newTokenMonsterId));
+      if (monster) {
+        label = monster.name;
+        monsterId = monster.id;
+        imageUrl = monster.imageUrl || imageUrl;
       }
     }
 
@@ -1007,6 +1030,7 @@ export default function MapPanel({ user, isPopout = false }) {
         body: JSON.stringify({
           characterId: charId,
           npcId,
+          monsterId,
           label,
           imageUrl,
           x: 0,
@@ -1029,6 +1053,7 @@ export default function MapPanel({ user, isPopout = false }) {
         setNewTokenLabel("");
         setNewTokenCharacterId("");
         setNewTokenNpcId("");
+        setNewTokenMonsterId("");
         setNewTokenImageUrl("");
         setNewTokenStats(null);
         setTokenType("character");
@@ -1061,7 +1086,7 @@ export default function MapPanel({ user, isPopout = false }) {
   };
 
   const handleAddMonsterToEncounter = async () => {
-    if (!activeEncounter || !encounterMonster?.name || !isDM || encounterBusy) return;
+    if (!activeEncounter || !encounterMonster?.id || !isDM || encounterBusy) return;
     setEncounterBusy(true);
     try {
       const res = await fetch(`/api/encounters/${activeEncounter.id}/participants`, {
@@ -1069,7 +1094,7 @@ export default function MapPanel({ user, isPopout = false }) {
         headers: jsonAuthHeaders,
         body: JSON.stringify({
           type: "monster",
-          monster: { name: encounterMonster.name, source: encounterMonster.source },
+          monsterId: encounterMonster.id,
           quantity: encounterQuantity,
           isHidden: encounterHidden,
         }),
@@ -2144,7 +2169,125 @@ export default function MapPanel({ user, isPopout = false }) {
                   )}
 
                   {/* Render monster combat sheet */}
-                  {monsterStats && (
+                  {selectedToken.monster ? (
+                    <div style={styles.monsterSheet}>
+                      <div style={styles.metaInfo}>
+                        CR {selectedToken.monster.cr || "0"} • AC {selectedToken.monster.ac || "10"}
+                      </div>
+                      
+                      {/* HP Tracker */}
+                      <div style={styles.hpTracker}>
+                        <div style={styles.hpLabelRow}>
+                          <span>HP: {monsterStats?.currentHp !== undefined ? monsterStats.currentHp : selectedToken.monster.hp} / {selectedToken.monster.maxHp}</span>
+                        </div>
+                        <div style={styles.hpControlsRow}>
+                          <button
+                            onClick={() => {
+                              const cur = monsterStats?.currentHp !== undefined ? monsterStats.currentHp : selectedToken.monster.hp;
+                              const next = Math.max(0, cur - 1);
+                              const updated = { ...(monsterStats || {}), currentHp: next };
+                              fetch(`/api/maps/tokens/${selectedToken.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ stats: JSON.stringify(updated) })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, stats: JSON.stringify(updated) } : t));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            -1
+                          </button>
+                          <button
+                            onClick={() => {
+                              const cur = monsterStats?.currentHp !== undefined ? monsterStats.currentHp : selectedToken.monster.hp;
+                              const next = Math.max(0, cur - 5);
+                              const updated = { ...(monsterStats || {}), currentHp: next };
+                              fetch(`/api/maps/tokens/${selectedToken.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ stats: JSON.stringify(updated) })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, stats: JSON.stringify(updated) } : t));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            -5
+                          </button>
+                          <button
+                            onClick={() => {
+                              const cur = monsterStats?.currentHp !== undefined ? monsterStats.currentHp : selectedToken.monster.hp;
+                              const max = selectedToken.monster.maxHp;
+                              const next = Math.min(max, cur + 5);
+                              const updated = { ...(monsterStats || {}), currentHp: next };
+                              fetch(`/api/maps/tokens/${selectedToken.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ stats: JSON.stringify(updated) })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, stats: JSON.stringify(updated) } : t));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            +5
+                          </button>
+                          <button
+                            onClick={() => {
+                              const cur = monsterStats?.currentHp !== undefined ? monsterStats.currentHp : selectedToken.monster.hp;
+                              const max = selectedToken.monster.maxHp;
+                              const next = Math.min(max, cur + 1);
+                              const updated = { ...(monsterStats || {}), currentHp: next };
+                              fetch(`/api/maps/tokens/${selectedToken.id}`, {
+                                method: "PUT",
+                                headers: jsonAuthHeaders,
+                                body: JSON.stringify({ stats: JSON.stringify(updated) })
+                              }).then(() => {
+                                setTokens(prev => prev.map(t => t.id === selectedToken.id ? { ...t, stats: JSON.stringify(updated) } : t));
+                              });
+                            }}
+                            style={styles.hpAdjBtn}
+                          >
+                            +1
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Attributes */}
+                      <div style={styles.miniStatsGrid}>
+                        <div><strong>STR</strong><span>{selectedToken.monster.strength}</span></div>
+                        <div><strong>DEX</strong><span>{selectedToken.monster.dexterity}</span></div>
+                        <div><strong>CON</strong><span>{selectedToken.monster.constitution}</span></div>
+                        <div><strong>INT</strong><span>{selectedToken.monster.intelligence}</span></div>
+                        <div><strong>WIS</strong><span>{selectedToken.monster.wisdom}</span></div>
+                        <div><strong>CHA</strong><span>{selectedToken.monster.charisma}</span></div>
+                      </div>
+
+                      {/* Rollable Actions */}
+                      {(() => {
+                        let parsedActions = [];
+                        try {
+                          parsedActions = JSON.parse(selectedToken.monster.actions);
+                        } catch (e) {}
+                        return (
+                          <div style={styles.actionsSection}>
+                            <h5 style={styles.actionsHeader}>Monster Actions</h5>
+                            {parsedActions.map((act, i) => (
+                              <button
+                                key={i}
+                                onClick={() => handleNpcRoll(selectedToken.label || selectedToken.monster.name, act.name, act.toHit, act.damage, act.description)}
+                                style={styles.monsterActionBtn}
+                                className="touch-target btn-hover-scale"
+                              >
+                                {act.name}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : monsterStats ? (
                     <div style={styles.monsterSheet}>
                       <div style={styles.metaInfo}>
                         CR {monsterStats.cr || "0"}  AC {monsterStats.ac?.[0]?.ac || monsterStats.ac?.[0] || "10"}

@@ -51,7 +51,7 @@ router.get("/:id", async (req, res) => {
 
     const map = await prisma.map.findUnique({
       where: { id },
-      include: { tokens: { include: { character: true, npc: true } } },
+      include: { tokens: { include: { character: true, npc: true, monster: true } } },
     });
 
     if (!map) {
@@ -209,10 +209,13 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
     if (npcId) {
       data.npcId = Number(npcId);
     }
+    if (req.body.monsterId) {
+      data.monsterId = Number(req.body.monsterId);
+    }
 
     const token = await prisma.token.create({
       data,
-      include: { character: true, npc: true },
+      include: { character: true, npc: true, monster: true },
     });
 
     res.status(201).json(token);
@@ -252,13 +255,14 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
     }
     if (characterId !== undefined) data.characterId = characterId ? Number(characterId) : null;
     if (npcId !== undefined) data.npcId = npcId ? Number(npcId) : null;
+    if (req.body.monsterId !== undefined) data.monsterId = req.body.monsterId ? Number(req.body.monsterId) : null;
     if (stats !== undefined) data.stats = stats;
 
-    // Direct HP sync: if this token is linked to an NPC and stats are updated with a currentHp,
-    // update the NPC's HP in the database too.
+    // Direct HP sync: if this token is linked to an NPC or Monster and stats are updated with a currentHp,
+    // update the NPC's or Monster's HP in the database too.
     const existingToken = await prisma.token.findUnique({
       where: { id: tokenId },
-      select: { npcId: true },
+      select: { npcId: true, monsterId: true },
     });
     if (existingToken?.npcId && stats) {
       try {
@@ -273,11 +277,24 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
         console.error("[API] Failed to sync NPC health from token stats:", err.message);
       }
     }
+    if (existingToken?.monsterId && stats) {
+      try {
+        const parsedStats = JSON.parse(stats);
+        if (parsedStats.currentHp !== undefined) {
+          await prisma.monster.update({
+            where: { id: existingToken.monsterId },
+            data: { hp: Math.max(0, Number(parsedStats.currentHp)) },
+          });
+        }
+      } catch (err) {
+        console.error("[API] Failed to sync Monster health from token stats:", err.message);
+      }
+    }
 
     const updatedToken = await prisma.token.update({
       where: { id: tokenId },
       data,
-      include: { character: true, npc: true },
+      include: { character: true, npc: true, monster: true },
     });
 
     res.json(updatedToken);

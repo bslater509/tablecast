@@ -200,6 +200,7 @@ export default function WikiPanel({ user, isPopout = false }) {
   const { socket } = useSocket();
   const [articles, setArticles] = useState([]);
   const [npcs, setNpcs] = useState([]);
+  const [monsters, setMonsters] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
@@ -207,7 +208,7 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [error, setError] = useState(null);
 
   // Categorized Section State
-  const [activeCategoryTab, setActiveCategoryTab] = useState("LOCATION"); // "LOCATION" | "NPC" | "LORE" | "LOG"
+  const [activeCategoryTab, setActiveCategoryTab] = useState("LOCATION"); // "LOCATION" | "NPC" | "LORE" | "LOG" | "MONSTER" | "SPELL" | "ITEM" | "RULE" | "CLASS" | "RACE"
 
   // Creation Flow States
   const [showCategoryPrompt, setShowCategoryPrompt] = useState(false);
@@ -422,6 +423,12 @@ export default function WikiPanel({ user, isPopout = false }) {
           const npcsData = await npcsRes.json();
           setNpcs(npcsData);
         }
+
+        const monstersRes = await fetch("/api/monsters", { headers: authHeaders });
+        if (monstersRes.ok) {
+          const monstersData = await monstersRes.json();
+          setMonsters(monstersData);
+        }
       } catch (err) {
         console.error("[WikiPanel] Fetch error:", err);
         setError(err.message);
@@ -448,17 +455,17 @@ export default function WikiPanel({ user, isPopout = false }) {
     return titleMatch || contentMatch || tagsMatch;
   });
 
-  const filteredNpcs = npcs.filter((npc) => {
+  const filteredMonsters = monsters.filter((monster) => {
     const query = searchQuery.toLowerCase();
-    const nameMatch = npc.name.toLowerCase().includes(query);
-    const raceMatch = (npc.race || "").toLowerCase().includes(query);
-    const classMatch = (npc.class || "").toLowerCase().includes(query);
-    const descMatch = (npc.description || "").toLowerCase().includes(query);
-    const alignMatch = (npc.alignment || "").toLowerCase().includes(query);
-    const appearanceMatch = (npc.appearance || "").toLowerCase().includes(query);
-    const personalityMatch = (npc.personality || "").toLowerCase().includes(query);
-    const historyMatch = (npc.history || "").toLowerCase().includes(query);
-    const relationshipMatch = (npc.partyRelationship || "").toLowerCase().includes(query);
+    const nameMatch = monster.name.toLowerCase().includes(query);
+    const raceMatch = (monster.race || "").toLowerCase().includes(query);
+    const classMatch = (monster.class || "").toLowerCase().includes(query);
+    const descMatch = (monster.description || "").toLowerCase().includes(query);
+    const alignMatch = (monster.alignment || "").toLowerCase().includes(query);
+    const appearanceMatch = (monster.appearance || "").toLowerCase().includes(query);
+    const personalityMatch = (monster.personality || "").toLowerCase().includes(query);
+    const historyMatch = (monster.history || "").toLowerCase().includes(query);
+    const relationshipMatch = (monster.partyRelationship || "").toLowerCase().includes(query);
     return nameMatch || raceMatch || classMatch || descMatch || alignMatch || appearanceMatch || personalityMatch || historyMatch || relationshipMatch;
   });
 
@@ -533,11 +540,11 @@ export default function WikiPanel({ user, isPopout = false }) {
     setEditorTab("write");
     setEditorError(null);
 
-    if (category === "NPC") {
+    if (category === "NPC" || category === "MONSTER") {
       setEditingNpc({
         name: "",
-        race: "Humanoid",
-        class: "Commoner",
+        race: category === "MONSTER" ? "Beast" : "Humanoid",
+        class: category === "MONSTER" ? "Monster" : "Commoner",
         level: 1,
         hp: 10,
         maxHp: 10,
@@ -554,7 +561,7 @@ export default function WikiPanel({ user, isPopout = false }) {
         inventory: "[]",
         modifiers: "{}",
         actions: JSON.stringify([
-          { name: "Club", description: "Melee Weapon Attack: one target.", toHit: 2, damage: "1d4" }
+          { name: "Claws", description: "Melee Weapon Attack: one target.", toHit: 2, damage: "1d4" }
         ]),
         description: "",
         alignment: "",
@@ -568,7 +575,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       setEditTitle("");
       setEditContent(templates[category] || "");
       setEditTags([category.charAt(0) + category.slice(1).toLowerCase()]); // default tag
-      setEditIsVisible(false);
+      setEditIsVisible(true);
       setTagInput("");
       setEditingNpc(null);
     }
@@ -582,11 +589,17 @@ export default function WikiPanel({ user, isPopout = false }) {
     setEditorTab("write");
     setEditorError(null);
 
-    if (activeCategoryTab === "NPC") {
+    if (activeCategoryTab === "NPC" || activeCategoryTab === "MONSTER") {
       setEditingNpc({
         ...item,
         largeImageUrl: item.largeImageUrl || "",
         alignment: item.alignment || "",
+        appearance: item.appearance || "",
+        personality: item.personality || "",
+        history: item.history || "",
+        partyRelationship: item.partyRelationship || "",
+        description: item.description || "",
+      });
         appearance: item.appearance || "",
         personality: item.personality || "",
         history: item.history || "",
@@ -724,20 +737,25 @@ export default function WikiPanel({ user, isPopout = false }) {
 
   // Helper to sync HP adjusters directly from statblock
   const handleHpChange = async (newHp) => {
-    if (!selectedArticle || activeCategoryTab !== "NPC") return;
+    if (!selectedArticle || (activeCategoryTab !== "NPC" && activeCategoryTab !== "MONSTER")) return;
+    const isMonster = activeCategoryTab === "MONSTER";
     try {
-      const res = await fetch(`/api/npcs/${selectedArticle.id}`, {
+      const res = await fetch(`/${isMonster ? "api/monsters" : "api/npcs"}/${selectedArticle.id}`, {
         method: "PUT",
         headers: jsonAuthHeaders,
         body: JSON.stringify({ hp: newHp }),
       });
       if (res.ok) {
         const updated = await res.json();
-        setNpcs((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+        if (isMonster) {
+          setMonsters((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+        } else {
+          setNpcs((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+        }
         setSelectedArticle(updated);
       }
     } catch (err) {
-      console.error("Failed to update NPC HP:", err);
+      console.error(`Failed to update ${isMonster ? "Monster" : "NPC"} HP:`, err);
     }
   };
 
@@ -803,24 +821,29 @@ export default function WikiPanel({ user, isPopout = false }) {
   async function confirmDelete() {
     if (!articleToDelete) return;
 
-    if (activeCategoryTab === "NPC") {
+    if (activeCategoryTab === "NPC" || activeCategoryTab === "MONSTER") {
+      const isMonster = activeCategoryTab === "MONSTER";
       try {
-        const res = await fetch(`/api/npcs/${articleToDelete.id}`, {
+        const res = await fetch(`/${isMonster ? "api/monsters" : "api/npcs"}/${articleToDelete.id}`, {
           method: "DELETE",
           headers: authHeaders,
         });
 
         if (!res.ok) {
           const err = await res.json();
-          throw new Error(err.error || "Failed to delete NPC.");
+          throw new Error(err.error || `Failed to delete ${isMonster ? "Monster" : "NPC"}.`);
         }
 
-        setNpcs((prev) => prev.filter((n) => n.id !== articleToDelete.id));
+        if (isMonster) {
+          setMonsters((prev) => prev.filter((n) => n.id !== articleToDelete.id));
+        } else {
+          setNpcs((prev) => prev.filter((n) => n.id !== articleToDelete.id));
+        }
         setSelectedArticle(null);
         setArticleToDelete(null);
       } catch (err) {
-        console.error("[WikiPanel] NPC Delete error:", err);
-        setError(`Failed to delete NPC: ${err.message}`);
+        console.error(`[WikiPanel] ${isMonster ? "Monster" : "NPC"} Delete error:`, err);
+        setError(`Failed to delete ${isMonster ? "Monster" : "NPC"}: ${err.message}`);
         setArticleToDelete(null);
       }
     } else {
@@ -851,7 +874,7 @@ export default function WikiPanel({ user, isPopout = false }) {
     e.preventDefault();
     setEditorError(null);
 
-    if (activeCategoryTab === "NPC") {
+    if (activeCategoryTab === "NPC" || activeCategoryTab === "MONSTER") {
       if (!editingNpc.name.trim()) {
         setEditorError("Name is required.");
         return;
@@ -871,7 +894,8 @@ export default function WikiPanel({ user, isPopout = false }) {
         charisma: Number(editingNpc.charisma),
       };
 
-      const url = editId ? `/api/npcs/${editId}` : "/api/npcs";
+      const isMonster = activeCategoryTab === "MONSTER";
+      const url = editId ? `/${isMonster ? "api/monsters" : "api/npcs"}/${editId}` : (isMonster ? "/api/monsters" : "/api/npcs");
       const method = editId ? "PUT" : "POST";
 
       try {
@@ -883,21 +907,29 @@ export default function WikiPanel({ user, isPopout = false }) {
 
         if (!res.ok) {
           const err = await res.json();
-          throw new Error(err.error || "Failed to save NPC.");
+          throw new Error(err.error || `Failed to save ${isMonster ? "Monster" : "NPC"}.`);
         }
 
         const saved = await res.json();
 
         if (editId) {
-          setNpcs((prev) => prev.map((n) => (n.id === saved.id ? saved : n)));
+          if (isMonster) {
+            setMonsters((prev) => prev.map((n) => (n.id === saved.id ? saved : n)));
+          } else {
+            setNpcs((prev) => prev.map((n) => (n.id === saved.id ? saved : n)));
+          }
         } else {
-          setNpcs((prev) => [...prev, saved]);
+          if (isMonster) {
+            setMonsters((prev) => [...prev, saved]);
+          } else {
+            setNpcs((prev) => [...prev, saved]);
+          }
         }
         setSelectedArticle(saved);
         setIsEditing(false);
         setEditingNpc(null);
       } catch (err) {
-        console.error("[WikiPanel] NPC Save error:", err);
+        console.error(`[WikiPanel] ${isMonster ? "Monster" : "NPC"} Save error:`, err);
         setEditorError(err.message);
       }
     } else {
@@ -998,17 +1030,21 @@ export default function WikiPanel({ user, isPopout = false }) {
     setEditTags(editTags.filter((t) => t !== tagToRemove));
   }
 
-  const listItems = activeCategoryTab === "NPC" ? filteredNpcs : categoryArticles;
+  const listItems = activeCategoryTab === "NPC"
+    ? filteredNpcs
+    : activeCategoryTab === "MONSTER"
+    ? filteredMonsters
+    : categoryArticles;
 
   return (
     <div style={styles.container} className="fade-in">
       {isEditing ? (
-        activeCategoryTab === "NPC" ? (
+        (activeCategoryTab === "NPC" || activeCategoryTab === "MONSTER") ? (
           /*  DM NPC SHEET EDITOR  */
           <form onSubmit={handleSave} style={styles.editor} className="glass-panel gold-border-glow fade-in">
             <header style={styles.editorHeader}>
               <h2 style={styles.editorTitle}>
-                {editId ? `Edit NPC: ${editingNpc.name}` : "Create NPC Statblock"}
+                {editId ? `Edit ${activeCategoryTab === "MONSTER" ? "Monster" : "NPC"}: ${editingNpc.name}` : `Create ${activeCategoryTab === "MONSTER" ? "Monster" : "NPC"} Statblock`}
               </h2>
               <div style={styles.editorHeaderActions}>
                 {!editId && (
@@ -1701,7 +1737,7 @@ export default function WikiPanel({ user, isPopout = false }) {
 
           {/* Reader Body */}
           <div style={styles.readerScroll}>
-            {activeCategoryTab === "NPC" ? (
+            {(activeCategoryTab === "NPC" || activeCategoryTab === "MONSTER") ? (
               <>
                 <NpcStatblock
                   npc={selectedArticle}
@@ -1846,6 +1882,78 @@ export default function WikiPanel({ user, isPopout = false }) {
             >
               📓 Session Logs
             </button>
+            <button
+              onClick={() => setActiveCategoryTab("MONSTER")}
+              style={{
+                ...styles.sectionTabBtn,
+                background: activeCategoryTab === "MONSTER" ? "var(--color-accent-dim)" : "transparent",
+                color: activeCategoryTab === "MONSTER" ? "var(--color-accent)" : "var(--color-muted)",
+                borderBottom: activeCategoryTab === "MONSTER" ? "2px solid var(--color-accent)" : "none",
+              }}
+              className="touch-target"
+            >
+              👹 Monsters
+            </button>
+            <button
+              onClick={() => setActiveCategoryTab("SPELL")}
+              style={{
+                ...styles.sectionTabBtn,
+                background: activeCategoryTab === "SPELL" ? "var(--color-accent-dim)" : "transparent",
+                color: activeCategoryTab === "SPELL" ? "var(--color-accent)" : "var(--color-muted)",
+                borderBottom: activeCategoryTab === "SPELL" ? "2px solid var(--color-accent)" : "none",
+              }}
+              className="touch-target"
+            >
+              ✨ Spells
+            </button>
+            <button
+              onClick={() => setActiveCategoryTab("ITEM")}
+              style={{
+                ...styles.sectionTabBtn,
+                background: activeCategoryTab === "ITEM" ? "var(--color-accent-dim)" : "transparent",
+                color: activeCategoryTab === "ITEM" ? "var(--color-accent)" : "var(--color-muted)",
+                borderBottom: activeCategoryTab === "ITEM" ? "2px solid var(--color-accent)" : "none",
+              }}
+              className="touch-target"
+            >
+              📦 Items
+            </button>
+            <button
+              onClick={() => setActiveCategoryTab("RULE")}
+              style={{
+                ...styles.sectionTabBtn,
+                background: activeCategoryTab === "RULE" ? "var(--color-accent-dim)" : "transparent",
+                color: activeCategoryTab === "RULE" ? "var(--color-accent)" : "var(--color-muted)",
+                borderBottom: activeCategoryTab === "RULE" ? "2px solid var(--color-accent)" : "none",
+              }}
+              className="touch-target"
+            >
+              📖 Rules
+            </button>
+            <button
+              onClick={() => setActiveCategoryTab("CLASS")}
+              style={{
+                ...styles.sectionTabBtn,
+                background: activeCategoryTab === "CLASS" ? "var(--color-accent-dim)" : "transparent",
+                color: activeCategoryTab === "CLASS" ? "var(--color-accent)" : "var(--color-muted)",
+                borderBottom: activeCategoryTab === "CLASS" ? "2px solid var(--color-accent)" : "none",
+              }}
+              className="touch-target"
+            >
+              🛡️ Classes
+            </button>
+            <button
+              onClick={() => setActiveCategoryTab("RACE")}
+              style={{
+                ...styles.sectionTabBtn,
+                background: activeCategoryTab === "RACE" ? "var(--color-accent-dim)" : "transparent",
+                color: activeCategoryTab === "RACE" ? "var(--color-accent)" : "var(--color-muted)",
+                borderBottom: activeCategoryTab === "RACE" ? "2px solid var(--color-accent)" : "none",
+              }}
+              className="touch-target"
+            >
+              👥 Races
+            </button>
             {!isPopout && user?.role === "DM" && (
               <button
                 onClick={() => window.open("/#/dm/popout/wiki", "_blank", "width=800,height=800,resizable=yes,scrollbars=yes")}
@@ -1870,49 +1978,49 @@ export default function WikiPanel({ user, isPopout = false }) {
             )}
           </div>
 
-          {/* Search Bar & Actions */}
-          <div style={styles.searchBarContainer}>
-            {activeCategoryTab === "NPC" && isDM ? (
-              <div style={styles.npcAutocompleteWrapper}>
-                <Autocomplete
-                  category="monsters"
-                  value={importQuery}
-                  onChange={(val) => setImportQuery(val)}
-                  onSelect={handleBestiaryImport}
-                  placeholder="Import from Bestiary (e.g. Goblin, Orc...)"
-                  className="form-input touch-target"
-                  inputStyle={styles.importInput}
-                />
-              </div>
-            ) : null}
+  function handleStartCreatePrompt() {
+    if (activeCategoryTab === "MONSTER") {
+      handleSelectCategoryToCreate("MONSTER");
+    } else if (["SPELL", "ITEM", "RULE", "CLASS", "RACE"].includes(activeCategoryTab)) {
+      handleSelectCategoryToCreate(activeCategoryTab);
+    } else {
+      setShowCategoryPrompt(true);
+    }
+  }
 
-            <input
-              id="wiki-search-input"
-              type="text"
-              placeholder={`Search ${activeCategoryTab === "LOCATION" ? "locations" : activeCategoryTab === "NPC" ? "NPCs" : activeCategoryTab === "LORE" ? "lore" : "session logs"}...`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={styles.searchInput}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                style={{ ...styles.clearBtn, right: isDM ? "155px" : "15px" }}
-                className="touch-target"
-              >
-                ✕
-              </button>
-            )}
-            {isDM && (
-              <button
-                onClick={handleStartCreatePrompt}
-                style={styles.createBtn}
-                className="touch-target btn-hover-scale"
-              >
-                {activeCategoryTab === "NPC" ? "+ New NPC" : "+ New Entry"}
-              </button>
-            )}
-          </div>
+  return (
+    <div style={styles.listView}>
+      {/* Search and Action Row */}
+      <div style={styles.searchBarContainer}>
+
+
+        <input
+          id="wiki-search-input"
+          type="text"
+          placeholder={`Search ${activeCategoryTab.toLowerCase()}s...`}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={styles.searchInput}
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            style={{ ...styles.clearBtn, right: isDM && activeCategoryTab === "NPC" ? "155px" : "15px" }}
+            className="touch-target"
+          >
+            ✕
+          </button>
+        )}
+        {isDM && (
+          <button
+            onClick={handleStartCreatePrompt}
+            style={styles.createBtn}
+            className="touch-target btn-hover-scale"
+          >
+            {activeCategoryTab === "NPC" ? "+ New NPC" : activeCategoryTab === "MONSTER" ? "+ New Monster" : "+ New Entry"}
+          </button>
+        )}
+      </div>
 
           {/* List display */}
           <div style={styles.listScroll}>
@@ -1923,7 +2031,7 @@ export default function WikiPanel({ user, isPopout = false }) {
               <p style={styles.infoText}>No entries found in this section.</p>
             )}
 
-            {!loading && !error && activeCategoryTab === "NPC" ? (
+            {!loading && !error && (activeCategoryTab === "NPC" || activeCategoryTab === "MONSTER") ? (
               listItems.map((npc) => (
                 <div
                   key={npc.id}
@@ -2111,7 +2219,17 @@ export default function WikiPanel({ user, isPopout = false }) {
                 >
                   <span style={styles.categoryPromptIcon}>👤</span>
                   <span style={styles.categoryPromptLabel}>NPC</span>
-                  <span style={styles.categoryPromptDesc}>Allies, monsters, notable figures</span>
+                  <span style={styles.categoryPromptDesc}>Allies, notable figures</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectCategoryToCreate("MONSTER")}
+                  style={styles.categoryPromptBtn}
+                  className="touch-target btn-hover-scale glass-panel"
+                >
+                  <span style={styles.categoryPromptIcon}>👹</span>
+                  <span style={styles.categoryPromptLabel}>Monster</span>
+                  <span style={styles.categoryPromptDesc}>Hostile beasts and enemies</span>
                 </button>
                 <button
                   type="button"

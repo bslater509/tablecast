@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import {
   Box,
+  Database,
   ExternalLink,
   LogOut,
   Map as MapIcon,
@@ -26,6 +27,7 @@ import AiPanel from "./components/AiPanel";
 import DiceSettingsModal from "./components/DiceSettingsModal";
 import DiceRollerPanel from "./components/DiceRollerPanel";
 import ConnectionHelpPanel from "./components/ConnectionHelpPanel";
+import ImporterPanel from "./components/ImporterPanel";
 import { useSocket } from "./context/SocketContext";
 
 const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
@@ -70,6 +72,13 @@ const DM_NAV_ITEMS = [
     popoutUrl: "/#/dm/popout/chat",
     popoutTitle: "Pop out Chat & Logs",
     popoutFeatures: "width=600,height=800,resizable=yes,scrollbars=yes",
+  },
+  {
+    id: "importer",
+    label: "5etools Importer",
+    mobileLabel: "Import",
+    path: "/dm/importer",
+    icon: Database,
   },
   {
     id: "settings",
@@ -691,7 +700,7 @@ function CharacterSheetWrapper({ user, basePath, isPopout = false }) {
 function ChatJournalWrapper({ user, basePath }) {
   const { subtab } = useParams();
   const navigate = useNavigate();
-  const activeSubtab = ["chat", "journal", "reference", "ai"].includes(subtab) ? subtab : "chat";
+  const activeSubtab = ["chat", "journal", "ai"].includes(subtab) ? subtab : "chat";
 
   return (
     <div style={styles.chatJournalWrapper}>
@@ -724,19 +733,6 @@ function ChatJournalWrapper({ user, basePath }) {
           Player Journal
         </button>
         <button
-          id="toggle-reference-tab"
-          onClick={() => navigate(`${basePath}/reference`)}
-          style={{
-            ...styles.subTabBtn,
-            background: activeSubtab === "reference" ? "var(--color-accent-dim)" : "transparent",
-            color: activeSubtab === "reference" ? "var(--color-accent)" : "var(--color-muted)",
-            border: activeSubtab === "reference" ? "1px solid var(--color-border)" : "1px solid transparent",
-          }}
-          className="touch-target"
-        >
-          Reference Library
-        </button>
-        <button
           id="toggle-ai-tab"
           onClick={() => navigate(`${basePath}/ai`)}
           style={{
@@ -754,7 +750,6 @@ function ChatJournalWrapper({ user, basePath }) {
       <div style={styles.subTabContent}>
         {activeSubtab === "chat" && <ChatPanel user={user} isPopout={false} />}
         {activeSubtab === "journal" && <WikiPanel user={user} isPopout={false} />}
-        {activeSubtab === "reference" && <ReferencePanel user={user} isPopout={false} />}
         {activeSubtab === "ai" && <AiPanel user={user} />}
       </div>
     </div>
@@ -1024,6 +1019,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="dice" element={<DiceRollerPanel user={user} />} />
             <Route path="chat-journal" element={<Navigate to="chat" replace />} />
             <Route path="chat-journal/:subtab" element={<ChatJournalWrapper user={user} basePath="/dm/chat-journal" />} />
+            <Route path="importer" element={<ImporterPanel user={user} />} />
             <Route path="settings" element={<SettingsPanel user={user} />} />
             <Route path="*" element={<Navigate to="map" replace />} />
           </Routes>

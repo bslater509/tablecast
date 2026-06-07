@@ -94,6 +94,7 @@ app.get("/api/network-ip", (_req, res) => {
 const usersRouter = require("./routes/users");
 const charactersRouter = require("./routes/characters");
 const npcsRouter = require("./routes/npcs");
+const monstersRouter = require("./routes/monsters");
 const wikiRouter = require("./routes/wiki");
 const mapsRouter = require("./routes/maps");
 const encountersRouter = require("./routes/encounters");
@@ -106,6 +107,7 @@ const chatRouter = require("./routes/chat");
 app.use("/api/users", usersRouter);
 app.use("/api/characters", charactersRouter);
 app.use("/api/npcs", npcsRouter);
+app.use("/api/monsters", monstersRouter);
 app.use("/api/wiki", wikiRouter);
 app.use("/api/maps", mapsRouter);
 app.use("/api/encounters", encountersRouter);

@@ -156,6 +156,10 @@ model Token {
   npcId Int?
   npc   Npc? @relation(fields: [npcId], references: [id], onDelete: SetNull)
 
+  // Optional link to a Monster sheet
+  monsterId Int?
+  monster   Monster? @relation(fields: [monsterId], references: [id], onDelete: SetNull)
+
   // Display
   label    String @default("")
   imageUrl String @default("")
@@ -290,6 +294,9 @@ model EncounterParticipant {
   characterId Int?
   character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
 
+  monsterId Int?
+  monster   Monster? @relation(fields: [monsterId], references: [id], onDelete: SetNull)
+
   name       String
   initiative Int     @default(0)
   currentHp  Int     @default(1)
@@ -321,4 +328,55 @@ model Roll {
   createdAt DateTime @default(now())
 
   @@map("rolls")
+}
+
+/// A DM-imported Non-Player Character (Monster) template with a 5e bestiary statblock
+model Monster {
+  id    Int    @id @default(autoincrement())
+  name  String
+  race  String @default("")
+  class String @default("")
+  level Int    @default(1)
+
+  // Combat Stats
+  hp            Int    @default(10)
+  maxHp         Int    @default(10)
+  ac            Int    @default(10)
+  cr            String @default("0")
+  imageUrl      String @default("")
+  largeImageUrl String @default("")
+
+  // Core Ability Scores (D&D 5e)
+  strength     Int @default(10)
+  dexterity    Int @default(10)
+  constitution Int @default(10)
+  intelligence Int @default(10)
+  wisdom       Int @default(10)
+  charisma     Int @default(10)
+
+  // JSON blobs for structured stats
+  // inventory: serialized array of item objects
+  // modifiers: serialized map of ability modifier values
+  // actions: serialized array of action objects
+  inventory String @default("[]")
+  modifiers String @default("{}")
+  actions   String @default("[]")
+
+  // Narrative and player visibility
+  description        String  @default("")
+  alignment          String  @default("")
+  appearance         String  @default("")
+  personality        String  @default("")
+  history            String  @default("")
+  partyRelationship  String  @default("")
+  isVisibleToPlayers Boolean @default(false)
+
+  // Relations
+  tokens                Token[]
+  encounterParticipants EncounterParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("monsters")
 }

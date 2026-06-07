@@ -58,11 +58,23 @@ function Autocomplete({
     setLoading(true);
     debounceTimer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/reference/search?category=${category}&q=${encodeURIComponent(searchQuery)}&limit=15`);
-        if (res.ok) {
-          const data = await res.json();
-          setSuggestions(data);
-          setIsOpen(data.length > 0);
+        if (category === "monsters") {
+          const res = await fetch(`/api/monsters`);
+          if (res.ok) {
+            const allMonsters = await res.json();
+            const filtered = allMonsters.filter(m =>
+              m.name.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+            setSuggestions(filtered.slice(0, 15));
+            setIsOpen(filtered.length > 0);
+          }
+        } else {
+          const res = await fetch(`/api/reference/search?category=${category}&q=${encodeURIComponent(searchQuery)}&limit=15`);
+          if (res.ok) {
+            const data = await res.json();
+            setSuggestions(data);
+            setIsOpen(data.length > 0);
+          }
         }
       } catch (err) {
         console.error("Autocomplete fetch error:", err);
@@ -129,12 +141,14 @@ function Autocomplete({
                 <div style={styles.itemMain}>
                   <span style={styles.itemName}>{item.name}</span>
                   {item.source && <span style={styles.itemSource}>{item.source}</span>}
+                  {item.cr && <span style={styles.itemSource}>CR {item.cr}</span>}
                 </div>
                 {item.level !== undefined && (
                   <span style={styles.itemDetail}>
                     {item.level === 0 ? "Cantrip" : `Lvl ${item.level}`}
                   </span>
                 )}
+                {item.race && <span style={styles.itemDetail}>{item.race}</span>}
                 {formatItemType(item.type) && <span style={styles.itemDetail}>{formatItemType(item.type)}</span>}
               </button>
             </li>

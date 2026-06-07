@@ -244,7 +244,7 @@ Respond to the user's message as "${npc.name}". Keep it immersive, flavorful, an
         const updatedToken = await prisma.token.update({
           where: { id: parsed.value.id },
           data: { x: parsed.value.x, y: parsed.value.y },
-          include: { character: true, npc: true },
+          include: { character: true, npc: true, monster: true },
         });
         io.emit("token:moved", updatedToken);
       } catch (err) {
@@ -263,7 +263,7 @@ Respond to the user's message as "${npc.name}". Keep it immersive, flavorful, an
 
           const token = await prisma.token.findUnique({
             where: { id: parsed.value.id },
-            include: { character: true, npc: true },
+            include: { character: true, npc: true, monster: true },
           });
           if (!token) return emitSocketError(socket, "token:create", "Token not found.");
           io.emit("token:created", token);
@@ -290,10 +290,13 @@ Respond to the user's message as "${npc.name}". Keep it immersive, flavorful, an
         if (parsed.value.npcId) {
           data.npcId = parsed.value.npcId;
         }
+        if (parsed.value.monsterId) {
+          data.monsterId = parsed.value.monsterId;
+        }
 
         const newToken = await prisma.token.create({
           data,
-          include: { character: true, npc: true },
+          include: { character: true, npc: true, monster: true },
         });
         io.emit("token:created", newToken);
       } catch (err) {
@@ -520,6 +523,11 @@ function validateTokenCreatePayload(payload) {
     return { ok: false, error: "npcId must be a positive integer." };
   }
 
+  const monsterId = payload.monsterId ? Number(payload.monsterId) : null;
+  if (monsterId !== null && (!Number.isInteger(monsterId) || monsterId <= 0)) {
+    return { ok: false, error: "monsterId must be a positive integer." };
+  }
+
   return {
     ok: true,
     value: {
@@ -529,6 +537,7 @@ function validateTokenCreatePayload(payload) {
       stats: typeof payload.stats === "string" ? payload.stats : null,
       characterId,
       npcId,
+      monsterId,
       x,
       y,
     },
