@@ -387,7 +387,7 @@ textarea:focus-visible {
   max-height: 85vh;
   display: block;
   object-fit: contain;
-
+}
 
 @keyframes zoomIn {
   from { transform: scale(0.9); }
