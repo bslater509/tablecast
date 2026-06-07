@@ -104,8 +104,6 @@ function escapeJsStr(str) {
     }
   });
 }
-  });
-}
 
 router.post("/oauth-init", requireDm, async (req, res) => {
   try {
