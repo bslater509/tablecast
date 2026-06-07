@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { QRCodeSVG } from "qrcode.react";
 
 export default function ConnectionHelpPanel({ user }) {
   const [ips, setIps] = useState([]);
@@ -30,7 +31,6 @@ export default function ConnectionHelpPanel({ user }) {
   const currentPort = window.location.port ? `:${window.location.port}` : "";
   const activeIp = ips[selectedIpIndex] || window.location.hostname;
   const joinUrl = `http://${activeIp}${currentPort}`;
-  const qrUrl = `https://chart.googleapis.com/chart?cht=qr&chs=260x260&chl=${encodeURIComponent(joinUrl)}&choe=UTF-8`;
 
   return (
     <div style={styles.container} className="fade-in">
@@ -57,10 +57,15 @@ export default function ConnectionHelpPanel({ user }) {
 
             {/* QR Code Container */}
             <div style={styles.qrContainer}>
-              <img
-                src={qrUrl}
-                alt="Session QR Code"
-                style={styles.qrImage}
+              <QRCodeSVG
+                value={joinUrl}
+                size={224}
+                level="M"
+                includeMargin
+                bgColor="#ffffff"
+                fgColor="#17130d"
+                title="Session QR Code"
+                style={styles.qrCode}
                 className="gold-border-glow"
               />
             </div>
@@ -171,7 +176,7 @@ const styles = {
     justifyContent: "center",
     margin: "0.5rem 0",
   },
-  qrImage: {
+  qrCode: {
     width: "240px",
     height: "240px",
     padding: "0.5rem",
