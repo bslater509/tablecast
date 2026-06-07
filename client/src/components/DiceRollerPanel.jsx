@@ -278,7 +278,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
 
         rolls.push(chosen);
         rollSum += chosen;
-        dice3d.push(`2d20@${r1},${r2}`);
+        dice3d.push(`1d20@${r1}`, `1d20@${r2}`);
 
         const advLabel = advantage === "advantage" ? "Adv" : "Disadv";
         formulaParts.push(`1d20 (${advLabel}: chose ${chosen}, dropped ${discarded})`);

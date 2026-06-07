@@ -9,9 +9,11 @@ export function DiceBoxProvider({ children }) {
   const diceBoxRef = useRef(null);
   const [isReady, setIsReady] = useState(false);
   const [isRolling, setIsRolling] = useState(false);
+  const isRollingRef = useRef(false);
   // Keep queue in state to trigger re-renders when queue changes
   const [queue, setQueue] = useState([]);
   const queueRef = useRef([]);
+  const queuedMessageIdsRef = useRef(new Set());
   const [toasts, setToasts] = useState([]);
 
   // Trigger toast notifications
@@ -72,6 +74,9 @@ export function DiceBoxProvider({ children }) {
 
           // Remove completed roll from queue
           queueRef.current.shift();
+          if (activeRoll.messageId) {
+            queuedMessageIdsRef.current.delete(activeRoll.messageId);
+          }
           setQueue([...queueRef.current]);
         }
 
@@ -80,6 +85,7 @@ export function DiceBoxProvider({ children }) {
           if (box) {
             box.clear();
           }
+          isRollingRef.current = false;
           setIsRolling(false);
         }, 1200);
       };
@@ -97,9 +103,10 @@ export function DiceBoxProvider({ children }) {
 
   // Process the queue
   useEffect(() => {
-    if (!isReady || isRolling || queue.length === 0) return;
+    if (!isReady || isRollingRef.current || queue.length === 0) return;
 
     const nextRoll = queue[0];
+    isRollingRef.current = true;
     setIsRolling(true);
 
     const { dice3d, color, theme } = nextRoll;
@@ -145,17 +152,29 @@ export function DiceBoxProvider({ children }) {
             })
           );
           queueRef.current.shift();
+          if (nextRoll.messageId) {
+            queuedMessageIdsRef.current.delete(nextRoll.messageId);
+          }
           setQueue([...queueRef.current]);
+          isRollingRef.current = false;
           setIsRolling(false);
         });
     } else {
+      queueRef.current.shift();
+      if (nextRoll.messageId) {
+        queuedMessageIdsRef.current.delete(nextRoll.messageId);
+      }
+      setQueue([...queueRef.current]);
+      isRollingRef.current = false;
       setIsRolling(false);
     }
   }, [isReady, isRolling, queue]);
 
   // Queue a roll
   const trigger3DRoll = useCallback((messageId, dice3d, color, theme, sender, rollName, formula, total) => {
-    if (!dice3d || dice3d.length === 0) {
+    const normalizedDice3d = Array.isArray(dice3d) ? dice3d.filter(Boolean) : [dice3d].filter(Boolean);
+
+    if (normalizedDice3d.length === 0) {
       // Immediate completion if no 3D dice configured
       window.dispatchEvent(
         new CustomEvent("dice:roll:complete", {
@@ -165,8 +184,16 @@ export function DiceBoxProvider({ children }) {
       return;
     }
 
-    console.log("[3D Dice] Queueing roll:", dice3d, "with theme:", theme, "for:", sender);
-    queueRef.current.push({ messageId, dice3d, color, theme, sender, rollName, formula, total });
+    if (messageId && queuedMessageIdsRef.current.has(messageId)) {
+      return;
+    }
+
+    if (messageId) {
+      queuedMessageIdsRef.current.add(messageId);
+    }
+
+    console.log("[3D Dice] Queueing roll:", normalizedDice3d, "with theme:", theme, "for:", sender);
+    queueRef.current.push({ messageId, dice3d: normalizedDice3d, color, theme, sender, rollName, formula, total });
     setQueue([...queueRef.current]);
   }, [setQueue]);
 
