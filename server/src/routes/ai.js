@@ -660,6 +660,17 @@ async function performAiStream(provider, apiKey, ollamaUrl, ollamaModel, systemP
   }
 }
 
+/** Safely parse an HTTP response as JSON, with a human-readable error on failure */
+async function safeParseJsonResponse(response) {
+  const text = await response.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const snippet = text.substring(0, 200).replace(/\n/g, " ").replace(/\r/g, "");
+    throw new Error(`AI service returned an unexpected response (${snippet}${text.length > 200 ? "..." : ""}). Check your AI provider settings or try again.`);
+  }
+}
+
 async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history = []) {
   if (!provider) {
     throw new Error("No AI Provider configured.");
@@ -702,7 +713,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
         body: JSON.stringify({ contents })
       });
 
-      const data = await response.json();
+      const data = await safeParseJsonResponse(response);
       if (data.error) {
         throw new Error(data.error.message || JSON.stringify(data.error));
       }
@@ -729,7 +740,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
         })
       });
 
-      const data = await response.json();
+      const data = await safeParseJsonResponse(response);
       if (data.error) {
         throw new Error(data.error.message || JSON.stringify(data.error));
       }
@@ -762,7 +773,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
         })
       });
 
-      const data = await response.json();
+      const data = await safeParseJsonResponse(response);
       if (data.error) {
         throw new Error(data.error.message || JSON.stringify(data.error));
       }
@@ -789,7 +800,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
         throw new Error(`Ollama responded with status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await safeParseJsonResponse(response);
       const reply = data.message?.content;
       if (!reply) throw new Error("Empty response from Ollama server.");
       return reply;
@@ -816,7 +827,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
         throw new Error(`LM Studio responded with status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await safeParseJsonResponse(response);
       const reply = data.choices?.[0]?.message?.content;
       if (!reply) throw new Error("Empty response from LM Studio.");
       return reply;
@@ -842,7 +853,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
         throw new Error(`OpenCode Zen responded with status: ${response.status}${errText ? ` - ${errText}` : ""}`);
       }
 
-      const data = await response.json();
+      const data = await safeParseJsonResponse(response);
       const reply = data.choices?.[0]?.message?.content;
       if (!reply) throw new Error("Empty response from OpenCode Zen API.");
       return reply;

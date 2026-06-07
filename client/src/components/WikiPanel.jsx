@@ -438,9 +438,15 @@ export default function WikiPanel({ user, isPopout = false }) {
         throw new Error(errData.error || "Request failed.");
       }
       // Non-streaming fallback (shouldn't happen with new endpoints, but handles edge cases)
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      if (onResult) onResult(data);
+      const body = await res.text();
+      try {
+        const data = JSON.parse(body);
+        if (data.error) throw new Error(data.error);
+        if (onResult) onResult(data);
+      } catch (e) {
+        // If JSON parsing fails, the body might contain partial SSE data
+        throw new Error("Received an unexpected response from the server. Please try again.");
+      }
       return;
     }
 
