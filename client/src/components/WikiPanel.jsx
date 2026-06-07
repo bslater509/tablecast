@@ -195,7 +195,7 @@ function NpcStatblock({ npc, socket, isDM, onHpChange }) {
   );
 }
 
-export default function WikiPanel({ user }) {
+export default function WikiPanel({ user, isPopout = false }) {
   const { socket } = useSocket();
   const [articles, setArticles] = useState([]);
   const [npcs, setNpcs] = useState([]);
@@ -1663,6 +1663,27 @@ export default function WikiPanel({ user }) {
             >
               📓 Session Logs
             </button>
+            {!isPopout && user?.role === "DM" && (
+              <button
+                onClick={() => window.open("/dm/popout/wiki", "_blank", "width=800,height=800,resizable=yes,scrollbars=yes")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--color-accent)",
+                  fontSize: "1.15rem",
+                  cursor: "pointer",
+                  marginLeft: "auto",
+                  paddingRight: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  flexShrink: 0,
+                }}
+                className="touch-target btn-hover-scale"
+                title="Pop out Wiki"
+              >
+                ⧉
+              </button>
+            )}
           </div>
 
           {/* Search Bar & Actions */}

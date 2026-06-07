@@ -118,7 +118,7 @@ const DICE_TYPES = [
   },
 ];
 
-export default function DiceRollerPanel({ user }) {
+export default function DiceRollerPanel({ user, isPopout = false }) {
   const { socket } = useSocket();
   const [activeSubTab, setActiveSubTab] = useState("roller"); // "roller" | "history"
   const [history, setHistory] = useState([]);
@@ -352,6 +352,27 @@ export default function DiceRollerPanel({ user }) {
         >
           Roll History
         </button>
+        {!isPopout && user?.role === "DM" && (
+          <button
+            onClick={() => window.open("/dm/popout/dice", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--color-accent)",
+              fontSize: "1.15rem",
+              cursor: "pointer",
+              marginLeft: "auto",
+              paddingRight: "0.45rem",
+              display: "flex",
+              alignItems: "center",
+              flexShrink: 0,
+            }}
+            className="touch-target btn-hover-scale"
+            title="Pop out Dice Roller"
+          >
+            ⧉
+          </button>
+        )}
       </div>
 
       <div

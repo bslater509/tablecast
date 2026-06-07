@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
 
-export default function ChatPanel({ user }) {
+export default function ChatPanel({ user, isPopout = false }) {
   const { socket, isConnected } = useSocket();
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
@@ -190,6 +190,26 @@ export default function ChatPanel({ user }) {
         <div style={styles.headerLeft}>
           <h1 style={styles.title}> Tablecast</h1>
           <span style={styles.badge}>{username}</span>
+          {!isPopout && user?.role === "DM" && (
+            <button
+              onClick={() => window.open("/dm/popout/chat", "_blank", "width=600,height=800,resizable=yes,scrollbars=yes")}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--color-accent)",
+                fontSize: "1.15rem",
+                cursor: "pointer",
+                marginLeft: "0.65rem",
+                display: "inline-flex",
+                alignItems: "center",
+                padding: 0,
+              }}
+              className="touch-target btn-hover-scale"
+              title="Pop out Chat"
+            >
+              ⧉
+            </button>
+          )}
         </div>
         <span
           id="connection-status"

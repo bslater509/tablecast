@@ -449,9 +449,11 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     <div style={styles.sheet} className="fade-in">
       {/* Top Banner Header */}
       <header style={styles.header} className="glass-panel gold-border-glow">
-        <button onClick={onBack} style={styles.backBtn} className="touch-target btn-hover-scale">
-          ◀ List
-        </button>
+        {onBack && (
+          <button onClick={onBack} style={styles.backBtn} className="touch-target btn-hover-scale">
+            ◀ List
+          </button>
+        )}
         
         <div style={styles.headerStats}>
           <h2 style={styles.charName}>{character.name}</h2>

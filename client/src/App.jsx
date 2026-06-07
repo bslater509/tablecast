@@ -14,6 +14,7 @@ import ReferencePanel from "./components/ReferencePanel";
 import AiPanel from "./components/AiPanel";
 import DiceSettingsModal from "./components/DiceSettingsModal";
 import DiceRollerPanel from "./components/DiceRollerPanel";
+import ConnectionHelpPanel from "./components/ConnectionHelpPanel";
 import { useSocket } from "./context/SocketContext";
 
 const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
@@ -276,6 +277,15 @@ function App() {
         <Route path="/" element={<p style={{ padding: "2rem", color: "var(--color-muted)" }}>Entering Tavern...</p>} />
         <Route path="/player/*" element={<PlayerLayout user={user} onLogout={handleLogout} onOpenDiceSettings={() => setDiceModalOpen(true)} />} />
         <Route path="/dm/*" element={<DmLayout user={user} onLogout={handleLogout} onOpenDiceSettings={() => setDiceModalOpen(true)} />} />
+        
+        {/* Standalone Popout Panel Routes */}
+        <Route path="/dm/popout/chat" element={<ChatPanel user={user} isPopout={true} />} />
+        <Route path="/dm/popout/wiki" element={<WikiPanel user={user} isPopout={true} />} />
+        <Route path="/dm/popout/reference" element={<ReferencePanel user={user} isPopout={true} />} />
+        <Route path="/dm/popout/dice" element={<DiceRollerPanel user={user} isPopout={true} />} />
+        <Route path="/dm/popout/connection" element={<ConnectionHelpPanel user={user} />} />
+        <Route path="/dm/popout/characters/:id" element={<CharacterSheetWrapper user={user} basePath="/dm/popout/characters" isPopout={true} />} />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
@@ -592,14 +602,14 @@ const styles = {
 // Helper Wrappers & Layout Components
 // =============================================================================
 
-function CharacterSheetWrapper({ user, basePath }) {
+function CharacterSheetWrapper({ user, basePath, isPopout = false }) {
   const { id } = useParams();
   const navigate = useNavigate();
   return (
     <CharacterSheet
       characterId={Number(id)}
       user={user}
-      onBack={() => navigate(basePath)}
+      onBack={isPopout ? undefined : () => navigate(basePath)}
     />
   );
 }
@@ -668,9 +678,9 @@ function ChatJournalWrapper({ user, basePath }) {
       </div>
       
       <div style={styles.subTabContent}>
-        {activeSubtab === "chat" && <ChatPanel user={user} />}
-        {activeSubtab === "journal" && <WikiPanel user={user} />}
-        {activeSubtab === "reference" && <ReferencePanel />}
+        {activeSubtab === "chat" && <ChatPanel user={user} isPopout={false} />}
+        {activeSubtab === "journal" && <WikiPanel user={user} isPopout={false} />}
+        {activeSubtab === "reference" && <ReferencePanel user={user} isPopout={false} />}
         {activeSubtab === "ai" && <AiPanel user={user} />}
       </div>
     </div>
@@ -842,147 +852,209 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
     : "map";
 
   return (
-    <div style={styles.layoutContainer}>
-      {/* Top Header Banner */}
-      <header style={styles.topHeader} className="glass-panel gold-border-glow">
-        <span style={styles.headerTitle}>Dungeon Master Screen</span>
-        <div style={styles.headerUser}>
-          <span style={styles.headerUsername}>{user?.username}</span>
+    <div className="dm-layout-shell">
+      {/* Sidebar Nav (Desktop only) */}
+      <aside className="dm-sidebar-nav">
+        <div className="dm-sidebar-title">Tablecast DM</div>
+        <div className="dm-sidebar-links">
           <button
-            onClick={onOpenDiceSettings}
-            style={styles.diceSettingsBtn}
-            className="touch-target btn-hover-scale"
-            title="Dice Customization"
+            onClick={() => navigate("/dm/map")}
+            className={`dm-sidebar-btn ${currentTab === "map" ? "active" : ""}`}
           >
-            🎲
+            <span className="dm-sidebar-icon">🗺️</span>
+            Map VTT
           </button>
-          <button 
-            onClick={onLogout} 
-            style={styles.logoutBtn} 
-            className="touch-target btn-hover-scale"
+          <button
+            onClick={() => navigate("/dm/characters")}
+            className={`dm-sidebar-btn ${currentTab === "characters" ? "active" : ""}`}
           >
-            Exit
+            <span className="dm-sidebar-icon">👥</span>
+            Characters
+          </button>
+          <button
+            onClick={() => navigate("/dm/dice")}
+            className={`dm-sidebar-btn ${currentTab === "dice" ? "active" : ""}`}
+          >
+            <span className="dm-sidebar-icon">🎲</span>
+            Dice Roller
+          </button>
+          <button
+            onClick={() => navigate("/dm/chat-journal/chat")}
+            className={`dm-sidebar-btn ${currentTab === "chat-journal" ? "active" : ""}`}
+          >
+            <span className="dm-sidebar-icon">💬</span>
+            Chat & Wiki
+          </button>
+          <button
+            onClick={() => navigate("/dm/settings")}
+            className={`dm-sidebar-btn ${currentTab === "settings" ? "active" : ""}`}
+          >
+            <span className="dm-sidebar-icon">⚙️</span>
+            Settings
           </button>
         </div>
-      </header>
+      </aside>
 
-      {/* Main Workspace content */}
-      <main style={styles.mainContent}>
-        <Routes>
-          <Route path="map" element={<MapPanel user={user} />} />
-          <Route
-            path="characters"
-            element={
-              <CharacterList
-                user={user}
-                onSelectCharacter={(char) => navigate(`/dm/characters/${char.id}`)}
-              />
-            }
-          />
-          <Route path="characters/:id" element={<CharacterSheetWrapper user={user} basePath="/dm/characters" />} />
-          <Route path="dice" element={<DiceRollerPanel user={user} />} />
-          <Route path="chat-journal" element={<Navigate to="chat" replace />} />
-          <Route path="chat-journal/:subtab" element={<ChatJournalWrapper user={user} basePath="/dm/chat-journal" />} />
-          <Route path="settings" element={<SettingsPanel user={user} />} />
-          <Route path="*" element={<Navigate to="map" replace />} />
-        </Routes>
-      </main>
+      <div style={styles.layoutContainer} className="dm-main-area">
+        {/* Top Header Banner */}
+        <header style={styles.topHeader} className="glass-panel gold-border-glow">
+          <span style={styles.headerTitle}>Dungeon Master Screen</span>
+          <div style={styles.headerUser}>
+            <span style={styles.headerUsername}>{user?.username}</span>
+            <button
+              onClick={() => window.open("/dm/popout/connection", "_blank", "width=500,height=530,resizable=yes,scrollbars=yes")}
+              style={{
+                background: "none",
+                border: "none",
+                fontSize: "1.2rem",
+                cursor: "pointer",
+                padding: "0.25rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "transform 0.1s ease",
+              }}
+              className="touch-target btn-hover-scale"
+              title="Show Join QR Code"
+            >
+              📶
+            </button>
+            <button
+              onClick={onOpenDiceSettings}
+              style={styles.diceSettingsBtn}
+              className="touch-target btn-hover-scale"
+              title="Dice Customization"
+            >
+              🎲
+            </button>
+            <button 
+              onClick={onLogout} 
+              style={styles.logoutBtn} 
+              className="touch-target btn-hover-scale"
+            >
+              Exit
+            </button>
+          </div>
+        </header>
 
-      {/* Bottom Nav Bar */}
-      <nav style={styles.bottomNav} className="glass-panel gold-border-glow">
-        <button
-          id="nav-tab-map"
-          onClick={() => navigate("/dm/map")}
-          style={{
-            ...styles.navBtn,
-            color: currentTab === "map" ? "var(--color-accent)" : "var(--color-muted)",
-          }}
-          className="touch-target"
-        >
-          <span style={styles.navIcon}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
-              <line x1="9" y1="3" x2="9" y2="18" />
-              <line x1="15" y1="6" x2="15" y2="21" />
-            </svg>
-          </span>
-          <span style={styles.navLabel}>Map</span>
-        </button>
+        {/* Main Workspace content */}
+        <main style={styles.mainContent}>
+          <Routes>
+            <Route path="map" element={<MapPanel user={user} />} />
+            <Route
+              path="characters"
+              element={
+                <CharacterList
+                  user={user}
+                  onSelectCharacter={(char) => navigate(`/dm/characters/${char.id}`)}
+                />
+              }
+            />
+            <Route path="characters/:id" element={<CharacterSheetWrapper user={user} basePath="/dm/characters" />} />
+            <Route path="dice" element={<DiceRollerPanel user={user} />} />
+            <Route path="chat-journal" element={<Navigate to="chat" replace />} />
+            <Route path="chat-journal/:subtab" element={<ChatJournalWrapper user={user} basePath="/dm/chat-journal" />} />
+            <Route path="settings" element={<SettingsPanel user={user} />} />
+            <Route path="*" element={<Navigate to="map" replace />} />
+          </Routes>
+        </main>
 
-        <button
-          id="nav-tab-characters"
-          onClick={() => navigate("/dm/characters")}
-          style={{
-            ...styles.navBtn,
-            color: currentTab === "characters" ? "var(--color-accent)" : "var(--color-muted)",
-          }}
-          className="touch-target"
-        >
-          <span style={styles.navIcon}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-          </span>
-          <span style={styles.navLabel}>Characters</span>
-        </button>
+        {/* Bottom Nav Bar (Mobile only) */}
+        <nav style={styles.bottomNav} className="dm-bottom-nav glass-panel gold-border-glow">
+          <button
+            id="nav-tab-map"
+            onClick={() => navigate("/dm/map")}
+            style={{
+              ...styles.navBtn,
+              color: currentTab === "map" ? "var(--color-accent)" : "var(--color-muted)",
+            }}
+            className="touch-target"
+          >
+            <span style={styles.navIcon}>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+                <line x1="9" y1="3" x2="9" y2="18" />
+                <line x1="15" y1="6" x2="15" y2="21" />
+              </svg>
+            </span>
+            <span style={styles.navLabel}>Map</span>
+          </button>
 
-        <button
-          id="nav-tab-dice"
-          onClick={() => navigate("/dm/dice")}
-          style={{
-            ...styles.navBtn,
-            color: currentTab === "dice" ? "var(--color-accent)" : "var(--color-muted)",
-          }}
-          className="touch-target"
-        >
-          <span style={styles.navIcon}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-              <line x1="12" y1="22.08" x2="12" y2="12" />
-            </svg>
-          </span>
-          <span style={styles.navLabel}>Dice</span>
-        </button>
+          <button
+            id="nav-tab-characters"
+            onClick={() => navigate("/dm/characters")}
+            style={{
+              ...styles.navBtn,
+              color: currentTab === "characters" ? "var(--color-accent)" : "var(--color-muted)",
+            }}
+            className="touch-target"
+          >
+            <span style={styles.navIcon}>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <span style={styles.navLabel}>Characters</span>
+          </button>
 
-        <button
-          id="nav-tab-chat-journal"
-          onClick={() => navigate("/dm/chat-journal/chat")}
-          style={{
-            ...styles.navBtn,
-            color: currentTab === "chat-journal" ? "var(--color-accent)" : "var(--color-muted)",
-          }}
-          className="touch-target"
-        >
-          <span style={styles.navIcon}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </span>
-          <span style={styles.navLabel}>Chat</span>
-        </button>
+          <button
+            id="nav-tab-dice"
+            onClick={() => navigate("/dm/dice")}
+            style={{
+              ...styles.navBtn,
+              color: currentTab === "dice" ? "var(--color-accent)" : "var(--color-muted)",
+            }}
+            className="touch-target"
+          >
+            <span style={styles.navIcon}>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                <line x1="12" y1="22.08" x2="12" y2="12" />
+              </svg>
+            </span>
+            <span style={styles.navLabel}>Dice</span>
+          </button>
 
-        <button
-          id="nav-tab-settings"
-          onClick={() => navigate("/dm/settings")}
-          style={{
-            ...styles.navBtn,
-            color: currentTab === "settings" ? "var(--color-accent)" : "var(--color-muted)",
-          }}
-          className="touch-target"
-        >
-          <span style={styles.navIcon}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </span>
-          <span style={styles.navLabel}>Settings</span>
-        </button>
-      </nav>
+          <button
+            id="nav-tab-chat-journal"
+            onClick={() => navigate("/dm/chat-journal/chat")}
+            style={{
+              ...styles.navBtn,
+              color: currentTab === "chat-journal" ? "var(--color-accent)" : "var(--color-muted)",
+            }}
+            className="touch-target"
+          >
+            <span style={styles.navIcon}>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </span>
+            <span style={styles.navLabel}>Chat</span>
+          </button>
+
+          <button
+            id="nav-tab-settings"
+            onClick={() => navigate("/dm/settings")}
+            style={{
+              ...styles.navBtn,
+              color: currentTab === "settings" ? "var(--color-accent)" : "var(--color-muted)",
+            }}
+            className="touch-target"
+          >
+            <span style={styles.navIcon}>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </span>
+            <span style={styles.navLabel}>Settings</span>
+          </button>
+        </nav>
+      </div>
     </div>
   );
 }

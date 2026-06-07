@@ -13,7 +13,7 @@ const CATEGORIES = [
   { id: "races", label: " Races", icon: "🧝" },
 ];
 
-function ReferencePanel() {
+function ReferencePanel({ user, isPopout = false }) {
   const [category, setCategory] = useState("spells");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -104,13 +104,28 @@ function ReferencePanel() {
         }
         if (entry.type === "table" && Array.isArray(entry.rows)) {
           return (
-            <div key={idx} style={styles.nestedEntries}>
-              {entry.caption && <h4 style={styles.nestedHeader}>{cleanText(entry.caption)}</h4>}
-              {entry.rows.slice(0, 20).map((row, rowIdx) => (
-                <p key={rowIdx} style={styles.entryPara}>
-                  {Array.isArray(row) ? row.map((cell) => cleanText(String(cell))).join(" | ") : cleanText(String(row))}
-                </p>
-              ))}
+            <div key={idx} style={styles.tableWrapper}>
+              {entry.caption && <h5 style={styles.tableCaption}>{entry.caption}</h5>}
+              <table style={styles.table}>
+                {entry.colLabels && (
+                  <thead>
+                    <tr>
+                      {entry.colLabels.map((lbl, i) => (
+                        <th key={i} style={styles.th}>{cleanText(lbl)}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                )}
+                <tbody>
+                  {entry.rows.map((row, i) => (
+                    <tr key={i} style={i % 2 === 1 ? styles.trAlt : {}}>
+                      {row.map((cell, j) => (
+                        <td key={j} style={styles.td}>{cleanText(cell)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           );
         }
@@ -210,6 +225,27 @@ function ReferencePanel() {
             {cat.icon}{cat.label}
           </button>
         ))}
+        {!isPopout && user?.role === "DM" && (
+          <button
+            onClick={() => window.open("/dm/popout/reference", "_blank", "width=800,height=800,resizable=yes,scrollbars=yes")}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--color-accent)",
+              fontSize: "1.15rem",
+              cursor: "pointer",
+              marginLeft: "auto",
+              paddingRight: "0.85rem",
+              display: "flex",
+              alignItems: "center",
+              flexShrink: 0,
+            }}
+            className="touch-target btn-hover-scale"
+            title="Pop out Reference Library"
+          >
+            ⧉
+          </button>
+        )}
       </div>
 
       {/* Search Input bar */}

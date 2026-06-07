@@ -75,6 +75,21 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+// Endpoint to fetch host's network IPs for LAN player connection
+app.get("/api/network-ip", (_req, res) => {
+  const os = require("os");
+  const interfaces = os.networkInterfaces();
+  const ips = [];
+  for (const name of Object.keys(interfaces)) {
+    for (const net of interfaces[name]) {
+      if (net.family === "IPv4" && !net.internal) {
+        ips.push(net.address);
+      }
+    }
+  }
+  res.json({ ips });
+});
+
 // CRUD route modules (Phase 3)
 const usersRouter = require("./routes/users");
 const charactersRouter = require("./routes/characters");
