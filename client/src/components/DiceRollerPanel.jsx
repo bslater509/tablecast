@@ -3,9 +3,21 @@
 // A mobile-first interface for picking, compiling, and rolling dice.
 // Emits the roll event via Socket.io and integrates with the 3D Dice Box.
 // =============================================================================
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSocket } from "../context/SocketContext";
 import { useDiceBox } from "../context/DiceBoxContext";
+
+function checkWebGLSupport() {
+  try {
+    const canvas = document.createElement("canvas");
+    return !!(
+      window.WebGLRenderingContext &&
+      (canvas.getContext("webgl") || canvas.getContext("experimental-webgl"))
+    );
+  } catch (e) {
+    return false;
+  }
+}
 
 const DICE_TYPES = [
   {
@@ -121,6 +133,11 @@ export default function DiceRollerPanel({ user }) {
   const [rollLabel, setRollLabel] = useState("");
   const [advantage, setAdvantage] = useState("normal"); // "normal" | "advantage" | "disadvantage"
   const [recentRolls, setRecentRolls] = useState([]);
+  const [webGlSupported, setWebGlSupported] = useState(true);
+
+  useEffect(() => {
+    setWebGlSupported(checkWebGLSupport());
+  }, []);
 
   // Sender Name: Use the assigned character name (if any), fallback to username.
   const senderName = user?.characters?.[0]?.name || user?.username || "Anonymous";
@@ -280,7 +297,23 @@ export default function DiceRollerPanel({ user }) {
       <div style={styles.scrollWrapper}>
         <div style={styles.content}>
           <div style={styles.headerRow}>
-            <h2 style={styles.title}>Dice Roller</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <h2 style={styles.title}>Dice Roller</h2>
+              <span
+                style={{
+                  fontSize: "0.68rem",
+                  color: webGlSupported ? "var(--color-success)" : "var(--color-danger)",
+                  background: webGlSupported ? "rgba(111, 207, 151, 0.1)" : "rgba(235, 87, 87, 0.1)",
+                  padding: "0.15rem 0.45rem",
+                  borderRadius: "4px",
+                  border: webGlSupported ? "1px solid rgba(111, 207, 151, 0.25)" : "1px solid rgba(235, 87, 87, 0.25)",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {webGlSupported ? "● 3D Dice Active" : "● WebGL Offline"}
+              </span>
+            </div>
             <button
               onClick={handleClear}
               style={styles.clearBtn}

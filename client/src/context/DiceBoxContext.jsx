@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import DiceBox from "@3d-dice/dice-box";
 import { useSocket } from "./SocketContext";
 
@@ -107,7 +107,7 @@ export function DiceBoxProvider({ children }) {
   }, [isReady, isRolling, queue]);
 
   // Queue a roll
-  const trigger3DRoll = (messageId, dice3d, color) => {
+  const trigger3DRoll = useCallback((messageId, dice3d, color) => {
     if (!dice3d || dice3d.length === 0) {
       // Immediate completion if no 3D dice configured
       window.dispatchEvent(
@@ -121,7 +121,7 @@ export function DiceBoxProvider({ children }) {
     console.log("[3D Dice] Queueing roll:", dice3d);
     queueRef.current.push({ messageId, dice3d, color });
     setQueue([...queueRef.current]);
-  };
+  }, [setQueue]);
 
   const socketContext = useSocket();
   const socket = socketContext?.socket;
@@ -139,7 +139,7 @@ export function DiceBoxProvider({ children }) {
     return () => {
       socket.off("chat:message", handleGlobalRollMessage);
     };
-  }, [socket]);
+  }, [socket, trigger3DRoll]);
 
   return (
     <DiceBoxContext.Provider value={{ trigger3DRoll, isReady, isRolling }}>
