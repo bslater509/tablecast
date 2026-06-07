@@ -801,7 +801,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                 const toHit = modifier + (atk.proficient ? profBonus : 0);
 
                 return (
-                  <div key={idx} style={styles.attackCard} className="glass-panel">
+                  <div key={atk.name || idx} style={styles.attackCard} className="glass-panel">
                     <div style={styles.atkInfo}>
                       <span style={styles.atkName}>{atk.name}</span>
                       <span style={styles.atkFormula}>
@@ -930,7 +930,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
             {/* Inventory Items List */}
             <div style={styles.itemList}>
               {character.inventory.map((item, idx) => (
-                <div key={idx} style={styles.itemCard} className="glass-panel">
+                <div key={item.name || idx} style={styles.itemCard} className="glass-panel">
                   <div style={styles.itemInfo}>
                     <span style={styles.itemName}>{item.name}</span>
                     <span style={styles.itemDetails}>

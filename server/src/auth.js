@@ -38,14 +38,19 @@ async function requireDm(req, res, next) {
 }
 
 async function isDmUser(userId) {
-  const id = Number(userId);
-  if (!Number.isInteger(id) || id <= 0) return false;
+  try {
+    const id = Number(userId);
+    if (!Number.isInteger(id) || id <= 0) return false;
 
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: { role: true },
-  });
-  return user?.role === "DM";
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { role: true },
+    });
+    return user?.role === "DM";
+  } catch (err) {
+    console.error("[Auth] isDmUser error:", err.message);
+    return false;
+  }
 }
 
 module.exports = { getUserId, getRequestUser, requireDm, isDmUser };

@@ -131,7 +131,7 @@ function Autocomplete({
       {isOpen && suggestions.length > 0 && (
         <ul style={{ ...styles.dropdown, ...dropdownStyle }} className="glass-panel gold-border-glow">
           {suggestions.map((item, idx) => (
-            <li key={idx} style={styles.listItem}>
+            <li key={typeof item === "string" ? item : item.name || item.id || idx} style={styles.listItem}>
               <button
                 type="button"
                 onClick={() => handleSuggestionClick(item)}

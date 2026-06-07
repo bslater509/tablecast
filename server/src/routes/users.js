@@ -70,16 +70,14 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "username is required." });
     }
 
-    if (role && !VALID_ROLES.includes(role)) {
-      return res
-        .status(400)
-        .json({ error: `role must be one of: ${VALID_ROLES.join(", ")}` });
+    if (role && role !== "PLAYER") {
+      return res.status(400).json({ error: "Only PLAYER role can be created via registration. DM users must be promoted by another DM." });
     }
 
     const user = await prisma.user.create({
       data: {
         username: username.trim(),
-        role: role || "PLAYER",
+        role: "PLAYER",
       },
     });
 

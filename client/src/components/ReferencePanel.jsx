@@ -61,15 +61,16 @@ function ReferencePanel({ user, isPopout = false }) {
     }
     if (Array.isArray(entries)) {
       return entries.map((entry, idx) => {
+        const entryKey = entry?.name || entry?.type || idx;
         if (typeof entry === "string") {
           return <p key={idx} style={styles.entryPara}>{cleanText(entry)}</p>;
         }
         if (!entry || typeof entry !== "object") return null;
         if (entry.type === "list" && Array.isArray(entry.items)) {
           return (
-            <ul key={idx} style={styles.entryList}>
+            <ul key={entryKey} style={styles.entryList}>
               {entry.items.map((item, i) => (
-                <li key={i} style={styles.entryListItem}>
+                <li key={typeof item === "string" ? item : item.name || i} style={styles.entryListItem}>
                   {typeof item === "string" ? cleanText(item) : renderEntries(item.entries || item.entry || item.name || item)}
                 </li>
               ))}
@@ -78,7 +79,7 @@ function ReferencePanel({ user, isPopout = false }) {
         }
         if ((entry.type === "entries" || entry.type === "section") && Array.isArray(entry.entries)) {
           return (
-            <div key={idx} style={styles.nestedEntries}>
+            <div key={entryKey} style={styles.nestedEntries}>
               {entry.name && <h4 style={styles.nestedHeader}>{entry.name}</h4>}
               {renderEntries(entry.entries)}
             </div>
@@ -86,18 +87,18 @@ function ReferencePanel({ user, isPopout = false }) {
         }
         if (entry.type === "item" && entry.entry) {
           return (
-            <p key={idx} style={styles.entryPara}>
+            <p key={entryKey} style={styles.entryPara}>
               {entry.name && <strong style={styles.actionName}>{cleanText(entry.name)} </strong>}
               {cleanText(entry.entry)}
             </p>
           );
         }
         if (entry.type === "insetReadaloud" && Array.isArray(entry.entries)) {
-          return <blockquote key={idx} style={styles.quoteBox}>{renderEntries(entry.entries)}</blockquote>;
+          return <blockquote key={entryKey} style={styles.quoteBox}>{renderEntries(entry.entries)}</blockquote>;
         }
         if (entry.type === "quote" && Array.isArray(entry.entries)) {
           return (
-            <div key={idx}>
+            <div key={entryKey}>
               {renderEntries(entry.entries)}
               {entry.by && <p style={styles.quoteBy}>- {cleanText(entry.by)}</p>}
             </div>
@@ -105,14 +106,14 @@ function ReferencePanel({ user, isPopout = false }) {
         }
         if (entry.type === "table" && Array.isArray(entry.rows)) {
           return (
-            <div key={idx} style={styles.tableWrapper}>
+            <div key={entryKey} style={styles.tableWrapper}>
               {entry.caption && <h5 style={styles.tableCaption}>{entry.caption}</h5>}
               <table style={styles.table}>
                 {entry.colLabels && (
                   <thead>
                     <tr>
                       {entry.colLabels.map((lbl, i) => (
-                        <th key={i} style={styles.th}>{cleanText(lbl)}</th>
+                        <th key={lbl || i} style={styles.th}>{cleanText(lbl)}</th>
                       ))}
                     </tr>
                   </thead>
@@ -132,7 +133,7 @@ function ReferencePanel({ user, isPopout = false }) {
         }
         if (entry.name && entry.entries) {
           return (
-            <div key={idx} style={styles.nestedEntries}>
+            <div key={entryKey} style={styles.nestedEntries}>
               <h4 style={styles.nestedHeader}>{cleanText(entry.name)}</h4>
               {renderEntries(entry.entries)}
             </div>
@@ -282,7 +283,7 @@ function ReferencePanel({ user, isPopout = false }) {
           const listImageUrl = getListImageUrl(item);
           return (
             <div
-              key={idx}
+              key={item.name || item.id || idx}
               role="button"
               tabIndex={0}
               aria-label={`Open ${item.name} from ${item.source || "reference library"}`}
@@ -461,7 +462,7 @@ function ReferencePanel({ user, isPopout = false }) {
                     <div style={styles.descSection}>
                       <h4 style={styles.secTitle}>Actions</h4>
                       {selectedItem.action.map((act, i) => (
-                        <div key={i} style={styles.actionItem}>
+                        <div key={act.name || i} style={styles.actionItem}>
                           <strong style={styles.actionName}>{act.name}.</strong>{" "}
                           <span>{renderEntries(act.entries)}</span>
                         </div>

@@ -2,6 +2,7 @@
 
 const prisma = require("./prisma");
 const { isDmUser } = require("./auth");
+const { performAiCall, performAiStream, findRelevantRules, buildNpcRoleplaySystemPrompt, loadAiSettings } = require("./routes/ai");
 
 const MAX_COORDINATE = 10000;
 const MAX_FOG_POLYGONS = 200;
@@ -63,8 +64,6 @@ function registerSocketHandlers(io) {
 
       // --- Intercept AI Assistant Commands ---
       try {
-        const { performAiCall, findRelevantRules, buildNpcRoleplaySystemPrompt } = require("./routes/ai");
-
         // Fetch user from DB to evaluate role and permissions
         let userObj = null;
         if (message.userId) {
@@ -80,20 +79,7 @@ function registerSocketHandlers(io) {
           if (!query) return;
 
           // Load AI settings from Database
-          const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"];
-          const settings = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
-
-          let provider = "";
-          let apiKey = "";
-          let ollamaUrl = "http://localhost:11434";
-          let ollamaModel = "llama3";
-
-          for (const s of settings) {
-            if (s.key === "ai.provider") provider = s.value;
-            if (s.key === "ai.apiKey") apiKey = s.value;
-            if (s.key === "ai.ollamaUrl") ollamaUrl = s.value;
-            if (s.key === "ai.ollamaModel") ollamaModel = s.value;
-          }
+          const { provider, apiKey, ollamaUrl, ollamaModel } = await loadAiSettings();
 
           if (!provider) {
             return emitPersistedChatMessage(io, {
@@ -158,20 +144,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           }
 
           // Load AI settings
-          const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"];
-          const settings = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
-
-          let provider = "";
-          let apiKey = "";
-          let ollamaUrl = "http://localhost:11434";
-          let ollamaModel = "llama3";
-
-          for (const s of settings) {
-            if (s.key === "ai.provider") provider = s.value;
-            if (s.key === "ai.apiKey") apiKey = s.value;
-            if (s.key === "ai.ollamaUrl") ollamaUrl = s.value;
-            if (s.key === "ai.ollamaModel") ollamaModel = s.value;
-          }
+          const { provider, apiKey, ollamaUrl, ollamaModel } = await loadAiSettings();
 
           if (!provider) {
             return emitPersistedChatMessage(io, {

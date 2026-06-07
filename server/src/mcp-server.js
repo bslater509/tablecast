@@ -417,26 +417,26 @@ const TOOLS = [
   },
 ];
 
-// List tools handler
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return { tools: TOOLS };
-});
+// Register MCP request handlers on a given server instance
+function registerHandlers(srv) {
+  srv.setRequestHandler(ListToolsRequestSchema, async () => {
+    return { tools: TOOLS };
+  });
 
-// Call tool handler
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-  logError(`Calling tool: ${name}`, JSON.stringify(args));
+  srv.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    logError(`Calling tool: ${name}`, JSON.stringify(args));
 
-  try {
-    switch (name) {
-      //  USER HANDLERS 
-      case "list_users": {
-        const users = await prisma.user.findMany({
-          orderBy: { id: "asc" },
-        });
-        return {
-          content: [{ type: "text", text: JSON.stringify(users, null, 2) }],
-        };
+    try {
+      switch (name) {
+        //  USER HANDLERS 
+        case "list_users": {
+          const users = await prisma.user.findMany({
+            orderBy: { id: "asc" },
+          });
+          return {
+            content: [{ type: "text", text: JSON.stringify(users, null, 2) }],
+          };
       }
 
       case "create_user": {
@@ -1054,6 +1054,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+}
+
+// Register handlers on the singleton server
+registerHandlers(server);
+
 function createMcpServer() {
   const newServer = new Server(
     {
@@ -1067,16 +1072,7 @@ function createMcpServer() {
     }
   );
 
-  // Copy request handlers from the singleton server dynamically
-  const handlersMap = server._requestHandlers || server.requestHandlers;
-  if (handlersMap && typeof handlersMap.entries === "function") {
-    const newHandlersMap = newServer._requestHandlers || newServer.requestHandlers;
-    if (newHandlersMap) {
-      for (const [name, handler] of handlersMap.entries()) {
-        newHandlersMap.set(name, handler);
-      }
-    }
-  }
+  registerHandlers(newServer);
 
   return newServer;
 }

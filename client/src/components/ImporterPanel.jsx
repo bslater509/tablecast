@@ -226,7 +226,7 @@ function ImporterPanel({ user }) {
 
           return (
             <div
-              key={idx}
+              key={item.name || item.id || idx}
               style={styles.resultCard}
               className="glass-panel"
             >

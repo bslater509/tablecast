@@ -1,0 +1,25 @@
+---
+description: Always follow AGENTS.md for Tablecast project work
+alwaysApply: true
+---
+
+# AGENTS.md — Required Project Instructions
+
+Before planning or writing code in this repo, read and follow `AGENTS.md`.
+
+## How to apply it
+
+1. **Global standards** — Always obey the Global Coding Standards (mobile-first UI, `0.0.0.0` binding, no local server runs, remote staging at `http://192.168.0.77:3001`, deploy via git push + webhook, no 5etools repo edits, etc.).
+2. **Pick the right role** — Match the task to Agent 1–4 (DevOps/DB, Backend/Socket.io, Frontend UI, VTT Engine) and follow that role's directives in addition to global standards.
+3. **Multi-area tasks** — When work spans roles, apply every relevant section; do not ignore constraints from other agents.
+
+## Quick reference
+
+| Task area | Agent role |
+|-----------|------------|
+| Docker, Prisma, SQLite, compose | Agent 1 — DevOps & DB Architect |
+| Express API, Socket.io, rclone backup | Agent 2 — Backend Engineer |
+| React UI, character sheet, navigation | Agent 3 — Frontend UI Developer |
+| Canvas, tokens, grid, fog of war | Agent 4 — VTT Engine Developer |
+
+When in doubt, re-read `AGENTS.md` rather than guessing project conventions.

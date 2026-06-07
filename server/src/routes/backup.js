@@ -88,9 +88,22 @@ function escapeHtml(str) {
       case "<": return "&lt;";
       case ">": return "&gt;";
       case '"': return "&quot;";
-      case "'": return "&#039;";
-      default: return m;
+      case "'": return "&#39;";
     }
+  });
+}
+
+function escapeJsStr(str) {
+  if (typeof str !== "string") return "";
+  return str.replace(/['\\\n\r]/g, (m) => {
+    switch (m) {
+      case "'": return "\\'";
+      case "\\": return "\\\\";
+      case "\n": return "\\n";
+      case "\r": return "\\r";
+    }
+  });
+}
   });
 }
 
@@ -115,7 +128,9 @@ router.post("/oauth-init", requireDm, async (req, res) => {
       if (referer) {
         try {
           clientOrigin = new URL(referer).origin;
-        } catch {}
+        } catch {
+          console.warn("[Backup] Failed to parse referer URL:", referer);
+        }
       }
     }
     if (!clientOrigin) {
@@ -263,7 +278,7 @@ router.get("/oauth-callback", async (req, res) => {
         </div>
         <script>
           if (window.opener) {
-            window.opener.postMessage({ type: 'RCLONE_AUTH_SUCCESS' }, '${targetOrigin}');
+            window.opener.postMessage({ type: 'RCLONE_AUTH_SUCCESS' }, '${escapeJsStr(targetOrigin)}');
           }
           setTimeout(() => {
             window.close();

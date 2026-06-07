@@ -96,7 +96,7 @@ router.post("/", requireDm, async (req, res) => {
         const filePath = path.join(UPLOADS_DIR, filename);
 
         // Write the decoded buffer to file
-        fs.writeFileSync(filePath, dataBuffer);
+        await fs.promises.writeFile(filePath, dataBuffer);
         resolvedImageUrl = `/uploads/${filename}`;
         console.log(`[API] Saved uploaded map image to ${filePath}`);
       } else {
@@ -151,11 +151,11 @@ router.delete("/:id", requireDm, async (req, res) => {
     if (map.imageUrl && map.imageUrl.startsWith("/uploads/map_")) {
       const filename = path.basename(map.imageUrl);
       const filePath = path.join(UPLOADS_DIR, filename);
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-          console.log(`[API] Deleted map image file: ${filePath}`);
-        } catch (fileErr) {
+      try {
+        await fs.promises.unlink(filePath);
+        console.log(`[API] Deleted map image file: ${filePath}`);
+      } catch (fileErr) {
+        if (fileErr.code !== "ENOENT") {
           console.error(`[API] Could not delete image file ${filePath}:`, fileErr.message);
         }
       }

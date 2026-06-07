@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { io } from "socket.io-client";
 
+const debug = import.meta.env.DEV ? console.log : () => {};
+
 const SocketContext = createContext(null);
 
 function createSocket() {
@@ -23,13 +25,13 @@ export function SocketProvider({ children }) {
     socket.connect();
 
     function onConnect() {
-      console.log("[Socket] Connected:", socket.id);
+      debug("[Socket] Connected:", socket.id);
       setIsConnected(true);
       setConnectionStatus("connected");
     }
 
     function onDisconnect(reason) {
-      console.log("[Socket] Disconnected:", reason);
+      debug("[Socket] Disconnected:", reason);
       setIsConnected(false);
       setConnectionStatus("disconnected");
     }

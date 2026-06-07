@@ -516,6 +516,7 @@ async function pumpOpenAiCompatibleStream(upstream, res) {
       try {
         parsed = JSON.parse(payload);
       } catch {
+        console.warn("[AI] Failed to parse SSE data line:", payload);
         continue;
       }
 
@@ -566,6 +567,7 @@ async function pumpOllamaStream(upstream, res) {
       try {
         parsed = JSON.parse(trimmed);
       } catch {
+        console.warn("[AI] Failed to parse Ollama stream line:", trimmed);
         continue;
       }
 
@@ -631,6 +633,7 @@ async function performAiStream(provider, apiKey, ollamaUrl, ollamaModel, systemP
     default: {
       const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history);
       writeSseEvent(res, { type: "token", text: reply });
+      writeSseEvent(res, { type: "done" });
     }
   }
 }
@@ -1197,10 +1200,12 @@ Keep your responses concise, readable, and structured in Markdown.`;
   }
 });
 
-router.performAiCall = performAiCall;
-router.performAiStream = performAiStream;
-router.findRelevantRules = findRelevantRules;
-router.buildNpcProfileContext = buildNpcProfileContext;
-router.buildNpcRoleplaySystemPrompt = buildNpcRoleplaySystemPrompt;
-
-module.exports = router;
+module.exports = {
+  router,
+  performAiCall,
+  performAiStream,
+  findRelevantRules,
+  buildNpcProfileContext,
+  buildNpcRoleplaySystemPrompt,
+  loadAiSettings,
+};

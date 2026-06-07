@@ -210,7 +210,7 @@ function NpcStatblock({ npc, socket, isDM, onHpChange }) {
           <h3 style={statblockStyles.sectionTitle}>Actions</h3>
           <div style={statblockStyles.actionsList}>
             {actionsList.map((action, i) => (
-              <div key={i} style={statblockStyles.actionItem} className="glass-panel">
+              <div key={action.name || i} style={statblockStyles.actionItem} className="glass-panel">
                 <div style={statblockStyles.actionHeader}>
                   <strong style={statblockStyles.actionName}>{action.name}</strong>
                   <button
@@ -1462,7 +1462,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                   return (
                     <div style={styles.actionsEditorList}>
                       {actionsList.map((action, index) => (
-                        <div key={index} style={styles.actionItemBox} className="glass-panel">
+                        <div key={action.name || index} style={styles.actionItemBox} className="glass-panel">
                           <div style={styles.actionHeaderRow}>
                             <h4 style={styles.actionIdxLabel}>Action #{index + 1}</h4>
                             <button
@@ -2020,7 +2020,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                       return (
                         <div style={styles.tagList}>
                           {tags.map((tag, i) => (
-                            <span key={i} style={styles.tag}>{tag}</span>
+                            <span key={tag || i} style={styles.tag}>{tag}</span>
                           ))}
                         </div>
                       );
@@ -2292,7 +2292,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                     {parsedTags.length > 0 && (
                       <div style={styles.cardTags}>
                         {parsedTags.slice(0, 3).map((tag, idx) => (
-                          <span key={idx} style={styles.cardTag}>{tag}</span>
+                          <span key={tag || idx} style={styles.cardTag}>{tag}</span>
                         ))}
                       </div>
                     )}

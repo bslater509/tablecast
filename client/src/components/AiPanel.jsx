@@ -323,7 +323,7 @@ export default function AiPanel({ user }) {
           <div ref={rulesScrollRef} style={styles.scrollArea}>
             {rulesHistory.map((msg, idx) => (
               <div
-                key={idx}
+                key={msg.id || `${msg.role}-${idx}`}
                 style={{
                   ...styles.bubble,
                   alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
@@ -421,7 +421,7 @@ export default function AiPanel({ user }) {
               const npcAvatar = msg.role === "assistant" && selectedNpc?.imageUrl ? selectedNpc.imageUrl : "";
               return (
                 <div
-                  key={idx}
+                  key={msg.id || `${msg.role}-${idx}`}
                   style={{
                     ...styles.bubble,
                     alignSelf: msg.role === "user" ? "flex-end" : "flex-start",

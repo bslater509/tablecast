@@ -89,7 +89,7 @@ export default function ConnectionHelpPanel({ user }) {
                   className="form-input"
                 >
                   {ips.map((ip, idx) => (
-                    <option key={idx} value={idx}>
+                    <option key={ip || idx} value={idx}>
                       {ip} (Interface #{idx + 1})
                     </option>
                   ))}

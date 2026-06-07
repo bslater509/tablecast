@@ -2154,7 +2154,7 @@ export default function MapPanel({ user, isPopout = false }) {
                             <h5 style={styles.actionsHeader}>NPC Actions</h5>
                             {parsedActions.map((act, i) => (
                               <button
-                                key={i}
+                                key={act.name || i}
                                 onClick={() => handleNpcRoll(selectedToken.label || npcDetail.name, act.name, act.toHit, act.damage, act.description)}
                                 style={styles.monsterActionBtn}
                                 className="touch-target btn-hover-scale"
@@ -2275,7 +2275,7 @@ export default function MapPanel({ user, isPopout = false }) {
                             <h5 style={styles.actionsHeader}>Monster Actions</h5>
                             {parsedActions.map((act, i) => (
                               <button
-                                key={i}
+                                key={act.name || i}
                                 onClick={() => handleNpcRoll(selectedToken.label || selectedToken.monster.name, act.name, act.toHit, act.damage, act.description)}
                                 style={styles.monsterActionBtn}
                                 className="touch-target btn-hover-scale"
@@ -2391,7 +2391,7 @@ export default function MapPanel({ user, isPopout = false }) {
                             const hasRoll = entriesStr.includes("{@hit") || entriesStr.includes("{@damage");
                             return (
                               <button
-                                key={i}
+                                key={act.name || i}
                                 onClick={() => handleMonsterRoll(selectedToken.label, act.name, entriesStr)}
                                 style={styles.monsterActionBtn}
                                 className="touch-target btn-hover-scale"

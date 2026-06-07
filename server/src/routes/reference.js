@@ -294,10 +294,10 @@ router.post("/import", requireDm, async (req, res) => {
     let localLargeImageUrl = "";
 
     if (item.tokenUrl) {
-      localImageUrl = copyReferenceImage(item.tokenUrl);
+      localImageUrl = await copyReferenceImage(item.tokenUrl);
     }
     if (item.imageUrl) {
-      localLargeImageUrl = copyReferenceImage(item.imageUrl);
+      localLargeImageUrl = await copyReferenceImage(item.imageUrl);
     }
 
     if (!localImageUrl) {
@@ -433,7 +433,7 @@ router.post("/import", requireDm, async (req, res) => {
 });
 
 // Helper utilities for importing
-function copyReferenceImage(sourceUrl) {
+async function copyReferenceImage(sourceUrl) {
   if (!sourceUrl || typeof sourceUrl !== "string") return "";
   
   const cleanPath = decodeURIComponent(sourceUrl.replace(/^\/5etoolsimg\//, ""));
@@ -467,7 +467,7 @@ function copyReferenceImage(sourceUrl) {
   
   const destFilePath = path.join(destDir, uniqueName);
   try {
-    fs.copyFileSync(srcFilePath, destFilePath);
+    await fs.promises.copyFile(srcFilePath, destFilePath);
     return `/uploads/${uniqueName}`;
   } catch (err) {
     console.error(`[Importer] Failed to copy reference image ${srcFilePath}:`, err.message);

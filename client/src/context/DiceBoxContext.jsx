@@ -3,6 +3,8 @@ import DiceBox from "@3d-dice/dice-box";
 import { useSocket } from "./SocketContext";
 import { getDiceThemeOption, getDiceThemePreviewStyles } from "../lib/diceThemes";
 
+const debug = typeof process !== "undefined" && process.env.NODE_ENV !== "production" ? console.log : () => {};
+
 const DiceBoxContext = createContext(null);
 
 export function DiceBoxProvider({ children }) {
@@ -45,14 +47,14 @@ export function DiceBoxProvider({ children }) {
     box.init().then(() => {
       diceBoxRef.current = box;
       setIsReady(true);
-      console.log("[3D Dice] DiceBox initialized successfully.");
+      debug("[3D Dice] DiceBox initialized successfully.");
       
       // Force an immediate window resize event to trigger correct layout size calculations
       window.dispatchEvent(new Event("resize"));
 
       // Setup global complete listener
       box.onRollComplete = (results) => {
-        console.log("[3D Dice] Roll complete:", results);
+        debug("[3D Dice] Roll complete:", results);
         
         // Find the current active roll in queue
         const activeRoll = queueRef.current[0];
@@ -115,7 +117,7 @@ export function DiceBoxProvider({ children }) {
     const box = diceBoxRef.current;
 
     if (box) {
-      console.log("[3D Dice] Simulating roll:", dice3d, "with theme:", theme, "and color:", color);
+      debug("[3D Dice] Simulating roll:", dice3d, "with theme:", theme, "and color:", color);
       
       // Force viewport resize event just in case layout changed before active roll
       window.dispatchEvent(new Event("resize"));
@@ -194,7 +196,7 @@ export function DiceBoxProvider({ children }) {
       queuedMessageIdsRef.current.add(messageId);
     }
 
-    console.log("[3D Dice] Queueing roll:", normalizedDice3d, "with theme:", theme, "for:", sender);
+    debug("[3D Dice] Queueing roll:", normalizedDice3d, "with theme:", theme, "for:", sender);
     queueRef.current.push({ messageId, dice3d: normalizedDice3d, color, theme, sender, rollName, formula, total });
     setQueue([...queueRef.current]);
   }, [setQueue]);

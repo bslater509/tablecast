@@ -155,11 +155,12 @@ function SettingsPanel({ user }) {
 
   // Google Drive OAuth callback message handler
   useEffect(() => {
+    const oauthTimeoutRef = { current: null };
     const handleOAuthMessage = (event) => {
       if (event.data && event.data.type === "RCLONE_AUTH_SUCCESS") {
         setOauthMessage("Authentication successful! Saving configuration and refreshing backup status...");
         setOauthError("");
-        setTimeout(() => {
+        oauthTimeoutRef.current = setTimeout(() => {
           setShowOAuthWizard(false);
           setOauthMessage("");
           fetchBackupConfig();
@@ -171,6 +172,7 @@ function SettingsPanel({ user }) {
     };
     window.addEventListener("message", handleOAuthMessage);
     return () => {
+      if (oauthTimeoutRef.current) clearTimeout(oauthTimeoutRef.current);
       window.removeEventListener("message", handleOAuthMessage);
     };
   }, [oauthRemoteName, oauthRemotePath]);
@@ -977,7 +979,7 @@ function SettingsPanel({ user }) {
               <div style={{ ...styles.console, maxHeight: "250px" }} id="ref-console-log">
                 <div style={styles.consoleStdout}>
                   {refStatus.logs.map((logLine, idx) => (
-                    <div key={idx}>{logLine}</div>
+                    <div key={`${idx}-${logLine.substring(0, 20)}`}>{logLine}</div>
                   ))}
                 </div>
               </div>
