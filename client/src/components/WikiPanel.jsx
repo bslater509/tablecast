@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { ExternalLink, Menu } from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
 import Autocomplete from "./Autocomplete";
 import WikiTreeSidebar from "./WikiTreeSidebar";
 import { useSocket } from "../context/SocketContext";
@@ -16,48 +17,6 @@ marked.setOptions({
   gfm: true,
   breaks: true,
 });
-
-const AI_FIELD_ACTIONS = {
-  alignment: [
-    { action: "generate", label: "Suggest Alignment" },
-    { action: "clarify", label: "Clarify Morality", requiresText: true },
-  ],
-  appearance: [
-    { action: "generate", label: "Generate" },
-    { action: "expand", label: "Expand Details", requiresText: true },
-    { action: "read_aloud", label: "Read-Aloud Box", requiresText: true },
-    { action: "make_dramatic", label: "Make Dramatic", requiresText: true },
-  ],
-  personality: [
-    { action: "generate", label: "Generate Traits" },
-    { action: "expand", label: "Expand", requiresText: true },
-    { action: "summarize", label: "Summarize", requiresText: true },
-    { action: "add_flaw", label: "Add Flaw/Secret" },
-  ],
-  history: [
-    { action: "generate", label: "Generate Backstory" },
-    { action: "expand", label: "Expand", requiresText: true },
-    { action: "summarize", label: "Summarize", requiresText: true },
-    { action: "campaign_tie", label: "Tie to Campaign" },
-  ],
-  partyRelationship: [
-    { action: "generate", label: "Generate" },
-    { action: "friendly", label: "Make Friendly" },
-    { action: "hostile", label: "Make Hostile" },
-    { action: "expand", label: "Expand", requiresText: true },
-  ],
-  markdown: [
-    { action: "generate", label: "Generate Draft" },
-    { action: "expand", label: "Expand Lore", requiresText: true },
-    { action: "summarize", label: "Summarize", requiresText: true },
-    { action: "make_dramatic", label: "Make Dramatic", requiresText: true },
-    { action: "style_5e", label: "Format 5e Style", requiresText: true },
-  ],
-};
-
-const ASSIST_ACTIONS_REQUIRING_TEXT = new Set([
-  "expand", "summarize", "clarify", "make_dramatic", "style_5e", "read_aloud",
-]);
 
 // Interactive 5e Statblock Sub-component for NPCs
 function NpcStatblock({ npc, socket, isDM, onHpChange }) {
@@ -289,9 +248,15 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [npcCurrentQuestion, setNpcCurrentQuestion] = useState(null); // { question, choices: [{ id, label, description }] }
   const [npcInterviewSummary, setNpcInterviewSummary] = useState(""); // Summary when AI signals generate
   const [npcCopiedPrompt, setNpcCopiedPrompt] = useState(false); // "Copied!" feedback for image prompt copy
-  const [showAssistDropdown, setShowAssistDropdown] = useState(null); // field name or null
-  const [assistLoadingField, setAssistLoadingField] = useState(null);
-  const [assistUndo, setAssistUndo] = useState(null); // { fieldId, previousText, isNpcField }
+  // Monster AI Generator states
+  const [showMonsterGenModal, setShowMonsterGenModal] = useState(false);
+  const [monsterGenPrompt, setMonsterGenPrompt] = useState("");
+  const [monsterGenLoading, setMonsterGenLoading] = useState(false);
+  const [monsterGenError, setMonsterGenError] = useState(null);
+  const [monsterGenStep, setMonsterGenStep] = useState("options"); // "options" | "generating"
+  const [monsterGenProgress, setMonsterGenProgress] = useState("");
+  const [monsterGenOptions, setMonsterGenOptions] = useState([]);
+  const [monsterGenSelected, setMonsterGenSelected] = useState(null);
 
   // Sidebar drawer state (mobile)
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -301,16 +266,6 @@ export default function WikiPanel({ user, isPopout = false }) {
 
   const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
-
-  // AI text-area helper functions
-  const handleToggleAssistDropdown = (e, fieldId) => {
-    e.stopPropagation();
-    if (showAssistDropdown === fieldId) {
-      setShowAssistDropdown(null);
-    } else {
-      setShowAssistDropdown(fieldId);
-    }
-  };
 
   const buildAssistContext = (fieldId) => {
     if (fieldId === "markdown") {
@@ -324,9 +279,11 @@ export default function WikiPanel({ user, isPopout = false }) {
       };
     }
     if (!editingNpc) return {};
+    const isMonster = activeCategoryTab === "MONSTER";
+    const entityKey = isMonster ? "monster" : "npc";
     return {
-      entityType: "npc",
-      npc: {
+      entityType: entityKey,
+      [entityKey]: {
         name: editingNpc.name,
         race: editingNpc.race,
         class: editingNpc.class,
@@ -350,81 +307,6 @@ export default function WikiPanel({ user, isPopout = false }) {
       },
     };
   };
-
-  const handleApplyAssist = async (fieldId, action) => {
-    const isNpcField = fieldId !== "markdown";
-    let currentText = "";
-
-    if (isNpcField) {
-      currentText = editingNpc?.[fieldId] || "";
-    } else {
-      currentText = editContent || "";
-    }
-
-    if (ASSIST_ACTIONS_REQUIRING_TEXT.has(action) && !currentText.trim()) {
-      setEditorError("Add a seed phrase in this field, or choose Generate.");
-      setShowAssistDropdown(null);
-      return;
-    }
-
-    setEditorError(null);
-    setAssistLoadingField(fieldId);
-    setShowAssistDropdown(null);
-    setAssistUndo({ fieldId, previousText: currentText, isNpcField });
-
-    try {
-      const res = await fetch("/api/ai/expand-text", {
-        method: "POST",
-        headers: jsonAuthHeaders,
-        body: JSON.stringify({
-          text: currentText,
-          action,
-          field: fieldId,
-          context: buildAssistContext(fieldId),
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to process text.");
-      }
-
-      const data = await res.json();
-
-      if (isNpcField) {
-        setEditingNpc((prev) => ({
-          ...prev,
-          [fieldId]: data.reply,
-        }));
-      } else {
-        setEditContent(data.reply);
-      }
-    } catch (err) {
-      console.error("[AI Assist Error]", err);
-      setAssistUndo(null);
-      setEditorError(`AI Assist failed: ${err.message}`);
-    } finally {
-      setAssistLoadingField(null);
-    }
-  };
-
-  const handleAssistUndo = () => {
-    if (!assistUndo) return;
-    const { fieldId, previousText, isNpcField } = assistUndo;
-    if (isNpcField) {
-      setEditingNpc((prev) => ({ ...prev, [fieldId]: previousText }));
-    } else {
-      setEditContent(previousText);
-    }
-    setAssistUndo(null);
-  };
-
-  // Close dropdown on click outside
-  useEffect(() => {
-    const handleClose = () => setShowAssistDropdown(null);
-    window.addEventListener("click", handleClose);
-    return () => window.removeEventListener("click", handleClose);
-  }, []);
 
   // Start NPC interview when the modal opens
   useEffect(() => {
@@ -700,76 +582,189 @@ export default function WikiPanel({ user, isPopout = false }) {
     resetNpcGenState();
   }
 
-  const renderAiAssistButton = (fieldName) => {
-    const actions = AI_FIELD_ACTIONS[fieldName] || AI_FIELD_ACTIONS.markdown;
-    const isLoading = assistLoadingField === fieldName;
-    const currentText = fieldName === "markdown"
-      ? (editContent || "")
-      : (editingNpc?.[fieldName] || "");
-
-    return (
-      <div style={{ position: "relative", display: "inline-block" }}>
-        <button
-          type="button"
-          title="AI Assist"
-          disabled={isLoading}
-          onClick={(e) => handleToggleAssistDropdown(e, fieldName)}
-          style={{
-            ...styles.toolbarBtn,
-            color: "var(--color-accent)",
-            width: "auto",
-            padding: "0 0.5rem",
-            gap: "0.25rem",
-            opacity: isLoading ? 0.6 : 1,
-          }}
-          className="touch-target btn-hover-scale"
-        >
-          {isLoading ? "✨ Thinking…" : "✨ AI Assist"}
-        </button>
-        {showAssistDropdown === fieldName && !isLoading && (
-          <div style={styles.assistDropdown} onClick={(e) => e.stopPropagation()}>
-            {actions.map(({ action, label, requiresText }) => {
-              const disabled = requiresText && !currentText.trim();
-              return (
-                <button
-                  key={action}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => handleApplyAssist(fieldName, action)}
-                  className="assist-option"
-                  style={{
-                    ...styles.assistOption,
-                    opacity: disabled ? 0.4 : 1,
-                    cursor: disabled ? "not-allowed" : "pointer",
-                  }}
-                  title={disabled ? "Add text first or use Generate" : label}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderAssistStatusBar = () => {
-    if (assistLoadingField) {
-      return <p style={styles.assistStatusText}>✨ AI is working on {assistLoadingField}…</p>;
+  useEffect(() => {
+    if (showMonsterGenModal) {
+      resetMonsterGenState();
     }
-    if (assistUndo) {
-      return (
-        <p style={styles.assistStatusText}>
-          AI update applied.{" "}
-          <button type="button" onClick={handleAssistUndo} style={styles.assistUndoBtn} className="touch-target">
-            Undo
-          </button>
-        </p>
-      );
+  }, [showMonsterGenModal]);
+
+  // Reset monster gen state
+  function resetMonsterGenState() {
+    setMonsterGenPrompt("");
+    setMonsterGenLoading(false);
+    setMonsterGenError(null);
+    setMonsterGenStep("options");
+    setMonsterGenProgress("");
+    setMonsterGenOptions([]);
+    setMonsterGenSelected(null);
+  }
+
+  function resetMonsterGenModal() {
+    setShowMonsterGenModal(false);
+    resetMonsterGenState();
+  }
+
+  // Generate monster options from prompt
+  async function generateMonsterOptions() {
+    if (!monsterGenPrompt.trim()) {
+      setMonsterGenError("Describe the monster you want to create.");
+      return;
     }
-    return null;
-  };
+    setMonsterGenLoading(true);
+    setMonsterGenError(null);
+    setMonsterGenStep("generating");
+    setMonsterGenProgress("Consulting campaign lore...");
+
+    try {
+      const res = await fetch("/api/ai/generate-monster-options", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ prompt: monsterGenPrompt.trim() }),
+      });
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream")) {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to generate options.");
+        }
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let result = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (!payload) continue;
+          try {
+            const event = JSON.parse(payload);
+            if (event.type === "status") setMonsterGenProgress(event.message);
+            if (event.type === "result") result = event.data;
+            if (event.type === "error") throw new Error(event.message);
+          } catch (e) {
+            if (e.message) throw e;
+          }
+        }
+      }
+
+      if (result?.options?.length) {
+        setMonsterGenOptions(result.options);
+        setMonsterGenStep("options");
+      } else {
+        throw new Error("No monster options received.");
+      }
+    } catch (err) {
+      setMonsterGenError(err.message);
+    } finally {
+      setMonsterGenLoading(false);
+    }
+  }
+
+  // Generate full monster from selected option
+  async function generateMonsterFromOption() {
+    if (!monsterGenSelected) {
+      setMonsterGenError("Select a monster concept first.");
+      return;
+    }
+    setMonsterGenLoading(true);
+    setMonsterGenError(null);
+    setMonsterGenStep("generating");
+    setMonsterGenProgress("Generating full monster statblock...");
+
+    try {
+      const res = await fetch("/api/ai/generate-monster", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          prompt: monsterGenPrompt.trim(),
+          selectedOption: monsterGenSelected,
+        }),
+      });
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream")) {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to generate monster.");
+        }
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let result = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (!payload) continue;
+          try {
+            const event = JSON.parse(payload);
+            if (event.type === "status") setMonsterGenProgress(event.message);
+            if (event.type === "result") result = event.data;
+            if (event.type === "error") throw new Error(event.message);
+          } catch (e) {
+            if (e.message) throw e;
+          }
+        }
+      }
+
+      if (result?.name) {
+        setEditingNpc({
+          name: result.name || "",
+          race: result.race || "",
+          class: result.class || "",
+          level: Number(result.level) || 1,
+          hp: Number(result.hp) || 10,
+          maxHp: Number(result.maxHp) || 10,
+          ac: Number(result.ac) || 10,
+          cr: String(result.cr || "0"),
+          imageUrl: result.imageUrl || "",
+          largeImageUrl: result.largeImageUrl || "",
+          strength: Number(result.strength) || 10,
+          dexterity: Number(result.dexterity) || 10,
+          constitution: Number(result.constitution) || 10,
+          intelligence: Number(result.intelligence) || 10,
+          wisdom: Number(result.wisdom) || 10,
+          charisma: Number(result.charisma) || 10,
+          alignment: result.alignment || "",
+          appearance: result.appearance || "",
+          personality: result.personality || "",
+          history: result.history || "",
+          partyRelationship: result.partyRelationship || "",
+          description: result.description || "",
+          inventory: "[]",
+          modifiers: "{}",
+          actions: Array.isArray(result.actions) ? JSON.stringify(result.actions) : "[]",
+          isVisibleToPlayers: false,
+        });
+        setActiveCategoryTab("MONSTER");
+        setIsEditing(true);
+        setShowMonsterGenModal(false);
+      } else {
+        throw new Error("Invalid monster data received.");
+      }
+    } catch (err) {
+      setMonsterGenError(err.message);
+    } finally {
+      setMonsterGenLoading(false);
+    }
+  }
 
   const calculateModifier = (score) => {
     const mod = Math.floor((Number(score || 10) - 10) / 2);
@@ -1831,6 +1826,22 @@ export default function WikiPanel({ user, isPopout = false }) {
                     ✨ AI Generate
                   </button>
                 )}
+                {!editId && activeCategoryTab === "MONSTER" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMonsterGenModal(true)}
+                    style={{
+                      ...styles.saveBtn,
+                      background: "linear-gradient(135deg, #d97706 0%, #92400e 100%)",
+                      color: "#fffffe",
+                      marginRight: "0.5rem",
+                    }}
+                    className="touch-target btn-hover-scale"
+                    title="AI Monster Generator"
+                  >
+                    ✨ Generate Monster
+                  </button>
+                )}
                 {editingNpc?.name && (
                   <button
                     type="button"
@@ -1882,7 +1893,6 @@ export default function WikiPanel({ user, isPopout = false }) {
             </header>
 
             <div style={styles.editorBody}>
-              {renderAssistStatusBar()}
               {editorError && <p style={styles.editorErrorText}>⚠️ {editorError}</p>}
 
               {/* Identity & Basic Combat Stats */}
@@ -2170,7 +2180,17 @@ export default function WikiPanel({ user, isPopout = false }) {
                       <div style={styles.toolbar}>
                         <button type="button" title="Bold" onClick={() => insertText("**", "**", "alignment")} style={styles.toolbarBtn} className="touch-target"><strong>B</strong></button>
                         <button type="button" title="Italic" onClick={() => insertText("*", "*", "alignment")} style={styles.toolbarBtn} className="touch-target"><em>I</em></button>
-                        {renderAiAssistButton("alignment")}
+                        <AiAssistButton
+                          fieldName="alignment"
+                          actions={AI_FIELD_ACTIONS.alignment}
+                          currentText={editingNpc?.alignment || ""}
+                          context={buildAssistContext("alignment")}
+                          onApply={(reply) => {
+                            setEditingNpc((prev) => ({ ...prev, alignment: reply }));
+                          }}
+                          onError={(msg) => setEditorError(msg)}
+                          user={user}
+                        />
                       </div>
                       <textarea
                         id="wiki-textarea-alignment"
@@ -2191,7 +2211,17 @@ export default function WikiPanel({ user, isPopout = false }) {
                         <button type="button" title="Header" onClick={() => insertText("\n### ", "", "appearance")} style={styles.toolbarBtn} className="touch-target">H3</button>
                         <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "appearance")} style={styles.toolbarBtn} className="touch-target">• List</button>
                         <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "appearance")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
-                        {renderAiAssistButton("appearance")}
+                        <AiAssistButton
+                          fieldName="appearance"
+                          actions={AI_FIELD_ACTIONS.appearance}
+                          currentText={editingNpc?.appearance || ""}
+                          context={buildAssistContext("appearance")}
+                          onApply={(reply) => {
+                            setEditingNpc((prev) => ({ ...prev, appearance: reply }));
+                          }}
+                          onError={(msg) => setEditorError(msg)}
+                          user={user}
+                        />
                       </div>
                       <textarea
                         id="wiki-textarea-appearance"
@@ -2212,7 +2242,17 @@ export default function WikiPanel({ user, isPopout = false }) {
                         <button type="button" title="Header" onClick={() => insertText("\n### ", "", "personality")} style={styles.toolbarBtn} className="touch-target">H3</button>
                         <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "personality")} style={styles.toolbarBtn} className="touch-target">• List</button>
                         <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "personality")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
-                        {renderAiAssistButton("personality")}
+                        <AiAssistButton
+                          fieldName="personality"
+                          actions={AI_FIELD_ACTIONS.personality}
+                          currentText={editingNpc?.personality || ""}
+                          context={buildAssistContext("personality")}
+                          onApply={(reply) => {
+                            setEditingNpc((prev) => ({ ...prev, personality: reply }));
+                          }}
+                          onError={(msg) => setEditorError(msg)}
+                          user={user}
+                        />
                       </div>
                       <textarea
                         id="wiki-textarea-personality"
@@ -2233,7 +2273,17 @@ export default function WikiPanel({ user, isPopout = false }) {
                         <button type="button" title="Header" onClick={() => insertText("\n### ", "", "history")} style={styles.toolbarBtn} className="touch-target">H3</button>
                         <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "history")} style={styles.toolbarBtn} className="touch-target">• List</button>
                         <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "history")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
-                        {renderAiAssistButton("history")}
+                        <AiAssistButton
+                          fieldName="history"
+                          actions={AI_FIELD_ACTIONS.history}
+                          currentText={editingNpc?.history || ""}
+                          context={buildAssistContext("history")}
+                          onApply={(reply) => {
+                            setEditingNpc((prev) => ({ ...prev, history: reply }));
+                          }}
+                          onError={(msg) => setEditorError(msg)}
+                          user={user}
+                        />
                       </div>
                       <textarea
                         id="wiki-textarea-history"
@@ -2254,7 +2304,17 @@ export default function WikiPanel({ user, isPopout = false }) {
                         <button type="button" title="Header" onClick={() => insertText("\n### ", "", "partyRelationship")} style={styles.toolbarBtn} className="touch-target">H3</button>
                         <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "partyRelationship")} style={styles.toolbarBtn} className="touch-target">• List</button>
                         <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "partyRelationship")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
-                        {renderAiAssistButton("partyRelationship")}
+                        <AiAssistButton
+                          fieldName="partyRelationship"
+                          actions={AI_FIELD_ACTIONS.partyRelationship}
+                          currentText={editingNpc?.partyRelationship || ""}
+                          context={buildAssistContext("partyRelationship")}
+                          onApply={(reply) => {
+                            setEditingNpc((prev) => ({ ...prev, partyRelationship: reply }));
+                          }}
+                          onError={(msg) => setEditorError(msg)}
+                          user={user}
+                        />
                       </div>
                       <textarea
                         id="wiki-textarea-partyRelationship"
@@ -2334,7 +2394,6 @@ export default function WikiPanel({ user, isPopout = false }) {
             </header>
 
             <div style={styles.editorBody}>
-              {renderAssistStatusBar()}
               {editorError && <p style={styles.editorErrorText}>⚠️ {editorError}</p>}
 
               <div style={styles.formRow}>
@@ -2446,7 +2505,17 @@ export default function WikiPanel({ user, isPopout = false }) {
                     <button type="button" title="Header" onClick={() => insertText("\n### ", "")} style={styles.toolbarBtn} className="touch-target">H3</button>
                     <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "")} style={styles.toolbarBtn} className="touch-target">• List</button>
                     <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
-                    {renderAiAssistButton("markdown")}
+                    <AiAssistButton
+                      fieldName="markdown"
+                      actions={AI_FIELD_ACTIONS.markdown}
+                      currentText={editContent || ""}
+                      context={buildAssistContext("markdown")}
+                      onApply={(reply) => {
+                        setEditContent(reply);
+                      }}
+                      onError={(msg) => setEditorError(msg)}
+                      user={user}
+                    />
                   </div>
 
                   <textarea
@@ -3020,6 +3089,107 @@ export default function WikiPanel({ user, isPopout = false }) {
         </div>
       )}
 
+      {/* AI Monster Generator Modal */}
+      {showMonsterGenModal && (
+        <div style={styles.modalOverlay} onClick={() => !monsterGenLoading && resetMonsterGenState()}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>✨ AI Monster Generator</h3>
+              <button onClick={() => !monsterGenLoading && resetMonsterGenState()} style={styles.modalCloseBtn} className="touch-target" disabled={monsterGenLoading}>
+                ✕
+              </button>
+            </div>
+
+            {monsterGenStep === "generating" && (
+              <div style={{ textAlign: "center", padding: "1.5rem 0" }}>
+                <div className="spinner" style={{
+                  width: "28px",
+                  height: "28px",
+                  border: "3px solid rgba(200,151,58,0.2)",
+                  borderTopColor: "#c8973a",
+                  borderRadius: "50%",
+                  animation: "spin 0.8s linear infinite",
+                  margin: "0 auto 0.75rem",
+                }} />
+                <p style={{ color: "var(--color-muted)", fontSize: "0.85rem" }}>
+                  {monsterGenProgress || "Working on your monster..."}
+                </p>
+              </div>
+            )}
+
+            {monsterGenStep === "options" && !monsterGenOptions.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <p style={{ color: "var(--color-text)", fontSize: "0.85rem" }}>
+                  Describe the monster you want to create. Include details about its type, role, difficulty, and special abilities.
+                </p>
+                <textarea
+                  value={monsterGenPrompt}
+                  onChange={(e) => setMonsterGenPrompt(e.target.value)}
+                  placeholder="e.g. A large venomous spider that lurks in dark forest caves, CR 3, ambush hunter with web attacks..."
+                  style={{ ...styles.textarea, minHeight: "80px" }}
+                  className="form-input"
+                  rows={3}
+                />
+                <button
+                  type="button"
+                  onClick={generateMonsterOptions}
+                  disabled={monsterGenLoading || !monsterGenPrompt.trim()}
+                  style={{ ...styles.primaryBtn, alignSelf: "flex-end" }}
+                  className="touch-target"
+                >
+                  {monsterGenLoading ? "Thinking..." : "Generate Concepts"}
+                </button>
+                {monsterGenProgress && <p style={{ color: "var(--color-accent)", fontSize: "0.8rem", background: "rgba(200,151,58,0.08)", border: "1px solid rgba(200,151,58,0.2)", padding: "0.5rem", borderRadius: "4px", margin: 0 }}>{monsterGenProgress}</p>}
+              </div>
+            )}
+
+            {monsterGenStep === "options" && monsterGenOptions.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <p style={{ color: "var(--color-text)", fontSize: "0.85rem" }}>Select a concept to generate the full statblock:</p>
+                {monsterGenOptions.map((opt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setMonsterGenSelected(opt)}
+                    style={{
+                      background: monsterGenSelected === opt ? "rgba(200, 151, 58, 0.12)" : "var(--color-surface)",
+                      border: `1px solid ${monsterGenSelected === opt ? "var(--color-accent)" : "rgba(255,255,255,0.08)"}`,
+                      borderRadius: "6px",
+                      padding: "0.75rem",
+                      textAlign: "left",
+                      width: "100%",
+                    }}
+                    className="touch-target"
+                  >
+                    <strong>{opt.name}</strong> ({opt.type || "Unknown"} — CR {opt.cr || "?"})
+                    <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: "var(--color-muted)" }}>{opt.briefDescription}</p>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={generateMonsterFromOption}
+                  disabled={!monsterGenSelected || monsterGenLoading}
+                  style={{ ...styles.primaryBtn, alignSelf: "flex-end" }}
+                  className="touch-target"
+                >
+                  {monsterGenLoading ? "Generating..." : "Generate Full Statblock"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMonsterGenOptions([]); setMonsterGenSelected(null); }}
+                  style={{ ...styles.secondaryBtn, alignSelf: "flex-start" }}
+                  className="touch-target"
+                >
+                  Back to Prompt
+                </button>
+              </div>
+            )}
+
+            {monsterGenError && <p style={styles.errorText}>{monsterGenError}</p>}
+          </div>
+        </div>
+      )}
+
       {/* NEW ENTRY CATEGORY CHOICE MODAL */}
       {showCategoryPrompt && (
         <div style={styles.modalOverlay} className="fade-in">
@@ -3553,25 +3723,7 @@ const styles = {
     borderRadius: "4px",
     margin: 0,
   },
-  assistStatusText: {
-    color: "var(--color-accent)",
-    fontSize: "0.8rem",
-    background: "rgba(200, 151, 58, 0.08)",
-    border: "1px solid rgba(200, 151, 58, 0.2)",
-    padding: "0.5rem",
-    borderRadius: "4px",
-    margin: 0,
-  },
-  assistUndoBtn: {
-    background: "transparent",
-    border: "none",
-    color: "var(--color-accent)",
-    textDecoration: "underline",
-    cursor: "pointer",
-    fontSize: "0.8rem",
-    padding: 0,
-    fontWeight: "600",
-  },
+
   formRow: {
     display: "flex",
     alignItems: "flex-end",
@@ -4106,30 +4258,5 @@ const statblockStyles = {
     fontSize: "0.78rem",
     color: "var(--color-text)",
   },
-  assistDropdown: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    zIndex: 100,
-    background: "var(--color-surface)",
-    border: "1px solid var(--color-accent)",
-    borderRadius: "6px",
-    boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-    display: "flex",
-    flexDirection: "column",
-    minWidth: "140px",
-    padding: "0.25rem 0",
-    marginTop: "0.25rem",
-  },
-  assistOption: {
-    background: "transparent",
-    border: "none",
-    color: "var(--color-text)",
-    padding: "0.5rem 0.75rem",
-    fontSize: "0.75rem",
-    textAlign: "left",
-    cursor: "pointer",
-    width: "100%",
-    outline: "none",
-  },
+
 };

@@ -71,6 +71,19 @@ router.post("/mcp/message", async (req, res) => {
   }
 });
 
+function formatCreaturePromptList(items, kind) {
+  return items.map((item) => {
+    if (kind === "monster") {
+      return `- ${item.name} | type: ${item.race || "unknown"} | class: ${item.class || "monster"} | CR: ${item.cr || "0"} | ${item.description || ""}`;
+    }
+    return `- ${item.name} | race: ${item.race || "unknown"} | class: ${item.class || "unknown"} | level: ${item.level || 1} | ${item.description || ""}`;
+  }).join("\n");
+}
+
+function formatEntityList(items, formatter) {
+  return items.map(formatter).filter(Boolean).join("\n");
+}
+
 // ---------------------------------------------------------------------------
 // Helper: Keyword-based RAG Rules Querying
 // ---------------------------------------------------------------------------
@@ -377,11 +390,28 @@ function buildAssistSystemPrompt(field, action) {
       summarize: `Summarize the history into key bullet points for quick DM reference. ${outputRule}`,
       campaign_tie: `Connect this NPC's history to the campaign lore provided in context. Add plausible ties without contradicting existing facts. ${outputRule}`,
     },
+    backstory: {
+      generate: `Write a compelling D&D character backstory (2-3 paragraphs). Include origins, motivations, key life events, and what drives them to adventure. ${outputRule} 80-200 words.`,
+      expand: `Expand this character backstory with more detail, life events, and motivations. Preserve existing facts. ${outputRule}`,
+      summarize: `Summarize this backstory into key bullet points for quick reference. ${outputRule}`,
+      campaign_tie: `Connect this character's backstory to the campaign lore provided in context. Add plausible ties without contradicting existing facts. ${outputRule}`,
+    },
     partyRelationship: {
       generate: `Describe how this NPC feels about and interacts with the player party (attitude, trust, goals, potential conflict). ${outputRule} 40–100 words.`,
       expand: `Expand the party relationship with specific attitudes, rumors, and roleplay hooks. Preserve existing facts. ${outputRule}`,
       friendly: `Rewrite the relationship so the NPC is broadly friendly or helpful toward the party while staying in character. ${outputRule}`,
       hostile: `Rewrite the relationship so the NPC is suspicious, antagonistic, or opposed to the party while staying plausible. ${outputRule}`,
+    },
+    agenda: {
+      generate: `Generate a D&D session agenda with scene beats, NPC interactions, encounter prep, and plot hooks to advance. ${outputRule} 60–150 words.`,
+      expand: `Expand this session agenda with more detail and specific beats. Preserve existing content. ${outputRule}`,
+      summarize: `Summarize this agenda into key bullet points. ${outputRule}`,
+    },
+    recap: {
+      generate: `Write a narrative D&D session recap covering key events, roleplay moments, combat outcomes, loot awarded, and hooks for next session. ${outputRule} 100–250 words.`,
+      expand: `Expand this session recap with more detail and narrative flair. Preserve existing facts. ${outputRule}`,
+      summarize: `Summarize this session recap into key bullet points. ${outputRule}`,
+      make_dramatic: `Rewrite this session recap with dramatic, evocative fantasy prose while preserving facts. ${outputRule}`,
     },
     markdown: {
       generate: `Draft campaign wiki content in markdown based on the article title, category, and tags in context. Include useful DM details and hooks. ${outputRule}`,
@@ -416,6 +446,25 @@ function buildAssistUserMessage(field, action, text, context = {}) {
     }
   }
 
+  if (context.entityType === "character" && context.character) {
+    parts.push("\nCHARACTER CONTEXT:");
+    parts.push(`- Name: ${context.character.name || "Unknown"}`);
+    parts.push(`- Race: ${context.character.race || "Unknown"}`);
+    parts.push(`- Class: ${context.character.class || "Unknown"}`);
+    parts.push(`- Level: ${context.character.level || 1}`);
+    if (context.character.appearance && field !== "appearance") parts.push(`- Appearance: ${context.character.appearance}`);
+    if (context.character.personality && field !== "personality") parts.push(`- Personality: ${context.character.personality}`);
+    if (context.character.backstory && field !== "backstory") parts.push(`- Backstory: ${context.character.backstory}`);
+    parts.push("\nNOTE: Write only for the requested field. Do not repeat other fields verbatim.");
+  }
+
+  if (context.entityType === "session" && context.session) {
+    parts.push("\nSESSION CONTEXT:");
+    parts.push(`- Title: ${context.session.title || "Untitled"}`);
+    parts.push(`- Status: ${context.session.status || "PLANNED"}`);
+    if (context.session.agenda) parts.push(`- Current Agenda: ${context.session.agenda}`);
+  }
+
   if (context.campaignWiki) {
     parts.push("\nCAMPAIGN LORE (for reference):");
     parts.push(context.campaignWiki);
@@ -430,6 +479,26 @@ function buildAssistUserMessage(field, action, text, context = {}) {
   }
 
   return parts.join("\n");
+}
+
+function stripAiJsonCodeFences(text) {
+  let out = typeof text === "string" ? text.trim() : "";
+  if (out.startsWith("```")) {
+    const match = out.match(/```(?:json)?([\s\S]+?)```/);
+    if (match) {
+      out = match[1].trim();
+    }
+  }
+  return out;
+}
+
+function parseJsonArray(value) {
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 async function loadAiSettings() {
@@ -1273,6 +1342,639 @@ The JSON must strictly conform to these fields:
       return;
     }
     res.status(500).json({ error: err.message || "Failed to generate NPC." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/ai/generate-character-options - Generate multiple character concepts (DM only)
+// ---------------------------------------------------------------------------
+router.post("/generate-character-options", requireDm, async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return res.status(400).json({ error: "Character prompt description is required." });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    beginSseResponse(res);
+    writeSseEvent(res, { type: "status", message: "Consulting campaign lore..." });
+
+    const campaignWiki = await fetchCampaignWikiSnippet(prompt);
+    const campaignBlock = campaignWiki
+      ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
+      : "";
+
+    writeSseEvent(res, { type: "status", message: "Generating character concepts..." });
+
+    const systemPrompt = `You are a D&D 5e character concept generator for a Tabletop RPG.
+Given a DM's description, generate exactly 4 distinct, creative character concepts the DM can choose from.
+Each option should vary in race, class, background, and tone where appropriate.
+${campaignBlock}
+You MUST respond with a single JSON object containing an "options" array (and NO other text). Do not wrap in codeblocks.
+{
+  "options": [
+    {
+      "name": "Character name",
+      "race": "Character race",
+      "class": "Character class",
+      "level": 1,
+      "briefDescription": "One-sentence concept describing the character and their role/personality"
+    }
+  ]
+}
+Generate exactly 4 options. Levels should generally range from 1 to 5 based on the prompt. Make each one feel distinct and interesting.`;
+
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, `Generate character options for: ${prompt.trim()}`);
+
+    writeSseEvent(res, { type: "status", message: "Parsing results..." });
+
+    let optionsData;
+    try {
+      optionsData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      console.error("[AI Character Options] JSON parse failed on text:", rawResponse);
+      throw new Error("Failed to generate valid character options from the AI response.");
+    }
+
+    if (!optionsData.options || !Array.isArray(optionsData.options) || optionsData.options.length === 0) {
+      throw new Error("AI returned an empty options list.");
+    }
+
+    writeSseEvent(res, { type: "result", data: { options: optionsData.options } });
+    writeSseEvent(res, { type: "done" });
+    res.end();
+  } catch (err) {
+    console.error("[AI Character Options] Failed:", err.message);
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate character options." });
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: err.message || "Failed to generate character options." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/ai/generate-character - Full character generation (DM only)
+// ---------------------------------------------------------------------------
+router.post("/generate-character", requireDm, async (req, res) => {
+  try {
+    const { prompt, selectedOption } = req.body;
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return res.status(400).json({ error: "Character prompt description is required." });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    beginSseResponse(res);
+    writeSseEvent(res, { type: "status", message: "Consulting campaign lore..." });
+
+    const campaignWiki = await fetchCampaignWikiSnippet(prompt);
+    const campaignBlock = campaignWiki
+      ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
+      : "";
+
+    const selectedBlock = selectedOption
+      ? `\nThe DM has selected this specific concept to flesh out into a full character:\n${JSON.stringify(selectedOption, null, 2)}\n`
+      : "";
+
+    writeSseEvent(res, { type: "status", message: "Generating character sheet..." });
+
+    const systemPrompt = `You are a D&D 5e character generator.
+Given a character concept, generate a complete playable character sheet.
+Choose a level between 1 and 5 that fits the prompt and concept.
+${campaignBlock}
+${selectedBlock}
+You MUST respond with a single JSON object (and NO other text). Do not wrap the JSON in codeblocks unless you are using Markdown, but it is preferred to output raw JSON. If you output code blocks, use \`\`\`json.
+The JSON must strictly conform to these fields:
+{
+  "name": "Character name",
+  "race": "Character race",
+  "class": "Character class",
+  "level": 1,
+  "hp": 10,
+  "maxHp": 10,
+  "strength": 10,
+  "dexterity": 10,
+  "constitution": 10,
+  "intelligence": 10,
+  "wisdom": 10,
+  "charisma": 10,
+  "backstory": "2-3 paragraphs of backstory",
+  "personality": "Traits, ideals, bonds, flaws",
+  "appearance": "Physical appearance description",
+  "inventory": [
+    { "name": "Item name", "quantity": 1, "weight": 1 }
+  ]
+}`;
+
+    const userMessage = selectedOption
+      ? `Create the full character for "${selectedOption.name}" (${selectedOption.race} ${selectedOption.class}). Original request: ${prompt.trim()}`
+      : `Create a full character based on this concept: ${prompt.trim()}`;
+
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage);
+
+    writeSseEvent(res, { type: "status", message: "Parsing and validating character sheet..." });
+
+    let characterData;
+    try {
+      characterData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      console.error("[AI Character Gen] JSON parse failed on text:", rawResponse);
+      throw new Error("Failed to generate a valid character JSON structure from the AI response.");
+    }
+
+    writeSseEvent(res, { type: "result", data: characterData });
+    writeSseEvent(res, { type: "done" });
+    res.end();
+  } catch (err) {
+    console.error("[AI Character Gen] Failed:", err.message);
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate character." });
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: err.message || "Failed to generate character." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/ai/generate-monster-options - Generate multiple monster concepts (DM only)
+// ---------------------------------------------------------------------------
+router.post("/generate-monster-options", requireDm, async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return res.status(400).json({ error: "Monster prompt description is required." });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    beginSseResponse(res);
+    writeSseEvent(res, { type: "status", message: "Consulting campaign lore..." });
+
+    const campaignWiki = await fetchCampaignWikiSnippet(prompt);
+    const campaignBlock = campaignWiki
+      ? `\nUse this campaign lore for tone, creature naming, lair ideas, and setting consistency when relevant:\n${campaignWiki}\n`
+      : "";
+
+    writeSseEvent(res, { type: "status", message: "Generating monster concepts..." });
+
+    const systemPrompt = `You are a D&D 5e monster concept generator for a Tabletop RPG.
+Given a DM's description, generate exactly 4 distinct, creative monster concepts.
+Focus on creature type, lair, tactics, and CR-appropriate threat.
+${campaignBlock}
+You MUST respond with a single JSON object containing an "options" array (and NO other text). Do not wrap in codeblocks.
+{
+  "options": [
+    {
+      "name": "Monster name",
+      "type": "Creature type",
+      "cr": "Challenge rating as a string",
+      "briefDescription": "One-sentence concept describing the monster, its lair, and combat style"
+    }
+  ]
+}
+Generate exactly 4 options. Make each one feel distinct and dangerous.`;
+
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, `Generate monster options for: ${prompt.trim()}`);
+
+    writeSseEvent(res, { type: "status", message: "Parsing results..." });
+
+    let optionsData;
+    try {
+      optionsData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      console.error("[AI Monster Options] JSON parse failed on text:", rawResponse);
+      throw new Error("Failed to generate valid monster options from the AI response.");
+    }
+
+    if (!optionsData.options || !Array.isArray(optionsData.options) || optionsData.options.length === 0) {
+      throw new Error("AI returned an empty options list.");
+    }
+
+    writeSseEvent(res, { type: "result", data: { options: optionsData.options } });
+    writeSseEvent(res, { type: "done" });
+    res.end();
+  } catch (err) {
+    console.error("[AI Monster Options] Failed:", err.message);
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate monster options." });
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: err.message || "Failed to generate monster options." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/ai/generate-monster - Full monster generation (DM only)
+// ---------------------------------------------------------------------------
+router.post("/generate-monster", requireDm, async (req, res) => {
+  try {
+    const { prompt, selectedOption } = req.body;
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return res.status(400).json({ error: "Monster prompt description is required." });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    beginSseResponse(res);
+    writeSseEvent(res, { type: "status", message: "Consulting campaign lore..." });
+
+    const campaignWiki = await fetchCampaignWikiSnippet(prompt);
+    const campaignBlock = campaignWiki
+      ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
+      : "";
+
+    const selectedBlock = selectedOption
+      ? `\nThe DM has selected this specific concept to flesh out into a full monster:\n${JSON.stringify(selectedOption, null, 2)}\n`
+      : "";
+
+    writeSseEvent(res, { type: "status", message: "Generating monster statblock..." });
+
+    const systemPrompt = `You are a D&D 5e monster and NPC statblock generator.
+Given a description of a monster, generate a complete monster profile.
+Match the requested difficulty/CR to the prompt. Narrative fields (appearance, personality, history, description) should complement each other without repeating the same sentences.
+${campaignBlock}
+${selectedBlock}
+You MUST respond with a single JSON object (and NO other text). Do not wrap the JSON in codeblocks unless you are using Markdown, but it is preferred to output raw JSON. If you output code blocks, use \`\`\`json.
+The JSON must strictly conform to these fields:
+{
+  "name": "Monster name",
+  "race": "Creature type",
+  "class": "Creature category",
+  "level": 1,
+  "hp": 10,
+  "maxHp": 10,
+  "ac": 10,
+  "cr": "0",
+  "strength": 10,
+  "dexterity": 10,
+  "constitution": 10,
+  "intelligence": 10,
+  "wisdom": 10,
+  "charisma": 10,
+  "alignment": "Alignment",
+  "appearance": "Physical appearance description",
+  "personality": "Personality traits, habits, instincts, or flaws",
+  "history": "Brief background story",
+  "partyRelationship": "How it regards or interacts with the player party",
+  "description": "General bio/description summary",
+  "actions": [
+    {
+      "name": "Action Name",
+      "description": "Description of the combat action, attack, or ability"
+    }
+  ]
+}`;
+
+    const userMessage = selectedOption
+      ? `Create the full monster statblock for "${selectedOption.name}" (${selectedOption.type} CR ${selectedOption.cr}). Original request: ${prompt.trim()}`
+      : `Create a full monster based on this concept: ${prompt.trim()}`;
+
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage);
+
+    writeSseEvent(res, { type: "status", message: "Parsing and validating statblock..." });
+
+    let monsterData;
+    try {
+      monsterData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      console.error("[AI Monster Gen] JSON parse failed on text:", rawResponse);
+      throw new Error("Failed to generate a valid monster JSON structure from the AI response.");
+    }
+
+    writeSseEvent(res, { type: "result", data: monsterData });
+    writeSseEvent(res, { type: "done" });
+    res.end();
+  } catch (err) {
+    console.error("[AI Monster Gen] Failed:", err.message);
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate monster." });
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: err.message || "Failed to generate monster." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/ai/build-encounter - Build a balanced encounter (DM only)
+// ---------------------------------------------------------------------------
+router.post("/build-encounter", requireDm, async (req, res) => {
+  try {
+    const { partyLevels, difficulty, context } = req.body;
+    const levels = Array.isArray(partyLevels)
+      ? partyLevels.map((level) => Number(level)).filter((level) => Number.isInteger(level) && level > 0)
+      : [];
+
+    if (!levels.length) {
+      return res.status(400).json({ error: "partyLevels must be a non-empty array of positive integers." });
+    }
+
+    if (!["easy", "medium", "hard", "deadly"].includes(String(difficulty || "").toLowerCase())) {
+      return res.status(400).json({ error: "difficulty must be easy, medium, hard, or deadly." });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    const [existingMonsters, existingNpcs] = await Promise.all([
+      prisma.monster.findMany({
+        orderBy: { updatedAt: "desc" },
+        take: 25,
+        select: { name: true, race: true, class: true, cr: true, description: true },
+      }),
+      prisma.npc.findMany({
+        orderBy: { updatedAt: "desc" },
+        take: 25,
+        select: { name: true, race: true, class: true, level: true, description: true },
+      }),
+    ]);
+
+    const avgLevel = levels.reduce((sum, level) => sum + level, 0) / levels.length;
+    const monsterContext = formatCreaturePromptList(existingMonsters, "monster");
+    const npcContext = formatCreaturePromptList(existingNpcs, "npc");
+
+    const systemPrompt = `You are a D&D 5e encounter builder.
+Given the party levels and desired difficulty, suggest a balanced encounter composition.
+Use the provided existing monsters and NPCs in the database as primary options and inspiration.
+Keep the final encounter tactically interesting and appropriate for the party.
+You MUST respond with a single JSON object containing an "encounter" object and no other text.
+{
+  "encounter": {
+    "name": "Encounter name",
+    "description": "Short thematic encounter description",
+    "participants": [
+      { "name": "Name", "type": "monster", "quantity": 1, "cr": "1" }
+    ]
+  }
+}`;
+
+    const userMessage = [
+      `Party levels: ${levels.join(", ")}`,
+      `Average party level: ${avgLevel.toFixed(1)}`,
+      `Difficulty: ${String(difficulty).toLowerCase()}`,
+      `Additional context: ${typeof context === "string" ? context.trim() : ""}`,
+      "",
+      "Existing monsters in the database:",
+      monsterContext || "(none)",
+      "",
+      "Existing NPCs in the database:",
+      npcContext || "(none)",
+    ].join("\n");
+
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage);
+
+    let encounterData;
+    try {
+      encounterData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      console.error("[AI Build Encounter] JSON parse failed on text:", rawResponse);
+      throw new Error("Failed to generate a valid encounter JSON structure from the AI response.");
+    }
+
+    res.json(encounterData);
+  } catch (err) {
+    console.error("[AI Build Encounter] Failed:", err.message);
+    res.status(500).json({ error: err.message || "Failed to build encounter." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/ai/encounter-description - Generate encounter title/description (DM only)
+// ---------------------------------------------------------------------------
+router.post("/encounter-description", requireDm, async (req, res) => {
+  try {
+    const participants = Array.isArray(req.body?.participants) ? req.body.participants : [];
+    if (!participants.length) {
+      return res.status(400).json({ error: "participants must be a non-empty array." });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    const systemPrompt = `You are a D&D 5e encounter naming assistant.
+Given the listed participants, generate a thematic encounter name and a short evocative description.
+You MUST respond with a single JSON object and no other text.
+{
+  "name": "Encounter name",
+  "description": "Short thematic description"
+}`;
+
+    const userMessage = `Participants:\n${formatEntityList(participants, (p) => `- ${p.name} | type: ${p.type || "unknown"} | CR: ${p.cr || "0"}`)}`;
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage);
+
+    let encounterData;
+    try {
+      encounterData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      console.error("[AI Encounter Description] JSON parse failed on text:", rawResponse);
+      throw new Error("Failed to generate a valid encounter description.");
+    }
+
+    res.json(encounterData);
+  } catch (err) {
+    console.error("[AI Encounter Description] Failed:", err.message);
+    res.status(500).json({ error: err.message || "Failed to generate encounter description." });
+  }
+});
+
+async function loadSessionAiContext(sessionId) {
+  const id = Number(sessionId);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error("sessionId must be a valid positive number.");
+  }
+
+  const session = await prisma.gameSession.findUnique({ where: { id } });
+  if (!session) {
+    throw new Error("Session not found.");
+  }
+
+  const [chatMessages, linkedWikiIds, linkedEncounterIds] = await Promise.all([
+    prisma.chatMessage.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+    Promise.resolve(parseJsonArray(session.linkedWikiIds)),
+    Promise.resolve(parseJsonArray(session.linkedEncounterIds)),
+  ]);
+
+  const [wikiArticles, encounters] = await Promise.all([
+    linkedWikiIds.length
+      ? prisma.wikiArticle.findMany({
+          where: { id: { in: linkedWikiIds } },
+          orderBy: { updatedAt: "desc" },
+        })
+      : Promise.resolve([]),
+    linkedEncounterIds.length
+      ? prisma.encounter.findMany({
+          where: { id: { in: linkedEncounterIds } },
+          include: { participants: { select: { id: true } } },
+          orderBy: { updatedAt: "desc" },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  return { session, chatMessages: chatMessages.reverse(), wikiArticles, encounters };
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/ai/session-recap - Generate a session recap from recent chat (DM only)
+// ---------------------------------------------------------------------------
+router.post("/session-recap", requireDm, async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    const { session, chatMessages, wikiArticles, encounters } = await loadSessionAiContext(sessionId);
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    beginSseResponse(res);
+    writeSseEvent(res, { type: "status", message: "Building recap context..." });
+
+    const systemPrompt = `Write a narrative D&D session recap in markdown covering key events, roleplay moments, combat outcomes, loot awarded, and hooks for next session.
+Use the provided session data, chat history, linked wiki articles, and linked encounters as source material.
+Return plain markdown only.`;
+
+    const userMessage = [
+      `SESSION: ${session.title || "Untitled"}`,
+      `STATUS: ${session.status || "PLANNED"}`,
+      `AGENDA: ${session.agenda || ""}`,
+      "",
+      "RECENT CHAT MESSAGES:",
+      chatMessages.map((msg) => `- [${msg.sender}] ${msg.text}`).join("\n") || "(none)",
+      "",
+      "LINKED WIKI ARTICLES:",
+      wikiArticles.map((article) => `- ${article.title} (${article.category || "LORE"}): ${String(article.content || "").replace(/\s+/g, " ").slice(0, 220)}`).join("\n") || "(none)",
+      "",
+      "LINKED ENCOUNTERS:",
+      encounters.map((encounter) => `- ${encounter.name} | status: ${encounter.status || "DRAFT"} | participants: ${Array.isArray(encounter.participants) ? encounter.participants.length : 0}`).join("\n") || "(none)",
+    ].join("\n");
+
+    writeSseEvent(res, { type: "status", message: "Writing session recap..." });
+    const rawReply = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage);
+    const recap = cleanAiFieldOutput(rawReply, "markdown");
+
+    writeSseEvent(res, { type: "result", data: recap });
+    writeSseEvent(res, { type: "done" });
+    res.end();
+  } catch (err) {
+    console.error("[AI Session Recap] Failed:", err.message);
+    if (err.message === "sessionId must be a valid positive number.") {
+      return res.status(400).json({ error: err.message });
+    }
+    if (err.message === "Session not found.") {
+      return res.status(404).json({ error: err.message });
+    }
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate session recap." });
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: err.message || "Failed to generate session recap." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/ai/session-agenda - Generate session agenda/prep (DM only)
+// ---------------------------------------------------------------------------
+router.post("/session-agenda", requireDm, async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    const { session, wikiArticles } = await loadSessionAiContext(sessionId);
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    const campaignWiki = await fetchCampaignWikiSnippet([session.title, session.agenda, ...wikiArticles.map((article) => article.title)].filter(Boolean).join(" "));
+
+    beginSseResponse(res);
+    writeSseEvent(res, { type: "status", message: "Building agenda context..." });
+
+    const systemPrompt = `Suggest a session agenda with scene beats, NPC interactions to prepare, encounter prep, and plot hooks to advance.
+Use the provided session context and campaign wiki references.
+Return plain markdown only.`;
+
+    const userMessage = [
+      `SESSION: ${session.title || "Untitled"}`,
+      `STATUS: ${session.status || "PLANNED"}`,
+      `CURRENT AGENDA: ${session.agenda || ""}`,
+      "",
+      "CAMPAIGN WIKI CONTEXT:",
+      campaignWiki || "(none)",
+      "",
+      "LINKED WIKI ARTICLES:",
+      wikiArticles.map((article) => `- ${article.title} (${article.category || "LORE"}): ${String(article.content || "").replace(/\s+/g, " ").slice(0, 220)}`).join("\n") || "(none)",
+    ].join("\n");
+
+    writeSseEvent(res, { type: "status", message: "Writing session agenda..." });
+    const rawReply = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage);
+    const agenda = cleanAiFieldOutput(rawReply, "markdown");
+
+    writeSseEvent(res, { type: "result", data: agenda });
+    writeSseEvent(res, { type: "done" });
+    res.end();
+  } catch (err) {
+    console.error("[AI Session Agenda] Failed:", err.message);
+    if (err.message === "sessionId must be a valid positive number.") {
+      return res.status(400).json({ error: err.message });
+    }
+    if (err.message === "Session not found.") {
+      return res.status(404).json({ error: err.message });
+    }
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate session agenda." });
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: err.message || "Failed to generate session agenda." });
   }
 });
 

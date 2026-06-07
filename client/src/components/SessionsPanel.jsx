@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
 import {
   ArrowLeft,
   CalendarDays,
@@ -77,6 +78,9 @@ function SessionsPanel({ user, readOnly = false, isPopout = false, basePath = "/
   const [showPreview, setShowPreview] = useState(false);
   const [newChecklistItem, setNewChecklistItem] = useState("");
   const [publishMessage, setPublishMessage] = useState(null);
+  const [aiSessionLoading, setAiSessionLoading] = useState(false);
+  const [aiSessionProgress, setAiSessionProgress] = useState("");
+  const [aiSessionError, setAiSessionError] = useState(null);
 
   const [wikiArticles, setWikiArticles] = useState([]);
   const [maps, setMaps] = useState([]);
@@ -277,6 +281,136 @@ function SessionsPanel({ user, readOnly = false, isPopout = false, basePath = "/
       setError(err.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleGenerateRecap() {
+    if (!selectedSession) return;
+    setAiSessionLoading(true);
+    setAiSessionError(null);
+    setAiSessionProgress("Gathering session data...");
+
+    try {
+      const res = await fetch("/api/ai/session-recap", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ sessionId: selectedSession.id }),
+      });
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream")) {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to generate recap.");
+        }
+      }
+
+      if (!res.ok || !res.body) {
+        throw new Error("Failed to start recap stream.");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let resultText = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (!payload) continue;
+          try {
+            const event = JSON.parse(payload);
+            if (event.type === "status") setAiSessionProgress(event.message);
+            if (event.type === "result") resultText = event.data;
+            if (event.type === "error") throw new Error(event.message);
+          } catch (e) {
+            if (e.message) throw e;
+          }
+        }
+      }
+
+      if (resultText) {
+        updateLocalField("recap", resultText);
+        await patchSession({ recap: resultText });
+      } else {
+        throw new Error("No recap text received.");
+      }
+    } catch (err) {
+      setAiSessionError(err.message);
+    } finally {
+      setAiSessionLoading(false);
+      setAiSessionProgress("");
+    }
+  }
+
+  async function handleGenerateAgenda() {
+    if (!selectedSession) return;
+    setAiSessionLoading(true);
+    setAiSessionError(null);
+    setAiSessionProgress("Analyzing campaign state...");
+
+    try {
+      const res = await fetch("/api/ai/session-agenda", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ sessionId: selectedSession.id }),
+      });
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream")) {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to generate agenda.");
+        }
+      }
+
+      if (!res.ok || !res.body) {
+        throw new Error("Failed to start agenda stream.");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let resultText = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (!payload) continue;
+          try {
+            const event = JSON.parse(payload);
+            if (event.type === "status") setAiSessionProgress(event.message);
+            if (event.type === "result") resultText = event.data;
+            if (event.type === "error") throw new Error(event.message);
+          } catch (e) {
+            if (e.message) throw e;
+          }
+        }
+      }
+
+      if (resultText) {
+        updateLocalField("agenda", resultText);
+        await patchSession({ agenda: resultText });
+      } else {
+        throw new Error("No agenda text received.");
+      }
+    } catch (err) {
+      setAiSessionError(err.message);
+    } finally {
+      setAiSessionLoading(false);
+      setAiSessionProgress("");
     }
   }
 
@@ -645,6 +779,9 @@ function SessionsPanel({ user, readOnly = false, isPopout = false, basePath = "/
           </div>
         )}
 
+        {aiSessionProgress && <p style={styles.mutedText}>{aiSessionProgress}</p>}
+        {aiSessionError && <p style={styles.errorText}>{aiSessionError}</p>}
+
         {(selectedSession.status === "PLANNED" || selectedSession.status === "ACTIVE") && (
           <section style={styles.section}>
             <div style={styles.sectionHeaderRow}>
@@ -661,15 +798,46 @@ function SessionsPanel({ user, readOnly = false, isPopout = false, basePath = "/
               )}
             </div>
             {isDm && !showPreview ? (
-              <textarea
-                value={selectedSession.agenda}
-                onChange={(e) => updateLocalField("agenda", e.target.value)}
-                onBlur={() => patchSession({ agenda: selectedSession.agenda })}
-                style={styles.textarea}
-                className="form-input"
-                placeholder="Scene plan, beats, NPC notes..."
-                disabled={saving}
-              />
+              <>
+                <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                  <AiAssistButton
+                    fieldName="agenda"
+                    actions={AI_FIELD_ACTIONS.agenda}
+                    currentText={selectedSession?.agenda || ""}
+                    context={{ entityType: "session", session: { title: selectedSession?.title, status: selectedSession?.status, agenda: selectedSession?.agenda } }}
+                    onApply={(reply) => {
+                      updateLocalField("agenda", reply);
+                      patchSession({ agenda: reply });
+                    }}
+                    onError={(msg) => setAiSessionError(msg)}
+                    user={user}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGenerateAgenda}
+                    disabled={aiSessionLoading}
+                    style={{
+                      padding: "0.35rem 0.65rem", fontSize: "0.75rem", borderRadius: "4px",
+                      border: "1px solid rgba(200, 151, 58, 0.3)",
+                      background: "rgba(200, 151, 58, 0.1)", color: "var(--color-accent)",
+                      cursor: "pointer", whiteSpace: "nowrap",
+                      opacity: aiSessionLoading ? 0.6 : 1,
+                    }}
+                    className="touch-target"
+                  >
+                    {aiSessionLoading ? "..." : "✨ AI Suggest Agenda"}
+                  </button>
+                </div>
+                <textarea
+                  value={selectedSession.agenda}
+                  onChange={(e) => updateLocalField("agenda", e.target.value)}
+                  onBlur={() => patchSession({ agenda: selectedSession.agenda })}
+                  style={styles.textarea}
+                  className="form-input"
+                  placeholder="Scene plan, beats, NPC notes..."
+                  disabled={saving}
+                />
+              </>
             ) : (
               <div
                 className="wiki-content"
@@ -763,6 +931,35 @@ function SessionsPanel({ user, readOnly = false, isPopout = false, basePath = "/
             </div>
             {isDm ? (
               <>
+                <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                  <AiAssistButton
+                    fieldName="recap"
+                    actions={AI_FIELD_ACTIONS.recap}
+                    currentText={selectedSession?.recap || ""}
+                    context={{ entityType: "session", session: { title: selectedSession?.title, status: selectedSession?.status, agenda: selectedSession?.agenda } }}
+                    onApply={(reply) => {
+                      updateLocalField("recap", reply);
+                      patchSession({ recap: reply });
+                    }}
+                    onError={(msg) => setAiSessionError(msg)}
+                    user={user}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGenerateRecap}
+                    disabled={aiSessionLoading}
+                    style={{
+                      padding: "0.35rem 0.65rem", fontSize: "0.75rem", borderRadius: "4px",
+                      border: "1px solid rgba(200, 151, 58, 0.3)",
+                      background: "rgba(200, 151, 58, 0.1)", color: "var(--color-accent)",
+                      cursor: "pointer", whiteSpace: "nowrap",
+                      opacity: aiSessionLoading ? 0.6 : 1,
+                    }}
+                    className="touch-target"
+                  >
+                    {aiSessionLoading ? "..." : "✨ AI Write Recap"}
+                  </button>
+                </div>
                 <textarea
                   value={selectedSession.recap}
                   onChange={(e) => updateLocalField("recap", e.target.value)}
@@ -1314,6 +1511,11 @@ const styles = {
   mutedText: {
     color: "var(--color-muted)",
     fontSize: "0.9rem",
+    margin: 0,
+  },
+  errorText: {
+    color: "#eb5757",
+    fontSize: "0.85rem",
     margin: 0,
   },
   successText: {

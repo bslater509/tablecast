@@ -62,6 +62,16 @@ export default function MapPanel({ user, isPopout = false }) {
   const [encounterDeployY, setEncounterDeployY] = useState(0);
   const [encounterBusy, setEncounterBusy] = useState(false);
 
+  // AI Encounter Builder states
+  const [showEncounterBuilder, setShowEncounterBuilder] = useState(false);
+  const [encounterBuilderLevels, setEncounterBuilderLevels] = useState("");
+  const [encounterBuilderDifficulty, setEncounterBuilderDifficulty] = useState("medium");
+  const [encounterBuilderContext, setEncounterBuilderContext] = useState("");
+  const [encounterBuilderLoading, setEncounterBuilderLoading] = useState(false);
+  const [encounterBuilderError, setEncounterBuilderError] = useState(null);
+  const [encounterBuilderResult, setEncounterBuilderResult] = useState(null);
+  const [encounterBuilderProgress, setEncounterBuilderProgress] = useState("");
+
   // Toolbar & View state
   const [tool, setTool] = useState("select"); // "select" (pan/token move), "draw-fog", "reveal-fog"
   const [showGrid, setShowGrid] = useState(true);
@@ -1085,6 +1095,163 @@ export default function MapPanel({ user, isPopout = false }) {
     }
   };
 
+  // AI Encounter Builder
+  async function handleBuildEncounter() {
+    const levels = encounterBuilderLevels
+      .split(",")
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isInteger(n) && n > 0);
+
+    if (!levels.length) {
+      setEncounterBuilderError("Enter at least one party level (e.g., 3, 5, 7).");
+      return;
+    }
+
+    setEncounterBuilderLoading(true);
+    setEncounterBuilderError(null);
+    setEncounterBuilderProgress("Consulting your monster database...");
+
+    try {
+      const res = await fetch("/api/ai/build-encounter", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          partyLevels: levels,
+          difficulty: encounterBuilderDifficulty,
+          context: encounterBuilderContext.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to build encounter.");
+      }
+
+      const data = await res.json();
+      if (data.encounter) {
+        setEncounterBuilderResult(data.encounter);
+      } else {
+        throw new Error("No encounter data received.");
+      }
+    } catch (err) {
+      setEncounterBuilderError(err.message);
+    } finally {
+      setEncounterBuilderLoading(false);
+      setEncounterBuilderProgress("");
+    }
+  }
+
+  async function handleApplyEncounterResult() {
+    if (!encounterBuilderResult || !activeMap) return;
+    setEncounterBuilderLoading(true);
+
+    try {
+      // Create the encounter
+      const encRes = await fetch("/api/encounters", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          name: encounterBuilderResult.name || "AI Generated Encounter",
+          mapId: activeMap.id,
+        }),
+      });
+      if (!encRes.ok) throw new Error("Failed to create encounter.");
+      const encounter = await encRes.json();
+      setActiveEncounter(encounter);
+
+      // Add participants from the AI result
+      for (const p of (encounterBuilderResult.participants || [])) {
+        if (p.type === "monster") {
+          try {
+            const searchRes = await fetch(`/api/monsters?search=${encodeURIComponent(p.name)}`, { headers: authHeaders });
+            if (searchRes.ok) {
+              const monsters = await searchRes.json();
+              const monster = monsters.find((m) => m.name.toLowerCase() === p.name.toLowerCase()) || monsters[0];
+              if (monster) {
+                for (let i = 0; i < (p.quantity || 1); i++) {
+                  await fetch(`/api/encounters/${encounter.id}/participants`, {
+                    method: "POST",
+                    headers: jsonAuthHeaders,
+                    body: JSON.stringify({ monsterId: monster.id, isHidden: false }),
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            // If monster not found, skip
+          }
+        } else if (p.type === "npc") {
+          try {
+            const matchedNpc = availableNpcs.find((npc) => npc.name.toLowerCase() === String(p.name || "").toLowerCase());
+            if (matchedNpc) {
+              await fetch(`/api/encounters/${encounter.id}/participants`, {
+                method: "POST",
+                headers: jsonAuthHeaders,
+                body: JSON.stringify({ npcId: matchedNpc.id, isHidden: false, type: "npc" }),
+              });
+            }
+          } catch (e) {
+            // If NPC not found, skip
+          }
+        }
+      }
+
+      setShowEncounterBuilder(false);
+      setEncounterBuilderResult(null);
+      loadActiveEncounter(activeMap.id);
+    } catch (err) {
+      setEncounterBuilderError(err.message);
+    } finally {
+      setEncounterBuilderLoading(false);
+      setEncounterBuilderProgress("");
+    }
+  }
+
+  // AI Encounter Name Generator
+  async function handleGenerateEncounterName() {
+    if (!activeEncounter?.participants?.length) {
+      return;
+    }
+    setEncounterBuilderLoading(true);
+    setEncounterBuilderError(null);
+
+    try {
+      const participants = activeEncounter.participants.map((p) => ({
+        name: p.name || "Unknown",
+        type: p.type || p.source || "unknown",
+        cr: "?",
+      }));
+
+      const res = await fetch("/api/ai/encounter-description", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ participants }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to generate name.");
+      }
+
+      const data = await res.json();
+      if (data.name) {
+        const updateRes = await fetch(`/api/encounters/${activeEncounter.id}`, {
+          method: "PATCH",
+          headers: jsonAuthHeaders,
+          body: JSON.stringify({ name: data.name }),
+        });
+        if (updateRes.ok) {
+          const updated = await updateRes.json();
+          setActiveEncounter(updated);
+        }
+      }
+    } catch (err) {
+      console.error("AI Name generation failed:", err);
+    } finally {
+      setEncounterBuilderLoading(false);
+    }
+  }
+
   const handleAddMonsterToEncounter = async () => {
     if (!activeEncounter || !encounterMonster?.id || !isDM || encounterBusy) return;
     setEncounterBusy(true);
@@ -1614,6 +1781,29 @@ export default function MapPanel({ user, isPopout = false }) {
               </button>
             </header>
 
+            <div style={{ marginBottom: "0.75rem", display: "flex", justifyContent: "flex-start" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setEncounterBuilderError(null);
+                  setEncounterBuilderProgress("");
+                  setEncounterBuilderResult(null);
+                  setShowEncounterBuilder(true);
+                }}
+                style={{
+                  padding: "0.5rem 0.75rem", fontSize: "0.8rem", borderRadius: "6px",
+                  background: "rgba(200, 151, 58, 0.15)", color: "var(--color-accent)",
+                  border: "1px solid rgba(200, 151, 58, 0.3)", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: "0.35rem",
+                  opacity: encounterBuilderLoading ? 0.6 : 1,
+                }}
+                className="touch-target"
+                disabled={encounterBuilderLoading}
+              >
+                ✨ AI Build Encounter
+              </button>
+            </div>
+
             {!activeEncounter || activeEncounter.status === "COMPLETE" ? (
               <div style={styles.encounterSection}>
                 <input
@@ -1636,7 +1826,24 @@ export default function MapPanel({ user, isPopout = false }) {
             ) : (
               <>
                 <div style={styles.encounterMetaBox}>
-                  <strong>{activeEncounter.name}</strong>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <strong>{activeEncounter.name}</strong>
+                    {isDM && activeEncounter.participants?.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleGenerateEncounterName}
+                        style={{
+                          background: "transparent", border: "none", color: "var(--color-accent)",
+                          cursor: "pointer", fontSize: "0.75rem", padding: "0.25rem",
+                        }}
+                        className="touch-target"
+                        title="Generate encounter name"
+                        disabled={encounterBuilderLoading}
+                      >
+                        ✨ Name
+                      </button>
+                    )}
+                  </div>
                   <span>{activeEncounter.participants?.length || 0} combatants • Round {activeEncounter.round}</span>
                 </div>
 
@@ -1966,6 +2173,169 @@ export default function MapPanel({ user, isPopout = false }) {
             )}
           </div>
         </div>
+
+        {/* AI Encounter Builder Modal */}
+        {showEncounterBuilder && (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center",
+            justifyContent: "center", zIndex: 1000, padding: "1rem",
+          }} onClick={() => !encounterBuilderLoading && setShowEncounterBuilder(false)}>
+            <div style={{
+              background: "var(--color-surface)", borderRadius: "12px",
+              padding: "1.5rem", maxWidth: "500px", width: "100%",
+              maxHeight: "90vh", overflow: "auto",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                <h3 style={{ margin: 0, color: "var(--color-accent)" }}>✨ AI Encounter Builder</h3>
+                <button onClick={() => setShowEncounterBuilder(false)} style={{
+                  background: "transparent", border: "none", color: "var(--color-text)",
+                  fontSize: "1.25rem", cursor: "pointer", padding: "0.25rem",
+                }} className="touch-target">✕</button>
+              </div>
+
+              {!encounterBuilderResult ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", color: "var(--color-muted)", display: "block", marginBottom: "0.25rem" }}>
+                      Party Levels (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={encounterBuilderLevels}
+                      onChange={(e) => setEncounterBuilderLevels(e.target.value)}
+                      placeholder="e.g. 3, 3, 4, 5"
+                      style={{
+                        padding: "0.55rem 0.75rem", fontSize: "0.85rem", borderRadius: "6px",
+                        background: "rgba(0,0,0,0.3)", color: "var(--color-text)",
+                        border: "1px solid rgba(255,255,255,0.08)", width: "100%",
+                      }}
+                      className="form-input"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", color: "var(--color-muted)", display: "block", marginBottom: "0.25rem" }}>
+                      Difficulty
+                    </label>
+                    <select
+                      value={encounterBuilderDifficulty}
+                      onChange={(e) => setEncounterBuilderDifficulty(e.target.value)}
+                      style={{
+                        padding: "0.55rem 0.75rem", fontSize: "0.85rem", borderRadius: "6px",
+                        background: "rgba(0,0,0,0.3)", color: "var(--color-text)",
+                        border: "1px solid rgba(255,255,255,0.08)", width: "100%",
+                      }}
+                      className="form-input"
+                    >
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                      <option value="deadly">Deadly</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", color: "var(--color-muted)", display: "block", marginBottom: "0.25rem" }}>
+                      Additional Context (optional)
+                    </label>
+                    <textarea
+                      value={encounterBuilderContext}
+                      onChange={(e) => setEncounterBuilderContext(e.target.value)}
+                      placeholder="e.g. Forest ambush, the party is crossing a bridge..."
+                      style={{
+                        padding: "0.75rem", fontSize: "0.85rem", borderRadius: "6px",
+                        background: "rgba(0,0,0,0.3)", color: "var(--color-text)",
+                        border: "1px solid rgba(255,255,255,0.08)", minHeight: "60px", width: "100%",
+                      }}
+                      className="form-input"
+                      rows={2}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleBuildEncounter}
+                    disabled={encounterBuilderLoading || !encounterBuilderLevels.trim()}
+                    style={{
+                      padding: "0.6rem 1.25rem", fontSize: "0.85rem", borderRadius: "6px",
+                      background: "var(--color-accent)", color: "#fff", border: "none",
+                      cursor: "pointer", alignSelf: "flex-end",
+                      opacity: encounterBuilderLoading || !encounterBuilderLevels.trim() ? 0.5 : 1,
+                    }}
+                    className="touch-target"
+                  >
+                    {encounterBuilderLoading ? "Building..." : "Build Encounter"}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <div>
+                    <h4 style={{ margin: "0 0 0.5rem", color: "var(--color-text)" }}>
+                      {encounterBuilderResult.name}
+                    </h4>
+                    {encounterBuilderResult.description && (
+                      <p style={{ fontSize: "0.85rem", color: "var(--color-muted)", margin: "0 0 0.5rem" }}>
+                        {encounterBuilderResult.description}
+                      </p>
+                    )}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                      <p style={{ fontSize: "0.8rem", color: "var(--color-muted)", margin: "0 0 0.25rem" }}>
+                        Suggested Participants:
+                      </p>
+                      {(encounterBuilderResult.participants || []).map((p, i) => (
+                        <div key={i} style={{
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                          padding: "0.4rem 0.5rem", background: "rgba(255,255,255,0.03)",
+                          borderRadius: "4px", fontSize: "0.8rem",
+                        }}>
+                          <span style={{ color: "var(--color-text)" }}>
+                            {p.name} ({p.type || "unknown"})
+                          </span>
+                          <span style={{ color: "var(--color-muted)" }}>
+                            ×{p.quantity || 1} — CR {p.cr || "?"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem", alignSelf: "flex-end" }}>
+                    <button
+                      type="button"
+                      onClick={() => setEncounterBuilderResult(null)}
+                      style={{
+                        padding: "0.5rem 1rem", fontSize: "0.8rem", borderRadius: "6px",
+                        background: "rgba(255,255,255,0.05)", color: "var(--color-text)",
+                        border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer",
+                      }}
+                      className="touch-target"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleApplyEncounterResult}
+                      disabled={encounterBuilderLoading}
+                      style={{
+                        padding: "0.5rem 1rem", fontSize: "0.8rem", borderRadius: "6px",
+                        background: "var(--color-accent)", color: "#fff", border: "none",
+                        cursor: "pointer", opacity: encounterBuilderLoading ? 0.5 : 1,
+                      }}
+                      className="touch-target"
+                    >
+                      Apply to Map
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {encounterBuilderProgress && (
+                <p style={{ color: "var(--color-accent)", fontSize: "0.8rem", margin: "0.5rem 0" }}>{encounterBuilderProgress}</p>
+              )}
+              {encounterBuilderError && (
+                <p style={{ color: "#eb5757", fontSize: "0.8rem", margin: "0.5rem 0" }}>{encounterBuilderError}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Floating Fog Actions for DM */}
         {user?.role === "DM" && (tool === "draw-fog" || tool === "reveal-fog") && (

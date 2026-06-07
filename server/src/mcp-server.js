@@ -42,9 +42,56 @@ const generateModifiers = (stats) => {
   };
 };
 
+const safeJsonParse = (value, fallback) => {
+  try {
+    return JSON.parse(value || "");
+  } catch {
+    return fallback;
+  }
+};
+
+const parseJsonArray = (value) => {
+  const parsed = safeJsonParse(value, []);
+  return Array.isArray(parsed) ? parsed : [];
+};
+
+const parseJsonObject = (value) => {
+  const parsed = safeJsonParse(value, {});
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+};
+
+const toJsonArrayString = (value, fieldName, fallback = []) => {
+  if (value === undefined || value === null || value === "") {
+    return JSON.stringify(fallback);
+  }
+
+  const parsed = typeof value === "string" ? safeJsonParse(value, null) : value;
+  if (!Array.isArray(parsed)) {
+    throw new Error(`${fieldName} must be a JSON array.`);
+  }
+
+  return JSON.stringify(parsed);
+};
+
+const toJsonObjectString = (value, fieldName, fallback = {}) => {
+  if (value === undefined || value === null || value === "") {
+    return JSON.stringify(fallback);
+  }
+
+  const parsed = typeof value === "string" ? safeJsonParse(value, null) : value;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${fieldName} must be a JSON object.`);
+  }
+
+  return JSON.stringify(parsed);
+};
+
+const VALID_ENCOUNTER_STATUSES = new Set(["DRAFT", "ACTIVE", "COMPLETE"]);
+const VALID_SESSION_STATUSES = new Set(["PLANNED", "ACTIVE", "COMPLETE"]);
+
 // Tool schemas definition
 const TOOLS = [
-  //  USER TOOLS 
+  //  USER TOOLS
   {
     name: "list_users",
     description: "Get all registered users on the Tablecast server.",
@@ -66,7 +113,7 @@ const TOOLS = [
     },
   },
 
-  //  CHARACTER TOOLS 
+  //  CHARACTER TOOLS
   {
     name: "list_characters",
     description: "List all character sheets, optionally filtered by owner userId.",
@@ -168,7 +215,7 @@ const TOOLS = [
     },
   },
 
-  //  NPC TOOLS 
+  //  NPC TOOLS
   {
     name: "list_npcs",
     description: "List all custom NPC templates created by the DM, optionally filtered by name.",
@@ -308,7 +355,284 @@ const TOOLS = [
     },
   },
 
-  //  ITEM MANAGEMENT TOOLS 
+  //  MONSTER TOOLS
+  {
+    name: "list_monsters",
+    description: "List all monsters, optionally filtered by name.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Filter by name (partial match)." },
+      },
+    },
+  },
+  {
+    name: "create_monster",
+    description: "Create a monster with full statblock (same fields as create_npc).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Monster name." },
+        race: { type: "string", description: "Monster race/type." },
+        class: { type: "string", description: "Monster class." },
+        level: { type: "number", description: "Monster level (default: 1)." },
+        hp: { type: "number", description: "Current hit points (default: 10)." },
+        maxHp: { type: "number", description: "Maximum hit points (default: 10)." },
+        ac: { type: "number", description: "Armor Class (default: 10)." },
+        cr: { type: "string", description: "Challenge Rating, e.g. '1/4', '1', '5' (default: '0')." },
+        imageUrl: { type: "string", description: "Monster image/avatar URL." },
+        largeImageUrl: { type: "string", description: "Monster large portrait URL." },
+        strength: { type: "number", description: "Strength score (default: 10)." },
+        dexterity: { type: "number", description: "Dexterity score (default: 10)." },
+        constitution: { type: "number", description: "Constitution score (default: 10)." },
+        intelligence: { type: "number", description: "Intelligence score (default: 10)." },
+        wisdom: { type: "number", description: "Wisdom score (default: 10)." },
+        charisma: { type: "number", description: "Charisma score (default: 10)." },
+        inventory: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              quantity: { type: "number" },
+              weight: { type: "number" },
+            },
+            required: ["name"],
+          },
+        },
+        actions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              description: { type: "string" },
+              toHit: { type: "number" },
+              damage: { type: "string" },
+            },
+            required: ["name", "description"],
+          },
+        },
+        modifiers: {
+          type: "object",
+          description: "Optional custom modifiers object. Auto-calculated if omitted.",
+        },
+        description: { type: "string", description: "Narrative/GM description." },
+        alignment: { type: "string", description: "Monster alignment (e.g. Neutral Good)." },
+        appearance: { type: "string", description: "Physical appearance details." },
+        personality: { type: "string", description: "Personality traits." },
+        history: { type: "string", description: "Backstory / Lore." },
+        partyRelationship: { type: "string", description: "Relationship with the adventuring party." },
+        isVisibleToPlayers: { type: "boolean", description: "Whether players can see this Monster in the wiki." },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "update_monster",
+    description: "Update monster fields (same fields as update_npc).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Target monster ID to update." },
+        name: { type: "string" },
+        race: { type: "string" },
+        class: { type: "string" },
+        level: { type: "number" },
+        hp: { type: "number" },
+        maxHp: { type: "number" },
+        ac: { type: "number" },
+        cr: { type: "string" },
+        imageUrl: { type: "string" },
+        largeImageUrl: { type: "string" },
+        strength: { type: "number" },
+        dexterity: { type: "number" },
+        constitution: { type: "number" },
+        intelligence: { type: "number" },
+        wisdom: { type: "number" },
+        charisma: { type: "number" },
+        inventory: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              quantity: { type: "number" },
+              weight: { type: "number" },
+            },
+            required: ["name"],
+          },
+        },
+        actions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              description: { type: "string" },
+              toHit: { type: "number" },
+              damage: { type: "string" },
+            },
+            required: ["name", "description"],
+          },
+        },
+        modifiers: {
+          type: "object",
+          description: "Manually override modifiers. Auto-recalculates if stats changed and this is omitted.",
+        },
+        description: { type: "string", description: "Narrative/GM description." },
+        alignment: { type: "string", description: "Monster alignment (e.g. Neutral Good)." },
+        appearance: { type: "string", description: "Physical appearance details." },
+        personality: { type: "string", description: "Personality traits." },
+        history: { type: "string", description: "Backstory / Lore." },
+        partyRelationship: { type: "string", description: "Relationship with the adventuring party." },
+        isVisibleToPlayers: { type: "boolean", description: "Whether players can see this Monster in the wiki." },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "delete_monster",
+    description: "Delete a monster by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Monster ID to delete." },
+      },
+      required: ["id"],
+    },
+  },
+
+  //  ENCOUNTER TOOLS
+  {
+    name: "list_encounters",
+    description: "List all encounters, optionally filtered by mapId or status.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        mapId: { type: "number", description: "Filter by map ID." },
+        status: { type: "string", enum: ["DRAFT", "ACTIVE", "COMPLETE"], description: "Filter by status." },
+      },
+    },
+  },
+  {
+    name: "create_encounter",
+    description: "Create a combat encounter.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Encounter name." },
+        mapId: { type: "number", description: "Target map ID." },
+        status: { type: "string", enum: ["DRAFT", "ACTIVE", "COMPLETE"], description: "Encounter status (default: DRAFT)." },
+      },
+      required: ["name", "mapId"],
+    },
+  },
+  {
+    name: "update_encounter",
+    description: "Update encounter fields.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Encounter ID to update." },
+        name: { type: "string" },
+        status: { type: "string", enum: ["DRAFT", "ACTIVE", "COMPLETE"] },
+        round: { type: "number" },
+        turnIndex: { type: "number" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "add_encounter_participant",
+    description: "Add a combatant to an encounter.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        encounterId: { type: "number", description: "Encounter ID." },
+        name: { type: "string", description: "Combatant name." },
+        npcId: { type: "number" },
+        characterId: { type: "number" },
+        monsterId: { type: "number" },
+        currentHp: { type: "number" },
+        maxHp: { type: "number" },
+        ac: { type: "number" },
+        isHidden: { type: "boolean" },
+        initiative: { type: "number" },
+      },
+      required: ["encounterId", "name"],
+    },
+  },
+  {
+    name: "update_encounter_participant",
+    description: "Update a participant in an encounter.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Participant ID to update." },
+        name: { type: "string" },
+        currentHp: { type: "number" },
+        maxHp: { type: "number" },
+        ac: { type: "number" },
+        isHidden: { type: "boolean" },
+        initiative: { type: "number" },
+      },
+      required: ["id"],
+    },
+  },
+
+  //  SESSION TOOLS
+  {
+    name: "list_sessions",
+    description: "List all game sessions, optionally filtered by status.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["PLANNED", "ACTIVE", "COMPLETE"], description: "Filter by status." },
+      },
+    },
+  },
+  {
+    name: "create_session",
+    description: "Create a game session.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Session title." },
+        sessionNumber: { type: "number", description: "Session number." },
+        status: { type: "string", enum: ["PLANNED", "ACTIVE", "COMPLETE"], description: "Session status (default: PLANNED)." },
+        scheduledFor: { type: "string", description: "ISO date string." },
+        agenda: { type: "string" },
+        recap: { type: "string" },
+        isVisibleToPlayers: { type: "boolean" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "update_session",
+    description: "Update session fields.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Session ID to update." },
+        title: { type: "string" },
+        sessionNumber: { type: "number" },
+        status: { type: "string", enum: ["PLANNED", "ACTIVE", "COMPLETE"] },
+        scheduledFor: { type: "string" },
+        agenda: { type: "string" },
+        recap: { type: "string" },
+        isVisibleToPlayers: { type: "boolean" },
+        prepChecklist: { type: "string", description: "JSON array string." },
+        linkedWikiIds: { type: "string", description: "JSON array string." },
+        linkedMapIds: { type: "string", description: "JSON array string." },
+        linkedEncounterIds: { type: "string", description: "JSON array string." },
+      },
+      required: ["id"],
+    },
+  },
+
+  //  ITEM MANAGEMENT TOOLS
   {
     name: "add_item_to_character",
     description: "Equip a character sheet with an item in their inventory.",
@@ -338,7 +662,7 @@ const TOOLS = [
     },
   },
 
-  //  D&D RULES & LORE TOOLS 
+  //  D&D RULES & LORE TOOLS
   {
     name: "search_reference",
     description: "Search local 5etools reference library for Spells, Monsters, Items, Rules, Classes, or Races.",
@@ -366,7 +690,7 @@ const TOOLS = [
     },
   },
 
-  //  WIKI / LORE TOOLS 
+  //  WIKI / LORE TOOLS
   {
     name: "list_wiki_articles",
     description: "Get all wiki articles, including hidden DM logs and lore details.",
@@ -429,7 +753,7 @@ function registerHandlers(srv) {
 
     try {
       switch (name) {
-        //  USER HANDLERS 
+        //  USER HANDLERS
         case "list_users": {
           const users = await prisma.user.findMany({
             orderBy: { id: "asc" },
@@ -454,7 +778,7 @@ function registerHandlers(srv) {
         };
       }
 
-      //  CHARACTER HANDLERS 
+      //  CHARACTER HANDLERS
       case "list_characters": {
         const filter = {};
         if (typeof args.userId === "number") {
@@ -620,7 +944,7 @@ function registerHandlers(srv) {
         };
       }
 
-      //  NPC HANDLERS 
+      //  NPC HANDLERS
       case "list_npcs": {
         const filter = {};
         if (args.name) {
@@ -840,7 +1164,782 @@ function registerHandlers(srv) {
         };
       }
 
-      //  ITEM EQUIP HANDLERS 
+      //  MONSTER HANDLERS
+      case "list_monsters": {
+        const filter = {};
+        if (args.name) {
+          filter.name = { contains: args.name };
+        }
+
+        const monsters = await prisma.monster.findMany({
+          where: filter,
+          orderBy: { id: "asc" },
+        });
+
+        const parsed = monsters.map((monster) => ({
+          ...monster,
+          inventory: parseJsonArray(monster.inventory),
+          modifiers: parseJsonObject(monster.modifiers),
+          actions: parseJsonArray(monster.actions),
+        }));
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(parsed, null, 2) }],
+        };
+      }
+
+      case "create_monster": {
+        const {
+          name: monsterName,
+          race,
+          class: cls,
+          level,
+          hp,
+          maxHp,
+          ac,
+          cr,
+          imageUrl,
+          largeImageUrl,
+          description,
+          alignment,
+          appearance,
+          personality,
+          history,
+          partyRelationship,
+          isVisibleToPlayers,
+          ...rest
+        } = args;
+
+        if (!monsterName || typeof monsterName !== "string" || !monsterName.trim()) {
+          throw new Error("Monster name is required.");
+        }
+
+        const strength = rest.strength ?? 10;
+        const dexterity = rest.dexterity ?? 10;
+        const constitution = rest.constitution ?? 10;
+        const intelligence = rest.intelligence ?? 10;
+        const wisdom = rest.wisdom ?? 10;
+        const charisma = rest.charisma ?? 10;
+
+        const computedMods = rest.modifiers || generateModifiers({
+          strength,
+          dexterity,
+          constitution,
+          intelligence,
+          wisdom,
+          charisma,
+        });
+
+        const monster = await prisma.monster.create({
+          data: {
+            name: monsterName.trim(),
+            race: race || "",
+            class: cls || "",
+            level: level || 1,
+            hp: hp ?? 10,
+            maxHp: maxHp ?? 10,
+            ac: ac ?? 10,
+            cr: cr || "0",
+            imageUrl: imageUrl || "",
+            largeImageUrl: largeImageUrl || "",
+            strength,
+            dexterity,
+            constitution,
+            intelligence,
+            wisdom,
+            charisma,
+            inventory: toJsonArrayString(args.inventory, "inventory", []),
+            modifiers: toJsonObjectString(computedMods, "modifiers", {}),
+            actions: toJsonArrayString(args.actions, "actions", []),
+            description: description || "",
+            alignment: alignment || "",
+            appearance: appearance || "",
+            personality: personality || "",
+            history: history || "",
+            partyRelationship: partyRelationship || "",
+            isVisibleToPlayers: isVisibleToPlayers ?? false,
+          },
+        });
+
+        const parsed = {
+          ...monster,
+          inventory: parseJsonArray(monster.inventory),
+          modifiers: parseJsonObject(monster.modifiers),
+          actions: parseJsonArray(monster.actions),
+        };
+
+        return {
+          content: [{ type: "text", text: `Monster created successfully:\n${JSON.stringify(parsed, null, 2)}` }],
+        };
+      }
+
+      case "update_monster": {
+        const {
+          id,
+          name: monsterName,
+          race,
+          class: cls,
+          level,
+          hp,
+          maxHp,
+          ac,
+          cr,
+          imageUrl,
+          largeImageUrl,
+          inventory,
+          modifiers,
+          actions,
+          description,
+          alignment,
+          appearance,
+          personality,
+          history,
+          partyRelationship,
+          isVisibleToPlayers,
+          ...statsUpdate
+        } = args;
+
+        const monsterId = Number(id);
+        if (!Number.isInteger(monsterId) || monsterId <= 0) {
+          throw new Error("Monster id must be a valid positive number.");
+        }
+
+        const existing = await prisma.monster.findUnique({ where: { id: monsterId } });
+        if (!existing) {
+          throw new Error(`Monster with ID ${monsterId} not found.`);
+        }
+
+        const dataUpdate = {};
+        if (monsterName !== undefined) dataUpdate.name = monsterName;
+        if (race !== undefined) dataUpdate.race = race;
+        if (cls !== undefined) dataUpdate.class = cls;
+        if (level !== undefined) dataUpdate.level = level;
+        if (hp !== undefined) dataUpdate.hp = hp;
+        if (maxHp !== undefined) dataUpdate.maxHp = maxHp;
+        if (ac !== undefined) dataUpdate.ac = ac;
+        if (cr !== undefined) dataUpdate.cr = cr;
+        if (imageUrl !== undefined) dataUpdate.imageUrl = imageUrl;
+        if (largeImageUrl !== undefined) dataUpdate.largeImageUrl = largeImageUrl;
+        if (description !== undefined) dataUpdate.description = description;
+        if (alignment !== undefined) dataUpdate.alignment = alignment;
+        if (appearance !== undefined) dataUpdate.appearance = appearance;
+        if (personality !== undefined) dataUpdate.personality = personality;
+        if (history !== undefined) dataUpdate.history = history;
+        if (partyRelationship !== undefined) dataUpdate.partyRelationship = partyRelationship;
+        if (isVisibleToPlayers !== undefined) dataUpdate.isVisibleToPlayers = isVisibleToPlayers;
+
+        let statsChanged = false;
+        const statKeys = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
+        for (const key of statKeys) {
+          if (statsUpdate[key] !== undefined) {
+            dataUpdate[key] = statsUpdate[key];
+            statsChanged = true;
+          }
+        }
+
+        if (inventory !== undefined) {
+          dataUpdate.inventory = toJsonArrayString(inventory, "inventory", []);
+        }
+        if (actions !== undefined) {
+          dataUpdate.actions = toJsonArrayString(actions, "actions", []);
+        }
+
+        if (modifiers !== undefined) {
+          dataUpdate.modifiers = toJsonObjectString(modifiers, "modifiers", {});
+        } else if (statsChanged) {
+          const strength = statsUpdate.strength ?? existing.strength;
+          const dexterity = statsUpdate.dexterity ?? existing.dexterity;
+          const constitution = statsUpdate.constitution ?? existing.constitution;
+          const intelligence = statsUpdate.intelligence ?? existing.intelligence;
+          const wisdom = statsUpdate.wisdom ?? existing.wisdom;
+          const charisma = statsUpdate.charisma ?? existing.charisma;
+
+          dataUpdate.modifiers = JSON.stringify(generateModifiers({
+            strength,
+            dexterity,
+            constitution,
+            intelligence,
+            wisdom,
+            charisma,
+          }));
+        }
+
+        if (Object.keys(dataUpdate).length === 0) {
+          throw new Error("No valid monster fields provided to update.");
+        }
+
+        const updated = await prisma.monster.update({
+          where: { id: monsterId },
+          data: dataUpdate,
+        });
+
+        const parsed = {
+          ...updated,
+          inventory: parseJsonArray(updated.inventory),
+          modifiers: parseJsonObject(updated.modifiers),
+          actions: parseJsonArray(updated.actions),
+        };
+
+        return {
+          content: [{ type: "text", text: `Monster updated successfully:\n${JSON.stringify(parsed, null, 2)}` }],
+        };
+      }
+
+      case "delete_monster": {
+        const { id } = args;
+        const monsterId = Number(id);
+        if (!Number.isInteger(monsterId) || monsterId <= 0) {
+          throw new Error("Monster id must be a valid positive number.");
+        }
+        await prisma.monster.delete({ where: { id: monsterId } });
+        return {
+          content: [{ type: "text", text: `Monster with ID ${monsterId} deleted successfully.` }],
+        };
+      }
+
+      //  ENCOUNTER HANDLERS
+      case "list_encounters": {
+        const filter = {};
+        if (args.mapId !== undefined) {
+          const parsedMapId = Number(args.mapId);
+          if (!Number.isInteger(parsedMapId) || parsedMapId <= 0) {
+            throw new Error("mapId must be a valid positive number.");
+          }
+          filter.mapId = parsedMapId;
+        }
+        if (args.status !== undefined) {
+          const status = String(args.status).toUpperCase();
+          if (!VALID_ENCOUNTER_STATUSES.has(status)) {
+            throw new Error("Encounter status must be DRAFT, ACTIVE, or COMPLETE.");
+          }
+          filter.status = status;
+        }
+
+        const encounters = await prisma.encounter.findMany({
+          where: filter,
+          include: {
+            participants: {
+              orderBy: [{ initiative: "desc" }, { sortOrder: "asc" }, { id: "asc" }],
+            },
+          },
+          orderBy: { id: "asc" },
+        });
+
+        const parsed = encounters.map((encounter) => ({
+          ...encounter,
+          participants: encounter.participants.map((participant) => ({
+            ...participant,
+            stats: parseJsonObject(participant.stats),
+          })),
+        }));
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(parsed, null, 2) }],
+        };
+      }
+
+      case "create_encounter": {
+        const { name, mapId, status } = args;
+
+        if (!name || typeof name !== "string" || !name.trim()) {
+          throw new Error("Encounter name is required.");
+        }
+
+        const parsedMapId = Number(mapId);
+        if (!Number.isInteger(parsedMapId) || parsedMapId <= 0) {
+          throw new Error("mapId must be a valid positive number.");
+        }
+
+        const map = await prisma.map.findUnique({ where: { id: parsedMapId } });
+        if (!map) {
+          throw new Error(`Map with ID ${parsedMapId} does not exist.`);
+        }
+
+        const nextStatus = status ? String(status).toUpperCase() : "DRAFT";
+        if (!VALID_ENCOUNTER_STATUSES.has(nextStatus)) {
+          throw new Error("Encounter status must be DRAFT, ACTIVE, or COMPLETE.");
+        }
+
+        const encounter = await prisma.encounter.create({
+          data: {
+            name: name.trim(),
+            mapId: parsedMapId,
+            status: nextStatus,
+            round: 1,
+            turnIndex: 0,
+          },
+          include: {
+            participants: true,
+          },
+        });
+
+        const parsed = {
+          ...encounter,
+          participants: [],
+        };
+
+        return {
+          content: [{ type: "text", text: `Encounter created successfully:\n${JSON.stringify(parsed, null, 2)}` }],
+        };
+      }
+
+      case "update_encounter": {
+        const { id, name, status, round, turnIndex } = args;
+
+        const encounterId = Number(id);
+        if (!Number.isInteger(encounterId) || encounterId <= 0) {
+          throw new Error("Encounter id must be a valid positive number.");
+        }
+
+        const existing = await prisma.encounter.findUnique({ where: { id: encounterId } });
+        if (!existing) {
+          throw new Error(`Encounter with ID ${encounterId} not found.`);
+        }
+
+        const dataUpdate = {};
+        if (name !== undefined) {
+          if (!String(name || "").trim()) {
+            throw new Error("Encounter name must be a non-empty string.");
+          }
+          dataUpdate.name = String(name).trim();
+        }
+        if (status !== undefined) {
+          const nextStatus = String(status).toUpperCase();
+          if (!VALID_ENCOUNTER_STATUSES.has(nextStatus)) {
+            throw new Error("Encounter status must be DRAFT, ACTIVE, or COMPLETE.");
+          }
+          dataUpdate.status = nextStatus;
+        }
+        if (round !== undefined) {
+          const parsedRound = Number(round);
+          if (!Number.isInteger(parsedRound) || parsedRound < 1) {
+            throw new Error("round must be a positive integer.");
+          }
+          dataUpdate.round = parsedRound;
+        }
+        if (turnIndex !== undefined) {
+          const parsedTurnIndex = Number(turnIndex);
+          if (!Number.isInteger(parsedTurnIndex) || parsedTurnIndex < 0) {
+            throw new Error("turnIndex must be a non-negative integer.");
+          }
+          dataUpdate.turnIndex = parsedTurnIndex;
+        }
+
+        if (Object.keys(dataUpdate).length === 0) {
+          throw new Error("No valid encounter fields provided to update.");
+        }
+
+        const updated = await prisma.encounter.update({
+          where: { id: encounterId },
+          data: dataUpdate,
+          include: {
+            participants: {
+              orderBy: [{ initiative: "desc" }, { sortOrder: "asc" }, { id: "asc" }],
+            },
+          },
+        });
+
+        const parsed = {
+          ...updated,
+          participants: updated.participants.map((participant) => ({
+            ...participant,
+            stats: parseJsonObject(participant.stats),
+          })),
+        };
+
+        return {
+          content: [{ type: "text", text: `Encounter updated successfully:\n${JSON.stringify(parsed, null, 2)}` }],
+        };
+      }
+
+      case "add_encounter_participant": {
+        const {
+          encounterId,
+          name,
+          npcId,
+          characterId,
+          monsterId,
+          currentHp,
+          maxHp,
+          ac,
+          isHidden,
+          initiative,
+        } = args;
+
+        const parsedEncounterId = Number(encounterId);
+        if (!Number.isInteger(parsedEncounterId) || parsedEncounterId <= 0) {
+          throw new Error("encounterId must be a valid positive number.");
+        }
+
+        if (!name || typeof name !== "string" || !name.trim()) {
+          throw new Error("Participant name is required.");
+        }
+
+        const encounter = await prisma.encounter.findUnique({ where: { id: parsedEncounterId } });
+        if (!encounter) {
+          throw new Error(`Encounter with ID ${parsedEncounterId} not found.`);
+        }
+
+        const linkedIds = [npcId, characterId, monsterId].filter((value) => value !== undefined && value !== null && value !== "");
+        if (linkedIds.length > 1) {
+          throw new Error("Only one of npcId, characterId, or monsterId may be provided.");
+        }
+
+        let source = "";
+        let imageUrl = "";
+        if (npcId !== undefined && npcId !== null && npcId !== "") {
+          const parsedNpcId = Number(npcId);
+          if (!Number.isInteger(parsedNpcId) || parsedNpcId <= 0) throw new Error("npcId must be a valid positive number.");
+          const npc = await prisma.npc.findUnique({ where: { id: parsedNpcId } });
+          if (!npc) throw new Error(`NPC with ID ${parsedNpcId} not found.`);
+          source = "NPC";
+          imageUrl = npc.imageUrl || "";
+        } else if (characterId !== undefined && characterId !== null && characterId !== "") {
+          const parsedCharacterId = Number(characterId);
+          if (!Number.isInteger(parsedCharacterId) || parsedCharacterId <= 0) throw new Error("characterId must be a valid positive number.");
+          const character = await prisma.character.findUnique({ where: { id: parsedCharacterId } });
+          if (!character) throw new Error(`Character with ID ${parsedCharacterId} not found.`);
+          source = "CHARACTER";
+        } else if (monsterId !== undefined && monsterId !== null && monsterId !== "") {
+          const parsedMonsterId = Number(monsterId);
+          if (!Number.isInteger(parsedMonsterId) || parsedMonsterId <= 0) throw new Error("monsterId must be a valid positive number.");
+          const monster = await prisma.monster.findUnique({ where: { id: parsedMonsterId } });
+          if (!monster) throw new Error(`Monster with ID ${parsedMonsterId} not found.`);
+          source = "MONSTER";
+          imageUrl = monster.imageUrl || "";
+        }
+
+        const sortOrder = await prisma.encounterParticipant.count({ where: { encounterId: parsedEncounterId } });
+
+        const participant = await prisma.encounterParticipant.create({
+          data: {
+            encounterId: parsedEncounterId,
+            name: name.trim(),
+            npcId: npcId !== undefined && npcId !== null && npcId !== "" ? Number(npcId) : null,
+            characterId: characterId !== undefined && characterId !== null && characterId !== "" ? Number(characterId) : null,
+            monsterId: monsterId !== undefined && monsterId !== null && monsterId !== "" ? Number(monsterId) : null,
+            currentHp: currentHp ?? 1,
+            maxHp: maxHp ?? 1,
+            ac: ac ?? 10,
+            isHidden: isHidden ?? false,
+            initiative: initiative ?? 0,
+            sortOrder,
+            source,
+            imageUrl,
+            stats: JSON.stringify({
+              currentHp: currentHp ?? 1,
+              maxHp: maxHp ?? 1,
+              ac: ac ?? 10,
+              initiative: initiative ?? 0,
+              isHidden: isHidden ?? false,
+              source,
+              npcId: npcId !== undefined && npcId !== null && npcId !== "" ? Number(npcId) : null,
+              characterId: characterId !== undefined && characterId !== null && characterId !== "" ? Number(characterId) : null,
+              monsterId: monsterId !== undefined && monsterId !== null && monsterId !== "" ? Number(monsterId) : null,
+            }),
+          },
+        });
+
+        const parsed = {
+          ...participant,
+          stats: parseJsonObject(participant.stats),
+        };
+
+        return {
+          content: [{ type: "text", text: `Encounter participant created successfully:\n${JSON.stringify(parsed, null, 2)}` }],
+        };
+      }
+
+      case "update_encounter_participant": {
+        const { id, name, currentHp, maxHp, ac, isHidden, initiative } = args;
+
+        const participantId = Number(id);
+        if (!Number.isInteger(participantId) || participantId <= 0) {
+          throw new Error("Participant id must be a valid positive number.");
+        }
+
+        const existing = await prisma.encounterParticipant.findUnique({
+          where: { id: participantId },
+          include: { token: true, npc: true, character: true, monster: true },
+        });
+        if (!existing) {
+          throw new Error(`Encounter participant with ID ${participantId} not found.`);
+        }
+
+        const dataUpdate = {};
+        if (name !== undefined) {
+          if (!String(name || "").trim()) {
+            throw new Error("Participant name must be a non-empty string.");
+          }
+          dataUpdate.name = String(name).trim();
+        }
+        if (currentHp !== undefined) dataUpdate.currentHp = currentHp;
+        if (maxHp !== undefined) dataUpdate.maxHp = maxHp;
+        if (ac !== undefined) dataUpdate.ac = ac;
+        if (isHidden !== undefined) dataUpdate.isHidden = isHidden;
+        if (initiative !== undefined) dataUpdate.initiative = initiative;
+
+        if (Object.keys(dataUpdate).length === 0) {
+          throw new Error("No valid participant fields provided to update.");
+        }
+
+        const stats = parseJsonObject(existing.stats);
+        if (currentHp !== undefined) stats.currentHp = currentHp;
+        if (maxHp !== undefined) stats.maxHp = maxHp;
+        if (ac !== undefined) stats.ac = ac;
+        if (isHidden !== undefined) stats.isHidden = isHidden;
+        if (initiative !== undefined) stats.initiative = initiative;
+        dataUpdate.stats = JSON.stringify(stats);
+
+        const updated = await prisma.encounterParticipant.update({
+          where: { id: participantId },
+          data: dataUpdate,
+        });
+
+        if (currentHp !== undefined) {
+          if (existing.npcId) {
+            await prisma.npc.update({ where: { id: existing.npcId }, data: { hp: currentHp } }).catch(() => null);
+          }
+          if (existing.characterId) {
+            await prisma.character.update({ where: { id: existing.characterId }, data: { hp: currentHp } }).catch(() => null);
+          }
+          if (existing.monsterId) {
+            await prisma.monster.update({ where: { id: existing.monsterId }, data: { hp: currentHp } }).catch(() => null);
+          }
+          if (existing.tokenId) {
+            const tokenStats = parseJsonObject(existing.token?.stats);
+            await prisma.token.update({
+              where: { id: existing.tokenId },
+              data: {
+                stats: JSON.stringify({
+                  ...tokenStats,
+                  currentHp: currentHp,
+                  maxHp: maxHp ?? updated.maxHp,
+                  ac: ac ?? updated.ac,
+                }),
+              },
+            }).catch(() => null);
+          }
+        }
+
+        const parsed = {
+          ...updated,
+          stats: parseJsonObject(updated.stats),
+        };
+
+        return {
+          content: [{ type: "text", text: `Encounter participant updated successfully:\n${JSON.stringify(parsed, null, 2)}` }],
+        };
+      }
+
+      //  SESSION HANDLERS
+      case "list_sessions": {
+        const filter = {};
+        if (args.status !== undefined) {
+          const status = String(args.status).toUpperCase();
+          if (!VALID_SESSION_STATUSES.has(status)) {
+            throw new Error("Session status must be PLANNED, ACTIVE, or COMPLETE.");
+          }
+          filter.status = status;
+        }
+
+        const sessions = await prisma.gameSession.findMany({
+          where: filter,
+          orderBy: [
+            { sessionNumber: "asc" },
+            { scheduledFor: "asc" },
+            { createdAt: "desc" },
+          ],
+        });
+
+        const parsed = sessions.map((session) => ({
+          ...session,
+          prepChecklist: parseJsonArray(session.prepChecklist),
+          linkedWikiIds: parseJsonArray(session.linkedWikiIds),
+          linkedMapIds: parseJsonArray(session.linkedMapIds),
+          linkedEncounterIds: parseJsonArray(session.linkedEncounterIds),
+        }));
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(parsed, null, 2) }],
+        };
+      }
+
+      case "create_session": {
+        const {
+          title,
+          sessionNumber,
+          status,
+          scheduledFor,
+          agenda,
+          recap,
+          isVisibleToPlayers,
+        } = args;
+
+        if (!title || typeof title !== "string" || !title.trim()) {
+          throw new Error("Session title is required.");
+        }
+
+        const nextStatus = status ? String(status).toUpperCase() : "PLANNED";
+        if (!VALID_SESSION_STATUSES.has(nextStatus)) {
+          throw new Error("Session status must be PLANNED, ACTIVE, or COMPLETE.");
+        }
+
+        const data = {
+          title: title.trim(),
+          status: nextStatus,
+          prepChecklist: JSON.stringify([]),
+          linkedWikiIds: JSON.stringify([]),
+          linkedMapIds: JSON.stringify([]),
+          linkedEncounterIds: JSON.stringify([]),
+        };
+
+        if (sessionNumber !== undefined && sessionNumber !== null && sessionNumber !== "") {
+          const parsedNumber = Number(sessionNumber);
+          if (!Number.isInteger(parsedNumber) || parsedNumber <= 0) {
+            throw new Error("sessionNumber must be a positive integer.");
+          }
+          data.sessionNumber = parsedNumber;
+        }
+
+        if (scheduledFor !== undefined && scheduledFor !== null && scheduledFor !== "") {
+          const parsedDate = new Date(scheduledFor);
+          if (Number.isNaN(parsedDate.getTime())) {
+            throw new Error("scheduledFor must be a valid ISO date string.");
+          }
+          data.scheduledFor = parsedDate;
+        }
+
+        if (agenda !== undefined) data.agenda = String(agenda || "");
+        if (recap !== undefined) data.recap = String(recap || "");
+        if (isVisibleToPlayers !== undefined) data.isVisibleToPlayers = isVisibleToPlayers === true;
+
+        const session = await prisma.gameSession.create({ data });
+
+        const parsed = {
+          ...session,
+          prepChecklist: parseJsonArray(session.prepChecklist),
+          linkedWikiIds: parseJsonArray(session.linkedWikiIds),
+          linkedMapIds: parseJsonArray(session.linkedMapIds),
+          linkedEncounterIds: parseJsonArray(session.linkedEncounterIds),
+        };
+
+        return {
+          content: [{ type: "text", text: `Session created successfully:\n${JSON.stringify(parsed, null, 2)}` }],
+        };
+      }
+
+      case "update_session": {
+        const {
+          id,
+          title,
+          sessionNumber,
+          status,
+          scheduledFor,
+          agenda,
+          recap,
+          isVisibleToPlayers,
+          prepChecklist,
+          linkedWikiIds,
+          linkedMapIds,
+          linkedEncounterIds,
+        } = args;
+
+        const sessionId = Number(id);
+        if (!Number.isInteger(sessionId) || sessionId <= 0) {
+          throw new Error("Session id must be a valid positive number.");
+        }
+
+        const existing = await prisma.gameSession.findUnique({ where: { id: sessionId } });
+        if (!existing) {
+          throw new Error(`Session with ID ${sessionId} not found.`);
+        }
+
+        const data = {};
+
+        if (title !== undefined) {
+          if (!String(title || "").trim()) {
+            throw new Error("title must be a non-empty string.");
+          }
+          data.title = String(title).trim();
+        }
+
+        if (sessionNumber !== undefined) {
+          const parsedNumber = Number(sessionNumber);
+          if (!Number.isInteger(parsedNumber) || parsedNumber <= 0) {
+            throw new Error("sessionNumber must be a positive integer.");
+          }
+          data.sessionNumber = parsedNumber;
+        }
+
+        if (status !== undefined) {
+          const nextStatus = String(status).toUpperCase();
+          if (!VALID_SESSION_STATUSES.has(nextStatus)) {
+            throw new Error("Session status must be PLANNED, ACTIVE, or COMPLETE.");
+          }
+          data.status = nextStatus;
+        }
+
+        if (scheduledFor !== undefined) {
+          if (scheduledFor === null || scheduledFor === "") {
+            data.scheduledFor = null;
+          } else {
+            const parsedDate = new Date(scheduledFor);
+            if (Number.isNaN(parsedDate.getTime())) {
+              throw new Error("scheduledFor must be a valid ISO date string.");
+            }
+            data.scheduledFor = parsedDate;
+          }
+        }
+
+        if (agenda !== undefined) data.agenda = String(agenda || "");
+        if (recap !== undefined) data.recap = String(recap || "");
+        if (isVisibleToPlayers !== undefined) data.isVisibleToPlayers = isVisibleToPlayers === true;
+
+        if (prepChecklist !== undefined) {
+          data.prepChecklist = toJsonArrayString(prepChecklist, "prepChecklist", []);
+        }
+
+        if (linkedWikiIds !== undefined) {
+          data.linkedWikiIds = toJsonArrayString(linkedWikiIds, "linkedWikiIds", []);
+        }
+        if (linkedMapIds !== undefined) {
+          data.linkedMapIds = toJsonArrayString(linkedMapIds, "linkedMapIds", []);
+        }
+        if (linkedEncounterIds !== undefined) {
+          data.linkedEncounterIds = toJsonArrayString(linkedEncounterIds, "linkedEncounterIds", []);
+        }
+
+        if (Object.keys(data).length === 0) {
+          throw new Error("No valid session fields provided to update.");
+        }
+
+        if (data.status === "ACTIVE") {
+          await prisma.gameSession.updateMany({
+            where: { status: "ACTIVE", id: { not: sessionId } },
+            data: { status: "COMPLETE" },
+          });
+        }
+
+        const session = await prisma.gameSession.update({
+          where: { id: sessionId },
+          data,
+        });
+
+        const parsed = {
+          ...session,
+          prepChecklist: parseJsonArray(session.prepChecklist),
+          linkedWikiIds: parseJsonArray(session.linkedWikiIds),
+          linkedMapIds: parseJsonArray(session.linkedMapIds),
+          linkedEncounterIds: parseJsonArray(session.linkedEncounterIds),
+        };
+
+        return {
+          content: [{ type: "text", text: `Session updated successfully:\n${JSON.stringify(parsed, null, 2)}` }],
+        };
+      }
+
+      //  ITEM EQUIP HANDLERS
       case "add_item_to_character": {
         const { characterId, name: itemName, quantity, weight } = args;
 
@@ -917,7 +2016,7 @@ function registerHandlers(srv) {
         };
       }
 
-      //  D&D REFERENCE HANDLERS 
+      //  D&D REFERENCE HANDLERS
       case "search_reference": {
         const { category, query, limit } = args;
         const maxResults = limit ? Math.min(100, Math.max(1, limit)) : 10;
@@ -967,7 +2066,7 @@ function registerHandlers(srv) {
         };
       }
 
-      //  WIKI HANDLERS 
+      //  WIKI HANDLERS
       case "list_wiki_articles": {
         const articles = await prisma.wikiArticle.findMany({
           orderBy: { id: "asc" },

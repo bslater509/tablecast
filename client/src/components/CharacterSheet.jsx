@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
 import Autocomplete from "./Autocomplete";
+import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
 
 // Define the 18 standard 5e skills and their associated abilities
 const SKILL_DEFINITIONS = [
@@ -34,6 +35,16 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   const [character, setCharacter] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // AI Character Generator states
+  const [showCharGen, setShowCharGen] = useState(false);
+  const [charGenPrompt, setCharGenPrompt] = useState("");
+  const [charGenLoading, setCharGenLoading] = useState(false);
+  const [charGenError, setCharGenError] = useState(null);
+  const [charGenStep, setCharGenStep] = useState("prompt"); // "prompt" | "options" | "generating"
+  const [charGenProgress, setCharGenProgress] = useState("");
+  const [charGenOptions, setCharGenOptions] = useState([]);
+  const [charGenSelected, setCharGenSelected] = useState(null);
   
   // Save status indicator
   const [saveStatus, setSaveStatus] = useState("Saved"); // "Saved", "Saving...", "Error"
@@ -87,6 +98,9 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           ...data,
           inventory: parsedInventory,
           modifiers: parsedModifiers,
+          backstory: data.backstory || "",
+          personality: data.personality || "",
+          appearance: data.appearance || "",
         });
       } catch (err) {
         console.error("[CharacterSheet] Load error:", err);
@@ -134,6 +148,9 @@ export default function CharacterSheet({ characterId, onBack, user }) {
         charisma: Number(updatedChar.charisma),
         inventory: JSON.stringify(updatedChar.inventory),
         modifiers: JSON.stringify(updatedChar.modifiers),
+        backstory: updatedChar.backstory || "",
+        personality: updatedChar.personality || "",
+        appearance: updatedChar.appearance || "",
       };
 
       const res = await fetch(`/api/characters/${updatedChar.id}`, {
@@ -162,6 +179,183 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       saveToServer(next);
       return next;
     });
+  }
+
+  // AI Character generation helpers
+  async function generateCharOptions() {
+    if (!charGenPrompt.trim()) {
+      setCharGenError("Describe the character you want to create.");
+      return;
+    }
+    setCharGenLoading(true);
+    setCharGenError(null);
+    setCharGenProgress("Consulting campaign lore...");
+
+    try {
+      const res = await fetch("/api/ai/generate-character-options", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-tablecast-user-id": String(user?.id || ""),
+        },
+        body: JSON.stringify({ prompt: charGenPrompt.trim() }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to generate options.");
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("text/event-stream")) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let result = null;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const payload = line.slice(6).trim();
+            if (!payload) continue;
+            try {
+              const event = JSON.parse(payload);
+              if (event.type === "status") setCharGenProgress(event.message);
+              if (event.type === "result") result = event.data;
+              if (event.type === "error") throw new Error(event.message);
+            } catch (e) { if (e.message) throw e; }
+          }
+        }
+        if (result?.options?.length) {
+          setCharGenOptions(result.options);
+          setCharGenStep("options");
+        } else {
+          throw new Error("No character options received.");
+        }
+      } else {
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        if (data.options?.length) {
+          setCharGenOptions(data.options);
+          setCharGenStep("options");
+        }
+      }
+    } catch (err) {
+      setCharGenError(err.message);
+    } finally {
+      setCharGenLoading(false);
+    }
+  }
+
+  async function generateCharFromOption() {
+    if (!charGenSelected) {
+      setCharGenError("Select a character concept first.");
+      return;
+    }
+    setCharGenLoading(true);
+    setCharGenError(null);
+    setCharGenProgress("Generating full character sheet...");
+
+    try {
+      const res = await fetch("/api/ai/generate-character", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-tablecast-user-id": String(user?.id || ""),
+        },
+        body: JSON.stringify({
+          prompt: charGenPrompt.trim(),
+          selectedOption: charGenSelected,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to generate character.");
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("text/event-stream")) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let result = null;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const payload = line.slice(6).trim();
+            if (!payload) continue;
+            try {
+              const event = JSON.parse(payload);
+              if (event.type === "status") setCharGenProgress(event.message);
+              if (event.type === "result") result = event.data;
+              if (event.type === "error") throw new Error(event.message);
+            } catch (e) { if (e.message) throw e; }
+          }
+        }
+        if (result?.name) {
+          applyGeneratedCharacter(result);
+        } else {
+          throw new Error("Invalid character data received.");
+        }
+      } else {
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        if (data.name) {
+          applyGeneratedCharacter(data);
+        }
+      }
+    } catch (err) {
+      setCharGenError(err.message);
+    } finally {
+      setCharGenLoading(false);
+    }
+  }
+
+  function applyGeneratedCharacter(data) {
+    const nextCharacter = {
+      ...(character || {}),
+      id: character?.id,
+      name: data.name || "New Character",
+      race: data.race || "",
+      class: data.class || "",
+      level: Number(data.level) || 1,
+      hp: Number(data.hp) || 10,
+      maxHp: Number(data.maxHp) || 10,
+      strength: Number(data.strength) || 10,
+      dexterity: Number(data.dexterity) || 10,
+      constitution: Number(data.constitution) || 10,
+      intelligence: Number(data.intelligence) || 10,
+      wisdom: Number(data.wisdom) || 10,
+      charisma: Number(data.charisma) || 10,
+      inventory: Array.isArray(data.inventory) ? data.inventory : [],
+      modifiers: character?.modifiers || { proficiencies: [], saveProficiencies: [], attacks: [] },
+      backstory: data.backstory || "",
+      personality: data.personality || "",
+      appearance: data.appearance || "",
+    };
+    setCharacter(nextCharacter);
+    setShowCharGen(false);
+    saveToServer(nextCharacter);
+  }
+
+  function resetCharGen() {
+    setCharGenPrompt("");
+    setCharGenLoading(false);
+    setCharGenError(null);
+    setCharGenStep("prompt");
+    setCharGenProgress("");
+    setCharGenOptions([]);
+    setCharGenSelected(null);
   }
 
   // Handle direct field edits (blurs)
@@ -462,10 +656,22 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           </span>
         </div>
 
-        <div style={styles.saveBadge}>
-          {saveStatus === "Saving..." && <span style={styles.savingDot}> Saving...</span>}
-          {saveStatus === "Saved" && <span style={styles.savedDot}> Saved</span>}
-          {saveStatus === "Error" && <span style={styles.errorDot}> Retry</span>}
+        <div style={styles.headerActions}>
+          {user?.role === "DM" && (
+            <button
+              type="button"
+              onClick={() => { setShowCharGen(true); resetCharGen(); }}
+              style={styles.aiGenerateBtn}
+              className="touch-target"
+            >
+              ✨ AI Generate
+            </button>
+          )}
+          <div style={styles.saveBadge}>
+            {saveStatus === "Saving..." && <span style={styles.savingDot}> Saving...</span>}
+            {saveStatus === "Saved" && <span style={styles.savedDot}> Saved</span>}
+            {saveStatus === "Error" && <span style={styles.errorDot}> Retry</span>}
+          </div>
         </div>
       </header>
 
@@ -550,6 +756,78 @@ export default function CharacterSheet({ characterId, onBack, user }) {
               +{getProficiencyBonus(character.level)}
             </div>
           </div>
+        </div>
+      </section>
+
+      <section style={styles.narrativeSection} className="glass-panel">
+        <div style={styles.narrativeCard}>
+          <div style={styles.narrativeHeader}>
+            <span style={styles.narrativeLabel}>Backstory</span>
+            <AiAssistButton
+              fieldName="backstory"
+              actions={AI_FIELD_ACTIONS.backstory}
+              currentText={character?.backstory || ""}
+              context={{ entityType: "character", character: { name: character?.name, race: character?.race, class: character?.class, level: character?.level, backstory: character?.backstory, personality: character?.personality, appearance: character?.appearance } }}
+              onApply={(reply) => updateCharacterState((prev) => ({ ...prev, backstory: reply }))}
+              onError={(msg) => setError(msg)}
+              user={user}
+            />
+          </div>
+          <textarea
+            value={character.backstory || ""}
+            onChange={(e) => setCharacter((prev) => ({ ...prev, backstory: e.target.value }))}
+            onBlur={(e) => handleFieldChange("backstory", e.target.value)}
+            placeholder="Character backstory..."
+            style={styles.narrativeTextArea}
+            className="form-input"
+            rows={3}
+          />
+        </div>
+        <div style={styles.narrativeCard}>
+          <div style={styles.narrativeHeader}>
+            <span style={styles.narrativeLabel}>Personality</span>
+            <AiAssistButton
+              fieldName="personality"
+              actions={AI_FIELD_ACTIONS.personality}
+              currentText={character?.personality || ""}
+              context={{ entityType: "character", character: { name: character?.name, race: character?.race, class: character?.class, level: character?.level, backstory: character?.backstory, personality: character?.personality, appearance: character?.appearance } }}
+              onApply={(reply) => updateCharacterState((prev) => ({ ...prev, personality: reply }))}
+              onError={(msg) => setError(msg)}
+              user={user}
+            />
+          </div>
+          <textarea
+            value={character.personality || ""}
+            onChange={(e) => setCharacter((prev) => ({ ...prev, personality: e.target.value }))}
+            onBlur={(e) => handleFieldChange("personality", e.target.value)}
+            placeholder="Personality traits..."
+            style={styles.narrativeTextArea}
+            className="form-input"
+            rows={3}
+          />
+        </div>
+        <div style={styles.narrativeCard}>
+          <div style={styles.narrativeHeader}>
+            <span style={styles.narrativeLabel}>Appearance</span>
+            <AiAssistButton
+              fieldName="appearance"
+              actions={AI_FIELD_ACTIONS.appearance}
+              currentText={character?.appearance || ""}
+              context={{ entityType: "character", character: { name: character?.name, race: character?.race, class: character?.class, level: character?.level, backstory: character?.backstory, personality: character?.personality, appearance: character?.appearance } }}
+              onApply={(reply) => updateCharacterState((prev) => ({ ...prev, appearance: reply }))}
+              onError={(msg) => setError(msg)}
+              user={user}
+            />
+          </div>
+          <textarea
+            value={character.appearance || ""}
+            onChange={(e) => setCharacter((prev) => ({ ...prev, appearance: e.target.value }))}
+            onBlur={(e) => handleFieldChange("appearance", e.target.value)}
+            placeholder="Physical appearance..."
+            style={styles.narrativeTextArea}
+            className="form-input"
+            rows={3}
+          />
         </div>
       </section>
 
@@ -953,6 +1231,110 @@ export default function CharacterSheet({ characterId, onBack, user }) {
         )}
 
       </div>
+
+      {showCharGen && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center",
+          justifyContent: "center", zIndex: 1000, padding: "1rem",
+        }} onClick={() => !charGenLoading && setShowCharGen(false)}>
+          <div style={{
+            background: "var(--color-surface)", borderRadius: "12px",
+            padding: "1.5rem", maxWidth: "500px", width: "100%",
+            maxHeight: "90vh", overflow: "auto",
+            border: "1px solid rgba(255,255,255,0.1)",
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <h3 style={{ margin: 0, color: "var(--color-accent)" }}>✨ AI Character Generator</h3>
+              <button onClick={() => !charGenLoading && setShowCharGen(false)} style={{
+                background: "transparent", border: "none", color: "var(--color-text)",
+                fontSize: "1.25rem", cursor: "pointer", padding: "0.25rem",
+              }} className="touch-target">✕</button>
+            </div>
+
+            {charGenStep === "prompt" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <p style={{ color: "var(--color-text)", fontSize: "0.85rem" }}>
+                  Describe the character you want to create. Include details about race, class, role, and personality.
+                </p>
+                <textarea
+                  value={charGenPrompt}
+                  onChange={(e) => setCharGenPrompt(e.target.value)}
+                  placeholder="e.g. A cunning half-elf rogue who grew up on the streets of Waterdeep, skilled in deception and stealth..."
+                  style={{
+                    padding: "0.75rem", fontSize: "0.85rem", borderRadius: "6px",
+                    background: "rgba(0,0,0,0.3)", color: "var(--color-text)",
+                    border: "1px solid rgba(255,255,255,0.08)", minHeight: "80px",
+                  }}
+                  className="form-input"
+                  rows={3}
+                />
+                <button
+                  type="button"
+                  onClick={generateCharOptions}
+                  disabled={charGenLoading || !charGenPrompt.trim()}
+                  style={{
+                    padding: "0.6rem 1.25rem", fontSize: "0.85rem", borderRadius: "6px",
+                    background: "var(--color-accent)", color: "#fff", border: "none",
+                    cursor: "pointer", alignSelf: "flex-end",
+                    opacity: charGenLoading || !charGenPrompt.trim() ? 0.5 : 1,
+                  }}
+                  className="touch-target"
+                >
+                  {charGenLoading ? "Thinking..." : "Generate Concepts"}
+                </button>
+              </div>
+            )}
+
+            {charGenStep === "options" && charGenOptions.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <p style={{ color: "var(--color-text)", fontSize: "0.85rem" }}>Select a concept:</p>
+                {charGenOptions.map((opt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setCharGenSelected(opt)}
+                    style={{
+                      background: charGenSelected === opt ? "rgba(200, 151, 58, 0.12)" : "var(--color-surface)",
+                      border: `1px solid ${charGenSelected === opt ? "var(--color-accent)" : "rgba(255,255,255,0.08)"}`,
+                      borderRadius: "6px", padding: "0.75rem", textAlign: "left",
+                      width: "100%", cursor: "pointer",
+                    }}
+                    className="touch-target"
+                  >
+                    <strong style={{ color: "var(--color-text)" }}>{opt.name}</strong>
+                    <span style={{ color: "var(--color-muted)", fontSize: "0.8rem" }}>
+                      {" "}— {opt.race} {opt.class} (Level {opt.level || 1})
+                    </span>
+                    <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: "var(--color-muted)" }}>{opt.briefDescription}</p>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={generateCharFromOption}
+                  disabled={!charGenSelected || charGenLoading}
+                  style={{
+                    padding: "0.6rem 1.25rem", fontSize: "0.85rem", borderRadius: "6px",
+                    background: "var(--color-accent)", color: "#fff", border: "none",
+                    cursor: "pointer", alignSelf: "flex-end",
+                    opacity: !charGenSelected || charGenLoading ? 0.5 : 1,
+                  }}
+                  className="touch-target"
+                >
+                  {charGenLoading ? "Generating..." : "Generate Full Sheet"}
+                </button>
+              </div>
+            )}
+
+            {charGenProgress && (
+              <p style={{ color: "var(--color-accent)", fontSize: "0.8rem", margin: "0.5rem 0" }}>{charGenProgress}</p>
+            )}
+            {charGenError && (
+              <p style={{ color: "#eb5757", fontSize: "0.8rem", margin: "0.5rem 0" }}>{charGenError}</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1013,6 +1395,23 @@ const styles = {
     minWidth: "60px",
     textAlign: "right",
   },
+  headerActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  aiGenerateBtn: {
+    padding: "0.45rem 0.75rem",
+    background: "rgba(200, 151, 58, 0.12)",
+    border: "1px solid rgba(200, 151, 58, 0.35)",
+    borderRadius: "6px",
+    color: "var(--color-accent)",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+    fontWeight: 700,
+  },
   savingDot: { color: "var(--color-info)" },
   savedDot: { color: "var(--color-success)" },
   errorDot: { color: "var(--color-danger)" },
@@ -1024,6 +1423,42 @@ const styles = {
     padding: "0.75rem",
     borderRadius: "8px",
     flexShrink: 0,
+  },
+  narrativeSection: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: "0.5rem",
+    padding: "0.75rem",
+    borderRadius: "8px",
+    flexShrink: 0,
+  },
+  narrativeCard: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.4rem",
+  },
+  narrativeHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  narrativeLabel: {
+    fontSize: "0.8rem",
+    fontWeight: 700,
+    color: "var(--color-muted)",
+  },
+  narrativeTextArea: {
+    width: "100%",
+    minHeight: "88px",
+    resize: "vertical",
+    padding: "0.6rem",
+    background: "rgba(0,0,0,0.28)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "6px",
+    color: "var(--color-text)",
+    fontSize: "0.85rem",
+    outline: "none",
   },
   hpWidget: {
     display: "flex",
