@@ -43,6 +43,7 @@ function SettingsPanel({ user }) {
   const [aiOllamaUrl, setAiOllamaUrl] = useState("http://localhost:11434");
   const [aiOllamaModel, setAiOllamaModel] = useState("llama3");
   const [aiModel, setAiModel] = useState("gpt-5-nano");
+  const [aiImagePromptStyle, setAiImagePromptStyle] = useState("");
   const [aiTesting, setAiTesting] = useState(false);
   const [aiTestResult, setAiTestResult] = useState(null);
   const [savingAi, setSavingAi] = useState(false);
@@ -127,6 +128,7 @@ function SettingsPanel({ user }) {
         setAiOllamaUrl(data.ollamaUrl || "http://localhost:11434");
         setAiOllamaModel(data.ollamaModel || "llama3");
         setAiModel(data.model || "gpt-5-nano");
+        setAiImagePromptStyle(data.imagePromptStyle || "");
       }
     } catch (err) {
       console.error("Failed to load AI settings:", err);
@@ -379,6 +381,7 @@ function SettingsPanel({ user }) {
           ollamaUrl: aiOllamaUrl,
           ollamaModel: aiOllamaModel,
           model: aiModel,
+          imagePromptStyle: aiImagePromptStyle,
         }),
       });
 
@@ -1341,6 +1344,28 @@ function SettingsPanel({ user }) {
                   )}
                 </div>
               )}
+
+              {/* Image Prompt Style Setting */}
+              <div style={{ ...styles.inputGroup, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "1rem", marginTop: "0.5rem" }}>
+                <label htmlFor="ai-image-prompt-style" style={styles.label}>
+                  🎨 NPC Image Prompt Style
+                </label>
+                <textarea
+                  id="ai-image-prompt-style"
+                  rows={3}
+                  value={aiImagePromptStyle}
+                  onChange={(e) => setAiImagePromptStyle(e.target.value)}
+                  placeholder="e.g. fantasy digital painting, dramatic lighting, detailed, in the style of Greg Rutkowski, 4k, ultra detailed --ar 2:3"
+                  style={{ ...styles.input, width: "100%", resize: "vertical", fontSize: "0.85rem" }}
+                  className="form-input"
+                  disabled={savingAi}
+                />
+                <small style={styles.helpText}>
+                  This style text is appended to every "Copy Image Prompt" action for NPCs. 
+                  Set your preferred art style, medium, aspect ratio, or artist reference. 
+                  Leave empty for no style suffix.
+                </small>
+              </div>
 
               {aiTestResult && (
                 <div

@@ -433,7 +433,7 @@ function buildAssistUserMessage(field, action, text, context = {}) {
 }
 
 async function loadAiSettings() {
-  const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel", "ai.model"];
+  const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel", "ai.model", "ai.imagePromptStyle"];
   const records = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
 
   let provider = "";
@@ -441,6 +441,7 @@ async function loadAiSettings() {
   let ollamaUrl = "http://localhost:11434";
   let ollamaModel = "llama3";
   let model = "gpt-5-nano";
+  let imagePromptStyle = "";
 
   for (const r of records) {
     if (r.key === "ai.provider") provider = r.value;
@@ -448,9 +449,10 @@ async function loadAiSettings() {
     if (r.key === "ai.ollamaUrl") ollamaUrl = r.value;
     if (r.key === "ai.ollamaModel") ollamaModel = r.value;
     if (r.key === "ai.model") model = r.value;
+    if (r.key === "ai.imagePromptStyle") imagePromptStyle = r.value;
   }
 
-  return { provider, apiKey, ollamaUrl, ollamaModel, model };
+  return { provider, apiKey, ollamaUrl, ollamaModel, model, imagePromptStyle };
 }
 
 // ---------------------------------------------------------------------------
@@ -943,7 +945,7 @@ router.get("/settings", requireDm, async (req, res) => {
   try {
     const settings = await prisma.appSetting.findMany({
       where: {
-        key: { in: ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel", "ai.model"] }
+        key: { in: ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel", "ai.model", "ai.imagePromptStyle"] }
       }
     });
 
@@ -953,6 +955,7 @@ router.get("/settings", requireDm, async (req, res) => {
       ollamaUrl: "http://localhost:11434",
       ollamaModel: "llama3",
       model: "gpt-5-nano",
+      imagePromptStyle: "",
       hasKey: false
     };
 
@@ -961,6 +964,7 @@ router.get("/settings", requireDm, async (req, res) => {
       if (s.key === "ai.ollamaUrl") config.ollamaUrl = s.value;
       if (s.key === "ai.ollamaModel") config.ollamaModel = s.value;
       if (s.key === "ai.model") config.model = s.value;
+      if (s.key === "ai.imagePromptStyle") config.imagePromptStyle = s.value;
       if (s.key === "ai.apiKey" && s.value) {
         config.hasKey = true;
         const len = s.value.length;
@@ -984,7 +988,7 @@ router.get("/settings", requireDm, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.put("/settings", requireDm, async (req, res) => {
   try {
-    const { provider, apiKey, ollamaUrl, ollamaModel, model } = req.body;
+    const { provider, apiKey, ollamaUrl, ollamaModel, model, imagePromptStyle } = req.body;
 
     if (provider) {
       await prisma.appSetting.upsert({
@@ -1015,6 +1019,14 @@ router.put("/settings", requireDm, async (req, res) => {
         where: { key: "ai.model" },
         update: { value: model },
         create: { key: "ai.model", value: model }
+      });
+    }
+
+    if (imagePromptStyle !== undefined) {
+      await prisma.appSetting.upsert({
+        where: { key: "ai.imagePromptStyle" },
+        update: { value: imagePromptStyle },
+        create: { key: "ai.imagePromptStyle", value: imagePromptStyle }
       });
     }
 
@@ -1404,6 +1416,22 @@ Keep your responses concise, readable, and structured in Markdown.`;
       return;
     }
     res.status(500).json({ error: err.message || "Failed to query AI assistant." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/ai/image-style - Get the DM's configured image prompt style
+// Public endpoint (no auth) so anyone copying an NPC image prompt can use it.
+// ---------------------------------------------------------------------------
+router.get("/image-style", async (req, res) => {
+  try {
+    const setting = await prisma.appSetting.findUnique({
+      where: { key: "ai.imagePromptStyle" }
+    });
+    res.json({ style: setting?.value || "" });
+  } catch (err) {
+    console.error("[AI Image Style] Fetch failed:", err.message);
+    res.json({ style: "" });
   }
 });
 

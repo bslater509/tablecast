@@ -288,6 +288,7 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [npcInterviewHistory, setNpcInterviewHistory] = useState([]); // [{ question, answer: { id, label, description } }]
   const [npcCurrentQuestion, setNpcCurrentQuestion] = useState(null); // { question, choices: [{ id, label, description }] }
   const [npcInterviewSummary, setNpcInterviewSummary] = useState(""); // Summary when AI signals generate
+  const [npcCopiedPrompt, setNpcCopiedPrompt] = useState(false); // "Copied!" feedback for image prompt copy
   const [showAssistDropdown, setShowAssistDropdown] = useState(null); // field name or null
   const [assistLoadingField, setAssistLoadingField] = useState(null);
   const [assistUndo, setAssistUndo] = useState(null); // { fieldId, previousText, isNpcField }
@@ -774,6 +775,91 @@ export default function WikiPanel({ user, isPopout = false }) {
     const mod = Math.floor((Number(score || 10) - 10) / 2);
     return mod >= 0 ? `+${mod}` : `${mod}`;
   };
+
+  // Build an image generation prompt from NPC data (look, location, gear, vibe)
+  function buildImagePrompt(npc, styleSuffix = "") {
+    const parts = [];
+    // Core identity
+    parts.push(`Fantasy portrait of ${npc.name || "an NPC"}`);
+    if (npc.race) parts.push(`a ${npc.race}`);
+    if (npc.class) parts.push(`${npc.class}`);
+    // Alignment / vibe
+    if (npc.alignment) parts.push(`with a ${npc.alignment.toLowerCase()} alignment`);
+    // Appearance (strip markdown for cleaner prompt)
+    if (npc.appearance) {
+      const clean = npc.appearance.replace(/[*#>`_~\[\]]/g, "").trim();
+      if (clean) parts.push(clean);
+    }
+    // Personality flavour
+    if (npc.personality) {
+      const clean = npc.personality.replace(/[*#>`_~\[\]]/g, "").trim().slice(0, 160);
+      if (clean) parts.push(`Personality: ${clean}`);
+    }
+    // Description / location hints
+    if (npc.description) {
+      const clean = npc.description.replace(/[*#>`_~\[\]]/g, "").trim().slice(0, 200);
+      if (clean) parts.push(clean);
+    }
+    // Gear / equipment from actions
+    if (npc.actions) {
+      try {
+        const actions = JSON.parse(npc.actions);
+        const weaponNames = actions.map(a => a.name).filter(Boolean).slice(0, 3);
+        if (weaponNames.length > 0) {
+          parts.push(`wielding ${weaponNames.join(", ")}`);
+        }
+      } catch (e) {}
+    }
+    // Default style qualifier
+    parts.push("D&D 5e character art, detailed fantasy illustration, full body portrait, professional lighting");
+    // Append DM's custom style suffix from settings (if any)
+    if (styleSuffix) {
+      parts.push(styleSuffix);
+    }
+    return parts.join(", ");
+  }
+
+  // Copy the image prompt to clipboard with brief feedback
+  async function handleCopyImagePrompt(npc) {
+    try {
+      // Fetch the DM's configured image style from the backend
+      let styleSuffix = "";
+      try {
+        const styleRes = await fetch("/api/ai/image-style");
+        if (styleRes.ok) {
+          const styleData = await styleRes.json();
+          styleSuffix = styleData.style || "";
+        }
+      } catch (e) {
+        // Non-critical - proceed without style
+      }
+
+      const prompt = buildImagePrompt(npc, styleSuffix);
+      await navigator.clipboard.writeText(prompt);
+      setNpcCopiedPrompt(true);
+      setTimeout(() => setNpcCopiedPrompt(false), 2000);
+    } catch (err) {
+      console.error("[Image Prompt] Clipboard copy failed:", err);
+      // Fallback: select text in a temp input
+      let styleSuffix = "";
+      try {
+        const styleRes = await fetch("/api/ai/image-style");
+        if (styleRes.ok) {
+          const styleData = await styleRes.json();
+          styleSuffix = styleData.style || "";
+        }
+      } catch (e) {}
+      const prompt = buildImagePrompt(npc, styleSuffix);
+      const textarea = document.createElement("textarea");
+      textarea.value = prompt;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setNpcCopiedPrompt(true);
+      setTimeout(() => setNpcCopiedPrompt(false), 2000);
+    }
+  }
 
   // Fetch articles and NPCs on mount/user role change
   useEffect(() => {
@@ -1512,7 +1598,38 @@ export default function WikiPanel({ user, isPopout = false }) {
                 isDM={isDM}
                 onHpChange={handleHpChange}
               />
-              <h3 style={styles.npcBioHeader}>Narrative & Biography</h3>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+                <h3 style={{ ...styles.npcBioHeader, marginBottom: 0 }}>Narrative & Biography</h3>
+                <button
+                  type="button"
+                  onClick={() => handleCopyImagePrompt(selectedArticle)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.3rem",
+                    padding: "0.3rem 0.6rem",
+                    fontSize: "0.7rem",
+                    fontWeight: "600",
+                    background: npcCopiedPrompt
+                      ? "rgba(22,163,74,0.15)"
+                      : "rgba(200,151,58,0.1)",
+                    color: npcCopiedPrompt ? "#16a34a" : "var(--color-accent)",
+                    border: `1px solid ${
+                      npcCopiedPrompt
+                        ? "rgba(22,163,74,0.3)"
+                        : "rgba(200,151,58,0.25)"
+                    }`,
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    transition: "all 0.2s",
+                  }}
+                  className="touch-target btn-hover-scale"
+                  title="Copy image generation prompt to clipboard"
+                >
+                  {npcCopiedPrompt ? "✅ Copied!" : "🎨 Copy Image Prompt"}
+                </button>
+              </div>
               {selectedArticle.largeImageUrl && (
                 <div
                   className="npc-banner-container"
@@ -1712,6 +1829,38 @@ export default function WikiPanel({ user, isPopout = false }) {
                     className="touch-target btn-hover-scale"
                   >
                     ✨ AI Generate
+                  </button>
+                )}
+                {editingNpc?.name && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopyImagePrompt(editingNpc)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.3rem",
+                      padding: "0.3rem 0.6rem",
+                      fontSize: "0.72rem",
+                      fontWeight: "600",
+                      background: npcCopiedPrompt
+                        ? "rgba(22,163,74,0.15)"
+                        : "rgba(200,151,58,0.08)",
+                      color: npcCopiedPrompt ? "#16a34a" : "var(--color-accent)",
+                      border: `1px solid ${
+                        npcCopiedPrompt
+                          ? "rgba(22,163,74,0.3)"
+                          : "rgba(200,151,58,0.2)"
+                      }`,
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      marginRight: "0.5rem",
+                      transition: "all 0.2s",
+                    }}
+                    className="touch-target btn-hover-scale"
+                    title="Copy image generation prompt to clipboard"
+                  >
+                    {npcCopiedPrompt ? "✅ Copied!" : "🎨 Image Prompt"}
                   </button>
                 )}
                 <button
