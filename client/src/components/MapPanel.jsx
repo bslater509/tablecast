@@ -2403,7 +2403,7 @@ export default function MapPanel({ user, isPopout = false }) {
                         </div>
                       )}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
             );
