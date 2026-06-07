@@ -7,14 +7,14 @@
   "material": {
     "type": "color",
     "diffuseTexture": {
-      "light": "../default/diffuse-light.png",
+      "light": "diffuse-light.png",
       "dark": "../default/diffuse-dark.png"
     },
     "diffuseLevel": 0.9,
     "bumpTexture": "../default/normal.png",
-    "bumpLevel": 1.2,
+    "bumpLevel": 1.5,
     "specularTexture": "../default/specular.jpg",
-    "specularPower": 0.4
+    "specularPower": 1.0
   },
   "diceAvailable": ["d4","d6","d8","d10","d12","d20","d100"]
 }

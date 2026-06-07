@@ -4,14 +4,16 @@
   "description": "Tablecast D&D local server - React frontend",
   "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "node patch-dice-box.js && node generate-dice-textures.js && vite",
+    "build": "node patch-dice-box.js && node generate-dice-textures.js && vite build",
+    "preview": "vite preview",
+    "postinstall": "node patch-dice-box.js && node generate-dice-textures.js"
   },
   "dependencies": {
     "@3d-dice/dice-box": "^1.1.4",
     "dompurify": "^3.1.5",
     "marked": "^12.0.2",
+    "pngjs": "^7.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.23.1",

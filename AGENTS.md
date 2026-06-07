@@ -18,6 +18,8 @@ This document defines the specialized agent roles and system prompts to be used 
 * **Docker Container Rebuild:** Do not perform local Docker rebuilds. All Docker builds/rebuilds are handled automatically on the remote server when the stack webhook pulls updates.
 * **Debugging Tools:** Use the installed Debian package for Google Chrome when testing the site (connecting to the remote host at `http://192.168.0.77:3001`). If automated browser subagents fail to resolve loopback or connection settings, verify the backend endpoints directly using `curl http://192.168.0.77:3001/api/health` and examine the webhook's return response or git webhook status for container build logs.
 * **Git Version Control & Deployment Trigger:** Always push all changes to the repository, even if the changes were not originally made by the agent itself. Pushing is required to trigger the webhook and deploy the live changes. When finished with a task, there should be no uncommitted or unpushed changes left in the workspace.
+* **No 5etools Repository Modifications:** Do not create, modify, or place any files in the 5etools repository folders (`5etoolsimg/`, `5etoolssrc/`). Any files or changes created in these directories that are not part of the official repositories must be deleted.
+
 
 
 
