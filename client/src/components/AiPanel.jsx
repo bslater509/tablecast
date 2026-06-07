@@ -21,6 +21,75 @@ function compileMarkdown(text) {
   }
 }
 
+async function streamAiChat({ userId, message, npcId, history, onToken }) {
+  const res = await fetch("/api/ai/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-tablecast-user-id": userId || "",
+    },
+    body: JSON.stringify({
+      message,
+      npcId,
+      history,
+      stream: true,
+    }),
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("text/event-stream")) {
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Failed to fetch response.");
+    }
+    const data = await res.json();
+    if (data.reply) onToken(data.reply);
+    return;
+  }
+
+  if (!res.ok || !res.body) {
+    throw new Error("Failed to start AI stream.");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let receivedToken = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6).trim();
+      if (!payload) continue;
+
+      let event;
+      try {
+        event = JSON.parse(payload);
+      } catch {
+        continue;
+      }
+
+      if (event.type === "token" && event.text) {
+        receivedToken = true;
+        onToken(event.text);
+      } else if (event.type === "error") {
+        throw new Error(event.message || "Failed to query AI assistant.");
+      }
+    }
+  }
+
+  if (!receivedToken) {
+    throw new Error("AI returned an empty response.");
+  }
+}
+
 export default function AiPanel({ user }) {
   const [activeTab, setActiveTab] = useState("rules"); // "rules" or "npc"
   
@@ -32,7 +101,7 @@ export default function AiPanel({ user }) {
       text: "Hail! I am your D&D Rules Scholar. Ask me any question about spells, combat, actions, items, or general D&D rules, and I will search the library to help you.",
     },
   ]);
-  const [rulesLoading, setRulesLoading] = useState(false);
+  const [rulesStreaming, setRulesStreaming] = useState(false);
 
   // NPC Roleplay state
   const [npcs, setNpcs] = useState([]);
@@ -44,7 +113,7 @@ export default function AiPanel({ user }) {
       text: "Select a tavern guest or campaign NPC from the dropdown above, and we can begin our discussion.",
     },
   ]);
-  const [npcLoading, setNpcLoading] = useState(false);
+  const [npcStreaming, setNpcStreaming] = useState(false);
 
   const rulesScrollRef = useRef(null);
   const npcScrollRef = useRef(null);
@@ -73,98 +142,121 @@ export default function AiPanel({ user }) {
     if (rulesScrollRef.current) {
       rulesScrollRef.current.scrollTop = rulesScrollRef.current.scrollHeight;
     }
-  }, [rulesHistory, rulesLoading]);
+  }, [rulesHistory, rulesStreaming]);
 
   useEffect(() => {
     if (npcScrollRef.current) {
       npcScrollRef.current.scrollTop = npcScrollRef.current.scrollHeight;
     }
-  }, [npcHistory, npcLoading]);
+  }, [npcHistory, npcStreaming]);
 
 
 
   // Submit Rules query
   const handleRulesSubmit = async (e) => {
     e.preventDefault();
-    if (!rulesQuery.trim() || rulesLoading) return;
+    if (!rulesQuery.trim() || rulesStreaming) return;
 
     const query = rulesQuery.trim();
     setRulesQuery("");
-    
-    // Add user message to history
+
     const userMsg = { role: "user", text: query };
     const updatedHistory = [...rulesHistory, userMsg];
     setRulesHistory(updatedHistory);
-    setRulesLoading(true);
+    setRulesStreaming(true);
+
+    let accumulated = "";
+    let assistantStarted = false;
 
     try {
-      const res = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tablecast-user-id": user?.id || ""
+      await streamAiChat({
+        userId: user?.id,
+        message: query,
+        history: updatedHistory.slice(1, -1),
+        onToken: (text) => {
+          accumulated += text;
+          setRulesHistory((prev) => {
+            if (!assistantStarted) {
+              assistantStarted = true;
+              return [...prev, { role: "assistant", text: accumulated }];
+            }
+            const copy = [...prev];
+            copy[copy.length - 1] = { role: "assistant", text: accumulated };
+            return copy;
+          });
         },
-        body: JSON.stringify({
-          message: query,
-          history: updatedHistory.slice(1, -1) // pass history excluding initial greet and user's current message
-        }),
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        setRulesHistory((prev) => [...prev, { role: "assistant", text: data.reply }]);
-      } else {
-        const errData = await res.json();
-        setRulesHistory((prev) => [...prev, { role: "assistant", text: `Error: ${errData.error || "Failed to fetch response."}` }]);
-      }
     } catch (err) {
-      setRulesHistory((prev) => [...prev, { role: "assistant", text: `Error: Connection lost.` }]);
+      const errorText = `Error: ${err.message || "Connection lost."}`;
+      setRulesHistory((prev) => {
+        if (!assistantStarted) {
+          return [...prev, { role: "assistant", text: errorText }];
+        }
+        const copy = [...prev];
+        copy[copy.length - 1] = {
+          role: "assistant",
+          text: accumulated ? `${accumulated}\n\n${errorText}` : errorText,
+        };
+        return copy;
+      });
     } finally {
-      setRulesLoading(false);
+      setRulesStreaming(false);
     }
   };
 
   // Submit NPC Chat query
   const handleNpcSubmit = async (e) => {
     e.preventDefault();
-    if (!npcQuery.trim() || !selectedNpcId || npcLoading) return;
+    if (!npcQuery.trim() || !selectedNpcId || npcStreaming) return;
 
     const query = npcQuery.trim();
     const npc = npcs.find((n) => n.id.toString() === selectedNpcId);
     if (!npc) return;
 
     setNpcQuery("");
-    
+
     const userMsg = { role: "user", text: query };
     const updatedHistory = [...npcHistory, userMsg];
     setNpcHistory(updatedHistory);
-    setNpcLoading(true);
+    setNpcStreaming(true);
+
+    let accumulated = "";
+    let assistantStarted = false;
 
     try {
-      const res = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tablecast-user-id": user?.id || ""
+      await streamAiChat({
+        userId: user?.id,
+        message: query,
+        npcId: Number(selectedNpcId),
+        history: updatedHistory.slice(1, -1),
+        onToken: (text) => {
+          accumulated += text;
+          setNpcHistory((prev) => {
+            if (!assistantStarted) {
+              assistantStarted = true;
+              return [...prev, { role: "assistant", text: accumulated }];
+            }
+            const copy = [...prev];
+            copy[copy.length - 1] = { role: "assistant", text: accumulated };
+            return copy;
+          });
         },
-        body: JSON.stringify({
-          message: query,
-          npcId: Number(selectedNpcId),
-          history: updatedHistory.slice(1, -1) // pass history
-        }),
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        setNpcHistory((prev) => [...prev, { role: "assistant", text: data.reply }]);
-      } else {
-        const errData = await res.json();
-        setNpcHistory((prev) => [...prev, { role: "assistant", text: `Error: ${errData.error || "Failed to fetch response."}` }]);
-      }
     } catch (err) {
-      setNpcHistory((prev) => [...prev, { role: "assistant", text: `Error: Connection lost.` }]);
+      const errorText = `Error: ${err.message || "Connection lost."}`;
+      setNpcHistory((prev) => {
+        if (!assistantStarted) {
+          return [...prev, { role: "assistant", text: errorText }];
+        }
+        const copy = [...prev];
+        copy[copy.length - 1] = {
+          role: "assistant",
+          text: accumulated ? `${accumulated}\n\n${errorText}` : errorText,
+        };
+        return copy;
+      });
     } finally {
-      setNpcLoading(false);
+      setNpcStreaming(false);
     }
   };
 
@@ -249,7 +341,7 @@ export default function AiPanel({ user }) {
                 />
               </div>
             ))}
-            {rulesLoading && (
+            {rulesStreaming && rulesHistory[rulesHistory.length - 1]?.role !== "assistant" && (
               <div style={{ ...styles.bubble, alignSelf: "flex-start" }}>
                 <div style={styles.bubbleHeader}>Rules Scholar</div>
                 <div style={styles.loadingPlaceholder}>
@@ -275,10 +367,10 @@ export default function AiPanel({ user }) {
             />
             <button
               type="submit"
-              disabled={rulesLoading || !rulesQuery.trim()}
+              disabled={rulesStreaming || !rulesQuery.trim()}
               style={{
                 ...styles.sendBtn,
-                opacity: rulesQuery.trim() && !rulesLoading ? 1 : 0.4,
+                opacity: rulesQuery.trim() && !rulesStreaming ? 1 : 0.4,
               }}
               className="touch-target btn-hover-scale"
             >
@@ -355,7 +447,7 @@ export default function AiPanel({ user }) {
                 </div>
               );
             })}
-            {npcLoading && (
+            {npcStreaming && npcHistory[npcHistory.length - 1]?.role !== "assistant" && (
               <div style={{ ...styles.bubble, alignSelf: "flex-start" }}>
                 <div style={styles.bubbleHeader}>
                   {npcs.find((n) => n.id.toString() === selectedNpcId)?.name || "NPC"}
@@ -377,17 +469,17 @@ export default function AiPanel({ user }) {
               placeholder={selectedNpcId ? `Talk to ${npcs.find((n) => n.id.toString() === selectedNpcId)?.name || "NPC"}...` : "Select an NPC template first"}
               value={npcQuery}
               onChange={(e) => setNpcQuery(e.target.value)}
-              disabled={!selectedNpcId || npcLoading}
+              disabled={!selectedNpcId || npcStreaming}
               style={styles.input}
               className="form-input"
               maxLength={500}
             />
             <button
               type="submit"
-              disabled={npcLoading || !npcQuery.trim() || !selectedNpcId}
+              disabled={npcStreaming || !npcQuery.trim() || !selectedNpcId}
               style={{
                 ...styles.sendBtn,
-                opacity: npcQuery.trim() && !npcLoading && selectedNpcId ? 1 : 0.4,
+                opacity: npcQuery.trim() && !npcStreaming && selectedNpcId ? 1 : 0.4,
               }}
               className="touch-target btn-hover-scale"
             >

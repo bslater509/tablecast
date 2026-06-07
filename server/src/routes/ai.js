@@ -2,7 +2,7 @@
 // Tablecast — AI & MCP Router
 // Endpoints:  GET  /api/ai/mcp          - SSE connection stream
 //             POST /api/ai/mcp/message  - JSON-RPC message target
-//             POST /api/ai/chat         - Built-in AI Chat (RAG & Roleplay)
+//             POST /api/ai/chat         - Built-in AI Chat (RAG & Roleplay, SSE stream optional)
 //             GET  /api/ai/settings     - Get AI settings (masked keys)
 //             PUT  /api/ai/settings     - Update AI settings
 //             POST /api/ai/test         - Test connection settings
@@ -454,18 +454,191 @@ async function loadAiSettings() {
 // ---------------------------------------------------------------------------
 // HTTP AI Call Core Function
 // ---------------------------------------------------------------------------
-async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history = []) {
+function formatHistoryOpenAi(history = []) {
+  return history.map(h => ({
+    role: h.role === "assistant" ? "assistant" : "user",
+    content: h.text
+  }));
+}
+
+function buildChatMessages(systemPrompt, userMessage, history = []) {
+  return [
+    { role: "system", content: systemPrompt },
+    ...formatHistoryOpenAi(history),
+    { role: "user", content: userMessage }
+  ];
+}
+
+function beginSseResponse(res) {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  if (typeof res.flushHeaders === "function") {
+    res.flushHeaders();
+  }
+}
+
+function writeSseEvent(res, data) {
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+async function pumpOpenAiCompatibleStream(upstream, res) {
+  if (!upstream.ok) {
+    const errText = await upstream.text().catch(() => "");
+    throw new Error(`Upstream responded with status: ${upstream.status}${errText ? ` - ${errText}` : ""}`);
+  }
+  if (!upstream.body) {
+    throw new Error("Upstream returned no response body.");
+  }
+
+  const reader = upstream.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let receivedContent = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n");
+    buffer = parts.pop() || "";
+
+    for (const line of parts) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+
+      const payload = trimmed.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+
+      let parsed;
+      try {
+        parsed = JSON.parse(payload);
+      } catch {
+        continue;
+      }
+
+      if (parsed.error) {
+        throw new Error(parsed.error.message || JSON.stringify(parsed.error));
+      }
+
+      const token = parsed.choices?.[0]?.delta?.content;
+      if (token) {
+        receivedContent = true;
+        writeSseEvent(res, { type: "token", text: token });
+      }
+    }
+  }
+
+  if (!receivedContent) {
+    throw new Error("Empty streaming response from upstream.");
+  }
+}
+
+async function pumpOllamaStream(upstream, res) {
+  if (!upstream.ok) {
+    const errText = await upstream.text().catch(() => "");
+    throw new Error(`Ollama responded with status: ${upstream.status}${errText ? ` - ${errText}` : ""}`);
+  }
+  if (!upstream.body) {
+    throw new Error("Ollama returned no response body.");
+  }
+
+  const reader = upstream.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let receivedContent = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n");
+    buffer = parts.pop() || "";
+
+    for (const line of parts) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      let parsed;
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        continue;
+      }
+
+      if (parsed.error) {
+        throw new Error(parsed.error || "Ollama streaming error.");
+      }
+
+      const token = parsed.message?.content;
+      if (token) {
+        receivedContent = true;
+        writeSseEvent(res, { type: "token", text: token });
+      }
+    }
+  }
+
+  if (!receivedContent) {
+    throw new Error("Empty response from Ollama server.");
+  }
+}
+
+async function performAiStream(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history, res, signal) {
   if (!provider) {
     throw new Error("No AI Provider configured.");
   }
 
-  // Support historical messages mapping
-  const formatHistoryOpenAi = () => {
-    return history.map(h => ({
-      role: h.role === "assistant" ? "assistant" : "user",
-      content: h.text
-    }));
-  };
+  const messages = buildChatMessages(systemPrompt, userMessage, history);
+
+  switch (provider) {
+    case "lmstudio": {
+      let baseUrl = ollamaUrl || "http://localhost:1234";
+      if (!baseUrl.endsWith("/v1") && !baseUrl.includes("/v1/")) {
+        baseUrl = baseUrl.replace(/\/+$/, "") + "/v1";
+      }
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: ollamaModel || "",
+          messages,
+          stream: true
+        }),
+        signal
+      });
+      await pumpOpenAiCompatibleStream(response, res);
+      return;
+    }
+
+    case "ollama": {
+      const response = await fetch(`${ollamaUrl || "http://localhost:11434"}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: ollamaModel || "llama3",
+          messages,
+          stream: true
+        }),
+        signal
+      });
+      await pumpOllamaStream(response, res);
+      return;
+    }
+
+    default: {
+      const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history);
+      writeSseEvent(res, { type: "token", text: reply });
+    }
+  }
+}
+
+async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history = []) {
+  if (!provider) {
+    throw new Error("No AI Provider configured.");
+  }
 
   switch (provider) {
     case "gemini": {
@@ -517,11 +690,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
       if (!apiKey) throw new Error("Missing OpenAI API Key.");
       const url = "https://api.openai.com/v1/chat/completions";
       
-      const messages = [
-        { role: "system", content: systemPrompt },
-        ...formatHistoryOpenAi(),
-        { role: "user", content: userMessage }
-      ];
+      const messages = buildChatMessages(systemPrompt, userMessage, history);
 
       const response = await fetch(url, {
         method: "POST",
@@ -549,7 +718,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
       const url = "https://api.anthropic.com/v1/messages";
       
       const messages = [
-        ...formatHistoryOpenAi(),
+        ...formatHistoryOpenAi(history),
         { role: "user", content: userMessage }
       ];
 
@@ -579,11 +748,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
 
     case "ollama": {
       const url = `${ollamaUrl || "http://localhost:11434"}/api/chat`;
-      const messages = [
-        { role: "system", content: systemPrompt },
-        ...formatHistoryOpenAi(),
-        { role: "user", content: userMessage }
-      ];
+      const messages = buildChatMessages(systemPrompt, userMessage, history);
 
       const response = await fetch(url, {
         method: "POST",
@@ -611,11 +776,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
         baseUrl = baseUrl.replace(/\/+$/, "") + "/v1";
       }
       const url = `${baseUrl}/chat/completions`;
-      const messages = [
-        { role: "system", content: systemPrompt },
-        ...formatHistoryOpenAi(),
-        { role: "user", content: userMessage }
-      ];
+      const messages = buildChatMessages(systemPrompt, userMessage, history);
 
       const response = await fetch(url, {
         method: "POST",
@@ -941,7 +1102,7 @@ router.post("/expand-text", requireDm, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post("/chat", async (req, res) => {
   try {
-    const { message, npcId, history } = req.body;
+    const { message, npcId, history, stream: wantsStream } = req.body;
     if (!message || typeof message !== "string" || !message.trim()) {
       return res.status(400).json({ error: "Message content is required." });
     }
@@ -989,17 +1150,55 @@ Keep your responses concise, readable, and structured in Markdown.`;
       }
     }
 
+    if (wantsStream) {
+      beginSseResponse(res);
+      const controller = new AbortController();
+      req.on("close", () => controller.abort());
+
+      writeSseEvent(res, { type: "context", text: referenceContext });
+
+      try {
+        await performAiStream(
+          provider,
+          apiKey,
+          ollamaUrl,
+          ollamaModel,
+          systemPrompt,
+          message,
+          history,
+          res,
+          controller.signal
+        );
+        writeSseEvent(res, { type: "done" });
+      } catch (streamErr) {
+        if (streamErr.name === "AbortError") {
+          return;
+        }
+        console.error("[AI Chat] Streaming failed:", streamErr.message);
+        writeSseEvent(res, { type: "error", message: streamErr.message || "Failed to query AI assistant." });
+      }
+
+      res.end();
+      return;
+    }
+
     // 3. Make the API call to the configured LLM provider
     const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, message, history);
 
     res.json({ reply, context: referenceContext });
   } catch (err) {
     console.error("[AI Chat] Chat operation failed:", err.message);
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to query AI assistant." });
+      res.end();
+      return;
+    }
     res.status(500).json({ error: err.message || "Failed to query AI assistant." });
   }
 });
 
 router.performAiCall = performAiCall;
+router.performAiStream = performAiStream;
 router.findRelevantRules = findRelevantRules;
 router.buildNpcProfileContext = buildNpcProfileContext;
 router.buildNpcRoleplaySystemPrompt = buildNpcRoleplaySystemPrompt;
