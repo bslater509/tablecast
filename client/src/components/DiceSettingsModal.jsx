@@ -9,10 +9,96 @@ const PRESET_COLORS = [
   { name: "Wizard Blue", value: "#3b82f6" },
 ];
 
+const THEME_DEFAULT_COLORS = {
+  default: "#7c3aed",
+  magma: "#ea580c",
+  ice: "#0ea5e9",
+  gold: "#fbbf24",
+};
+
+const getPreviewStyle = (theme, color) => {
+  switch(theme) {
+    case "magma":
+      return {
+        box: {
+          background: "radial-gradient(circle, rgba(234,88,12,0.15) 0%, rgba(0,0,0,0.4) 100%)",
+          border: "1px solid rgba(234, 88, 12, 0.4)",
+          boxShadow: "0 0 15px rgba(234, 88, 12, 0.25)",
+        },
+        die: {
+          backgroundColor: color,
+          border: "1px solid rgba(255, 69, 0, 0.6)",
+          boxShadow: "inset 0 0 12px rgba(0,0,0,0.6), 0 0 10px rgba(255, 69, 0, 0.4)",
+        },
+        text: {
+          color: "#ffffff",
+          textShadow: "0 0 5px #ff4500, 0 1px 2px rgba(0,0,0,0.8)",
+        }
+      };
+    case "ice":
+      return {
+        box: {
+          background: "radial-gradient(circle, rgba(14,165,233,0.12) 0%, rgba(0,0,0,0.4) 100%)",
+          border: "1px solid rgba(14, 165, 233, 0.4)",
+          boxShadow: "0 0 15px rgba(14, 165, 233, 0.25)",
+        },
+        die: {
+          backgroundColor: color,
+          border: "1px solid rgba(255, 255, 255, 0.8)",
+          boxShadow: "inset 0 0 12px rgba(255,255,255,0.4), 0 4px 6px rgba(0,0,0,0.3)",
+        },
+        text: {
+          color: "#ffffff",
+          textShadow: "0 0 4px #0ea5e9, 0 1px 2px rgba(0,0,0,0.8)",
+        }
+      };
+    case "gold":
+      return {
+        box: {
+          background: "radial-gradient(circle, rgba(251,191,36,0.1) 0%, rgba(0,0,0,0.4) 100%)",
+          border: "1px solid rgba(251, 191, 36, 0.4)",
+          boxShadow: "0 0 15px rgba(251, 191, 36, 0.25)",
+        },
+        die: {
+          backgroundColor: color,
+          border: "1px solid rgba(255, 215, 0, 0.8)",
+          boxShadow: "inset 0 0 8px rgba(255,255,255,0.6), 0 4px 8px rgba(0,0,0,0.4)",
+        },
+        text: {
+          color: "#1a1a1a",
+          textShadow: "0 1px 1px rgba(255,255,255,0.8)",
+        }
+      };
+    default:
+      return {
+        box: {
+          backgroundColor: "rgba(0, 0, 0, 0.2)",
+          border: "1px dashed rgba(255, 255, 255, 0.1)",
+        },
+        die: {
+          backgroundColor: color,
+          border: "1px solid rgba(255,255,255,0.3)",
+          boxShadow: "inset 0 0 10px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.3)",
+        },
+        text: {
+          color: "#ffffff",
+          textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+        }
+      };
+  }
+};
+
 export default function DiceSettingsModal({ user, onClose, onSave }) {
   const [diceTheme, setDiceTheme] = useState(user?.diceTheme || "default");
   const [diceColor, setDiceColor] = useState(user?.diceColor || "#7c3aed");
   const [saving, setSaving] = useState(false);
+
+  const handleThemeChange = (newTheme) => {
+    setDiceTheme(newTheme);
+    if (THEME_DEFAULT_COLORS[newTheme]) {
+      setDiceColor(THEME_DEFAULT_COLORS[newTheme]);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,6 +107,8 @@ export default function DiceSettingsModal({ user, onClose, onSave }) {
     setSaving(false);
     onClose();
   };
+
+  const themeStyle = getPreviewStyle(diceTheme, diceColor);
 
   return (
     <div style={styles.modalOverlay} onClick={onClose}>
@@ -39,13 +127,16 @@ export default function DiceSettingsModal({ user, onClose, onSave }) {
             <label style={styles.label}>Dice Theme / Style</label>
             <select
               value={diceTheme}
-              onChange={(e) => setDiceTheme(e.target.value)}
+              onChange={(e) => handleThemeChange(e.target.value)}
               style={styles.select}
             >
               <option value="default">Default Solid</option>
+              <option value="magma">🔥 Fiery Magma</option>
+              <option value="ice">❄️ Frosty Ice</option>
+              <option value="gold">👑 Royal Gold</option>
             </select>
             <small style={styles.helpText}>
-              The solid theme uses physics-simulated shading and customizable color.
+              Choose a theme to apply special 3D materials, bump mapping, and textures.
             </small>
           </div>
 
@@ -85,9 +176,9 @@ export default function DiceSettingsModal({ user, onClose, onSave }) {
           </div>
 
           {/* Preview Dice Render */}
-          <div style={styles.previewBox}>
-            <div style={{ ...styles.previewDie, backgroundColor: diceColor }}>
-              <span style={styles.previewDieText}>20</span>
+          <div style={{ ...styles.previewBox, ...themeStyle.box }}>
+            <div style={{ ...styles.previewDie, ...themeStyle.die }}>
+              <span style={{ ...styles.previewDieText, ...themeStyle.text }}>20</span>
             </div>
             <span style={styles.previewLabel}>Visual Preview</span>
           </div>

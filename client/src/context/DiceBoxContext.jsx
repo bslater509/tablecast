@@ -83,19 +83,27 @@ export function DiceBoxProvider({ children }) {
     const nextRoll = queue[0];
     setIsRolling(true);
 
-    const { dice3d, color } = nextRoll;
+    const { dice3d, color, theme } = nextRoll;
     const box = diceBoxRef.current;
 
     if (box) {
-      console.log("[3D Dice] Simulating roll:", dice3d, "with color:", color);
+      console.log("[3D Dice] Simulating roll:", dice3d, "with theme:", theme, "and color:", color);
       
       // Force viewport resize event just in case layout changed before active roll
       window.dispatchEvent(new Event("resize"));
       
+      // Update config with the active theme and color dynamically
+      try {
+        box.updateConfig({
+          theme: theme || "default",
+          themeColor: color || "#7c3aed"
+        });
+      } catch (err) {
+        console.error("[3D Dice] Failed to update config:", err);
+      }
+
       // Roll the dice. Support both single string or array of strings.
-      box.roll(dice3d, {
-        themeColor: color || "#7c3aed",
-      }).catch(err => {
+      box.roll(dice3d).catch(err => {
         console.error("[3D Dice] Roll error:", err);
         // Recover queue state on error
         window.dispatchEvent(
@@ -113,7 +121,7 @@ export function DiceBoxProvider({ children }) {
   }, [isReady, isRolling, queue]);
 
   // Queue a roll
-  const trigger3DRoll = useCallback((messageId, dice3d, color) => {
+  const trigger3DRoll = useCallback((messageId, dice3d, color, theme) => {
     if (!dice3d || dice3d.length === 0) {
       // Immediate completion if no 3D dice configured
       window.dispatchEvent(
@@ -124,8 +132,8 @@ export function DiceBoxProvider({ children }) {
       return;
     }
 
-    console.log("[3D Dice] Queueing roll:", dice3d);
-    queueRef.current.push({ messageId, dice3d, color });
+    console.log("[3D Dice] Queueing roll:", dice3d, "with theme:", theme);
+    queueRef.current.push({ messageId, dice3d, color, theme });
     setQueue([...queueRef.current]);
   }, [setQueue]);
 
@@ -137,7 +145,12 @@ export function DiceBoxProvider({ children }) {
 
     function handleGlobalRollMessage(msg) {
       if (msg.type === "roll" && msg.rollDetails?.status === "rolling") {
-        trigger3DRoll(msg.id, msg.rollDetails.dice3d, msg.rollDetails.diceColor);
+        trigger3DRoll(
+          msg.id,
+          msg.rollDetails.dice3d,
+          msg.rollDetails.diceColor,
+          msg.rollDetails.diceTheme
+        );
       }
     }
 
