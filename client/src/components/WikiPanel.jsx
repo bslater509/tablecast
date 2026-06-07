@@ -285,6 +285,7 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [npcGenError, setNpcGenError] = useState(null);
   const [npcGenOptions, setNpcGenOptions] = useState(null); // [{name, race, class, cr, briefDescription}, ...]
   const [npcGenStep, setNpcGenStep] = useState("prompt"); // "prompt" | "choose" | "generating_full"
+  const [npcGenProgress, setNpcGenProgress] = useState(""); // Live status message during generation
   const [showAssistDropdown, setShowAssistDropdown] = useState(null); // field name or null
   const [assistLoadingField, setAssistLoadingField] = useState(null);
   const [assistUndo, setAssistUndo] = useState(null); // { fieldId, previousText, isNpcField }
@@ -422,6 +423,73 @@ export default function WikiPanel({ user, isPopout = false }) {
     return () => window.removeEventListener("click", handleClose);
   }, []);
 
+  // SSE reader for NPC generation endpoints (emits status, result, error, done events)
+  async function streamNpcGeneration(url, body, { onStatus, onResult, onError }) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: jsonAuthHeaders,
+      body: JSON.stringify(body),
+    });
+
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("text/event-stream")) {
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Request failed.");
+      }
+      // Non-streaming fallback (shouldn't happen with new endpoints, but handles edge cases)
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (onResult) onResult(data);
+      return;
+    }
+
+    if (!res.ok || !res.body) {
+      throw new Error("Failed to start NPC generation stream.");
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = line.slice(6).trim();
+        if (!payload) continue;
+
+        let event;
+        try {
+          event = JSON.parse(payload);
+        } catch {
+          continue;
+        }
+
+        switch (event.type) {
+          case "status":
+            if (onStatus) onStatus(event.message);
+            break;
+          case "result":
+            if (onResult) onResult(event.data);
+            break;
+          case "error":
+            if (onError) onError(event.message || "Unknown error");
+            else throw new Error(event.message || "Unknown error");
+            break;
+          case "done":
+            break;
+        }
+      }
+    }
+  }
+
   // Step 1: Generate multiple NPC options
   async function handleGenerateOptions(e) {
     e.preventDefault();
@@ -430,27 +498,25 @@ export default function WikiPanel({ user, isPopout = false }) {
     setNpcGenLoading(true);
     setNpcGenError(null);
     setNpcGenOptions(null);
+    setNpcGenProgress("");
 
     try {
-      const res = await fetch("/api/ai/generate-npc-options", {
-        method: "POST",
-        headers: jsonAuthHeaders,
-        body: JSON.stringify({ prompt: npcGenPrompt.trim() }),
+      await streamNpcGeneration("/api/ai/generate-npc-options", { prompt: npcGenPrompt.trim() }, {
+        onStatus: (msg) => setNpcGenProgress(msg),
+        onResult: (data) => {
+          setNpcGenOptions(data.options || []);
+          setNpcGenStep("choose");
+        },
+        onError: (msg) => {
+          throw new Error(msg);
+        },
       });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Failed to generate NPC options.");
-      }
-
-      const data = await res.json();
-      setNpcGenOptions(data.options || []);
-      setNpcGenStep("choose");
     } catch (err) {
       console.error("[AI NPC Options] Error:", err);
       setNpcGenError(err.message);
     } finally {
       setNpcGenLoading(false);
+      setNpcGenProgress("");
     }
   }
 
@@ -461,69 +527,66 @@ export default function WikiPanel({ user, isPopout = false }) {
     setNpcGenLoading(true);
     setNpcGenError(null);
     setNpcGenStep("generating_full");
+    setNpcGenProgress("Starting NPC generation...");
 
     try {
-      const res = await fetch("/api/ai/generate-npc", {
-        method: "POST",
-        headers: jsonAuthHeaders,
-        body: JSON.stringify({
-          prompt: npcGenPrompt.trim(),
-          selectedOption: option,
-        }),
+      await streamNpcGeneration("/api/ai/generate-npc", {
+        prompt: npcGenPrompt.trim(),
+        selectedOption: option,
+      }, {
+        onStatus: (msg) => setNpcGenProgress(msg),
+        onResult: (aiData) => {
+          // Calculate ability modifiers
+          const mods = {};
+          const stats = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
+          for (const stat of stats) {
+            const score = Number(aiData[stat]) || 10;
+            mods[stat] = Math.floor((score - 10) / 2);
+          }
+
+          setEditingNpc((prev) => ({
+            ...prev,
+            name: aiData.name || prev.name,
+            race: aiData.race || prev.race,
+            class: aiData.class || prev.class,
+            level: Number(aiData.level) || prev.level,
+            hp: Number(aiData.hp) || prev.hp,
+            maxHp: Number(aiData.maxHp) || Number(aiData.hp) || prev.maxHp,
+            ac: Number(aiData.ac) || prev.ac,
+            cr: aiData.cr || prev.cr,
+            strength: Number(aiData.strength) || prev.strength,
+            dexterity: Number(aiData.dexterity) || prev.dexterity,
+            constitution: Number(aiData.constitution) || prev.constitution,
+            intelligence: Number(aiData.intelligence) || prev.intelligence,
+            wisdom: Number(aiData.wisdom) || prev.wisdom,
+            charisma: Number(aiData.charisma) || prev.charisma,
+            alignment: aiData.alignment || prev.alignment,
+            appearance: aiData.appearance || prev.appearance,
+            personality: aiData.personality || prev.personality,
+            history: aiData.history || prev.history,
+            partyRelationship: aiData.partyRelationship || prev.partyRelationship,
+            description: aiData.description || prev.description,
+            actions: Array.isArray(aiData.actions) ? JSON.stringify(aiData.actions) : prev.actions,
+            modifiers: JSON.stringify(mods)
+          }));
+
+          // Close modal and reset
+          setShowNpcGenModal(false);
+          setNpcGenPrompt("");
+          setNpcGenOptions(null);
+          setNpcGenStep("prompt");
+        },
+        onError: (msg) => {
+          throw new Error(msg);
+        },
       });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Failed to generate NPC.");
-      }
-
-      const aiData = await res.json();
-
-      // Calculate ability modifiers
-      const mods = {};
-      const stats = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
-      for (const stat of stats) {
-        const score = Number(aiData[stat]) || 10;
-        mods[stat] = Math.floor((score - 10) / 2);
-      }
-
-      setEditingNpc((prev) => ({
-        ...prev,
-        name: aiData.name || prev.name,
-        race: aiData.race || prev.race,
-        class: aiData.class || prev.class,
-        level: Number(aiData.level) || prev.level,
-        hp: Number(aiData.hp) || prev.hp,
-        maxHp: Number(aiData.maxHp) || Number(aiData.hp) || prev.maxHp,
-        ac: Number(aiData.ac) || prev.ac,
-        cr: aiData.cr || prev.cr,
-        strength: Number(aiData.strength) || prev.strength,
-        dexterity: Number(aiData.dexterity) || prev.dexterity,
-        constitution: Number(aiData.constitution) || prev.constitution,
-        intelligence: Number(aiData.intelligence) || prev.intelligence,
-        wisdom: Number(aiData.wisdom) || prev.wisdom,
-        charisma: Number(aiData.charisma) || prev.charisma,
-        alignment: aiData.alignment || prev.alignment,
-        appearance: aiData.appearance || prev.appearance,
-        personality: aiData.personality || prev.personality,
-        history: aiData.history || prev.history,
-        partyRelationship: aiData.partyRelationship || prev.partyRelationship,
-        description: aiData.description || prev.description,
-        actions: Array.isArray(aiData.actions) ? JSON.stringify(aiData.actions) : prev.actions,
-        modifiers: JSON.stringify(mods)
-      }));
-
-      // Close modal and reset
-      setShowNpcGenModal(false);
-      setNpcGenPrompt("");
-      setNpcGenOptions(null);
-      setNpcGenStep("prompt");
     } catch (err) {
       console.error("[AI NPC Generator] Error:", err);
       setNpcGenError(err.message);
       setNpcGenStep("choose"); // Go back to choice screen on error
     } finally {
       setNpcGenLoading(false);
+      setNpcGenProgress("");
     }
   }
 
@@ -535,6 +598,7 @@ export default function WikiPanel({ user, isPopout = false }) {
     setNpcGenOptions(null);
     setNpcGenStep("prompt");
     setNpcGenLoading(false);
+    setNpcGenProgress("");
   }
 
   const renderAiAssistButton = (fieldName) => {
@@ -2450,6 +2514,32 @@ export default function WikiPanel({ user, isPopout = false }) {
                   <p style={{ ...styles.editorErrorText, marginBottom: "1rem" }}>⚠️ {npcGenError}</p>
                 )}
 
+                {npcGenLoading && npcGenProgress && (
+                  <div style={{
+                    background: "rgba(124,58,237,0.12)",
+                    border: "1px solid rgba(124,58,237,0.25)",
+                    borderRadius: "8px",
+                    padding: "0.5rem 0.75rem",
+                    marginBottom: "0.8rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.6rem",
+                  }}>
+                    <div className="spinner" style={{
+                      width: "14px",
+                      height: "14px",
+                      border: "2px solid rgba(124,58,237,0.3)",
+                      borderTopColor: "#7c3aed",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite",
+                      flexShrink: 0,
+                    }} />
+                    <span style={{ fontSize: "0.82rem", color: "var(--color-accent)", fontWeight: "500" }}>
+                      {npcGenProgress}
+                    </span>
+                  </div>
+                )}
+
                 <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
                   <button
                     type="button"
@@ -2536,12 +2626,39 @@ export default function WikiPanel({ user, isPopout = false }) {
                           </div>
                         )}
                         <div style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: cardAccents[idx % cardAccents.length], fontWeight: "500" }}>
-                          {isDisabled ? "Writing statblock..." : "Select →"}
+                          {isDisabled ? (npcGenProgress || "Writing statblock...") : "Select →"}
                         </div>
                       </button>
                     );
                   })}
                 </div>
+
+                {/* Live progress indicator during generation */}
+                {npcGenStep === "generating_full" && npcGenProgress && (
+                  <div style={{
+                    background: "rgba(124,58,237,0.12)",
+                    border: "1px solid rgba(124,58,237,0.25)",
+                    borderRadius: "8px",
+                    padding: "0.6rem 0.8rem",
+                    marginBottom: "0.8rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.6rem",
+                  }}>
+                    <div className="spinner" style={{
+                      width: "16px",
+                      height: "16px",
+                      border: "2px solid rgba(124,58,237,0.3)",
+                      borderTopColor: "#7c3aed",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite",
+                      flexShrink: 0,
+                    }} />
+                    <span style={{ fontSize: "0.82rem", color: "var(--color-accent)", fontWeight: "500" }}>
+                      {npcGenProgress}
+                    </span>
+                  </div>
+                )}
 
                 {npcGenError && (
                   <p style={{ ...styles.editorErrorText, marginBottom: "1rem" }}>⚠️ {npcGenError}</p>

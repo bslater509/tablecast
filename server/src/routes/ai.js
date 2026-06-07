@@ -1072,10 +1072,17 @@ router.post("/generate-npc-options", requireDm, async (req, res) => {
       return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
     }
 
+    // Begin SSE response for progress streaming
+    beginSseResponse(res);
+
+    writeSseEvent(res, { type: "status", message: "Consulting campaign lore..." });
+
     const campaignWiki = await fetchCampaignWikiSnippet(prompt);
     const campaignBlock = campaignWiki
       ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
       : "";
+
+    writeSseEvent(res, { type: "status", message: "Generating NPC concepts..." });
 
     const systemPrompt = `You are a D&D 5e NPC concept generator for a Tabletop RPG.
 Given a DM's description, generate exactly 4 distinct, creative NPC concepts (options) that the DM can choose from.
@@ -1096,6 +1103,8 @@ You MUST respond with a single JSON object containing an "options" array (and NO
 Generate exactly 4 options. Make each one feel distinct and interesting.`;
 
     const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, `Generate NPC options for: ${prompt.trim()}`);
+
+    writeSseEvent(res, { type: "status", message: "Parsing results..." });
 
     // Parse JSON safely
     let cleanJsonStr = rawResponse.trim();
@@ -1118,9 +1127,16 @@ Generate exactly 4 options. Make each one feel distinct and interesting.`;
       throw new Error("AI returned an empty options list.");
     }
 
-    res.json({ options: optionsData.options });
+    writeSseEvent(res, { type: "result", data: { options: optionsData.options } });
+    writeSseEvent(res, { type: "done" });
+    res.end();
   } catch (err) {
     console.error("[AI NPC Options] Failed:", err.message);
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate NPC options." });
+      res.end();
+      return;
+    }
     res.status(500).json({ error: err.message || "Failed to generate NPC options." });
   }
 });
@@ -1143,6 +1159,11 @@ router.post("/generate-npc", requireDm, async (req, res) => {
       return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
     }
 
+    // Begin SSE response for progress streaming
+    beginSseResponse(res);
+
+    writeSseEvent(res, { type: "status", message: "Consulting campaign lore..." });
+
     const campaignWiki = await fetchCampaignWikiSnippet(prompt);
     const campaignBlock = campaignWiki
       ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
@@ -1151,6 +1172,8 @@ router.post("/generate-npc", requireDm, async (req, res) => {
     const selectedBlock = selectedOption
       ? `\nThe DM has selected this specific concept to flesh out into a full NPC:\n${JSON.stringify(selectedOption, null, 2)}\n`
       : "";
+
+    writeSseEvent(res, { type: "status", message: "Generating NPC statblock (stats, abilities, narrative fields)..." });
 
     const systemPrompt = `You are a D&D 5e NPC and monster statblock generator. 
 Given a description of an NPC, generate a complete NPC profile.
@@ -1196,6 +1219,8 @@ The JSON must strictly conform to these fields:
 
     const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage);
 
+    writeSseEvent(res, { type: "status", message: "Parsing and validating statblock..." });
+
     // Parse JSON safely
     let cleanJsonStr = rawResponse.trim();
     // Strip markdown codeblock if present
@@ -1214,9 +1239,16 @@ The JSON must strictly conform to these fields:
       throw new Error("Failed to generate a valid NPC JSON structure from the AI response.");
     }
 
-    res.json(npcData);
+    writeSseEvent(res, { type: "result", data: npcData });
+    writeSseEvent(res, { type: "done" });
+    res.end();
   } catch (err) {
     console.error("[AI NPC Gen] Failed:", err.message);
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate NPC." });
+      res.end();
+      return;
+    }
     res.status(500).json({ error: err.message || "Failed to generate NPC." });
   }
 });
