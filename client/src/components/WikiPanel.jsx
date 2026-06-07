@@ -582,6 +582,16 @@ export default function WikiPanel({ user, isPopout = false }) {
     setIsEditing(true);
   }
 
+  function handleStartCreatePrompt() {
+    if (activeCategoryTab === "MONSTER") {
+      handleSelectCategoryToCreate("MONSTER");
+    } else if (["SPELL", "ITEM", "RULE", "CLASS", "RACE"].includes(activeCategoryTab)) {
+      handleSelectCategoryToCreate(activeCategoryTab);
+    } else {
+      setShowCategoryPrompt(true);
+    }
+  }
+
   // Edit article trigger
   function handleStartEdit(item) {
     setEditId(item.id);
@@ -1971,18 +1981,7 @@ export default function WikiPanel({ user, isPopout = false }) {
             )}
           </div>
 
-  function handleStartCreatePrompt() {
-    if (activeCategoryTab === "MONSTER") {
-      handleSelectCategoryToCreate("MONSTER");
-    } else if (["SPELL", "ITEM", "RULE", "CLASS", "RACE"].includes(activeCategoryTab)) {
-      handleSelectCategoryToCreate(activeCategoryTab);
-    } else {
-      setShowCategoryPrompt(true);
-    }
-  }
 
-  return (
-    <div style={styles.listView}>
       {/* Search and Action Row */}
       <div style={styles.searchBarContainer}>
 
