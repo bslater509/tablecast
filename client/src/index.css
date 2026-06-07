@@ -265,6 +265,12 @@ textarea:focus-visible {
   bottom: 0 !important;
 }
 
+@media (max-width: 430px) {
+  .dice-theme-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 @media (min-width: 520px) {
   .dice-roller-shell .dice-roller-grid {
     grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)) !important;

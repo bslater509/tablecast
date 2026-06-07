@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { Dices, ExternalLink, History, Minus, Plus, RotateCcw } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
+import { diceHexToRgb, getDiceThemeOption, getDiceThemePreviewStyles } from "../lib/diceThemes";
 
 function checkWebGLSupport() {
   try {
@@ -122,6 +123,9 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
   const { socket } = useSocket();
   const [activeSubTab, setActiveSubTab] = useState("roller"); // "roller" | "history"
   const [history, setHistory] = useState([]);
+  const activeDiceTheme = getDiceThemeOption(user?.diceTheme || "default");
+  const activeDiceColor = user?.diceColor || activeDiceTheme.defaultColor;
+  const activeDiceStyle = getDiceThemePreviewStyles(activeDiceTheme.id, activeDiceColor);
 
   const [quantities, setQuantities] = useState({
     d4: 0,
@@ -171,6 +175,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
           rolls: JSON.stringify(msg.rollDetails.rolls || []),
           modifier: msg.rollDetails.modifier || 0,
           total: msg.rollDetails.total || 0,
+          diceTheme: msg.rollDetails.diceTheme || "default",
           diceColor: msg.rollDetails.diceColor || "#7c3aed",
           createdAt: new Date(msg.timestamp || Date.now()).toISOString(),
         };
@@ -318,8 +323,8 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
         total: finalTotal,
         isAttack: false,
         status: "rolling",
-        diceTheme: user?.diceTheme || "default",
-        diceColor: user?.diceColor || "#7c3aed",
+        diceTheme: activeDiceTheme.id,
+        diceColor: activeDiceColor,
         dice3d: dice3d,
       },
     });
@@ -417,7 +422,6 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
         <div style={styles.content} className="dice-roller-content">
           {activeSubTab === "roller" ? (
             <div style={styles.rollerLayout} className="dice-roller-layout">
-              {/* Header Status */}
               <div style={styles.primaryColumn} className="dice-roller-primary">
                 <div style={styles.headerRow}>
                   <div style={styles.headerTitleGroup}>
@@ -431,6 +435,9 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
                       }}
                     >
                       {webGlSupported ? "3D Dice Active" : "WebGL Offline"}
+                    </span>
+                    <span style={{ ...styles.themeBadge, ...activeDiceStyle.chip }}>
+                      {activeDiceTheme.shortName}
                     </span>
                   </div>
                   <button
@@ -453,7 +460,9 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
                         style={{
                           ...styles.dieCard,
                           borderColor: qty > 0 ? die.color : "rgba(255,255,255,0.06)",
-                          background: qty > 0 ? `rgba(${hexToRgb(die.color)}, 0.08)` : "rgba(255,255,255,0.02)",
+                          background: qty > 0
+                            ? `radial-gradient(circle at 50% 0%, rgba(${diceHexToRgb(activeDiceColor)}, 0.14), transparent 62%), rgba(${diceHexToRgb(die.color)}, 0.08)`
+                            : "rgba(255,255,255,0.02)",
                         }}
                         className="glass-panel"
                       >
@@ -463,7 +472,14 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
                           title="Tap to add die"
                           className="touch-target dice-visual-button"
                         >
-                          {die.svg(qty > 0 ? die.color : "var(--color-muted)")}
+                          <span
+                            style={{
+                              ...styles.dieIconFrame,
+                              ...(qty > 0 ? activeDiceStyle.die : styles.inactiveDieIconFrame),
+                            }}
+                          >
+                            {die.svg(qty > 0 ? activeDiceTheme.textColor : "var(--color-muted)")}
+                          </span>
                           <span style={{ ...styles.dieLabel, color: qty > 0 ? die.color : "var(--color-muted)" }}>
                             {die.label.toUpperCase()}
                           </span>
@@ -609,7 +625,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
                 </div>
               ) : (
                 <div style={styles.historyList}>
-                  {history.map((roll, idx) => {
+                  {history.map((roll) => {
                     let parsedRolls = [];
                     try {
                       parsedRolls = typeof roll.rolls === "string" ? JSON.parse(roll.rolls) : roll.rolls;
@@ -621,6 +637,8 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
                       minute: "2-digit",
                       second: "2-digit",
                     });
+                    const rollTheme = getDiceThemeOption(roll.diceTheme || "default");
+                    const rollThemeStyle = getDiceThemePreviewStyles(rollTheme.id, roll.diceColor || rollTheme.defaultColor);
                     return (
                       <div
                         key={roll.id}
@@ -632,7 +650,12 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
                       >
                         <div style={styles.historyItemHeader}>
                           <span style={styles.historySender}>{roll.sender}</span>
-                          <span style={styles.historyTime}>{rollTime}</span>
+                          <div style={styles.historyMetaGroup}>
+                            <span style={{ ...styles.historyThemeChip, ...rollThemeStyle.chip }}>
+                              {rollTheme.shortName}
+                            </span>
+                            <span style={styles.historyTime}>{rollTime}</span>
+                          </div>
                         </div>
                         <div style={styles.historyItemBody}>
                           <div style={styles.historyDetails}>
@@ -675,16 +698,6 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
       )}
     </div>
   );
-}
-
-// Helper to convert hex colors to RGB values for transparent backgrounds
-function hexToRgb(hex) {
-  const cleanHex = hex.replace("#", "");
-  const bigint = parseInt(cleanHex, 16);
-  const r = (bigint >> 16) & 255;
-  const g = (bigint >> 8) & 255;
-  const b = bigint & 255;
-  return `${r}, ${g}, ${b}`;
 }
 
 const styles = {
@@ -765,6 +778,16 @@ const styles = {
     fontWeight: 600,
     whiteSpace: "nowrap",
   },
+  themeBadge: {
+    minHeight: "24px",
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "0.15rem 0.5rem",
+    borderRadius: "999px",
+    fontSize: "0.68rem",
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+  },
   clearBtn: {
     padding: "0.45rem 0.85rem",
     fontSize: "0.8rem",
@@ -804,6 +827,21 @@ const styles = {
     gap: "0.35rem",
     border: "none",
     background: "transparent",
+  },
+  dieIconFrame: {
+    width: "54px",
+    height: "54px",
+    borderRadius: "8px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transform: "rotate(4deg)",
+    transition: "all 0.2s ease",
+  },
+  inactiveDieIconFrame: {
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.06)",
+    boxShadow: "none",
   },
   dieLabel: {
     fontSize: "0.72rem",
@@ -1038,10 +1076,26 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "center",
     fontSize: "0.8rem",
+    gap: "0.75rem",
   },
   historySender: {
     fontWeight: "bold",
     color: "#ffffff",
+  },
+  historyMetaGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.45rem",
+    flexShrink: 0,
+  },
+  historyThemeChip: {
+    minHeight: "24px",
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "0.12rem 0.45rem",
+    borderRadius: "999px",
+    fontSize: "0.66rem",
+    fontWeight: 800,
   },
   historyTime: {
     color: "var(--color-muted)",

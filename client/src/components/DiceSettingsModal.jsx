@@ -1,177 +1,27 @@
 import React, { useState } from "react";
-
-const PRESET_COLORS = [
-  { name: "Purple Accent", value: "#7c3aed" },
-  { name: "Fighter Red", value: "#ef4444" },
-  { name: "Ranger Green", value: "#10b981" },
-  { name: "Paladin Gold", value: "#f59e0b" },
-  { name: "Rogue Black", value: "#1f2937" },
-  { name: "Wizard Blue", value: "#3b82f6" },
-];
-
-const THEME_DEFAULT_COLORS = {
-  default: "#7c3aed",
-  magma: "#ea580c",
-  ice: "#0ea5e9",
-  gold: "#fbbf24",
-  obsidian: "#111827",
-  stone: "#6b7280",
-  wood: "#854d0e",
-  glass: "#a5f3fc",
-};
-
-const getPreviewStyle = (theme, color) => {
-  switch(theme) {
-    case "glass":
-      return {
-        box: {
-          background: "radial-gradient(circle, rgba(165,243,252,0.1) 0%, rgba(0,0,0,0.4) 100%)",
-          border: "1px solid rgba(165, 243, 252, 0.3)",
-          boxShadow: "0 0 15px rgba(165, 243, 252, 0.2)",
-        },
-        die: {
-          backgroundColor: "rgba(165, 243, 252, 0.15)",
-          border: "1px solid rgba(255, 255, 255, 0.6)",
-          backdropFilter: "blur(4px)",
-          boxShadow: "inset 0 0 10px rgba(255,255,255,0.4), 0 4px 6px rgba(0,0,0,0.3)",
-        },
-        text: {
-          color: "#ffffff",
-          textShadow: "0 0 4px rgba(255, 255, 255, 0.6), 0 1px 2px rgba(0,0,0,0.8)",
-        }
-      };
-    case "magma":
-      return {
-        box: {
-          background: "radial-gradient(circle, rgba(234,88,12,0.15) 0%, rgba(0,0,0,0.4) 100%)",
-          border: "1px solid rgba(234, 88, 12, 0.4)",
-          boxShadow: "0 0 15px rgba(234, 88, 12, 0.25)",
-        },
-        die: {
-          backgroundColor: color,
-          border: "1px solid rgba(255, 69, 0, 0.6)",
-          boxShadow: "inset 0 0 12px rgba(0,0,0,0.6), 0 0 10px rgba(255, 69, 0, 0.4)",
-        },
-        text: {
-          color: "#ffffff",
-          textShadow: "0 0 5px #ff4500, 0 1px 2px rgba(0,0,0,0.8)",
-        }
-      };
-    case "ice":
-      return {
-        box: {
-          background: "radial-gradient(circle, rgba(14,165,233,0.12) 0%, rgba(0,0,0,0.4) 100%)",
-          border: "1px solid rgba(14, 165, 233, 0.4)",
-          boxShadow: "0 0 15px rgba(14, 165, 233, 0.25)",
-        },
-        die: {
-          backgroundColor: "rgba(14,165,233,0.2)",
-          border: "1px solid rgba(255, 255, 255, 0.8)",
-          backdropFilter: "blur(2px)",
-          boxShadow: "inset 0 0 12px rgba(255,255,255,0.4), 0 4px 6px rgba(0,0,0,0.3)",
-        },
-        text: {
-          color: "#ffffff",
-          textShadow: "0 0 4px #0ea5e9, 0 1px 2px rgba(0,0,0,0.8)",
-        }
-      };
-    case "gold":
-      return {
-        box: {
-          background: "radial-gradient(circle, rgba(251,191,36,0.1) 0%, rgba(0,0,0,0.4) 100%)",
-          border: "1px solid rgba(251, 191, 36, 0.4)",
-          boxShadow: "0 0 15px rgba(251, 191, 36, 0.25)",
-        },
-        die: {
-          backgroundColor: color,
-          border: "1px solid rgba(255, 215, 0, 0.8)",
-          boxShadow: "inset 0 0 8px rgba(255,255,255,0.6), 0 4px 8px rgba(0,0,0,0.4)",
-        },
-        text: {
-          color: "#1a1a1a",
-          textShadow: "0 1px 1px rgba(255,255,255,0.8)",
-        }
-      };
-    case "obsidian":
-      return {
-        box: {
-          background: "radial-gradient(circle, rgba(31,41,55,0.15) 0%, rgba(0,0,0,0.4) 100%)",
-          border: "1px solid rgba(31, 41, 55, 0.4)",
-          boxShadow: "0 0 15px rgba(31, 41, 55, 0.25)",
-        },
-        die: {
-          backgroundColor: color,
-          border: "1px solid rgba(0, 0, 0, 0.8)",
-          boxShadow: "inset 0 0 15px rgba(255,255,255,0.15), 0 4px 8px rgba(0,0,0,0.5)",
-        },
-        text: {
-          color: "#ffffff",
-          textShadow: "0 0 3px rgba(255,255,255,0.5), 0 1px 2px rgba(0,0,0,0.8)",
-        }
-      };
-    case "stone":
-      return {
-        box: {
-          background: "radial-gradient(circle, rgba(107,114,128,0.15) 0%, rgba(0,0,0,0.4) 100%)",
-          border: "1px solid rgba(107, 114, 128, 0.4)",
-          boxShadow: "0 0 15px rgba(107, 114, 128, 0.25)",
-        },
-        die: {
-          backgroundColor: color,
-          border: "1px solid rgba(75, 85, 99, 0.8)",
-          boxShadow: "inset 0 0 14px rgba(0,0,0,0.7), 0 4px 6px rgba(0,0,0,0.4)",
-        },
-        text: {
-          color: "#d1d5db",
-          textShadow: "0 -1px 0 rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.1)",
-        }
-      };
-    case "wood":
-      return {
-        box: {
-          background: "radial-gradient(circle, rgba(133,77,14,0.15) 0%, rgba(0,0,0,0.4) 100%)",
-          border: "1px solid rgba(133, 77, 14, 0.4)",
-          boxShadow: "0 0 15px rgba(133, 77, 14, 0.25)",
-        },
-        die: {
-          backgroundColor: color,
-          border: "1px solid rgba(120, 53, 4, 0.8)",
-          boxShadow: "inset 0 0 12px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.3)",
-        },
-        text: {
-          color: "#fef3c7",
-          textShadow: "0 1px 2px rgba(0,0,0,0.9)",
-        }
-      };
-    default:
-      return {
-        box: {
-          backgroundColor: "rgba(0, 0, 0, 0.2)",
-          border: "1px dashed rgba(255, 255, 255, 0.1)",
-        },
-        die: {
-          backgroundColor: color,
-          border: "1px solid rgba(255,255,255,0.3)",
-          boxShadow: "inset 0 0 10px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.3)",
-        },
-        text: {
-          color: "#ffffff",
-          textShadow: "0 1px 2px rgba(0,0,0,0.8)",
-        }
-      };
-  }
-};
+import { Check, Dices, X } from "lucide-react";
+import {
+  DICE_COLOR_PRESETS,
+  DICE_THEME_OPTIONS,
+  getDiceThemeOption,
+  getDiceThemePreviewStyles,
+  normalizeDiceTheme,
+} from "../lib/diceThemes";
 
 export default function DiceSettingsModal({ user, onClose, onSave }) {
-  const [diceTheme, setDiceTheme] = useState(user?.diceTheme || "default");
-  const [diceColor, setDiceColor] = useState(user?.diceColor || "#7c3aed");
+  const initialTheme = normalizeDiceTheme(user?.diceTheme || "default");
+  const initialThemeOption = getDiceThemeOption(initialTheme);
+  const [diceTheme, setDiceTheme] = useState(initialTheme);
+  const [diceColor, setDiceColor] = useState(user?.diceColor || initialThemeOption.defaultColor);
   const [saving, setSaving] = useState(false);
 
+  const selectedTheme = getDiceThemeOption(diceTheme);
+  const themeStyle = getDiceThemePreviewStyles(diceTheme, diceColor);
+
   const handleThemeChange = (newTheme) => {
-    setDiceTheme(newTheme);
-    if (THEME_DEFAULT_COLORS[newTheme]) {
-      setDiceColor(THEME_DEFAULT_COLORS[newTheme]);
-    }
+    const option = getDiceThemeOption(newTheme);
+    setDiceTheme(option.id);
+    setDiceColor(option.defaultColor);
   };
 
   const handleSubmit = async (e) => {
@@ -184,101 +34,119 @@ export default function DiceSettingsModal({ user, onClose, onSave }) {
     }
   };
 
-  const themeStyle = getPreviewStyle(diceTheme, diceColor);
-
   return (
     <div style={styles.modalOverlay} onClick={onClose}>
-      <div 
-        style={styles.modalContent} 
+      <div
+        style={styles.modalContent}
         className="glass-panel gold-border-glow"
         onClick={(e) => e.stopPropagation()}
       >
         <div style={styles.modalHeader}>
-          <h3 style={styles.modalTitle}>🎲 3D Dice Customization</h3>
-          <button style={styles.closeBtn} onClick={onClose}>&times;</button>
+          <div style={styles.titleGroup}>
+            <Dices size={20} color="var(--color-accent)" />
+            <h3 style={styles.modalTitle}>Dice Appearance</h3>
+          </div>
+          <button style={styles.closeBtn} onClick={onClose} aria-label="Close dice settings">
+            <X size={22} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} style={styles.form}>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Dice Theme / Style</label>
-            <select
-              value={diceTheme}
-              onChange={(e) => handleThemeChange(e.target.value)}
-              style={styles.select}
-            >
-              <option value="default">Default Solid</option>
-              <option value="glass">💎 Clear Glass</option>
-              <option value="magma">🔥 Fiery Magma</option>
-              <option value="ice">❄️ Frosty Ice</option>
-              <option value="gold">👑 Royal Gold</option>
-              <option value="obsidian">🌑 Void Obsidian</option>
-              <option value="stone">🪨 Runic Stone</option>
-              <option value="wood">🪵 Ancient Wood</option>
-            </select>
-            <small style={styles.helpText}>
-              Choose a theme to apply special 3D materials, bump mapping, and textures.
-            </small>
+          <div style={styles.previewBox}>
+            <div style={{ ...styles.previewStage, ...themeStyle.box }}>
+              <div style={{ ...styles.previewDie, ...themeStyle.die }}>
+                <span style={{ ...styles.previewDieText, ...themeStyle.text }}>20</span>
+              </div>
+              <div style={styles.previewMeta}>
+                <span style={styles.previewName}>{selectedTheme.name}</span>
+                <span style={{ ...styles.previewChip, ...themeStyle.chip }}>{selectedTheme.materialLabel}</span>
+              </div>
+            </div>
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>Dice Color</label>
-            
-            {/* Presets Grid */}
+            <label style={styles.label}>Theme</label>
+            <div style={styles.themeGrid} className="dice-theme-grid">
+              {DICE_THEME_OPTIONS.map((theme) => {
+                const active = diceTheme === theme.id;
+                const preview = getDiceThemePreviewStyles(theme.id, theme.defaultColor);
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={() => handleThemeChange(theme.id)}
+                    style={{
+                      ...styles.themeCard,
+                      borderColor: active ? theme.accent : "rgba(255,255,255,0.08)",
+                      background: active ? theme.surface : "rgba(255,255,255,0.035)",
+                      boxShadow: active ? `0 0 18px ${theme.glow}` : "none",
+                    }}
+                    className="touch-target btn-hover-scale"
+                    aria-pressed={active}
+                  >
+                    <span style={{ ...styles.themeDie, ...preview.die }}>
+                      <span style={{ ...styles.themeDieText, ...preview.text }}>8</span>
+                    </span>
+                    <span style={styles.themeTextGroup}>
+                      <span style={styles.themeName}>{theme.shortName}</span>
+                      <span style={styles.themeMaterial}>{theme.materialLabel}</span>
+                    </span>
+                    {active && (
+                      <span style={styles.checkMark}>
+                        <Check size={14} />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Color</label>
             <div style={styles.presetGrid}>
-              {PRESET_COLORS.map((preset) => (
+              {DICE_COLOR_PRESETS.map((preset) => (
                 <button
                   key={preset.value}
                   type="button"
                   onClick={() => setDiceColor(preset.value)}
                   style={{
                     ...styles.presetBtn,
-                    backgroundColor: preset.value,
-                    border: diceColor === preset.value 
-                      ? "3px solid var(--color-accent, #c5a880)" 
-                      : "2px solid rgba(255, 255, 255, 0.1)",
+                    background: `linear-gradient(145deg, ${preset.value}, rgba(0,0,0,0.55))`,
+                    border: diceColor === preset.value
+                      ? "3px solid var(--color-accent)"
+                      : "1px solid rgba(255,255,255,0.14)",
                   }}
                   title={preset.name}
+                  aria-label={preset.name}
+                  className="btn-hover-scale"
                 />
               ))}
             </div>
 
-            {/* Custom Color Input */}
             <div style={styles.customColorRow}>
-              <span style={styles.colorLabel}>Custom Color:</span>
               <input
                 type="color"
                 value={diceColor}
                 onChange={(e) => setDiceColor(e.target.value)}
                 style={styles.colorPicker}
+                aria-label="Custom dice color"
               />
               <span style={styles.hexValue}>{diceColor.toUpperCase()}</span>
             </div>
           </div>
 
-          {/* Preview Dice Render */}
-          <div style={{ ...styles.previewBox, ...themeStyle.box }}>
-            <div style={{ ...styles.previewDie, ...themeStyle.die }}>
-              <span style={{ ...styles.previewDieText, ...themeStyle.text }}>20</span>
-            </div>
-            <span style={styles.previewLabel}>Visual Preview</span>
-          </div>
-
           <div style={styles.actions}>
-            <button 
-              type="button" 
-              onClick={onClose} 
-              style={styles.cancelBtn}
-              className="touch-target"
-            >
+            <button type="button" onClick={onClose} style={styles.cancelBtn} className="touch-target">
               Cancel
             </button>
-            <button 
-              type="submit" 
-              disabled={saving} 
-              style={styles.saveBtn}
+            <button
+              type="submit"
+              disabled={saving}
+              style={{ ...styles.saveBtn, opacity: saving ? 0.7 : 1 }}
               className="touch-target btn-hover-scale"
             >
-              {saving ? "Saving..." : "Save Settings"}
+              {saving ? "Saving" : "Save"}
             </button>
           </div>
         </form>
@@ -294,163 +162,240 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    backdropFilter: "blur(4px)",
+    backgroundColor: "rgba(0, 0, 0, 0.62)",
+    backdropFilter: "blur(5px)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
     zIndex: 10000,
+    padding: "0.75rem",
   },
   modalContent: {
-    width: "90%",
-    maxWidth: "400px",
-    padding: "24px",
-    borderRadius: "12px",
+    width: "100%",
+    maxWidth: "560px",
+    maxHeight: "92dvh",
+    overflowY: "auto",
+    padding: "1rem",
+    borderRadius: "8px",
     color: "#ffffff",
-    boxShadow: "0 10px 25px rgba(0, 0, 0, 0.5)",
     animation: "fadeIn 0.2s ease-out",
   },
   modalHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "20px",
+    gap: "0.75rem",
+    marginBottom: "0.9rem",
     borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-    paddingBottom: "10px",
+    paddingBottom: "0.75rem",
+  },
+  titleGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.55rem",
+    minWidth: 0,
   },
   modalTitle: {
     margin: 0,
-    fontSize: "1.2rem",
-    fontWeight: "bold",
-    letterSpacing: "0.5px",
+    fontSize: "1.08rem",
+    fontWeight: 800,
+    letterSpacing: 0,
   },
   closeBtn: {
-    background: "none",
-    border: "none",
-    color: "rgba(255, 255, 255, 0.6)",
-    fontSize: "24px",
+    width: "44px",
+    height: "44px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    color: "rgba(255, 255, 255, 0.72)",
+    borderRadius: "6px",
     cursor: "pointer",
-    padding: "0 5px",
-    lineHeight: 1,
+    flexShrink: 0,
   },
   form: {
     display: "flex",
     flexDirection: "column",
-    gap: "16px",
+    gap: "1rem",
   },
   formGroup: {
     display: "flex",
     flexDirection: "column",
-    gap: "6px",
+    gap: "0.6rem",
   },
   label: {
-    fontSize: "0.9rem",
-    fontWeight: "bold",
-    color: "#e2e8f0",
+    fontSize: "0.78rem",
+    fontWeight: 800,
+    color: "var(--color-muted)",
+    textTransform: "uppercase",
+    letterSpacing: "0.03em",
   },
-  select: {
-    padding: "10px",
-    borderRadius: "6px",
-    backgroundColor: "#1e293b",
-    border: "1px solid rgba(255, 255, 255, 0.2)",
-    color: "#ffffff",
-    fontSize: "0.95rem",
-    outline: "none",
+  previewBox: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
   },
-  helpText: {
-    fontSize: "0.75rem",
-    color: "#94a3b8",
+  previewStage: {
+    minHeight: "128px",
+    borderRadius: "8px",
+    padding: "1rem",
+    display: "grid",
+    gridTemplateColumns: "80px minmax(0, 1fr)",
+    alignItems: "center",
+    gap: "1rem",
+  },
+  previewDie: {
+    width: "68px",
+    height: "68px",
+    borderRadius: "8px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transform: "rotate(12deg)",
+  },
+  previewDieText: {
+    fontWeight: 900,
+    fontSize: "1.42rem",
+    lineHeight: 1,
+  },
+  previewMeta: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: "0.45rem",
+    minWidth: 0,
+  },
+  previewName: {
+    fontSize: "1.1rem",
+    fontWeight: 800,
+    color: "var(--color-text)",
+  },
+  previewChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: "28px",
+    borderRadius: "999px",
+    padding: "0.25rem 0.65rem",
+    fontSize: "0.72rem",
+    fontWeight: 800,
+    textTransform: "uppercase",
+    letterSpacing: "0.03em",
+  },
+  themeGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "0.55rem",
+  },
+  themeCard: {
+    position: "relative",
+    minHeight: "74px",
+    borderRadius: "8px",
+    border: "1px solid",
+    padding: "0.65rem",
+    color: "var(--color-text)",
+    cursor: "pointer",
+    display: "grid",
+    gridTemplateColumns: "42px minmax(0, 1fr)",
+    alignItems: "center",
+    justifyContent: "initial",
+    gap: "0.6rem",
+    textAlign: "left",
+  },
+  themeDie: {
+    width: "38px",
+    height: "38px",
+    borderRadius: "7px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transform: "rotate(10deg)",
+  },
+  themeDieText: {
+    fontSize: "0.86rem",
+    fontWeight: 900,
+    lineHeight: 1,
+  },
+  themeTextGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.15rem",
+    minWidth: 0,
+  },
+  themeName: {
+    fontSize: "0.88rem",
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  themeMaterial: {
+    fontSize: "0.72rem",
+    color: "var(--color-muted)",
+  },
+  checkMark: {
+    position: "absolute",
+    top: "0.45rem",
+    right: "0.45rem",
+    width: "22px",
+    height: "22px",
+    borderRadius: "999px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "var(--color-accent)",
+    color: "#12100a",
   },
   presetGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(6, 1fr)",
-    gap: "8px",
-    marginBottom: "8px",
+    gridTemplateColumns: "repeat(8, minmax(34px, 1fr))",
+    gap: "0.5rem",
   },
   presetBtn: {
-    height: "36px",
-    borderRadius: "6px",
+    minHeight: "44px",
+    borderRadius: "7px",
     cursor: "pointer",
     padding: 0,
-    transition: "transform 0.1s ease",
   },
   customColorRow: {
     display: "flex",
     alignItems: "center",
-    gap: "10px",
-    marginTop: "4px",
-  },
-  colorLabel: {
-    fontSize: "0.85rem",
-    color: "#94a3b8",
+    gap: "0.75rem",
   },
   colorPicker: {
-    width: "36px",
-    height: "36px",
-    border: "none",
-    borderRadius: "6px",
+    width: "52px",
+    height: "44px",
+    border: "1px solid rgba(255,255,255,0.14)",
+    borderRadius: "7px",
     backgroundColor: "transparent",
     cursor: "pointer",
   },
   hexValue: {
     fontFamily: "monospace",
     fontSize: "0.9rem",
-    color: "var(--color-accent, #c5a880)",
-  },
-  previewBox: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.2)",
-    padding: "16px",
-    borderRadius: "8px",
-    border: "1px dashed rgba(255, 255, 255, 0.1)",
-    margin: "8px 0",
-    gap: "8px",
-  },
-  previewDie: {
-    width: "48px",
-    height: "48px",
-    borderRadius: "8px",
-    boxShadow: "inset 0 0 10px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.3)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transform: "rotate(15deg)",
-    border: "1px solid rgba(255,255,255,0.3)",
-  },
-  previewDieText: {
-    color: "#ffffff",
-    fontWeight: "bold",
-    fontSize: "1.2rem",
-    textShadow: "0 1px 2px rgba(0,0,0,0.8)",
-  },
-  previewLabel: {
-    fontSize: "0.75rem",
-    color: "#94a3b8",
+    color: "var(--color-accent)",
   },
   actions: {
     display: "flex",
     justifyContent: "flex-end",
-    gap: "10px",
-    marginTop: "10px",
+    gap: "0.65rem",
+    paddingTop: "0.25rem",
   },
   cancelBtn: {
-    padding: "10px 16px",
+    padding: "0.65rem 1rem",
     borderRadius: "6px",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    border: "none",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    border: "1px solid rgba(255,255,255,0.08)",
     color: "#ffffff",
     cursor: "pointer",
   },
   saveBtn: {
-    padding: "10px 16px",
+    padding: "0.65rem 1.1rem",
     borderRadius: "6px",
-    backgroundColor: "var(--color-accent, #c5a880)",
+    background: "linear-gradient(135deg, var(--color-accent), var(--color-accent-hover))",
     border: "none",
-    color: "#1a1a1a",
-    fontWeight: "bold",
+    color: "#14100a",
+    fontWeight: 900,
     cursor: "pointer",
   },
 };

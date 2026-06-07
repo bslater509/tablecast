@@ -316,6 +316,7 @@ model Roll {
   rolls     String   // Store as JSON string: e.g. "[18]" or "[10, 5]"
   modifier  Int      @default(0)
   total     Int
+  diceTheme String   @default("default")
   diceColor String   @default("#7c3aed")
   createdAt DateTime @default(now())
 

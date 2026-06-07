@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import DiceBox from "@3d-dice/dice-box";
 import { useSocket } from "./SocketContext";
+import { getDiceThemeOption, getDiceThemePreviewStyles } from "../lib/diceThemes";
 
 const DiceBoxContext = createContext(null);
 
@@ -70,6 +71,7 @@ export function DiceBoxProvider({ children }) {
             formula: activeRoll.formula || "1d20",
             total: activeRoll.total !== undefined ? activeRoll.total : "?",
             color: activeRoll.color,
+            theme: activeRoll.theme,
           });
 
           // Remove completed roll from queue
@@ -245,29 +247,36 @@ export function DiceBoxProvider({ children }) {
       />
       {/* Global Toasts Container */}
       <div style={styles.toastContainer}>
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            style={{
-              ...styles.toast,
-              borderLeft: `4px solid ${t.color || "var(--color-accent, #c8973a)"}`,
-            }}
-            className="glass-panel slide-down"
-          >
-            <div style={styles.toastIcon}>🎲</div>
-            <div style={styles.toastBody}>
-              <div style={styles.toastHeader}>
-                <span style={styles.toastSender}>{t.sender}</span>
-                <span style={styles.toastAction}> rolled </span>
-                <span style={styles.toastFormula}>{t.rollName} ({t.formula})</span>
+        {toasts.map((t) => {
+          const toastTheme = getDiceThemeOption(t.theme || "default");
+          const toastThemeStyle = getDiceThemePreviewStyles(toastTheme.id, t.color || toastTheme.defaultColor);
+          return (
+            <div
+              key={t.id}
+              style={{
+                ...styles.toast,
+                borderLeft: `4px solid ${t.color || "var(--color-accent, #c8973a)"}`,
+              }}
+              className="glass-panel slide-down"
+            >
+              <div style={{ ...styles.toastIcon, ...toastThemeStyle.die }}>
+                <span style={{ ...styles.toastIconText, ...toastThemeStyle.text }}>20</span>
               </div>
-              <div style={styles.toastTotalRow}>
-                <span style={styles.toastTotalLabel}>Total:</span>
-                <span style={{ ...styles.toastTotalValue, color: t.color || "var(--color-accent, #c8973a)" }}>{t.total}</span>
+              <div style={styles.toastBody}>
+                <div style={styles.toastHeader}>
+                  <span style={styles.toastSender}>{t.sender}</span>
+                  <span style={styles.toastAction}> rolled </span>
+                  <span style={styles.toastFormula}>{t.rollName} ({t.formula})</span>
+                </div>
+                <div style={styles.toastTotalRow}>
+                  <span style={{ ...styles.toastThemeChip, ...toastThemeStyle.chip }}>{toastTheme.shortName}</span>
+                  <span style={styles.toastTotalLabel}>Total:</span>
+                  <span style={{ ...styles.toastTotalValue, color: t.color || "var(--color-accent, #c8973a)" }}>{t.total}</span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </DiceBoxContext.Provider>
   );
@@ -308,9 +317,19 @@ const styles = {
     pointerEvents: "auto",
   },
   toastIcon: {
-    fontSize: "1.5rem",
+    width: "42px",
+    height: "42px",
+    borderRadius: "8px",
     display: "flex",
     alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    transform: "rotate(8deg)",
+  },
+  toastIconText: {
+    fontSize: "0.88rem",
+    fontWeight: 900,
+    lineHeight: 1,
   },
   toastBody: {
     display: "flex",
@@ -338,6 +357,17 @@ const styles = {
     alignItems: "baseline",
     gap: "0.35rem",
     marginTop: "0.1rem",
+    flexWrap: "wrap",
+  },
+  toastThemeChip: {
+    minHeight: "22px",
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "0.1rem 0.45rem",
+    borderRadius: "999px",
+    fontSize: "0.64rem",
+    fontWeight: 800,
+    marginRight: "0.1rem",
   },
   toastTotalLabel: {
     fontSize: "0.75rem",

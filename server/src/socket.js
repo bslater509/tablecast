@@ -49,6 +49,7 @@ function registerSocketHandlers(io) {
               rolls: JSON.stringify(rd.rolls || []),
               modifier: rd.modifier || 0,
               total: rd.total || 0,
+              diceTheme: rd.diceTheme || "default",
               diceColor: rd.diceColor || "#7c3aed",
             }
           });
