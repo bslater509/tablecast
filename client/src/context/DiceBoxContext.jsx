@@ -111,21 +111,32 @@ export function DiceBoxProvider({ children }) {
       // Force viewport resize event just in case layout changed before active roll
       window.dispatchEvent(new Event("resize"));
       
+      const activeTheme = theme || "default";
+      const rollThemeColor = color || "#7c3aed";
+
       // Update config with the active theme and color dynamically
       try {
         box.updateConfig({
-          theme: theme || "default",
-          themeColor: color || "#7c3aed"
+          theme: activeTheme,
+          themeColor: rollThemeColor
         });
       } catch (err) {
         console.error("[3D Dice] Failed to update config:", err);
       }
 
-      // Roll the dice. Support both single string or array of strings.
-      try {
-        box.roll(dice3d, {
-          themeColor: color || "#7c3aed"
-        }).catch(err => {
+      // Ensure the theme is loaded first, then roll
+      const loadPromise = typeof box.loadTheme === "function"
+        ? box.loadTheme(activeTheme)
+        : Promise.resolve();
+
+      loadPromise
+        .then(() => {
+          return box.roll(dice3d, {
+            theme: activeTheme,
+            themeColor: rollThemeColor
+          });
+        })
+        .catch((err) => {
           console.error("[3D Dice] Roll error:", err);
           // Recover queue state on error
           window.dispatchEvent(
@@ -137,18 +148,6 @@ export function DiceBoxProvider({ children }) {
           setQueue([...queueRef.current]);
           setIsRolling(false);
         });
-      } catch (err) {
-        console.error("[3D Dice] Roll synchronous error:", err);
-        // Recover queue state on error
-        window.dispatchEvent(
-          new CustomEvent("dice:roll:complete", {
-            detail: { messageId: nextRoll.messageId },
-          })
-        );
-        queueRef.current.shift();
-        setQueue([...queueRef.current]);
-        setIsRolling(false);
-      }
     } else {
       setIsRolling(false);
     }
