@@ -126,8 +126,11 @@ for (const etoolsImgPath of etoolsImgPaths) {
 const clientDist = path.join(__dirname, "../../client/dist");
 app.use(express.static(clientDist));
 
-// SPA fallback  return index.html for all unmatched routes so React Router works
-app.get("*", (_req, res) => {
+// SPA fallback — return index.html for all unmatched routes so React Router works, but skip API endpoints
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api/")) {
+    return next();
+  }
   res.sendFile(path.join(clientDist, "index.html"));
 });
 

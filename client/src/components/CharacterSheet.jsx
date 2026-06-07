@@ -138,7 +138,10 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
       const res = await fetch(`/api/characters/${updatedChar.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-tablecast-user-id": String(user?.id || ""),
+        },
         body: JSON.stringify(payload),
       });
 

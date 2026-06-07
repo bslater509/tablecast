@@ -1054,8 +1054,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// Export server instance for web integration
-module.exports = server;
+function createMcpServer() {
+  const newServer = new Server(
+    {
+      name: "tablecast-mcp-server",
+      version: "1.0.0",
+    },
+    {
+      capabilities: {
+        tools: {},
+      },
+    }
+  );
+
+  // Copy request handlers from the singleton server dynamically
+  const handlersMap = server._requestHandlers || server.requestHandlers;
+  if (handlersMap && typeof handlersMap.entries === "function") {
+    const newHandlersMap = newServer._requestHandlers || newServer.requestHandlers;
+    if (newHandlersMap) {
+      for (const [name, handler] of handlersMap.entries()) {
+        newHandlersMap.set(name, handler);
+      }
+    }
+  }
+
+  return newServer;
+}
+
+// Export server instance and factory for web integration
+module.exports = { server, createMcpServer };
 
 // Run the stdio server ONLY if run directly
 async function main() {

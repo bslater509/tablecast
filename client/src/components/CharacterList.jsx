@@ -77,7 +77,10 @@ export default function CharacterList({ user, onSelectCharacter }) {
 
       const res = await fetch("/api/characters", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-tablecast-user-id": String(user?.id || ""),
+        },
         body: JSON.stringify(payload),
       });
 

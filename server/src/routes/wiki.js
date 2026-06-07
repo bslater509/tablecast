@@ -54,8 +54,13 @@ router.get("/", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
     const article = await prisma.wikiArticle.findUnique({
-      where: { id: Number(req.params.id) },
+      where: { id },
     });
 
     if (!article) {
@@ -126,6 +131,11 @@ router.post("/", requireDm, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.put("/:id", requireDm, async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
     const { title, content, isVisibleToPlayers, tags, category } = req.body;
     const data = {};
 
@@ -169,7 +179,7 @@ router.put("/:id", requireDm, async (req, res) => {
     }
 
     const article = await prisma.wikiArticle.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data,
     });
 
@@ -188,8 +198,13 @@ router.put("/:id", requireDm, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.delete("/:id", requireDm, async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
     await prisma.wikiArticle.delete({
-      where: { id: Number(req.params.id) },
+      where: { id },
     });
 
     res.json({ message: "Wiki article deleted." });

@@ -82,9 +82,14 @@ router.get("/", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
     const user = await getRequestUser(req);
     const npc = await prisma.npc.findUnique({
-      where: { id: Number(req.params.id) },
+      where: { id },
     });
 
     if (!npc) {
@@ -148,6 +153,11 @@ router.post("/", requireDm, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.put("/:id", requireDm, async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
     const data = {};
 
     for (const field of ALLOWED_FIELDS) {
@@ -173,7 +183,7 @@ router.put("/:id", requireDm, async (req, res) => {
     }
 
     const npc = await prisma.npc.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data,
     });
 
@@ -192,8 +202,13 @@ router.put("/:id", requireDm, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.delete("/:id", requireDm, async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
     await prisma.npc.delete({
-      where: { id: Number(req.params.id) },
+      where: { id },
     });
 
     res.json({ message: "NPC deleted." });

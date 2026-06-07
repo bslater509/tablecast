@@ -80,6 +80,20 @@ router.put("/config", requireDm, async (req, res) => {
   }
 });
 
+function escapeHtml(str) {
+  if (typeof str !== "string") return "";
+  return str.replace(/[&<>"']/g, (m) => {
+    switch (m) {
+      case "&": return "&amp;";
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case '"': return "&quot;";
+      case "'": return "&#039;";
+      default: return m;
+    }
+  });
+}
+
 router.post("/oauth-init", requireDm, async (req, res) => {
   try {
     const { client_id, client_secret, remote_name, remote_path, redirect_uri } = req.body;
@@ -95,6 +109,19 @@ router.post("/oauth-init", requireDm, async (req, res) => {
       }
     }
 
+    let clientOrigin = req.get("origin");
+    if (!clientOrigin) {
+      const referer = req.get("referer");
+      if (referer) {
+        try {
+          clientOrigin = new URL(referer).origin;
+        } catch {}
+      }
+    }
+    if (!clientOrigin) {
+      clientOrigin = "*";
+    }
+
     const state = crypto.randomBytes(16).toString("hex");
     oauthStates.set(state, {
       client_id,
@@ -102,6 +129,7 @@ router.post("/oauth-init", requireDm, async (req, res) => {
       remote_name,
       remote_path: remote_path || "",
       redirect_uri,
+      clientOrigin,
       createdAt: now
     });
 
@@ -126,7 +154,7 @@ router.get("/oauth-callback", async (req, res) => {
   const { code, state, error: oauthError } = req.query;
 
   if (oauthError) {
-    return res.status(400).send(`OAuth Error from Google: ${oauthError}`);
+    return res.status(400).send(`OAuth Error from Google: ${escapeHtml(String(oauthError))}`);
   }
 
   if (!code || !state) {
@@ -188,6 +216,8 @@ router.get("/oauth-callback", async (req, res) => {
       create: { key: "rclone.remote", value: fullRemote },
     });
 
+    const targetOrigin = stateInfo.clientOrigin || "*";
+
     res.setHeader("Content-Type", "text/html");
     res.send(`
       <!DOCTYPE html>
@@ -228,12 +258,12 @@ router.get("/oauth-callback", async (req, res) => {
         <div class="card">
           <div class="success-icon">✨</div>
           <h1>Authentication Complete</h1>
-          <p>Tablecast has successfully configured your Google Drive backup remote <strong>"${stateInfo.remote_name}"</strong>!</p>
+          <p>Tablecast has successfully configured your Google Drive backup remote <strong>"${escapeHtml(stateInfo.remote_name)}"</strong>!</p>
           <p>This window will close automatically shortly.</p>
         </div>
         <script>
           if (window.opener) {
-            window.opener.postMessage({ type: 'RCLONE_AUTH_SUCCESS' }, '*');
+            window.opener.postMessage({ type: 'RCLONE_AUTH_SUCCESS' }, '${targetOrigin}');
           }
           setTimeout(() => {
             window.close();
@@ -281,7 +311,7 @@ router.get("/oauth-callback", async (req, res) => {
           <div class="error-icon">❌</div>
           <h1>Authentication Failed</h1>
           <p>An error occurred while linking your Google Drive:</p>
-          <pre style="background: rgba(0,0,0,0.4); padding: 1rem; border-radius: 6px; text-align: left; overflow-x: auto; font-size: 0.8rem; color: #ff8585;">${err.message}</pre>
+          <pre style="background: rgba(0,0,0,0.4); padding: 1rem; border-radius: 6px; text-align: left; overflow-x: auto; font-size: 0.8rem; color: #ff8585;">${escapeHtml(err.message)}</pre>
           <p>Please close this window and try again.</p>
         </div>
       </body>

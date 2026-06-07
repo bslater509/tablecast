@@ -11,7 +11,7 @@
 
 const { Router } = require("express");
 const { SSEServerTransport } = require("@modelcontextprotocol/sdk/server/sse.js");
-const mcpServer = require("../mcp-server");
+const { server: mcpServer, createMcpServer } = require("../mcp-server");
 const prisma = require("../prisma");
 const { requireDm, getRequestUser } = require("../auth");
 const referenceSearch = require("../utils/referenceSearch");
@@ -31,7 +31,8 @@ router.get("/mcp", async (req, res) => {
     const transport = new SSEServerTransport("/api/ai/mcp/message", res);
     
     // Connect MCP server to this transport. This calls transport.start() internally.
-    await mcpServer.connect(transport);
+    const connectionServer = createMcpServer();
+    await connectionServer.connect(transport);
 
     const sessionId = transport.sessionId;
     activeTransports.set(sessionId, transport);
@@ -190,7 +191,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
   switch (provider) {
     case "gemini": {
       if (!apiKey) throw new Error("Missing Gemini API Key.");
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
       
       const contents = [];
       // Combine systemPrompt + message in a clean instruction structure
@@ -217,7 +218,10 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
 
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey
+        },
         body: JSON.stringify({ contents })
       });
 

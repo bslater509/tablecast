@@ -10,6 +10,7 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
+const { getRequestUser } = require("../auth");
 
 const router = Router();
 
@@ -51,7 +52,11 @@ router.get("/", async (req, res) => {
   try {
     const where = {};
     if (req.query.userId) {
-      where.userId = Number(req.query.userId);
+      const uId = Number(req.query.userId);
+      if (isNaN(uId)) {
+        return res.status(400).json({ error: "userId query parameter must be a valid number." });
+      }
+      where.userId = uId;
     }
 
     const characters = await prisma.character.findMany({
@@ -72,8 +77,13 @@ router.get("/", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
     const character = await prisma.character.findUnique({
-      where: { id: Number(req.params.id) },
+      where: { id },
       include: { user: { select: { id: true, username: true, role: true } } },
     });
 
@@ -102,16 +112,30 @@ router.post("/", async (req, res) => {
         .json({ error: "userId (number) and name (string) are required." });
     }
 
+    const parsedUserId = Number(userId);
+    if (isNaN(parsedUserId)) {
+      return res.status(400).json({ error: "userId must be a valid number." });
+    }
+
+    // Authorization check
+    const reqUser = await getRequestUser(req);
+    if (!reqUser) {
+      return res.status(401).json({ error: "A valid user session is required." });
+    }
+    if (reqUser.id !== parsedUserId && reqUser.role !== "DM") {
+      return res.status(403).json({ error: "You are not authorized to create a character for this user." });
+    }
+
     // Verify the owning user exists
     const userExists = await prisma.user.findUnique({
-      where: { id: Number(userId) },
+      where: { id: parsedUserId },
     });
     if (!userExists) {
       return res.status(404).json({ error: "Owning user not found." });
     }
 
     // Build data object from allowed fields
-    const data = { userId: Number(userId), name: name.trim() };
+    const data = { userId: parsedUserId, name: name.trim() };
 
     for (const field of ALLOWED_FIELDS) {
       if (field === "name") continue; // already set
@@ -144,6 +168,29 @@ router.post("/", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.put("/:id", async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
+    // Retrieve character to check ownership
+    const existingChar = await prisma.character.findUnique({
+      where: { id },
+    });
+
+    if (!existingChar) {
+      return res.status(404).json({ error: "Character not found." });
+    }
+
+    // Authorization check
+    const reqUser = await getRequestUser(req);
+    if (!reqUser) {
+      return res.status(401).json({ error: "A valid user session is required." });
+    }
+    if (existingChar.userId !== reqUser.id && reqUser.role !== "DM") {
+      return res.status(403).json({ error: "You are not authorized to update this character." });
+    }
+
     const data = {};
 
     for (const field of ALLOWED_FIELDS) {
@@ -162,7 +209,7 @@ router.put("/:id", async (req, res) => {
     }
 
     const character = await prisma.character.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data,
       include: { user: { select: { id: true, username: true, role: true } } },
     });
@@ -182,8 +229,30 @@ router.put("/:id", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.delete("/:id", async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
+    const existingChar = await prisma.character.findUnique({
+      where: { id },
+    });
+
+    if (!existingChar) {
+      return res.status(404).json({ error: "Character not found." });
+    }
+
+    // Authorization check
+    const reqUser = await getRequestUser(req);
+    if (!reqUser) {
+      return res.status(401).json({ error: "A valid user session is required." });
+    }
+    if (existingChar.userId !== reqUser.id && reqUser.role !== "DM") {
+      return res.status(403).json({ error: "You are not authorized to delete this character." });
+    }
+
     await prisma.character.delete({
-      where: { id: Number(req.params.id) },
+      where: { id },
     });
 
     res.json({ message: "Character deleted." });

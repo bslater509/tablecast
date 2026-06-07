@@ -44,8 +44,13 @@ router.get("/", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
     const map = await prisma.map.findUnique({
-      where: { id: Number(req.params.id) },
+      where: { id },
       include: { tokens: { include: { character: true, npc: true } } },
     });
 
@@ -132,7 +137,7 @@ router.post("/", requireDm, async (req, res) => {
 router.delete("/:id", requireDm, async (req, res) => {
   try {
     const mapId = Number(req.params.id);
-    if (!Number.isInteger(mapId) || mapId <= 0) {
+    if (isNaN(mapId) || mapId <= 0) {
       return res.status(400).json({ error: "Invalid map id." });
     }
 
@@ -175,12 +180,12 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
     const tokenX = x !== undefined ? Number(x) : 0;
     const tokenY = y !== undefined ? Number(y) : 0;
 
-    if (!Number.isInteger(mapId) || mapId <= 0) {
+    if (isNaN(mapId) || mapId <= 0) {
       return res.status(400).json({ error: "Invalid map id." });
     }
 
-    if (!Number.isFinite(tokenX) || !Number.isFinite(tokenY)) {
-      return res.status(400).json({ error: "Token coordinates must be valid numbers." });
+    if (!Number.isFinite(tokenX) || !Number.isFinite(tokenY) || tokenX < 0 || tokenY < 0 || tokenX > 10000 || tokenY > 10000) {
+      return res.status(400).json({ error: "Token coordinates must be valid numbers between 0 and 10000." });
     }
 
     // Check map exists
@@ -224,7 +229,7 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
   try {
     const tokenId = Number(req.params.id);
     const { characterId, npcId, label, imageUrl, x, y, stats } = req.body;
-    if (!Number.isInteger(tokenId) || tokenId <= 0) {
+    if (isNaN(tokenId) || tokenId <= 0) {
       return res.status(400).json({ error: "Invalid token id." });
     }
 
@@ -233,15 +238,15 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
     if (imageUrl !== undefined) data.imageUrl = imageUrl;
     if (x !== undefined) {
       const nextX = Number(x);
-      if (!Number.isFinite(nextX)) {
-        return res.status(400).json({ error: "Token x coordinate must be a valid number." });
+      if (!Number.isFinite(nextX) || nextX < 0 || nextX > 10000) {
+        return res.status(400).json({ error: "Token x coordinate must be between 0 and 10000." });
       }
       data.x = nextX;
     }
     if (y !== undefined) {
       const nextY = Number(y);
-      if (!Number.isFinite(nextY)) {
-        return res.status(400).json({ error: "Token y coordinate must be a valid number." });
+      if (!Number.isFinite(nextY) || nextY < 0 || nextY > 10000) {
+        return res.status(400).json({ error: "Token y coordinate must be between 0 and 10000." });
       }
       data.y = nextY;
     }
@@ -291,7 +296,7 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
 router.delete("/tokens/:id", requireDm, async (req, res) => {
   try {
     const tokenId = Number(req.params.id);
-    if (!Number.isInteger(tokenId) || tokenId <= 0) {
+    if (isNaN(tokenId) || tokenId <= 0) {
       return res.status(400).json({ error: "Invalid token id." });
     }
     await prisma.token.delete({ where: { id: tokenId } });

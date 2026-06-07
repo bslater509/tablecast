@@ -10,6 +10,7 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
+const { getRequestUser } = require("../auth");
 
 const router = Router();
 
@@ -36,8 +37,13 @@ router.get("/", async (_req, res) => {
 // ---------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
     const user = await prisma.user.findUnique({
-      where: { id: Number(req.params.id) },
+      where: { id },
       include: { characters: true },
     });
 
@@ -94,12 +100,30 @@ router.post("/", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.put("/:id", async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
+    const reqUser = await getRequestUser(req);
+    if (!reqUser) {
+      return res.status(401).json({ error: "A valid user session is required." });
+    }
+
+    if (reqUser.id !== id && reqUser.role !== "DM") {
+      return res.status(403).json({ error: "You are not authorized to update this user." });
+    }
+
     const { username, role, diceTheme, diceColor } = req.body;
 
     if (role && !VALID_ROLES.includes(role)) {
       return res
         .status(400)
         .json({ error: `role must be one of: ${VALID_ROLES.join(", ")}` });
+    }
+
+    if (role && reqUser.role !== "DM") {
+      return res.status(403).json({ error: "Only DMs can change user roles." });
     }
 
     const data = {};
@@ -113,7 +137,7 @@ router.put("/:id", async (req, res) => {
     }
 
     const user = await prisma.user.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data,
     });
 
@@ -135,8 +159,22 @@ router.put("/:id", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.delete("/:id", async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
+    const reqUser = await getRequestUser(req);
+    if (!reqUser) {
+      return res.status(401).json({ error: "A valid user session is required." });
+    }
+
+    if (reqUser.id !== id && reqUser.role !== "DM") {
+      return res.status(403).json({ error: "You are not authorized to delete this user." });
+    }
+
     await prisma.user.delete({
-      where: { id: Number(req.params.id) },
+      where: { id },
     });
 
     res.json({ message: "User deleted." });
