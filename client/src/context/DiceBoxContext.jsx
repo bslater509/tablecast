@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import DiceBox from "@3d-dice/dice-box";
+import { useSocket } from "./SocketContext";
 
 const DiceBoxContext = createContext(null);
 
@@ -121,6 +122,24 @@ export function DiceBoxProvider({ children }) {
     queueRef.current.push({ messageId, dice3d, color });
     setQueue([...queueRef.current]);
   };
+
+  const socketContext = useSocket();
+  const socket = socketContext?.socket;
+
+  useEffect(() => {
+    if (!socket) return;
+
+    function handleGlobalRollMessage(msg) {
+      if (msg.type === "roll" && msg.rollDetails?.status === "rolling") {
+        trigger3DRoll(msg.id, msg.rollDetails.dice3d, msg.rollDetails.diceColor);
+      }
+    }
+
+    socket.on("chat:message", handleGlobalRollMessage);
+    return () => {
+      socket.off("chat:message", handleGlobalRollMessage);
+    };
+  }, [socket]);
 
   return (
     <DiceBoxContext.Provider value={{ trigger3DRoll, isReady, isRolling }}>

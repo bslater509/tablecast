@@ -13,6 +13,7 @@ import SettingsPanel from "./components/SettingsPanel";
 import ReferencePanel from "./components/ReferencePanel";
 import AiPanel from "./components/AiPanel";
 import DiceSettingsModal from "./components/DiceSettingsModal";
+import DiceRollerPanel from "./components/DiceRollerPanel";
 import { useSocket } from "./context/SocketContext";
 
 const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
@@ -703,7 +704,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "sheet", "chat-journal"].includes(pathParts[2])
+  const currentTab = ["map", "sheet", "chat-journal", "dice"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
@@ -746,6 +747,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
           <Route path="map" element={<MapPanel user={user} />} />
           <Route path="sheet" element={<PlayerSheetRedirect user={user} />} />
           <Route path="sheet/:id" element={<CharacterSheetWrapper user={user} basePath="/player/sheet" />} />
+          <Route path="dice" element={<DiceRollerPanel user={user} />} />
           <Route path="chat-journal" element={<Navigate to="chat" replace />} />
           <Route path="chat-journal/:subtab" element={<ChatJournalWrapper user={user} basePath="/player/chat-journal" />} />
           <Route path="*" element={<Navigate to="map" replace />} />
@@ -791,6 +793,25 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
         </button>
 
         <button
+          id="nav-tab-dice"
+          onClick={() => navigate("/player/dice")}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "dice" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+        >
+          <span style={styles.navIcon}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
+          </span>
+          <span style={styles.navLabel}>Dice</span>
+        </button>
+
+        <button
           id="nav-tab-chat-journal"
           onClick={() => navigate("/player/chat-journal/chat")}
           style={{
@@ -816,7 +837,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "characters", "chat-journal", "settings"].includes(pathParts[2])
+  const currentTab = ["map", "characters", "chat-journal", "settings", "dice"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
@@ -859,6 +880,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             }
           />
           <Route path="characters/:id" element={<CharacterSheetWrapper user={user} basePath="/dm/characters" />} />
+          <Route path="dice" element={<DiceRollerPanel user={user} />} />
           <Route path="chat-journal" element={<Navigate to="chat" replace />} />
           <Route path="chat-journal/:subtab" element={<ChatJournalWrapper user={user} basePath="/dm/chat-journal" />} />
           <Route path="settings" element={<SettingsPanel user={user} />} />
@@ -905,6 +927,25 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             </svg>
           </span>
           <span style={styles.navLabel}>Characters</span>
+        </button>
+
+        <button
+          id="nav-tab-dice"
+          onClick={() => navigate("/dm/dice")}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "dice" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+        >
+          <span style={styles.navIcon}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
+          </span>
+          <span style={styles.navLabel}>Dice</span>
         </button>
 
         <button

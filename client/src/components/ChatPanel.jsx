@@ -4,7 +4,6 @@
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
-import { useDiceBox } from "../context/DiceBoxContext";
 
 export default function ChatPanel({ user }) {
   const { socket, isConnected } = useSocket();
@@ -24,7 +23,7 @@ export default function ChatPanel({ user }) {
     }
   }, [user]);
 
-  const { trigger3DRoll } = useDiceBox();
+
 
   // Listen for completed dice rolls to update UI
   useEffect(() => {
@@ -50,11 +49,6 @@ export default function ChatPanel({ user }) {
       setMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev;
 
-        // If it's a new roll message in rolling state, trigger 3D roll animation
-        if (msg.type === "roll" && msg.rollDetails?.status === "rolling") {
-          trigger3DRoll(msg.id, msg.rollDetails.dice3d, msg.rollDetails.diceColor);
-        }
-
         return [...prev, msg];
       });
     }
@@ -73,7 +67,7 @@ export default function ChatPanel({ user }) {
       socket.off("chat:message", onMessage);
       socket.off("chat:typing", onTyping);
     };
-  }, [socket, trigger3DRoll]);
+  }, [socket]);
 
   //  Auto-scroll to latest message 
   useEffect(() => {
