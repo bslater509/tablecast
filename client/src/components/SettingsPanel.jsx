@@ -462,6 +462,10 @@ function SettingsPanel({ user }) {
           ollamaModel: aiOllamaModel,
           model: aiModel,
         }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAiTestResult({ success: true, message: `Connection test successful! Reply: ${data.reply}` });
       } else {
         setAiTestResult({ success: false, message: `Connection test failed: ${data.error}` });
       }
