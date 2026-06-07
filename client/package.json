@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "node patch-dice-box.js && node generate-dice-textures.js && vite",
     "build": "node patch-dice-box.js && node generate-dice-textures.js && vite build",
-    "preview": "vite preview",
-    "postinstall": "node patch-dice-box.js && node generate-dice-textures.js"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@3d-dice/dice-box": "^1.1.4",
