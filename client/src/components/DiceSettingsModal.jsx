@@ -92,6 +92,12 @@ export default function DiceSettingsModal({ user, onClose, onSave }) {
   const [diceTheme, setDiceTheme] = useState(user?.diceTheme || "default");
   const [diceColor, setDiceColor] = useState(user?.diceColor || "#7c3aed");
   const [saving, setSaving] = useState(false);
+  const [diceStrength, setDiceStrength] = useState(() => {
+    return Number(localStorage.getItem("tablecast_dice_strength")) || 1.0;
+  });
+  const [diceScale, setDiceScale] = useState(() => {
+    return Number(localStorage.getItem("tablecast_dice_scale")) || 100;
+  });
 
   const handleThemeChange = (newTheme) => {
     setDiceTheme(newTheme);
@@ -103,6 +109,8 @@ export default function DiceSettingsModal({ user, onClose, onSave }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
+    localStorage.setItem("tablecast_dice_strength", diceStrength.toString());
+    localStorage.setItem("tablecast_dice_scale", diceScale.toString());
     await onSave(diceTheme, diceColor);
     setSaving(false);
     onClose();
@@ -175,9 +183,53 @@ export default function DiceSettingsModal({ user, onClose, onSave }) {
             </div>
           </div>
 
+          {/* Toss Strength Slider */}
+          <div style={styles.formGroup}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label style={styles.label}>Toss Strength</label>
+              <span style={styles.sliderVal}>{diceStrength.toFixed(1)}x</span>
+            </div>
+            <input
+              type="range"
+              min="0.5"
+              max="3.0"
+              step="0.1"
+              value={diceStrength}
+              onChange={(e) => setDiceStrength(Number(e.target.value))}
+              style={styles.slider}
+            />
+            <small style={styles.helpText}>
+              Adjusts the force applied when throwing the dice.
+            </small>
+          </div>
+
+          {/* Dice Scale Slider */}
+          <div style={styles.formGroup}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label style={styles.label}>Dice Size</label>
+              <span style={styles.sliderVal}>{diceScale}%</span>
+            </div>
+            <input
+              type="range"
+              min="50"
+              max="150"
+              step="5"
+              value={diceScale}
+              onChange={(e) => setDiceScale(Number(e.target.value))}
+              style={styles.slider}
+            />
+            <small style={styles.helpText}>
+              Controls the physical rendering scale of the dice.
+            </small>
+          </div>
+
           {/* Preview Dice Render */}
           <div style={{ ...styles.previewBox, ...themeStyle.box }}>
-            <div style={{ ...styles.previewDie, ...themeStyle.die }}>
+            <div style={{ 
+              ...styles.previewDie, 
+              ...themeStyle.die,
+              transform: `rotate(15deg) scale(${diceScale / 100})`
+            }}>
               <span style={{ ...styles.previewDieText, ...themeStyle.text }}>20</span>
             </div>
             <span style={styles.previewLabel}>Visual Preview</span>
@@ -315,6 +367,23 @@ const styles = {
   hexValue: {
     fontFamily: "monospace",
     fontSize: "0.9rem",
+    color: "var(--color-accent, #c5a880)",
+  },
+  slider: {
+    width: "100%",
+    height: "6px",
+    borderRadius: "3px",
+    background: "rgba(255, 255, 255, 0.15)",
+    outline: "none",
+    appearance: "none",
+    cursor: "pointer",
+    accentColor: "var(--color-accent, #c5a880)",
+    marginTop: "8px",
+    marginBottom: "4px",
+  },
+  sliderVal: {
+    fontSize: "0.95rem",
+    fontWeight: "bold",
     color: "var(--color-accent, #c5a880)",
   },
   previewBox: {
