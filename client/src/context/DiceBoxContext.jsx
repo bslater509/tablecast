@@ -16,10 +16,6 @@ export function DiceBoxProvider({ children }) {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Load initial options from localStorage
-    const savedScale = Number(localStorage.getItem("tablecast_dice_scale")) || 100;
-    const savedStrength = Number(localStorage.getItem("tablecast_dice_strength")) || 1.0;
-
     // Initialize the DiceBox instance
     const box = new DiceBox({
       container: "#dice-box-canvas",
@@ -31,8 +27,6 @@ export function DiceBoxProvider({ children }) {
       mass: 1,
       friction: 0.8,
       restitution: 0.1,
-      baseScale: savedScale,
-      strength: savedStrength,
     });
 
     box.init().then(() => {
@@ -98,17 +92,11 @@ export function DiceBoxProvider({ children }) {
       // Force viewport resize event just in case layout changed before active roll
       window.dispatchEvent(new Event("resize"));
       
-      // Load current preferences from localStorage for the active roll configuration
-      const savedScale = Number(localStorage.getItem("tablecast_dice_scale")) || 100;
-      const savedStrength = Number(localStorage.getItem("tablecast_dice_strength")) || 1.0;
-
-      // Update config with the active theme, color, scale, and strength dynamically
+      // Update config with the active theme and color dynamically
       try {
         box.updateConfig({
           theme: theme || "default",
-          themeColor: color || "#7c3aed",
-          baseScale: savedScale,
-          strength: savedStrength
+          themeColor: color || "#7c3aed"
         });
       } catch (err) {
         console.error("[3D Dice] Failed to update config:", err);
