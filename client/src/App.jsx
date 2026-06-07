@@ -60,6 +60,8 @@ function App() {
 
   // Route authorization & redirect logic
   useEffect(() => {
+    if (loadingUsers) return;
+
     if (!user) {
       if (location.pathname !== "/" && !location.pathname.startsWith("/api")) {
         navigate("/", { replace: true });
@@ -81,7 +83,7 @@ function App() {
         }
       }
     }
-  }, [user, location.pathname, navigate]);
+  }, [user, location.pathname, navigate, loadingUsers]);
 
   const pathParts = location.pathname.split("/");
   const currentTab = ["map", "characters", "chat-journal", "settings"].includes(pathParts[1])
@@ -120,14 +122,16 @@ function App() {
   function handleSelectUser(selectedUser) {
     setUser(selectedUser);
     localStorage.setItem(SELECTED_USER_STORAGE_KEY, String(selectedUser.id));
-    if (selectedUser.role === "DM") {
-      navigate("/dm/map");
-    } else {
-      const firstChar = selectedUser.characters && selectedUser.characters[0];
-      if (firstChar) {
-        navigate(`/player/sheet/${firstChar.id}`);
+    if (location.pathname === "/") {
+      if (selectedUser.role === "DM") {
+        navigate("/dm/map");
       } else {
-        navigate("/player/map");
+        const firstChar = selectedUser.characters && selectedUser.characters[0];
+        if (firstChar) {
+          navigate(`/player/sheet/${firstChar.id}`);
+        } else {
+          navigate("/player/map");
+        }
       }
     }
   }
