@@ -1343,12 +1343,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                     <div className="wiki-content" style={styles.npcBioText} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.partyRelationship) }} />
                   </div>
                 )}
-                {selectedArticle.description && (
-                  <div style={{ ...styles.npcBioSection, borderTop: "1px dashed var(--color-border)", paddingTop: "1rem", marginTop: "1rem" }}>
-                    <h4 style={{ ...styles.npcBioSectionTitle, color: "var(--color-warning)" }}>Legacy Notes / General Description</h4>
-                    <div className="wiki-content" style={{ ...styles.npcBioText, opacity: 0.8 }} dangerouslySetInnerHTML={{ __html: compileMarkdown(selectedArticle.description) }} />
-                  </div>
-                )}
+
               </div>
             </>
           ) : (
@@ -1908,25 +1903,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                       />
                     </div>
 
-                    {/* Legacy description warning/editing in case the user wants to clean it up */}
-                    {editingNpc.description && (
-                      <div style={{ ...styles.formGroup, borderTop: "1px solid var(--color-border)", paddingTop: "1rem" }}>
-                        <label style={{ ...styles.label, color: "var(--color-warning)" }}>Legacy Notes / General Description (Read Only)</label>
-                        <p style={{ fontSize: "0.85rem", color: "var(--color-muted)", marginBottom: "0.5rem" }}>
-                          This NPC has legacy content in their description. It is displayed here but cannot be modified. Copy any useful text to the sections above.
-                        </p>
-                        <div
-                          style={{
-                            ...styles.previewContainer,
-                            opacity: 0.7,
-                            backgroundColor: "rgba(0,0,0,0.1)",
-                            fontSize: "0.9rem"
-                          }}
-                          className="wiki-content"
-                          dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.description) }}
-                        />
-                      </div>
-                    )}
+
 
                   </div>
                 ) : (
@@ -1961,12 +1938,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                         <div className="wiki-content" dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.partyRelationship) }} />
                       </div>
                     )}
-                    {editingNpc.description && (
-                      <div style={{ borderTop: "1px dashed var(--color-border)", paddingTop: "0.5rem" }}>
-                        <strong style={{ color: "var(--color-warning)" }}>Legacy Notes / Description:</strong>
-                        <div className="wiki-content" dangerouslySetInnerHTML={{ __html: compileMarkdown(editingNpc.description) }} />
-                      </div>
-                    )}
+
                   </div>
                 )}
               </div>
