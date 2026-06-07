@@ -96,7 +96,7 @@ router.post("/", async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // PUT /api/users/:id  update an existing user
-// Body: { username?: string, role?: "DM" | "PLAYER" }
+// Body: { username?: string, role?: "DM" | "PLAYER", diceTheme?: string, diceColor?: string }
 // ---------------------------------------------------------------------------
 router.put("/:id", async (req, res) => {
   try {
@@ -139,6 +139,7 @@ router.put("/:id", async (req, res) => {
     const user = await prisma.user.update({
       where: { id },
       data,
+      include: { characters: { select: { id: true, name: true } } },
     });
 
     res.json(user);

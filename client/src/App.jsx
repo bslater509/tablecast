@@ -105,18 +105,25 @@ function App() {
     try {
       const res = await fetch(`/api/users/${user.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-tablecast-user-id": String(user.id),
+        },
         body: JSON.stringify({ diceTheme, diceColor }),
       });
       if (res.ok) {
         const updatedUser = await res.json();
         setUser(updatedUser);
+        setUsersList((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+        return true;
       } else {
-        console.error("Failed to update user settings");
+        const err = await res.json().catch(() => ({}));
+        console.error("Failed to update user settings:", err.error || res.statusText);
       }
     } catch (err) {
       console.error("Error updating user settings:", err);
     }
+    return false;
   };
 
   // Route authorization & redirect logic

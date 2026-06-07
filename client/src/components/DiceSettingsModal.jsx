@@ -177,9 +177,11 @@ export default function DiceSettingsModal({ user, onClose, onSave }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    await onSave(diceTheme, diceColor);
+    const saved = await onSave(diceTheme, diceColor);
     setSaving(false);
-    onClose();
+    if (saved) {
+      onClose();
+    }
   };
 
   const themeStyle = getPreviewStyle(diceTheme, diceColor);
