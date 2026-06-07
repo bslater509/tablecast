@@ -283,9 +283,11 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [npcGenPrompt, setNpcGenPrompt] = useState("");
   const [npcGenLoading, setNpcGenLoading] = useState(false);
   const [npcGenError, setNpcGenError] = useState(null);
-  const [npcGenOptions, setNpcGenOptions] = useState(null); // [{name, race, class, cr, briefDescription}, ...]
-  const [npcGenStep, setNpcGenStep] = useState("prompt"); // "prompt" | "choose" | "generating_full"
+  const [npcGenStep, setNpcGenStep] = useState("interview"); // "interview" | "generating_full"
   const [npcGenProgress, setNpcGenProgress] = useState(""); // Live status message during generation
+  const [npcInterviewHistory, setNpcInterviewHistory] = useState([]); // [{ question, answer: { id, label, description } }]
+  const [npcCurrentQuestion, setNpcCurrentQuestion] = useState(null); // { question, choices: [{ id, label, description }] }
+  const [npcInterviewSummary, setNpcInterviewSummary] = useState(""); // Summary when AI signals generate
   const [showAssistDropdown, setShowAssistDropdown] = useState(null); // field name or null
   const [assistLoadingField, setAssistLoadingField] = useState(null);
   const [assistUndo, setAssistUndo] = useState(null); // { fieldId, previousText, isNpcField }
@@ -423,6 +425,15 @@ export default function WikiPanel({ user, isPopout = false }) {
     return () => window.removeEventListener("click", handleClose);
   }, []);
 
+  // Start NPC interview when the modal opens
+  useEffect(() => {
+    if (showNpcGenModal) {
+      resetNpcGenState();
+      const timer = setTimeout(() => startInterview(), 80);
+      return () => clearTimeout(timer);
+    }
+  }, [showNpcGenModal]);
+
   // SSE reader for NPC generation endpoints (emits status, result, error, done events)
   async function streamNpcGeneration(url, body, { onStatus, onResult, onError }) {
     const res = await fetch(url, {
@@ -496,49 +507,128 @@ export default function WikiPanel({ user, isPopout = false }) {
     }
   }
 
-  // Step 1: Generate multiple NPC options
-  async function handleGenerateOptions(e) {
-    e.preventDefault();
-    if (!npcGenPrompt.trim() || npcGenLoading) return;
-
+  // Start the interview — fetch the very first question
+  async function startInterview() {
     setNpcGenLoading(true);
     setNpcGenError(null);
-    setNpcGenOptions(null);
+    setNpcInterviewHistory([]);
+    setNpcCurrentQuestion(null);
+    setNpcInterviewSummary("");
     setNpcGenProgress("");
 
     try {
-      await streamNpcGeneration("/api/ai/generate-npc-options", { prompt: npcGenPrompt.trim() }, {
+      await streamNpcGeneration("/api/ai/npc-interview", {
+        prompt: npcGenPrompt.trim() || undefined,
+        interviewHistory: [],
+        finalStep: false,
+      }, {
         onStatus: (msg) => setNpcGenProgress(msg),
         onResult: (data) => {
-          setNpcGenOptions(data.options || []);
-          setNpcGenStep("choose");
+          if (data.action === "ask") {
+            setNpcCurrentQuestion({
+              question: data.question,
+              choices: data.choices || [],
+              questionIndex: 0,
+            });
+            setNpcGenStep("interview");
+            setNpcGenLoading(false);
+            setNpcGenProgress("");
+          } else if (data.action === "generate") {
+            // AI immediately has enough info — go straight to final generation
+            setNpcInterviewSummary(data.summary || "Custom NPC");
+            handleFinalGenerate(data, []);
+          } else {
+            throw new Error("Unexpected response from AI. Please try again.");
+          }
         },
-        onError: (msg) => {
-          throw new Error(msg);
-        },
+        onError: (msg) => { throw new Error(msg); },
       });
     } catch (err) {
-      console.error("[AI NPC Options] Error:", err);
+      console.error("[AI NPC Interview Start] Error:", err);
       setNpcGenError(err.message);
-    } finally {
       setNpcGenLoading(false);
       setNpcGenProgress("");
     }
   }
 
-  // Step 2: User selected an option — generate the full NPC
-  async function handleSelectOption(option) {
-    if (npcGenLoading) return;
+  // Handle the DM picking a multiple-choice answer
+  async function handleInterviewAnswer(answer) {
+    if (npcGenLoading || !npcCurrentQuestion) return;
 
+    const updatedHistory = [
+      ...npcInterviewHistory,
+      { question: npcCurrentQuestion.question, answer },
+    ];
+
+    setNpcInterviewHistory(updatedHistory);
+    setNpcCurrentQuestion(null);
     setNpcGenLoading(true);
     setNpcGenError(null);
-    setNpcGenStep("generating_full");
-    setNpcGenProgress("Starting NPC generation...");
+    setNpcGenProgress("");
 
     try {
-      await streamNpcGeneration("/api/ai/generate-npc", {
-        prompt: npcGenPrompt.trim(),
-        selectedOption: option,
+      await streamNpcGeneration("/api/ai/npc-interview", {
+        prompt: npcGenPrompt.trim() || undefined,
+        interviewHistory: updatedHistory,
+        finalStep: false,
+      }, {
+        onStatus: (msg) => setNpcGenProgress(msg),
+        onResult: (data) => {
+          if (data.action === "ask") {
+            setNpcCurrentQuestion({
+              question: data.question,
+              choices: data.choices || [],
+              questionIndex: updatedHistory.length,
+            });
+            setNpcGenLoading(false);
+            setNpcGenProgress("");
+          } else if (data.action === "generate") {
+            setNpcInterviewSummary(data.summary || "Custom NPC");
+            // Transition to generating the full NPC (keeps loading true)
+            // Pass updatedHistory explicitly to avoid stale closure issues
+            handleFinalGenerate({
+              npcName: data.npcName,
+              npcRace: data.npcRace,
+              npcClass: data.npcClass,
+              summary: data.summary,
+            }, updatedHistory);
+          } else {
+            throw new Error("Unexpected response from AI. Please try again.");
+          }
+        },
+        onError: (msg) => { throw new Error(msg); },
+      });
+    } catch (err) {
+      console.error("[AI NPC Interview Answer] Error:", err);
+      setNpcGenError(err.message);
+      // Restore the question on error so DM can retry
+      setNpcCurrentQuestion((prev) => prev);
+      setNpcInterviewHistory(updatedHistory.slice(0, -1));
+      setNpcGenLoading(false);
+      setNpcGenProgress("");
+    }
+  }
+
+  // Final step: generate the full NPC statblock from the interview summary
+  async function handleFinalGenerate(interviewResult = {}, historyOverride = null) {
+    setNpcGenStep("generating_full");
+    setNpcGenLoading(true);
+    setNpcGenError(null);
+    setNpcGenProgress("Starting NPC generation...");
+
+    // Use the explicitly provided history, or fall back to state (which may be stale in callbacks)
+    const effectiveHistory = historyOverride || npcInterviewHistory;
+
+    // Build a summary from interview history if not provided
+    const summaryText = interviewResult.summary || effectiveHistory.map(
+      (h, i) => `${h.question}: ${h.answer.label}${h.answer.description ? " — " + h.answer.description : ""}`
+    ).join("\n");
+
+    try {
+      await streamNpcGeneration("/api/ai/npc-interview", {
+        prompt: npcGenPrompt.trim() || undefined,
+        interviewHistory: effectiveHistory,
+        finalStep: true,
       }, {
         onStatus: (msg) => setNpcGenProgress(msg),
         onResult: (aiData) => {
@@ -578,33 +668,35 @@ export default function WikiPanel({ user, isPopout = false }) {
 
           // Close modal and reset
           setShowNpcGenModal(false);
-          setNpcGenPrompt("");
-          setNpcGenOptions(null);
-          setNpcGenStep("prompt");
+          resetNpcGenState();
         },
-        onError: (msg) => {
-          throw new Error(msg);
-        },
+        onError: (msg) => { throw new Error(msg); },
       });
     } catch (err) {
-      console.error("[AI NPC Generator] Error:", err);
+      console.error("[AI NPC Final Generate] Error:", err);
       setNpcGenError(err.message);
-      setNpcGenStep("choose"); // Go back to choice screen on error
     } finally {
       setNpcGenLoading(false);
       setNpcGenProgress("");
     }
   }
 
-  // Reset NPC gen modal to initial prompt step
-  function resetNpcGenModal() {
-    setShowNpcGenModal(false);
+  // Reset NPC gen modal state (without closing)
+  function resetNpcGenState() {
     setNpcGenPrompt("");
     setNpcGenError(null);
-    setNpcGenOptions(null);
-    setNpcGenStep("prompt");
+    setNpcGenStep("interview");
     setNpcGenLoading(false);
     setNpcGenProgress("");
+    setNpcInterviewHistory([]);
+    setNpcCurrentQuestion(null);
+    setNpcInterviewSummary("");
+  }
+
+  // Reset NPC gen modal to initial interview step
+  function resetNpcGenModal() {
+    setShowNpcGenModal(false);
+    resetNpcGenState();
   }
 
   const renderAiAssistButton = (fieldName) => {
@@ -2483,7 +2575,7 @@ export default function WikiPanel({ user, isPopout = false }) {
           <div style={{ ...styles.categoryPromptBox, width: "90%", maxWidth: "520px" }} className="glass-panel gold-border-glow">
             <header style={styles.modalHeader}>
               <h3 style={{ ...styles.modalTitle, color: "var(--color-accent)", display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                <span>✨ AI NPC Generator</span>
+                <span>✨ AI NPC Creator</span>
               </h3>
               <button
                 type="button"
@@ -2496,31 +2588,198 @@ export default function WikiPanel({ user, isPopout = false }) {
               </button>
             </header>
 
-            {/* Step 1: Prompt Screen */}
-            {npcGenStep === "prompt" && (
-              <form onSubmit={handleGenerateOptions} style={styles.modalBody}>
-                <p style={{ marginBottom: "1rem", color: "var(--color-muted)", fontSize: "0.85rem", lineHeight: "1.4" }}>
-                  Describe the kind of NPC you want, and the AI will suggest 4 different concepts to choose from.
-                </p>
-
-                <div style={{ ...styles.formGroup, marginBottom: "1.25rem" }}>
-                  <label style={styles.label}>Prompt Description</label>
-                  <textarea
-                    placeholder="e.g., A mysterious forest guardian, a shady tavern informant, or a grizzled dwarven veteran — what kind of NPC do you need?"
+            {/* Interview Step: Multiple Choice Q&A */}
+            {npcGenStep === "interview" && (
+              <div style={styles.modalBody}>
+                {/* Optional initial idea field (collapsible) */}
+                <details style={{ marginBottom: "0.75rem", opacity: 0.7 }}>
+                  <summary style={{ fontSize: "0.75rem", color: "var(--color-muted)", cursor: "pointer" }}>
+                    {npcGenPrompt ? "✏️ Initial idea set" : "➕ Add an initial idea (optional)"}
+                  </summary>
+                  <input
+                    type="text"
+                    placeholder="e.g., A shady tavern informant, a forest guardian..."
                     value={npcGenPrompt}
                     onChange={(e) => setNpcGenPrompt(e.target.value)}
-                    style={{ ...styles.textarea, height: "100px", width: "100%", padding: "0.6rem" }}
+                    style={{ ...styles.input, marginTop: "0.4rem", fontSize: "0.82rem" }}
                     className="form-input"
-                    required
-                    disabled={npcGenLoading}
+                    maxLength={200}
                   />
-                </div>
+                </details>
 
-                {npcGenError && (
-                  <p style={{ ...styles.editorErrorText, marginBottom: "1rem" }}>⚠️ {npcGenError}</p>
+                {/* Loading first question */}
+                {npcGenLoading && !npcCurrentQuestion && (
+                  <div style={{ textAlign: "center", padding: "1.5rem 0" }}>
+                    <div className="spinner" style={{
+                      width: "28px",
+                      height: "28px",
+                      border: "3px solid rgba(124,58,237,0.2)",
+                      borderTopColor: "#7c3aed",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite",
+                      margin: "0 auto 0.75rem",
+                    }} />
+                    <p style={{ color: "var(--color-muted)", fontSize: "0.85rem" }}>
+                      {npcGenProgress || "Preparing your first question..."}
+                    </p>
+                  </div>
                 )}
 
-                {npcGenLoading && npcGenProgress && (
+                {/* Current Question */}
+                {npcCurrentQuestion && !npcGenLoading && (
+                  <>
+                    {/* Progress indicator */}
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: "0.3rem",
+                      }}>
+                        <span style={{ fontSize: "0.7rem", color: "var(--color-muted)", fontWeight: "600" }}>
+                          Question {npcInterviewHistory.length + 1}
+                        </span>
+                        {npcInterviewHistory.length >= 2 && (
+                          <button
+                            type="button"
+                            onClick={() => handleFinalGenerate({})}
+                            style={{
+                              fontSize: "0.7rem",
+                              color: "var(--color-accent)",
+                              background: "rgba(200,151,58,0.1)",
+                              border: "1px solid rgba(200,151,58,0.2)",
+                              borderRadius: "4px",
+                              padding: "0.2rem 0.5rem",
+                              cursor: "pointer",
+                            }}
+                            className="touch-target"
+                          >
+                            Generate Now →
+                          </button>
+                        )}
+                      </div>
+                      <div style={{
+                        height: "4px",
+                        background: "rgba(255,255,255,0.06)",
+                        borderRadius: "4px",
+                        overflow: "hidden",
+                      }}>
+                        <div style={{
+                          height: "100%",
+                          width: `${Math.min(100, ((npcInterviewHistory.length) / 5) * 100)}%`,
+                          background: "linear-gradient(90deg, #7c3aed, #c8973a)",
+                          borderRadius: "4px",
+                          transition: "width 0.3s ease",
+                        }} />
+                      </div>
+                    </div>
+
+                    {/* Answered questions summary (compact) */}
+                    {npcInterviewHistory.length > 0 && (
+                      <div style={{
+                        background: "rgba(255,255,255,0.03)",
+                        borderRadius: "6px",
+                        padding: "0.4rem 0.6rem",
+                        marginBottom: "0.75rem",
+                        fontSize: "0.72rem",
+                        color: "var(--color-muted)",
+                        lineHeight: "1.5",
+                      }}>
+                        {npcInterviewHistory.map((h, i) => (
+                          <div key={i} style={{ display: "flex", gap: "0.3rem" }}>
+                            <span style={{ color: "var(--color-accent)", fontWeight: "600", whiteSpace: "nowrap" }}>Q{i + 1}:</span>
+                            <span>{h.answer.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Question Card */}
+                    <div style={{
+                      background: "linear-gradient(135deg, rgba(124,58,237,0.08), rgba(91,33,182,0.05))",
+                      border: "1px solid rgba(124,58,237,0.15)",
+                      borderRadius: "10px",
+                      padding: "1rem",
+                      marginBottom: "1rem",
+                    }}>
+                      <p style={{
+                        fontSize: "0.95rem",
+                        color: "var(--color-text)",
+                        fontWeight: "600",
+                        lineHeight: "1.4",
+                        marginBottom: "0.85rem",
+                      }}>
+                        {npcCurrentQuestion.question}
+                      </p>
+
+                      {/* Multiple Choice Answers */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+                        {npcCurrentQuestion.choices.map((choice, idx) => {
+                          const choiceColors = [
+                            { bg: "rgba(124,58,237,0.1)", border: "rgba(124,58,237,0.25)", accent: "#7c3aed" },
+                            { bg: "rgba(8,145,178,0.1)", border: "rgba(8,145,178,0.25)", accent: "#0891b2" },
+                            { bg: "rgba(217,119,6,0.1)", border: "rgba(217,119,6,0.25)", accent: "#d97706" },
+                            { bg: "rgba(220,38,38,0.1)", border: "rgba(220,38,38,0.25)", accent: "#dc2626" },
+                            { bg: "rgba(22,163,74,0.1)", border: "rgba(22,163,74,0.25)", accent: "#16a34a" },
+                          ];
+                          const c = choiceColors[idx % choiceColors.length];
+                          return (
+                            <button
+                              key={choice.id || idx}
+                              type="button"
+                              onClick={() => handleInterviewAnswer(choice)}
+                              style={{
+                                display: "flex",
+                                alignItems: "flex-start",
+                                gap: "0.6rem",
+                                padding: "0.6rem 0.75rem",
+                                background: c.bg,
+                                border: `1px solid ${c.border}`,
+                                borderRadius: "8px",
+                                cursor: "pointer",
+                                textAlign: "left",
+                                transition: "all 0.15s",
+                                color: "var(--color-text)",
+                              }}
+                              className="touch-target"
+                              onMouseEnter={(e) => { e.currentTarget.style.borderColor = c.accent; e.currentTarget.style.background = c.bg.replace('0.1', '0.18'); }}
+                              onMouseLeave={(e) => { e.currentTarget.style.borderColor = c.border; e.currentTarget.style.background = c.bg; }}
+                            >
+                              <span style={{
+                                width: "22px",
+                                height: "22px",
+                                minWidth: "22px",
+                                borderRadius: "50%",
+                                background: c.accent,
+                                color: "#fff",
+                                fontSize: "0.72rem",
+                                fontWeight: "700",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}>
+                                {idx + 1}
+                              </span>
+                              <div>
+                                <div style={{ fontWeight: "600", fontSize: "0.85rem", marginBottom: "0.15rem" }}>
+                                  {choice.label}
+                                </div>
+                                {choice.description && (
+                                  <div style={{ fontSize: "0.76rem", color: "var(--color-muted)", lineHeight: "1.3" }}>
+                                    {choice.description}
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Loading indicator for answer transition */}
+                {npcGenLoading && npcCurrentQuestion === null && npcInterviewHistory.length > 0 && (
                   <div style={{
                     background: "rgba(124,58,237,0.12)",
                     border: "1px solid rgba(124,58,237,0.25)",
@@ -2541,12 +2800,16 @@ export default function WikiPanel({ user, isPopout = false }) {
                       flexShrink: 0,
                     }} />
                     <span style={{ fontSize: "0.82rem", color: "var(--color-accent)", fontWeight: "500" }}>
-                      {npcGenProgress}
+                      {npcGenProgress || "Thinking of the next question..."}
                     </span>
                   </div>
                 )}
 
-                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                {npcGenError && (
+                  <p style={{ ...styles.editorErrorText, marginBottom: "1rem" }}>⚠️ {npcGenError}</p>
+                )}
+
+                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", marginTop: "0.5rem" }}>
                   <button
                     type="button"
                     onClick={resetNpcGenModal}
@@ -2556,157 +2819,52 @@ export default function WikiPanel({ user, isPopout = false }) {
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    disabled={npcGenLoading || !npcGenPrompt.trim()}
-                    style={{
-                      ...styles.saveBtn,
-                      background: npcGenLoading
-                        ? "rgba(200,151,58,0.2)"
-                        : "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)",
-                      color: npcGenLoading ? "var(--color-muted)" : "#fffffe",
-                      cursor: npcGenLoading || !npcGenPrompt.trim() ? "not-allowed" : "pointer",
-                    }}
-                    className="touch-target btn-hover-scale"
-                  >
-                    {npcGenLoading ? "✨ Generating Options..." : "✨ Generate Options"}
-                  </button>
                 </div>
-              </form>
+              </div>
             )}
 
-            {/* Step 2: Choose Screen */}
-            {(npcGenStep === "choose" || npcGenStep === "generating_full") && npcGenOptions && (
+            {/* Generating Full NPC Step */}
+            {npcGenStep === "generating_full" && (
               <div style={styles.modalBody}>
-                <p style={{ marginBottom: "0.75rem", color: "var(--color-muted)", fontSize: "0.85rem", lineHeight: "1.4" }}>
-                  Choose an NPC concept to flesh out into a full statblock:
-                </p>
+                <div style={{ textAlign: "center", padding: "1rem 0" }}>
+                  <div className="spinner" style={{
+                    width: "32px",
+                    height: "32px",
+                    border: "3px solid rgba(124,58,237,0.2)",
+                    borderTopColor: "#7c3aed",
+                    borderRadius: "50%",
+                    animation: "spin 0.8s linear infinite",
+                    margin: "0 auto 0.75rem",
+                  }} />
+                  <p style={{ fontSize: "0.9rem", color: "var(--color-accent)", fontWeight: "600", marginBottom: "0.25rem" }}>
+                    Assembling your NPC...
+                  </p>
+                  <p style={{ fontSize: "0.8rem", color: "var(--color-muted)", marginBottom: "0.5rem" }}>
+                    {npcGenProgress || "Writing statblock and narrative..."}
+                  </p>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "1rem" }}>
-                  {npcGenOptions.map((option, idx) => {
-                    const cardColors = [
-                      "linear-gradient(135deg, #7c3aed20, #5b21b620)",
-                      "linear-gradient(135deg, #0891b220, #065f4620)",
-                      "linear-gradient(135deg, #d9770620, #92400e20)",
-                      "linear-gradient(135deg, #dc262620, #991b1b20)",
-                    ];
-                    const cardAccents = ["#7c3aed", "#0891b2", "#d97706", "#dc2626"];
-                    const isDisabled = npcGenStep === "generating_full";
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSelectOption(option)}
-                        disabled={isDisabled}
-                        style={{
-                          ...styles.npcOptionCard,
-                          background: cardColors[idx % cardColors.length],
-                          borderLeft: `3px solid ${cardAccents[idx % cardAccents.length]}`,
-                          opacity: isDisabled ? 0.5 : 1,
-                          cursor: isDisabled ? "not-allowed" : "pointer",
-                        }}
-                        className="touch-target"
-                      >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.3rem" }}>
-                          <span style={{ fontWeight: "700", fontSize: "1rem", color: "var(--color-text)" }}>
-                            {option.name || `Option ${idx + 1}`}
-                          </span>
-                          <span style={{
-                            fontSize: "0.7rem",
-                            background: "var(--color-accent-dim)",
-                            color: "var(--color-accent)",
-                            padding: "0.15rem 0.5rem",
-                            borderRadius: "8px",
-                            fontWeight: "600",
-                            whiteSpace: "nowrap",
-                          }}>
-                            CR {option.cr || "?"}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--color-muted)", marginBottom: "0.25rem" }}>
-                          {option.race || "?"} · {option.class || "?"}
-                        </div>
-                        {option.briefDescription && (
-                          <div style={{ fontSize: "0.82rem", color: "var(--color-muted)", lineHeight: "1.35", opacity: 0.85 }}>
-                            {option.briefDescription}
-                          </div>
-                        )}
-                        <div style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: cardAccents[idx % cardAccents.length], fontWeight: "500" }}>
-                          {isDisabled ? (npcGenProgress || "Writing statblock...") : "Select →"}
-                        </div>
-                      </button>
-                    );
-                  })}
+                  {npcInterviewSummary && (
+                    <div style={{
+                      background: "rgba(255,255,255,0.04)",
+                      borderRadius: "8px",
+                      padding: "0.6rem 0.8rem",
+                      marginTop: "0.5rem",
+                      fontSize: "0.78rem",
+                      color: "var(--color-muted)",
+                      lineHeight: "1.4",
+                      textAlign: "left",
+                    }}>
+                      <div style={{ fontWeight: "600", color: "var(--color-accent)", marginBottom: "0.25rem", fontSize: "0.72rem" }}>
+                        NPC CONCEPT
+                      </div>
+                      {npcInterviewSummary}
+                    </div>
+                  )}
                 </div>
-
-                {/* Live progress indicator during generation */}
-                {npcGenStep === "generating_full" && npcGenProgress && (
-                  <div style={{
-                    background: "rgba(124,58,237,0.12)",
-                    border: "1px solid rgba(124,58,237,0.25)",
-                    borderRadius: "8px",
-                    padding: "0.6rem 0.8rem",
-                    marginBottom: "0.8rem",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.6rem",
-                  }}>
-                    <div className="spinner" style={{
-                      width: "16px",
-                      height: "16px",
-                      border: "2px solid rgba(124,58,237,0.3)",
-                      borderTopColor: "#7c3aed",
-                      borderRadius: "50%",
-                      animation: "spin 0.8s linear infinite",
-                      flexShrink: 0,
-                    }} />
-                    <span style={{ fontSize: "0.82rem", color: "var(--color-accent)", fontWeight: "500" }}>
-                      {npcGenProgress}
-                    </span>
-                  </div>
-                )}
 
                 {npcGenError && (
-                  <p style={{ ...styles.editorErrorText, marginBottom: "1rem" }}>⚠️ {npcGenError}</p>
+                  <p style={{ ...styles.editorErrorText, marginBottom: "1rem", textAlign: "center" }}>⚠️ {npcGenError}</p>
                 )}
-
-                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "space-between" }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNpcGenStep("prompt");
-                      setNpcGenError(null);
-                      setNpcGenOptions(null);
-                    }}
-                    disabled={npcGenStep === "generating_full"}
-                    style={styles.backBtn}
-                    className="touch-target"
-                  >
-                    ← Back
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNpcGenOptions(null);
-                      setNpcGenError(null);
-                      setNpcGenStep("prompt");
-                    }}
-                    disabled={npcGenStep === "generating_full"}
-                    style={styles.backBtn}
-                    className="touch-target"
-                  >
-                    🔄 Try Again
-                  </button>
-                  <button
-                    type="button"
-                    onClick={resetNpcGenModal}
-                    disabled={npcGenStep === "generating_full"}
-                    style={styles.backBtn}
-                    className="touch-target"
-                  >
-                    Cancel
-                  </button>
-                </div>
               </div>
             )}
           </div>

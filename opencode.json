@@ -6,6 +6,11 @@
     "opencode-supermemory",
     "opencode-pty"
   ],
+  "agent": {
+    "explore": {
+      "mode": "primary"
+    }
+  },
   "permission": {
     "edit": "allow",
     "bash": "allow"

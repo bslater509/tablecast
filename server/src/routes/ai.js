@@ -1407,6 +1407,198 @@ Keep your responses concise, readable, and structured in Markdown.`;
   }
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/ai/npc-interview - Interactive NPC Creation Interview (DM only)
+// Supports a multiple-choice Q&A flow where the AI asks questions and the DM
+// picks answers, building up an NPC concept step by step.
+// ---------------------------------------------------------------------------
+router.post("/npc-interview", requireDm, async (req, res) => {
+  try {
+    const { prompt, interviewHistory, finalStep } = req.body;
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    beginSseResponse(res);
+
+    // Build the interview history text for context
+    let historyText = "";
+    if (interviewHistory && interviewHistory.length > 0) {
+      historyText = interviewHistory.map(
+        (h, i) => `Q${i + 1}: ${h.question}\nA${i + 1}: ${h.answer.label} — ${h.answer.description || h.answer.label}`
+      ).join("\n\n");
+    }
+
+    // Fetch campaign context
+    const queryWords = prompt || (interviewHistory || []).map(h => h.answer.label).join(" ");
+    const campaignWiki = await fetchCampaignWikiSnippet(queryWords);
+    const campaignBlock = campaignWiki
+      ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
+      : "";
+
+    if (finalStep) {
+      // ---- FINAL STEP: Generate the full NPC from interview answers ----
+      writeSseEvent(res, { type: "status", message: "Reading interview notes..." });
+
+      const interviewSummary = interviewHistory
+        ? interviewHistory.map(
+            (h, i) => `${h.question}: ${h.answer.label}${h.answer.description ? " — " + h.answer.description : ""}`
+          ).join("\n")
+        : "";
+
+      const systemPrompt = `You are a D&D 5e NPC and monster statblock generator. 
+Given an interview summary describing an NPC concept, generate a complete NPC profile.
+Match the difficulty/CR to the described role.
+Narrative fields (appearance, personality, history, partyRelationship) should complement each other without repeating the same sentences.
+${campaignBlock}
+You MUST respond with a single JSON object (and NO other text). Do not wrap the JSON in codeblocks unless you are using Markdown, but it is preferred to output raw JSON.
+The JSON must strictly conform to these fields:
+{
+  "name": "NPC name",
+  "race": "NPC race",
+  "class": "NPC class or occupation",
+  "level": 1,
+  "hp": 10,
+  "maxHp": 10,
+  "ac": 10,
+  "cr": "0",
+  "strength": 10,
+  "dexterity": 10,
+  "constitution": 10,
+  "intelligence": 10,
+  "wisdom": 10,
+  "charisma": 10,
+  "alignment": "NPC alignment (e.g. Lawful Good, Chaotic Evil, Neutral)",
+  "appearance": "Physical appearance description",
+  "personality": "Personality traits, ideals, bonds, or flaws",
+  "history": "Brief background story",
+  "partyRelationship": "How they feel about or interact with the player party",
+  "description": "General bio/description summary",
+  "actions": [
+    {
+      "name": "Action Name",
+      "description": "Description of the combat action, attack, or ability"
+    }
+  ]
+}`;
+
+      writeSseEvent(res, { type: "status", message: "Generating full NPC statblock..." });
+
+      const userMessage = `Create a complete NPC based on this interview:\n\n${interviewSummary}\n\nOriginal context: ${prompt ? prompt.trim() : "None provided"}`;
+      const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage);
+
+      writeSseEvent(res, { type: "status", message: "Parsing and validating statblock..." });
+
+      let cleanJsonStr = rawResponse.trim();
+      if (cleanJsonStr.startsWith("```")) {
+        const match = cleanJsonStr.match(/```(?:json)?([\s\S]+?)```/);
+        if (match) {
+          cleanJsonStr = match[1].trim();
+        }
+      }
+
+      let npcData;
+      try {
+        npcData = JSON.parse(cleanJsonStr);
+      } catch (e) {
+        console.error("[AI NPC Interview Final] JSON parse failed on text:", rawResponse);
+        throw new Error("Failed to generate a valid NPC JSON from the interview.");
+      }
+
+      writeSseEvent(res, { type: "result", data: npcData });
+      writeSseEvent(res, { type: "done" });
+      res.end();
+      return;
+    }
+
+    // ---- INTERVIEW STEP: Generate next question ----
+    writeSseEvent(res, { type: "status", message: "Thinking of the next question..." });
+
+    const systemPrompt = `You are a friendly D&D NPC creation assistant helping a Dungeon Master design an NPC through a quick multiple-choice interview.
+
+You have been given the following information so far about this NPC:
+${historyText || "(No answers yet — this is the very first question.)"}
+
+${campaignBlock}
+
+Your job: Ask the NEXT logical question to narrow down the NPC concept. Choose from these aspects in a natural, conversational order:
+1. Role (what the NPC does — their occupation or function in the story)
+2. Species / Race
+3. Personality and general vibe/alignment
+4. Appearance or a distinguishing physical trait
+5. Where they are found / what they want from the party
+6. Any remaining interesting detail that brings them to life
+
+IMPORTANT RULES:
+- Ask ONE question at a time. Never more.
+- Provide 3-5 distinct, creative multiple-choice answers. Each answer must have a short "label" and a "description" (one sentence).
+- The answers should feel like real options a DM would pick between — make them distinct and evocative.
+- Build on previous answers: if the DM chose "tavern keeper", don't ask about "village elder" options.
+- You need at least 3 questions answered before generating. Never ask more than 6 total.
+
+YOU MUST RESPOND WITH VALID JSON ONLY. No markdown, no code fences, no extra text.
+Respond with EXACTLY this JSON structure:
+
+For a question:
+{"action":"ask","question":"Your question here?","choices":[{"id":"short_id","label":"Option Label","description":"One-sentence description of this choice."}]}
+
+When you have enough info (at least 3 questions answered):
+{"action":"generate","npcName":"NPC Name","npcRace":"Race","npcClass":"Class/Role","summary":"A 2-3 sentence summary of the NPC concept based on all answers so far."}`;
+
+    const userMessage = prompt && prompt.trim()
+      ? `The DM's initial idea: ${prompt.trim()}\n\nPrevious interview:\n${historyText || "No answers yet."}\n\nAsk the next question.`
+      : `Previous interview:\n${historyText || "No answers yet. Start with the very first question about this NPC's role."}\n\nAsk the next question.`;
+
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage);
+
+    // Parse JSON safely
+    let cleanJsonStr = rawResponse.trim();
+    if (cleanJsonStr.startsWith("```")) {
+      const match = cleanJsonStr.match(/```(?:json)?([\s\S]+?)```/);
+      if (match) {
+        cleanJsonStr = match[1].trim();
+      }
+    }
+
+    let responseData;
+    try {
+      responseData = JSON.parse(cleanJsonStr);
+    } catch (e) {
+      console.error("[AI NPC Interview] JSON parse failed on text:", rawResponse);
+      throw new Error("Failed to parse the AI response. Please try again.");
+    }
+
+    if (!responseData.action || !["ask", "generate"].includes(responseData.action)) {
+      throw new Error("Unexpected response from AI. Please try again.");
+    }
+
+    if (responseData.action === "ask" && (!responseData.choices || !Array.isArray(responseData.choices) || responseData.choices.length < 2)) {
+      throw new Error("AI returned an invalid question format. Please try again.");
+    }
+
+    if (responseData.action === "generate" && !responseData.summary) {
+      throw new Error("AI returned an incomplete generation signal. Please try again.");
+    }
+
+    writeSseEvent(res, { type: "result", data: responseData });
+    writeSseEvent(res, { type: "done" });
+    res.end();
+  } catch (err) {
+    console.error("[AI NPC Interview] Failed:", err.message);
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed during NPC interview." });
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: err.message || "Failed during NPC interview." });
+  }
+});
+
 module.exports = {
   router,
   performAiCall,
