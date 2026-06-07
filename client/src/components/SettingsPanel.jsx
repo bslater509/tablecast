@@ -369,7 +369,27 @@ function SettingsPanel({ user }) {
     if (savingAi) return;
     setSavingAi(true);
     try {
-      const res = await fetch("/api/ai/test", {
+      // First, persist settings to the database
+      const saveRes = await fetch("/api/ai/settings", {
+        method: "PUT",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          provider: aiProvider,
+          apiKey: aiApiKey,
+          ollamaUrl: aiOllamaUrl,
+          ollamaModel: aiOllamaModel,
+          model: aiModel,
+        }),
+      });
+
+      if (!saveRes.ok) {
+        const err = await saveRes.json();
+        alert(`Error saving AI settings: ${err.error || "Unknown"}`);
+        return;
+      }
+
+      // Then test the connection with the newly saved settings
+      const testRes = await fetch("/api/ai/test", {
         method: "POST",
         headers: jsonAuthHeaders,
         body: JSON.stringify({
@@ -380,14 +400,16 @@ function SettingsPanel({ user }) {
           model: aiModel,
         }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        alert("AI settings saved successfully!");
-        fetchAiSettings();
+
+      if (testRes.ok) {
+        alert("AI settings saved and connection successful!");
       } else {
-        const err = await res.json();
-        alert(`Error saving AI settings: ${err.error || "Unknown"}`);
+        const testErr = await testRes.json();
+        alert(`AI settings saved, but connection test failed: ${testErr.error || "Unknown"}`);
       }
+
+      // Reload from DB to reflect saved state
+      fetchAiSettings();
     } catch (err) {
       alert(`Network error saving AI settings: ${err.message}`);
     } finally {
