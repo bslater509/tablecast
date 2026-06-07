@@ -231,11 +231,172 @@ export default function WikiPanel({ user, isPopout = false }) {
   // Custom Delete Modal State
   const [articleToDelete, setArticleToDelete] = useState(null);
 
+  // AI Assist / Generator states
+  const [showNpcGenModal, setShowNpcGenModal] = useState(false);
+  const [npcGenPrompt, setNpcGenPrompt] = useState("");
+  const [npcGenLoading, setNpcGenLoading] = useState(false);
+  const [npcGenError, setNpcGenError] = useState(null);
+  const [showAssistDropdown, setShowAssistDropdown] = useState(null); // field name or null
+
   // Determine if user has DM privileges
   const isDM = user?.role === "DM";
 
   const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
+
+  // AI text-area helper functions
+  const handleToggleAssistDropdown = (e, fieldId) => {
+    e.stopPropagation();
+    if (showAssistDropdown === fieldId) {
+      setShowAssistDropdown(null);
+    } else {
+      setShowAssistDropdown(fieldId);
+    }
+  };
+
+  const handleApplyAssist = async (fieldId, action) => {
+    const isNpcField = fieldId !== "markdown";
+    let currentText = "";
+    
+    if (isNpcField) {
+      currentText = editingNpc[fieldId] || "";
+    } else {
+      currentText = editContent || "";
+    }
+
+    if (!currentText.trim()) {
+      alert("Please enter some text in the field first before using AI Assist.");
+      setShowAssistDropdown(null);
+      return;
+    }
+
+    setEditorError("AI is thinking... please wait.");
+    setShowAssistDropdown(null);
+
+    try {
+      const res = await fetch("/api/ai/expand-text", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ text: currentText, action }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to process text.");
+      }
+
+      const data = await res.json();
+      
+      if (isNpcField) {
+        setEditingNpc(prev => ({
+          ...prev,
+          [fieldId]: data.reply
+        }));
+      } else {
+        setEditContent(data.reply);
+      }
+      setEditorError(null);
+    } catch (err) {
+      console.error("[AI Assist Error]", err);
+      setEditorError(`AI Assist failed: ${err.message}`);
+    }
+  };
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClose = () => setShowAssistDropdown(null);
+    window.addEventListener("click", handleClose);
+    return () => window.removeEventListener("click", handleClose);
+  }, []);
+
+  async function handleGenerateNpc(e) {
+    e.preventDefault();
+    if (!npcGenPrompt.trim() || npcGenLoading) return;
+
+    setNpcGenLoading(true);
+    setNpcGenError(null);
+
+    try {
+      const res = await fetch("/api/ai/generate-npc", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ prompt: npcGenPrompt.trim() }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to generate NPC.");
+      }
+
+      const aiData = await res.json();
+      
+      // Calculate ability modifiers
+      const mods = {};
+      const stats = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
+      for (const stat of stats) {
+        const score = Number(aiData[stat]) || 10;
+        mods[stat] = Math.floor((score - 10) / 2);
+      }
+
+      setEditingNpc((prev) => ({
+        ...prev,
+        name: aiData.name || prev.name,
+        race: aiData.race || prev.race,
+        class: aiData.class || prev.class,
+        level: Number(aiData.level) || prev.level,
+        hp: Number(aiData.hp) || prev.hp,
+        maxHp: Number(aiData.maxHp) || Number(aiData.hp) || prev.maxHp,
+        ac: Number(aiData.ac) || prev.ac,
+        cr: aiData.cr || prev.cr,
+        strength: Number(aiData.strength) || prev.strength,
+        dexterity: Number(aiData.dexterity) || prev.dexterity,
+        constitution: Number(aiData.constitution) || prev.constitution,
+        intelligence: Number(aiData.intelligence) || prev.intelligence,
+        wisdom: Number(aiData.wisdom) || prev.wisdom,
+        charisma: Number(aiData.charisma) || prev.charisma,
+        alignment: aiData.alignment || prev.alignment,
+        appearance: aiData.appearance || prev.appearance,
+        personality: aiData.personality || prev.personality,
+        history: aiData.history || prev.history,
+        partyRelationship: aiData.partyRelationship || prev.partyRelationship,
+        description: aiData.description || prev.description,
+        actions: Array.isArray(aiData.actions) ? JSON.stringify(aiData.actions) : prev.actions,
+        modifiers: JSON.stringify(mods)
+      }));
+
+      setShowNpcGenModal(false);
+      setNpcGenPrompt("");
+    } catch (err) {
+      console.error("[AI NPC Generator] Error:", err);
+      setNpcGenError(err.message);
+    } finally {
+      setNpcGenLoading(false);
+    }
+  }
+
+  const renderAiAssistButton = (fieldName) => {
+    return (
+      <div style={{ position: "relative", display: "inline-block" }}>
+        <button
+          type="button"
+          title="AI Assist"
+          onClick={(e) => handleToggleAssistDropdown(e, fieldName)}
+          style={{ ...styles.toolbarBtn, color: "var(--color-accent)", width: "auto", padding: "0 0.5rem", gap: "0.25rem" }}
+          className="touch-target btn-hover-scale"
+        >
+          ✨ AI Assist
+        </button>
+        {showAssistDropdown === fieldName && (
+          <div style={styles.assistDropdown} onClick={(e) => e.stopPropagation()}>
+            <button type="button" onClick={() => handleApplyAssist(fieldName, "expand")} className="assist-option" style={styles.assistOption}>Expand Lore</button>
+            <button type="button" onClick={() => handleApplyAssist(fieldName, "summarize")} className="assist-option" style={styles.assistOption}>Summarize</button>
+            <button type="button" onClick={() => handleApplyAssist(fieldName, "make_dramatic")} className="assist-option" style={styles.assistOption}>Make Dramatic</button>
+            <button type="button" onClick={() => handleApplyAssist(fieldName, "style_5e")} className="assist-option" style={styles.assistOption}>Format 5e Style</button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const calculateModifier = (score) => {
     const mod = Math.floor((Number(score || 10) - 10) / 2);
@@ -850,6 +1011,21 @@ export default function WikiPanel({ user, isPopout = false }) {
                 {editId ? `Edit NPC: ${editingNpc.name}` : "Create NPC Statblock"}
               </h2>
               <div style={styles.editorHeaderActions}>
+                {!editId && (
+                  <button
+                    type="button"
+                    onClick={() => setShowNpcGenModal(true)}
+                    style={{
+                      ...styles.saveBtn,
+                      background: "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)",
+                      color: "#fffffe",
+                      marginRight: "0.5rem"
+                    }}
+                    className="touch-target btn-hover-scale"
+                  >
+                    ✨ AI Generate
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleCancelEdit}
@@ -1156,6 +1332,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                       <div style={styles.toolbar}>
                         <button type="button" title="Bold" onClick={() => insertText("**", "**", "alignment")} style={styles.toolbarBtn} className="touch-target"><strong>B</strong></button>
                         <button type="button" title="Italic" onClick={() => insertText("*", "*", "alignment")} style={styles.toolbarBtn} className="touch-target"><em>I</em></button>
+                        {renderAiAssistButton("alignment")}
                       </div>
                       <textarea
                         id="wiki-textarea-alignment"
@@ -1176,6 +1353,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                         <button type="button" title="Header" onClick={() => insertText("\n### ", "", "appearance")} style={styles.toolbarBtn} className="touch-target">H3</button>
                         <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "appearance")} style={styles.toolbarBtn} className="touch-target">• List</button>
                         <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "appearance")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                        {renderAiAssistButton("appearance")}
                       </div>
                       <textarea
                         id="wiki-textarea-appearance"
@@ -1196,6 +1374,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                         <button type="button" title="Header" onClick={() => insertText("\n### ", "", "personality")} style={styles.toolbarBtn} className="touch-target">H3</button>
                         <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "personality")} style={styles.toolbarBtn} className="touch-target">• List</button>
                         <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "personality")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                        {renderAiAssistButton("personality")}
                       </div>
                       <textarea
                         id="wiki-textarea-personality"
@@ -1216,6 +1395,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                         <button type="button" title="Header" onClick={() => insertText("\n### ", "", "history")} style={styles.toolbarBtn} className="touch-target">H3</button>
                         <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "history")} style={styles.toolbarBtn} className="touch-target">• List</button>
                         <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "history")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                        {renderAiAssistButton("history")}
                       </div>
                       <textarea
                         id="wiki-textarea-history"
@@ -1236,6 +1416,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                         <button type="button" title="Header" onClick={() => insertText("\n### ", "", "partyRelationship")} style={styles.toolbarBtn} className="touch-target">H3</button>
                         <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "", "partyRelationship")} style={styles.toolbarBtn} className="touch-target">• List</button>
                         <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "", "partyRelationship")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                        {renderAiAssistButton("partyRelationship")}
                       </div>
                       <textarea
                         id="wiki-textarea-partyRelationship"
@@ -1449,6 +1630,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                     <button type="button" title="Header" onClick={() => insertText("\n### ", "")} style={styles.toolbarBtn} className="touch-target">H3</button>
                     <button type="button" title="Bullet List" onClick={() => insertText("\n- ", "")} style={styles.toolbarBtn} className="touch-target">• List</button>
                     <button type="button" title="Read Aloud Box" onClick={() => insertText("\n> ", "")} style={styles.toolbarBtn} className="touch-target">💬 Box</button>
+                    {renderAiAssistButton("markdown")}
                   </div>
 
                   <textarea
@@ -1811,6 +1993,83 @@ export default function WikiPanel({ user, isPopout = false }) {
                 );
               })
             )}
+          </div>
+        </div>
+      )}
+
+      {/* AI NPC GENERATOR MODAL */}
+      {showNpcGenModal && (
+        <div style={styles.modalOverlay} className="fade-in">
+          <div style={{ ...styles.categoryPromptBox, width: "90%", maxWidth: "480px" }} className="glass-panel gold-border-glow">
+            <header style={styles.modalHeader}>
+              <h3 style={{ ...styles.modalTitle, color: "var(--color-accent)", display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                <span>✨ AI NPC Generator</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNpcGenModal(false);
+                  setNpcGenPrompt("");
+                  setNpcGenError(null);
+                }}
+                disabled={npcGenLoading}
+                style={styles.modalCloseBtn}
+                className="touch-target"
+              >
+                ✕
+              </button>
+            </header>
+            <form onSubmit={handleGenerateNpc} style={styles.modalBody}>
+              <p style={{ marginBottom: "1rem", color: "var(--color-muted)", fontSize: "0.85rem", lineHeight: "1.4" }}>
+                Describe the NPC you want the AI to design. The AI will populate their combat stats (AC, HP, Abilities, Actions) and narrative profile fields.
+              </p>
+              
+              <div style={{ ...styles.formGroup, marginBottom: "1.25rem" }}>
+                <label style={styles.label}>Prompt Description</label>
+                <textarea
+                  placeholder="e.g., An elderly male wood elf druid named Sylas who is blind but speaks in riddles. He carries a gnarled oak staff and protects the Whispering Wood. Moderate difficulty combatant (CR 2-3)."
+                  value={npcGenPrompt}
+                  onChange={(e) => setNpcGenPrompt(e.target.value)}
+                  style={{ ...styles.textarea, height: "120px", width: "100%", padding: "0.6rem" }}
+                  className="form-input"
+                  required
+                  disabled={npcGenLoading}
+                />
+              </div>
+
+              {npcGenError && (
+                <p style={{ ...styles.editorErrorText, marginBottom: "1rem" }}>⚠️ {npcGenError}</p>
+              )}
+
+              <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNpcGenModal(false);
+                    setNpcGenPrompt("");
+                    setNpcGenError(null);
+                  }}
+                  disabled={npcGenLoading}
+                  style={styles.backBtn}
+                  className="touch-target"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={npcGenLoading || !npcGenPrompt.trim()}
+                  style={{
+                    ...styles.saveBtn,
+                    background: npcGenLoading ? "rgba(200,151,58,0.2)" : "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)",
+                    color: npcGenLoading ? "var(--color-muted)" : "#fffffe",
+                    cursor: npcGenLoading || !npcGenPrompt.trim() ? "not-allowed" : "pointer"
+                  }}
+                  className="touch-target btn-hover-scale"
+                >
+                  {npcGenLoading ? "✨ Writing Statblock..." : "✨ Generate"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -2810,5 +3069,31 @@ const statblockStyles = {
   actionDmg: {
     fontSize: "0.78rem",
     color: "var(--color-text)",
+  },
+  assistDropdown: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    zIndex: 100,
+    background: "var(--color-surface)",
+    border: "1px solid var(--color-accent)",
+    borderRadius: "6px",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+    display: "flex",
+    flexDirection: "column",
+    minWidth: "140px",
+    padding: "0.25rem 0",
+    marginTop: "0.25rem",
+  },
+  assistOption: {
+    background: "transparent",
+    border: "none",
+    color: "var(--color-text)",
+    padding: "0.5rem 0.75rem",
+    fontSize: "0.75rem",
+    textAlign: "left",
+    cursor: "pointer",
+    width: "100%",
+    outline: "none",
   },
 };

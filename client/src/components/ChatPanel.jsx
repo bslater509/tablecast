@@ -3,8 +3,49 @@
 // A simple global chat to prove Socket.io is working end-to-end.
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Sparkles, Copy, Check } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
+
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+});
+
+function compileMarkdown(text) {
+  if (!text) return "";
+  try {
+    return DOMPurify.sanitize(marked.parse(text));
+  } catch (e) {
+    console.error("[ChatPanel] Markdown parsing failed:", e);
+    return text;
+  }
+}
+
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy text:", err);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      style={styles.copyBtn}
+      className="btn-hover-scale"
+      title="Copy to clipboard"
+    >
+      {copied ? <Check size={14} color="var(--color-success)" /> : <Copy size={14} />}
+    </button>
+  );
+}
 
 export default function ChatPanel({ user, isPopout = false }) {
   const { socket, isConnected } = useSocket();
@@ -15,6 +56,23 @@ export default function ChatPanel({ user, isPopout = false }) {
   const [typingUser, setTypingUser] = useState(null);
   const scrollRef = useRef(null);
   const typingTimeout = useRef(null);
+  const [npcs, setNpcs] = useState([]);
+
+  // Fetch NPCs for avatar matching
+  useEffect(() => {
+    async function fetchNpcs() {
+      try {
+        const res = await fetch("/api/npcs");
+        if (res.ok) {
+          const data = await res.json();
+          setNpcs(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch NPCs in ChatPanel:", err);
+      }
+    }
+    fetchNpcs();
+  }, []);
 
   // Sync user prop if set externally
   useEffect(() => {
@@ -335,12 +393,89 @@ export default function ChatPanel({ user, isPopout = false }) {
             );
           }
 
+          const isAi = msg.sender === "D&D AI Assistant";
+          const isNpc = msg.type === "npc";
+
+          // If AI Assistant message
+          if (isAi) {
+            return (
+              <div
+                key={msg.id}
+                style={styles.aiBubble}
+                className="gold-border-glow fade-in"
+              >
+                <div style={styles.aiHeader}>
+                  <div style={styles.aiTitleRow}>
+                    <Sparkles size={14} style={{ color: "var(--color-accent)", marginRight: "0.25rem" }} />
+                    <span style={styles.aiTitle}>D&D AI Scholar</span>
+                  </div>
+                  <div style={styles.aiActions}>
+                    <span style={styles.time}>
+                      {new Date(msg.timestamp).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    <CopyButton text={msg.text} />
+                  </div>
+                </div>
+                <div 
+                  className="wiki-content"
+                  style={styles.aiText}
+                  dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
+                />
+              </div>
+            );
+          }
+
+          // If NPC message
+          if (isNpc) {
+            const matchedNpc = npcs.find(n => n.name.toLowerCase() === msg.sender.toLowerCase());
+            const npcAvatar = matchedNpc?.imageUrl || matchedNpc?.largeImageUrl || "";
+            return (
+              <div
+                key={msg.id}
+                style={styles.npcBubble}
+                className="fade-in"
+              >
+                <div style={styles.npcHeader}>
+                  <div style={styles.npcTitleRow}>
+                    {npcAvatar ? (
+                      <img
+                        src={npcAvatar}
+                        alt={msg.sender}
+                        style={styles.npcAvatar}
+                      />
+                    ) : (
+                      <span style={styles.npcAvatarPlaceholder}>🗣️</span>
+                    )}
+                    <span style={styles.npcTitle}>{msg.sender}</span>
+                  </div>
+                  <span style={styles.time}>
+                    {new Date(msg.timestamp).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+                <div 
+                  className="wiki-content"
+                  style={styles.npcText}
+                  dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
+                />
+              </div>
+            );
+          }
+
+          // Standard system message (not AI)
+          const isSystem = msg.type === "system";
+
           return (
             <div
               key={msg.id}
               style={{
                 ...styles.bubble,
-                ...(msg.type === "system" ? styles.systemBubble : {}),
+                ...(isSystem ? styles.systemBubble : {}),
               }}
               className="fade-in"
             >
@@ -353,7 +488,11 @@ export default function ChatPanel({ user, isPopout = false }) {
                   })}
                 </span>
               </span>
-              <span style={styles.text}>{msg.text}</span>
+              <div 
+                className="wiki-content"
+                style={styles.text}
+                dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
+              />
             </div>
           );
         })}
@@ -707,5 +846,118 @@ const styles = {
     width: "1px",
     height: "36px",
     background: "rgba(255, 255, 255, 0.08)",
+  },
+  /* AI Bubble styles */
+  aiBubble: {
+    alignSelf: "flex-start",
+    background: "rgba(200, 151, 58, 0.07)",
+    border: "1px solid rgba(200, 151, 58, 0.35)",
+    borderRadius: "0.75rem",
+    padding: "0.75rem 1rem",
+    maxWidth: "85%",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.35rem",
+    boxShadow: "0 0 12px rgba(200, 151, 58, 0.08)",
+  },
+  aiHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottom: "1px solid rgba(200, 151, 58, 0.15)",
+    paddingBottom: "0.25rem",
+    marginBottom: "0.25rem",
+  },
+  aiTitleRow: {
+    display: "flex",
+    alignItems: "center",
+  },
+  aiTitle: {
+    fontSize: "0.85rem",
+    fontWeight: "bold",
+    color: "var(--color-accent)",
+    fontFamily: "var(--font-body)",
+    letterSpacing: "0.03em",
+  },
+  aiActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  copyBtn: {
+    background: "transparent",
+    border: "none",
+    color: "var(--color-muted)",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0.2rem",
+    borderRadius: "4px",
+    transition: "all 0.2s",
+  },
+  aiText: {
+    fontSize: "0.9rem",
+    color: "#fffffe",
+    lineHeight: 1.45,
+  },
+
+  /* NPC Scroll Bubble */
+  npcBubble: {
+    alignSelf: "flex-start",
+    background: "rgba(245, 235, 215, 0.04)",
+    borderLeft: "4px solid var(--color-accent)",
+    borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+    borderRight: "1px solid rgba(255, 255, 255, 0.05)",
+    borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+    borderRadius: "0.35rem 0.75rem 0.75rem 0.35rem",
+    padding: "0.75rem 1rem",
+    maxWidth: "85%",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.35rem",
+    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.15)",
+  },
+  npcHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+    paddingBottom: "0.25rem",
+    marginBottom: "0.25rem",
+  },
+  npcTitleRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.4rem",
+  },
+  npcAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: "50%",
+    objectFit: "cover",
+    border: "1px solid var(--color-accent)",
+  },
+  npcAvatarPlaceholder: {
+    fontSize: "0.95rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 24,
+    height: 24,
+  },
+  npcTitle: {
+    fontSize: "0.85rem",
+    fontWeight: "bold",
+    color: "var(--color-accent)",
+    fontFamily: "Georgia, serif",
+    letterSpacing: "0.02em",
+  },
+  npcText: {
+    fontSize: "0.9rem",
+    color: "#e2d6b5",
+    fontFamily: "Georgia, serif",
+    fontStyle: "italic",
+    lineHeight: 1.5,
   },
 };

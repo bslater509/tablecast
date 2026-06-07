@@ -65,6 +65,15 @@ function registerSocketHandlers(io) {
       try {
         const { performAiCall, findRelevantRules } = require("./routes/ai");
 
+        // Fetch user from DB to evaluate role and permissions
+        let userObj = null;
+        if (message.userId) {
+          userObj = await prisma.user.findUnique({
+            where: { id: message.userId },
+            select: { role: true }
+          });
+        }
+
         // 1. /ai [query] -> General AI rules/concepts assistant
         if (rawText.startsWith("/ai ")) {
           const query = rawText.slice(4).trim();
@@ -94,8 +103,8 @@ function registerSocketHandlers(io) {
             });
           }
 
-          // Fetch relevant rules
-          const ruleContext = await findRelevantRules(query);
+          // Fetch relevant rules with user role restrictions
+          const ruleContext = await findRelevantRules(query, userObj);
           const systemPrompt = `You are a helpful D&D 5e assistant, DM companion, and rules expert.
 Answer the question accurately. Rely on the local database context below if applicable.
 ${ruleContext}
@@ -172,7 +181,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
             });
           }
 
-          const ruleContext = await findRelevantRules(messageText);
+          const ruleContext = await findRelevantRules(messageText, userObj);
           const systemPrompt = `You are roleplaying as the D&D NPC named "${npc.name}".
 Stay in character AT ALL TIMES. Respond in character, using fantasy-themed tone and speech patterns appropriate for "${npc.name}".
 

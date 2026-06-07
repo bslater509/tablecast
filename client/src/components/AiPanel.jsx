@@ -3,6 +3,23 @@
 // Supports tabbed interaction: Rules Helper and NPC Chat/Roleplay
 // =============================================================================
 import React, { useState, useEffect, useRef } from "react";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
+
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+});
+
+function compileMarkdown(text) {
+  if (!text) return "";
+  try {
+    return DOMPurify.sanitize(marked.parse(text));
+  } catch (e) {
+    console.error("[AiPanel] Markdown parsing failed:", e);
+    return text;
+  }
+}
 
 export default function AiPanel({ user }) {
   const [activeTab, setActiveTab] = useState("rules"); // "rules" or "npc"
@@ -64,49 +81,7 @@ export default function AiPanel({ user }) {
     }
   }, [npcHistory, npcLoading]);
 
-  // Safe client-side Markdown formatter to avoid dangerouslySetInnerHTML
-  const parseMarkdownText = (text) => {
-    if (!text) return "";
-    const paragraphs = text.split(/\n\n+/);
-    return paragraphs.map((para, pIdx) => {
-      const lines = para.split("\n");
-      return (
-        <div key={pIdx} style={styles.paragraph}>
-          {lines.map((line, lIdx) => {
-            const isBullet = line.trim().startsWith("- ") || line.trim().startsWith("* ");
-            const content = isBullet ? line.trim().slice(2) : line;
 
-            // Split by bold patterns **text**
-            const parts = content.split(/(\*\*[^*]+\*\*)/g);
-            const formatted = parts.map((part, partIdx) => {
-              if (part.startsWith("**") && part.endsWith("**")) {
-                return (
-                  <strong key={partIdx} style={styles.boldText}>
-                    {part.slice(2, -2)}
-                  </strong>
-                );
-              }
-              return part;
-            });
-
-            if (isBullet) {
-              return (
-                <ul key={lIdx} style={styles.bulletList}>
-                  <li style={styles.bulletItem}>{formatted}</li>
-                </ul>
-              );
-            }
-
-            return (
-              <div key={lIdx} style={styles.textLine}>
-                {formatted}
-              </div>
-            );
-          })}
-        </div>
-      );
-    });
-  };
 
   // Submit Rules query
   const handleRulesSubmit = async (e) => {
@@ -267,9 +242,11 @@ export default function AiPanel({ user }) {
                 <div style={styles.bubbleHeader}>
                   {msg.role === "user" ? user?.username || "You" : "Rules Scholar"}
                 </div>
-                <div style={styles.bubbleText}>
-                  {parseMarkdownText(msg.text)}
-                </div>
+                <div 
+                  className="wiki-content"
+                  style={styles.bubbleText}
+                  dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
+                />
               </div>
             ))}
             {rulesLoading && (
@@ -349,6 +326,7 @@ export default function AiPanel({ user }) {
             {npcHistory.map((msg, idx) => {
               const selectedNpc = npcs.find((n) => n.id.toString() === selectedNpcId);
               const senderName = msg.role === "user" ? user?.username || "You" : (selectedNpc?.name || "NPC");
+              const npcAvatar = msg.role === "assistant" && selectedNpc?.imageUrl ? selectedNpc.imageUrl : "";
               return (
                 <div
                   key={idx}
@@ -359,10 +337,21 @@ export default function AiPanel({ user }) {
                     borderColor: msg.role === "user" ? "rgba(200, 151, 58, 0.3)" : "rgba(255, 255, 255, 0.06)",
                   }}
                 >
-                  <div style={styles.bubbleHeader}>{senderName}</div>
-                  <div style={styles.bubbleText}>
-                    {parseMarkdownText(msg.text)}
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", marginBottom: "0.15rem" }}>
+                    {npcAvatar && (
+                      <img 
+                        src={npcAvatar} 
+                        alt={senderName} 
+                        style={{ width: 18, height: 18, borderRadius: "50%", border: "1px solid var(--color-accent)", objectFit: "cover" }} 
+                      />
+                    )}
+                    <div style={styles.bubbleHeader}>{senderName}</div>
                   </div>
+                  <div 
+                    className="wiki-content"
+                    style={styles.bubbleText}
+                    dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
+                  />
                 </div>
               );
             })}

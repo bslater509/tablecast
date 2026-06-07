@@ -722,3 +722,12 @@ textarea:focus-visible {
     display: none !important;
   }
 }
+
+/* AI Assist dropdown options */
+.assist-option {
+  transition: background 0.15s ease-in-out;
+}
+.assist-option:hover {
+  background: var(--color-surface-hover) !important;
+  color: var(--color-accent) !important;
+}

@@ -105,7 +105,7 @@ function stringifyEntries(entries) {
   return "";
 }
 
-async function findRelevantRules(message) {
+async function findRelevantRules(message, user) {
   if (!message) return "";
 
   // Split into keywords longer than 3 chars
@@ -116,6 +116,60 @@ async function findRelevantRules(message) {
 
   if (words.length === 0) return "";
 
+  const isDm = user?.role === "DM";
+
+  // 1. Search Wiki Articles
+  const matchedWiki = [];
+  for (const word of words.slice(0, 5)) {
+    try {
+      const articles = await prisma.wikiArticle.findMany({
+        where: {
+          OR: [
+            { title: { contains: word } },
+            { content: { contains: word } },
+            { tags: { contains: word } }
+          ],
+          ...(isDm ? {} : { isVisibleToPlayers: true })
+        },
+        take: 2
+      });
+      for (const art of articles) {
+        if (!matchedWiki.some(a => a.id === art.id)) {
+          matchedWiki.push(art);
+        }
+      }
+    } catch (err) {
+      console.error("[RAG Wiki Search Error]", err.message);
+    }
+  }
+
+  // 2. Search Campaign NPCs
+  const matchedNpcs = [];
+  for (const word of words.slice(0, 5)) {
+    try {
+      const npcs = await prisma.npc.findMany({
+        where: {
+          OR: [
+            { name: { contains: word } },
+            { race: { contains: word } },
+            { class: { contains: word } },
+            { description: { contains: word } }
+          ],
+          ...(isDm ? {} : { isVisibleToPlayers: true })
+        },
+        take: 2
+      });
+      for (const npc of npcs) {
+        if (!matchedNpcs.some(n => n.id === npc.id)) {
+          matchedNpcs.push(npc);
+        }
+      }
+    } catch (err) {
+      console.error("[RAG NPC Search Error]", err.message);
+    }
+  }
+
+  // 3. Search Core Rules
   const allowedSetting = await prisma.appSetting.findUnique({ where: { key: "reference.allowedSources" } });
   let allowedSources = [];
   if (allowedSetting?.value) {
@@ -137,38 +191,62 @@ async function findRelevantRules(message) {
     }
   }
 
-  if (matches.length === 0) return "";
-
   // Format matches into context
-  let context = "\n=== D&D 5e REFERENCE DATA (LOCAL DATABASE) ===\n";
-  const uniqueNames = new Set();
-  
-  for (const match of matches) {
-    const item = match.item;
-    if (uniqueNames.has(item.name)) continue;
-    uniqueNames.add(item.name);
+  let context = "";
 
-    context += `Category: ${match.category.toUpperCase()} | Name: ${item.name} | Source: ${item.source || "Unknown"}\n`;
-
-    if (match.category === "spells") {
-      context += `- Level: ${item.level === 0 ? "Cantrip" : item.level} spell | School: ${item.school || ""}\n`;
-      context += `- Range: ${item.range?.type || ""} | Duration: ${item.duration?.[0]?.type || ""}\n`;
-      context += `- Description: ${stringifyEntries(item.entries)}\n\n`;
-    } else if (match.category === "monsters") {
-      context += `- CR: ${item.cr || "0"} | AC: ${item.ac?.[0]?.ac || item.ac?.[0] || "10"} | HP: ${item.hp?.average || "10"}\n`;
-      context += `- Stats: STR ${item.str} DEX ${item.dex} CON ${item.con} INT ${item.int} WIS ${item.wis} CHA ${item.cha}\n`;
-      if (item.action) {
-        context += `- Actions: ${item.action.map(a => `${a.name}: ${stringifyEntries(a.entries)}`).join("; ")}\n`;
-      }
-      context += "\n";
-    } else if (match.category === "items") {
-      context += `- Rarity: ${item.rarity || "Common"} | Weight: ${item.weight || 0} lbs | Value: ${item.value || "0 gp"}\n`;
-      context += `- Description: ${stringifyEntries(item.entries)}\n\n`;
-    } else {
-      context += `- Details: ${stringifyEntries(item.entries || item.entry || item.description)}\n\n`;
+  if (matchedWiki.length > 0) {
+    context += "\n=== CAMPAIGN LORE & WIKI ===\n";
+    for (const art of matchedWiki.slice(0, 3)) {
+      context += `Title: ${art.title} | Category: ${art.category}\n`;
+      context += `Content: ${art.content}\n\n`;
     }
   }
-  context += "===============================================\n";
+
+  if (matchedNpcs.length > 0) {
+    context += "\n=== CAMPAIGN NPCs ===\n";
+    for (const npc of matchedNpcs.slice(0, 3)) {
+      context += `Name: ${npc.name} | Race: ${npc.race || "unknown"} | Class: ${npc.class || "NPC"}\n`;
+      context += `- Description: ${npc.description}\n`;
+      context += `- Personality: ${npc.personality}\n`;
+      context += `- History: ${npc.history}\n\n`;
+    }
+  }
+
+  if (matches.length > 0) {
+    context += "\n=== D&D 5e REFERENCE DATA (LOCAL DATABASE) ===\n";
+    const uniqueNames = new Set();
+    
+    for (const match of matches) {
+      const item = match.item;
+      if (uniqueNames.has(item.name)) continue;
+      uniqueNames.add(item.name);
+
+      context += `Category: ${match.category.toUpperCase()} | Name: ${item.name} | Source: ${item.source || "Unknown"}\n`;
+
+      if (match.category === "spells") {
+        context += `- Level: ${item.level === 0 ? "Cantrip" : item.level} spell | School: ${item.school || ""}\n`;
+        context += `- Range: ${item.range?.type || ""} | Duration: ${item.duration?.[0]?.type || ""}\n`;
+        context += `- Description: ${stringifyEntries(item.entries)}\n\n`;
+      } else if (match.category === "monsters") {
+        context += `- CR: ${item.cr || "0"} | AC: ${item.ac?.[0]?.ac || item.ac?.[0] || "10"} | HP: ${item.hp?.average || "10"}\n`;
+        context += `- Stats: STR ${item.str} DEX ${item.dex} CON ${item.con} INT ${item.int} WIS ${item.wis} CHA ${item.cha}\n`;
+        if (item.action) {
+          context += `- Actions: ${item.action.map(a => `${a.name}: ${stringifyEntries(a.entries)}`).join("; ")}\n`;
+        }
+        context += "\n";
+      } else if (match.category === "items") {
+        context += `- Rarity: ${item.rarity || "Common"} | Weight: ${item.weight || 0} lbs | Value: ${item.value || "0 gp"}\n`;
+        context += `- Description: ${stringifyEntries(item.entries)}\n\n`;
+      } else {
+        context += `- Details: ${stringifyEntries(item.entries || item.entry || item.description)}\n\n`;
+      }
+    }
+  }
+
+  if (context) {
+    context = "\n=== RELEVANT CONTEXT ===\n" + context + "========================\n";
+  }
+
   return context;
 }
 
@@ -522,6 +600,143 @@ router.post("/test", requireDm, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/ai/generate-npc - AI NPC Creator (DM only)
+// ---------------------------------------------------------------------------
+router.post("/generate-npc", requireDm, async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return res.status(400).json({ error: "NPC prompt description is required." });
+    }
+
+    const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"];
+    const records = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
+
+    let provider = "";
+    let apiKey = "";
+    let ollamaUrl = "http://localhost:11434";
+    let ollamaModel = "llama3";
+
+    for (const r of records) {
+      if (r.key === "ai.provider") provider = r.value;
+      if (r.key === "ai.apiKey") apiKey = r.value;
+      if (r.key === "ai.ollamaUrl") ollamaUrl = r.value;
+      if (r.key === "ai.ollamaModel") ollamaModel = r.value;
+    }
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    const systemPrompt = `You are a D&D 5e NPC and monster statblock generator. 
+Given a description of an NPC, generate a complete NPC profile.
+You MUST respond with a single JSON object (and NO other text). Do not wrap the JSON in codeblocks unless you are using Markdown, but it is preferred to output raw JSON. If you output code blocks, use \`\`\`json.
+The JSON must strictly conform to these fields:
+{
+  "name": "NPC name",
+  "race": "NPC race",
+  "class": "NPC class or occupation",
+  "level": 1,
+  "hp": 10,
+  "maxHp": 10,
+  "ac": 10,
+  "cr": "0",
+  "strength": 10,
+  "dexterity": 10,
+  "constitution": 10,
+  "intelligence": 10,
+  "wisdom": 10,
+  "charisma": 10,
+  "alignment": "NPC alignment (e.g. Lawful Good, Chaotic Evil, Neutral)",
+  "appearance": "Physical appearance description",
+  "personality": "Personality traits, ideals, bonds, or flaws",
+  "history": "Brief background story",
+  "partyRelationship": "How they feel about or interact with the player party",
+  "description": "General bio/description summary",
+  "actions": [
+    {
+      "name": "Action Name",
+      "description": "Description of the combat action, attack, or ability"
+    }
+  ]
+}`;
+
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, `Create NPC: ${prompt}`);
+
+    // Parse JSON safely
+    let cleanJsonStr = rawResponse.trim();
+    // Strip markdown codeblock if present
+    if (cleanJsonStr.startsWith("```")) {
+      const match = cleanJsonStr.match(/```(?:json)?([\s\S]+?)```/);
+      if (match) {
+        cleanJsonStr = match[1].trim();
+      }
+    }
+
+    let npcData;
+    try {
+      npcData = JSON.parse(cleanJsonStr);
+    } catch (e) {
+      console.error("[AI NPC Gen] JSON parse failed on text:", rawResponse);
+      throw new Error("Failed to generate a valid NPC JSON structure from the AI response.");
+    }
+
+    res.json(npcData);
+  } catch (err) {
+    console.error("[AI NPC Gen] Failed:", err.message);
+    res.status(500).json({ error: err.message || "Failed to generate NPC." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/ai/expand-text - AI Text Enhancer (DM only)
+// ---------------------------------------------------------------------------
+router.post("/expand-text", requireDm, async (req, res) => {
+  try {
+    const { text, action } = req.body;
+    if (!text || typeof text !== "string") {
+      return res.status(400).json({ error: "Text content is required." });
+    }
+
+    const keys = ["ai.provider", "ai.apiKey", "ai.ollamaUrl", "ai.ollamaModel"];
+    const records = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
+
+    let provider = "";
+    let apiKey = "";
+    let ollamaUrl = "http://localhost:11434";
+    let ollamaModel = "llama3";
+
+    for (const r of records) {
+      if (r.key === "ai.provider") provider = r.value;
+      if (r.key === "ai.apiKey") apiKey = r.value;
+      if (r.key === "ai.ollamaUrl") ollamaUrl = r.value;
+      if (r.key === "ai.ollamaModel") ollamaModel = r.value;
+    }
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    let systemPrompt = "You are a D&D campaign helper assisting a Dungeon Master. Rewrite or generate the text as requested.";
+    if (action === "expand") {
+      systemPrompt = "Expand on the provided D&D lore description, adding flavor, sensory details, and worldbuilding depth in markdown.";
+    } else if (action === "summarize") {
+      systemPrompt = "Provide a clean, bulleted summary of the provided text, capturing all key points for a DM's quick reference.";
+    } else if (action === "make_dramatic") {
+      systemPrompt = "Rewrite the text to be dramatic, dark, and filled with classic D&D fantasy descriptions.";
+    } else if (action === "style_5e") {
+      systemPrompt = "Format and rewrite the text to sound like an official D&D 5e sourcebook page, using terms and layout conventions from the core books.";
+    }
+
+    const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, text);
+    res.json({ reply });
+  } catch (err) {
+    console.error("[AI Expand] Failed:", err.message);
+    res.status(500).json({ error: err.message || "Failed to process text." });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/ai/chat - Process built-in D&D assistant chat
 // ---------------------------------------------------------------------------
 router.post("/chat", async (req, res) => {
@@ -556,8 +771,8 @@ router.post("/chat", async (req, res) => {
       return res.status(400).json({ error: "AI assistant is not configured. Please ask the DM to set up API keys in Settings." });
     }
 
-    // 1. Fetch relevant local reference material
-    const referenceContext = await findRelevantRules(message);
+    // 1. Fetch relevant local reference material (enforces visibility constraints)
+    const referenceContext = await findRelevantRules(message, user);
 
     // 2. Build system instructions
     let systemPrompt = `You are a helpful D&D 5e assistant, dungeon master helper, and rules scholar.
