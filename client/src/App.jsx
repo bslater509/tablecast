@@ -6,14 +6,13 @@ import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import {
   BookOpen,
-  Bot,
   Box,
   CalendarDays,
   Database,
   ExternalLink,
   LogOut,
   Map as MapIcon,
-  MessageSquare,
+  MessageCircle,
   Settings,
   SlidersHorizontal,
   Users,
@@ -23,6 +22,7 @@ import MapPanel from "./components/MapPanel";
 import CharacterList from "./components/CharacterList";
 import CharacterSheet from "./components/CharacterSheet";
 import ChatPanel from "./components/ChatPanel";
+import MessageHub from "./components/MessageHub";
 import WikiPanel from "./components/WikiPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import ReferencePanel from "./components/ReferencePanel";
@@ -68,24 +68,14 @@ const DM_NAV_ITEMS = [
     popoutFeatures: "width=600,height=800,resizable=yes,scrollbars=yes",
   },
   {
-    id: "chat",
-    label: "Session Chat",
-    mobileLabel: "Chat",
-    path: "/dm/chat",
-    icon: MessageSquare,
+    id: "messages",
+    label: "Messages",
+    mobileLabel: "Messages",
+    path: "/dm/messages",
+    icon: MessageCircle,
     popoutUrl: "/#/dm/popout/chat",
-    popoutTitle: "Pop out Chat",
+    popoutTitle: "Pop out Session Chat",
     popoutFeatures: "width=600,height=800,resizable=yes,scrollbars=yes",
-  },
-  {
-    id: "ai",
-    label: "AI Companion",
-    mobileLabel: "AI",
-    path: "/dm/ai",
-    icon: Bot,
-    popoutUrl: "/#/dm/popout/ai",
-    popoutTitle: "Pop out AI Companion",
-    popoutFeatures: "width=700,height=900,resizable=yes,scrollbars=yes",
   },
   {
     id: "wiki",
@@ -734,50 +724,6 @@ function CharacterSheetWrapper({ user, basePath, isPopout = false }) {
   );
 }
 
-function ChatAiWrapper({ user, basePath }) {
-  const { subtab } = useParams();
-  const navigate = useNavigate();
-  const activeSubtab = subtab === "ai" ? "ai" : "chat";
-
-  return (
-    <div style={styles.chatJournalWrapper}>
-      <div style={styles.subTabNav}>
-        <button
-          id="toggle-chat-tab"
-          onClick={() => navigate(basePath)}
-          style={{
-            ...styles.subTabBtn,
-            background: activeSubtab === "chat" ? "var(--color-accent-dim)" : "transparent",
-            color: activeSubtab === "chat" ? "var(--color-accent)" : "var(--color-muted)",
-            border: activeSubtab === "chat" ? "1px solid var(--color-border)" : "1px solid transparent",
-          }}
-          className="touch-target"
-        >
-          Session Chat
-        </button>
-        <button
-          id="toggle-ai-tab"
-          onClick={() => navigate(`${basePath}/ai`)}
-          style={{
-            ...styles.subTabBtn,
-            background: activeSubtab === "ai" ? "var(--color-accent-dim)" : "transparent",
-            color: activeSubtab === "ai" ? "var(--color-accent)" : "var(--color-muted)",
-            border: activeSubtab === "ai" ? "1px solid var(--color-border)" : "1px solid transparent",
-          }}
-          className="touch-target"
-        >
-          AI Companion
-        </button>
-      </div>
-
-      <div style={styles.subTabContent}>
-        {activeSubtab === "chat" && <ChatPanel user={user} isPopout={false} />}
-        {activeSubtab === "ai" && <AiPanel user={user} />}
-      </div>
-    </div>
-  );
-}
-
 function PlayerSheetRedirect({ user }) {
   const navigate = useNavigate();
   useEffect(() => {
@@ -805,7 +751,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "sheet", "chat", "wiki", "dice", "sessions"].includes(pathParts[2])
+  const currentTab = ["map", "sheet", "messages", "wiki", "dice", "sessions"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
@@ -849,16 +795,17 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
           <Route path="sheet" element={<PlayerSheetRedirect user={user} />} />
           <Route path="sheet/:id" element={<CharacterSheetWrapper user={user} basePath="/player/sheet" />} />
           <Route path="dice" element={<DiceRollerPanel user={user} />} />
-          <Route path="chat" element={<ChatAiWrapper user={user} basePath="/player/chat" />} />
-          <Route path="chat/:subtab" element={<ChatAiWrapper user={user} basePath="/player/chat" />} />
+          <Route path="messages" element={<MessageHub user={user} />} />
+          <Route path="chat" element={<Navigate to="/player/messages" replace />} />
+          <Route path="chat/:subtab" element={<Navigate to="/player/messages" replace />} />
           <Route path="wiki" element={<WikiPanel user={user} isPopout={false} />} />
           <Route path="sessions" element={<SessionsPanel user={user} readOnly basePath="/player/sessions" />} />
           <Route path="sessions/:id" element={<SessionsPanel user={user} readOnly basePath="/player/sessions" />} />
-          <Route path="chat-journal" element={<Navigate to="/player/chat" replace />} />
-          <Route path="chat-journal/chat" element={<Navigate to="/player/chat" replace />} />
+          <Route path="chat-journal" element={<Navigate to="/player/messages" replace />} />
+          <Route path="chat-journal/chat" element={<Navigate to="/player/messages" replace />} />
           <Route path="chat-journal/journal" element={<Navigate to="/player/wiki" replace />} />
-          <Route path="chat-journal/ai" element={<Navigate to="/player/chat/ai" replace />} />
-          <Route path="chat-journal/:subtab" element={<Navigate to="/player/chat" replace />} />
+          <Route path="chat-journal/ai" element={<Navigate to="/player/messages" replace />} />
+          <Route path="chat-journal/:subtab" element={<Navigate to="/player/messages" replace />} />
           <Route path="*" element={<Navigate to="map" replace />} />
         </Routes>
       </main>
@@ -921,11 +868,11 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
         </button>
 
         <button
-          id="nav-tab-chat"
-          onClick={() => navigate("/player/chat")}
+          id="nav-tab-messages"
+          onClick={() => navigate("/player/messages")}
           style={{
             ...styles.navBtn,
-            color: currentTab === "chat" ? "var(--color-accent)" : "var(--color-muted)",
+            color: currentTab === "messages" ? "var(--color-accent)" : "var(--color-muted)",
           }}
           className="touch-target"
         >
@@ -979,7 +926,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "characters", "chat", "ai", "wiki", "sessions", "settings", "dice", "importer"].includes(pathParts[2])
+  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "settings", "dice", "importer"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
@@ -1080,17 +1027,19 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             />
             <Route path="characters/:id" element={<CharacterSheetWrapper user={user} basePath="/dm/characters" />} />
             <Route path="dice" element={<DiceRollerPanel user={user} />} />
-            <Route path="chat" element={<ChatPanel user={user} isPopout={false} />} />
-            <Route path="chat/ai" element={<Navigate to="/dm/ai" replace />} />
-            <Route path="ai" element={<AiPanel user={user} />} />
+            <Route path="messages" element={<MessageHub user={user} />} />
+            {/* Legacy redirects */}
+            <Route path="chat" element={<Navigate to="/dm/messages" replace />} />
+            <Route path="chat/ai" element={<Navigate to="/dm/messages" replace />} />
+            <Route path="ai" element={<Navigate to="/dm/messages" replace />} />
             <Route path="wiki" element={<WikiPanel user={user} isPopout={false} />} />
             <Route path="sessions" element={<SessionsPanel user={user} basePath="/dm/sessions" />} />
             <Route path="sessions/:id" element={<SessionsPanel user={user} basePath="/dm/sessions" />} />
-            <Route path="chat-journal" element={<Navigate to="/dm/chat" replace />} />
-            <Route path="chat-journal/chat" element={<Navigate to="/dm/chat" replace />} />
+            <Route path="chat-journal" element={<Navigate to="/dm/messages" replace />} />
+            <Route path="chat-journal/chat" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat-journal/journal" element={<Navigate to="/dm/wiki" replace />} />
-            <Route path="chat-journal/ai" element={<Navigate to="/dm/ai" replace />} />
-            <Route path="chat-journal/:subtab" element={<Navigate to="/dm/chat" replace />} />
+            <Route path="chat-journal/ai" element={<Navigate to="/dm/messages" replace />} />
+            <Route path="chat-journal/:subtab" element={<Navigate to="/dm/messages" replace />} />
             <Route path="importer" element={<ImporterPanel user={user} />} />
             <Route path="settings" element={<SettingsPanel user={user} />} />
             <Route path="*" element={<Navigate to="map" replace />} />

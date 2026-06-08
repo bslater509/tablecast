@@ -1104,3 +1104,22 @@ textarea:focus-visible {
   opacity: 0.35;
   cursor: default;
 }
+
+/* Slide-up animation for NPC picker / bottom sheets */
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.slide-up {
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Conversation list item hover */
+.conv-item:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.conv-item:active {
+  background: rgba(200, 151, 58, 0.08) !important;
+}
