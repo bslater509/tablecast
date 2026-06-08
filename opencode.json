@@ -14,5 +14,18 @@
   "permission": {
     "edit": "allow",
     "bash": "allow"
+  },
+  "mcp": {
+    "puppeteer": {
+      "type": "local",
+      "command": [
+        "mcp-server-puppeteer"
+      ],
+      "environment": {
+        "PUPPETEER_EXECUTABLE_PATH": "/usr/bin/google-chrome-stable",
+        "PUPPETEER_LAUNCH_OPTIONS": "{\"headless\":true,\"args\":[\"--no-sandbox\",\"--disable-setuid-sandbox\",\"--disable-dev-shm-usage\"]}",
+        "ALLOW_DANGEROUS": "true"
+      }
+    }
   }
 }
