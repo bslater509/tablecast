@@ -9,6 +9,7 @@ import { useSocket } from "../context/SocketContext";
 import ConversationList from "./ConversationList";
 import AiChatView from "./AiChatView";
 import ChatPanel from "./ChatPanel";
+import { CharacterListSkeleton } from "./PanelSkeleton";
 
 function truncate(text, max = 80) {
   if (!text) return "";
@@ -303,6 +304,10 @@ export default function MessageHub({ user }) {
         onBack={handleBack}
       />
     );
+  }
+
+  if (loading) {
+    return <CharacterListSkeleton />;
   }
 
   // Default: Conversation list

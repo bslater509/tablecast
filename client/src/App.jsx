@@ -24,6 +24,7 @@ import CharacterList from "./components/CharacterList";
 import CharacterSheet from "./components/CharacterSheet";
 import ChatPanel from "./components/ChatPanel";
 import MessageHub from "./components/MessageHub";
+import ErrorBoundary from "./components/ErrorBoundary";
 import WikiPanel from "./components/WikiPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import ReferencePanel from "./components/ReferencePanel";
@@ -287,6 +288,7 @@ function App() {
   // If no user profile selected, show Entry screen
   if (!user) {
     return (
+      <ErrorBoundary critical={true}>
       <div style={styles.overlay} className="fade-in">
         <div style={styles.loginCard} className="glass-panel gold-border-glow">
           <h1 style={styles.loginTitle}>Tablecast Tavern</h1>
@@ -370,13 +372,14 @@ function App() {
           </form>
         </div>
       </div>
+      </ErrorBoundary>
     );
   }
 
 
 
-
   return (
+    <ErrorBoundary critical={true}>
     <div 
       style={styles.appContainer} 
       className={user?.role === "DM" ? "theme-dm" : "theme-player"}
@@ -1105,6 +1108,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
         </nav>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }
 

@@ -11,6 +11,7 @@ import DOMPurify from "dompurify";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
 import WikiTreeSidebar from "./WikiTreeSidebar";
 import { useSocket } from "../context/SocketContext";
+import { WikiPanelSkeleton } from "./PanelSkeleton";
 
 marked.setOptions({
   gfm: true,
@@ -915,6 +916,10 @@ export default function WikiPanel({ user, isPopout = false }) {
 
     loadLinkedSession();
   }, [selectedArticle, isDM, authHeaders]);
+
+  if (loading) {
+    return <WikiPanelSkeleton />;
+  }
 
   // Filter list by search query
   const filteredArticles = articles.filter((article) => {

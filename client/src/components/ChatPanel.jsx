@@ -7,6 +7,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Sparkles, Copy, Check, Send, Plus, Smile, ChevronDown } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
 import { useDiceBox } from "../context/DiceBoxContext";
+import { ChatPanelSkeleton } from "./PanelSkeleton";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 
@@ -613,6 +614,10 @@ export default function ChatPanel({ user, isPopout = false }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [npcs, setNpcs] = useState([]);
   const [messageStatus, setMessageStatus] = useState({}); // { msgId: 'sending' | 'sent' }
+  const [oldestMsgId, setOldestMsgId] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const scrollRef = useRef(null);
   const typingTimeout = useRef(null);
   const pendingAcksRef = useRef({});
@@ -660,15 +665,37 @@ export default function ChatPanel({ user, isPopout = false }) {
         if (!res.ok) throw new Error("Failed to load chat history");
         const data = await res.json();
         if (!cancelled) {
+          setHasMore(data.length >= 150);
+          if (data.length > 0) setOldestMsgId(data[0].id);
           setMessages((prev) => mergeMessages(data, prev));
         }
       } catch (err) {
         console.error("Failed to load chat history:", err);
+      } finally {
+        if (!cancelled) setInitialLoading(false);
       }
     }
     loadHistory();
     return () => { cancelled = true; };
   }, []);
+
+  const loadEarlierMessages = useCallback(async () => {
+    if (!oldestMsgId || loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/chat?limit=150&before=${oldestMsgId}`);
+      if (!res.ok) throw new Error("Failed to load earlier chat messages");
+      const data = await res.json();
+      setMessages((prev) => mergeMessages(data, prev));
+      if (data.length > 0) setOldestMsgId(data[0].id);
+      setHasMore(data.length >= 150);
+    } catch (err) {
+      console.error("Failed to load earlier chat messages:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [hasMore, loadingMore, oldestMsgId]);
 
   // Socket listeners
   useEffect(() => {
@@ -906,6 +933,20 @@ export default function ChatPanel({ user, isPopout = false }) {
     );
   }
 
+  if (initialLoading) {
+    return (
+      <div
+        style={{
+          ...styles.wrapper,
+          height: isPopout ? "100vh" : "100%",
+          maxHeight: isPopout ? "100dvh" : "100%",
+        }}
+      >
+        <ChatPanelSkeleton />
+      </div>
+    );
+  }
+
   // ---- Chat UI ----
   return (
     <div
@@ -970,6 +1011,29 @@ export default function ChatPanel({ user, isPopout = false }) {
         onScroll={handleScroll}
         style={styles.messages}
       >
+        {hasMore && messages.length > 0 && (
+          <button
+            type="button"
+            onClick={loadEarlierMessages}
+            disabled={loadingMore}
+            style={{
+              alignSelf: "center",
+              margin: "0.25rem 0 0.75rem",
+              padding: "0.5rem 0.85rem",
+              borderRadius: "999px",
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.04)",
+              color: "var(--color-accent)",
+              fontSize: "0.82rem",
+              fontWeight: 600,
+              cursor: loadingMore ? "wait" : "pointer",
+              opacity: loadingMore ? 0.7 : 1,
+            }}
+          >
+            {loadingMore ? "Loading earlier messages..." : "Load earlier messages..."}
+          </button>
+        )}
+
         {messages.length === 0 && (
           <p style={styles.emptyHint}>
             No messages yet 💬 say something to test the connection!

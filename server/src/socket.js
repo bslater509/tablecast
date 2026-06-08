@@ -3,6 +3,7 @@
 const prisma = require("./prisma");
 const { isDmUser } = require("./auth");
 const { performAiCall, performAiStream, performAiStreamTokens, findRelevantRules, buildNpcRoleplaySystemPrompt, loadAiSettings } = require("./routes/ai");
+const { sanitizeText, sanitizeShortText } = require("./utils/sanitize");
 const debug = require("./utils/debug");
 const logger = require("./utils/logger");
 const log = debug("tablecast:socket");
@@ -717,12 +718,6 @@ function validateIdPayload(payload, idField) {
 
 function isValidCoordinate(value) {
   return Number.isFinite(value) && value >= 0 && value <= MAX_COORDINATE;
-}
-
-function sanitizeShortText(value, fallback) {
-  if (typeof value !== "string") return fallback;
-  const trimmed = value.trim();
-  return trimmed ? trimmed.slice(0, 240) : fallback;
 }
 
 function emitSocketError(socket, event, message) {
