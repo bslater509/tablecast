@@ -1109,7 +1109,6 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
         </nav>
       </div>
     </div>
-    </ErrorBoundary>
   );
 }
 
