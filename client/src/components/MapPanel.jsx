@@ -135,7 +135,7 @@ export default function MapPanel({ user, isPopout = false }) {
   async function loadMaps(autoSelectId = null) {
     try {
       setLoadError(null);
-      const res = await fetch("/api/maps");
+      const res = await fetch("/api/maps", { headers: authHeaders });
       if (res.ok) {
         const data = await res.json();
         setMapsList(data);
@@ -201,7 +201,7 @@ export default function MapPanel({ user, isPopout = false }) {
 
   async function fetchMapDetails(mapId) {
     try {
-      const res = await fetch(`/api/maps/${mapId}`);
+      const res = await fetch(`/api/maps/${mapId}`, { headers: authHeaders });
       if (res.ok) {
         const data = await res.json();
         setActiveMap(data);
@@ -957,7 +957,7 @@ export default function MapPanel({ user, isPopout = false }) {
 
   const handleCreateMap = async (e) => {
     e.preventDefault();
-    if (!newMapName.trim() || (!newMapFile && !newMapImagePath.trim())) return;
+    if (!newMapName.trim()) return;
 
     const submitMap = async (imageData = null) => {
       try {
@@ -987,9 +987,14 @@ export default function MapPanel({ user, isPopout = false }) {
           if (user?.role === "DM" && socket && isConnected) {
             socket.emit("map:select", withUser({ mapId: map.id }));
           }
+        } else {
+          const errData = await res.json().catch(() => ({ error: "Failed to create map." }));
+          console.error("Failed to create map:", errData.error);
+          setLoadError(errData.error || "Failed to create map.");
         }
       } catch (err) {
         console.error("Failed to create map:", err);
+        setLoadError("Failed to create map. Check server connection.");
       }
     };
 
@@ -2869,7 +2874,7 @@ export default function MapPanel({ user, isPopout = false }) {
                   type="submit"
                   style={styles.btnSubmit}
                   className="touch-target btn-hover-scale"
-                  disabled={!newMapName.trim() || (!newMapFile && !newMapImagePath.trim())}
+                  disabled={!newMapName.trim()}
                 >
                   Create Map
                 </button>
