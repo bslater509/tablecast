@@ -83,10 +83,23 @@ function log(message, type = "info") {
 
 /**
  * HTTP GET helper that returns response body as string.
+ * Uses a browser-like User-Agent to avoid 403 blocking from 5e.tools.
  */
 function fetchUrl(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { timeout: 30000 }, (res) => {
+    const options = {
+      timeout: 30000,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+      },
+    };
+    https.get(url, options, (res) => {
+      // Handle redirects
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        resolve(fetchUrl(res.headers.location));
+        return;
+      }
       if (res.statusCode < 200 || res.statusCode >= 300) {
         reject(new Error(`HTTP ${res.statusCode} for ${url}`));
         return;
