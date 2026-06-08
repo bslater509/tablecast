@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { Dices, ExternalLink, History, Minus, Plus, RotateCcw } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
+import { useDiceBox } from "../context/DiceBoxContext";
 import { diceHexToRgb, getDiceThemeOption, getDiceThemePreviewStyles } from "../lib/diceThemes";
 
 function checkWebGLSupport() {
@@ -121,6 +122,7 @@ const DICE_TYPES = [
 
 export default function DiceRollerPanel({ user, isPopout = false }) {
   const { socket } = useSocket();
+  const { rollDice } = useDiceBox();
   const [activeSubTab, setActiveSubTab] = useState("roller"); // "roller" | "history"
   const [history, setHistory] = useState([]);
   const activeDiceTheme = getDiceThemeOption(user?.diceTheme || "default");
@@ -261,14 +263,13 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
   };
 
   // Execute Roll
-  const handleRoll = () => {
+  const handleRoll = async () => {
     if (!hasDiceSelected || !socket) return;
 
-    const dice3d = [];
-    const rolls = [];
+    const notation = [];
     let formulaParts = [];
-    let rollSum = 0;
 
+    // Build notation from quantities
     Object.entries(quantities).forEach(([key, qty]) => {
       if (qty <= 0) return;
       const dieConfig = DICE_TYPES.find((d) => d.id === key);
@@ -276,38 +277,55 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
       const sides = dieConfig.sides;
 
       if (key === "d20" && advantage !== "normal" && qty === 1) {
-        // Handle 1d20 with Advantage / Disadvantage
-        const r1 = Math.floor(Math.random() * 20) + 1;
-        const r2 = Math.floor(Math.random() * 20) + 1;
-        const chosen = advantage === "advantage" ? Math.max(r1, r2) : Math.min(r1, r2);
-        const discarded = advantage === "advantage" ? Math.min(r1, r2) : Math.max(r1, r2);
-
-        rolls.push(chosen);
-        rollSum += chosen;
-        dice3d.push(`1d20@${r1}`, `1d20@${r2}`);
-
+        // For advantage/disadvantage, roll two individual d20s
+        notation.push("1d20", "1d20");
         const advLabel = advantage === "advantage" ? "Adv" : "Disadv";
-        formulaParts.push(`1d20 (${advLabel}: chose ${chosen}, dropped ${discarded})`);
+        formulaParts.push(`1d20 (${advLabel})`);
       } else {
-        const typeRolls = [];
-        for (let i = 0; i < qty; i++) {
-          const r = Math.floor(Math.random() * sides) + 1;
-          typeRolls.push(r);
-          rolls.push(r);
-          rollSum += r;
-        }
-        dice3d.push(`${qty}${key}@${typeRolls.join(",")}`);
+        notation.push(`${qty}${key}`);
         formulaParts.push(`${qty}${key}`);
       }
     });
 
-    const finalTotal = rollSum + modifier;
     if (modifier !== 0) {
       formulaParts.push(modifier > 0 ? `+ ${modifier}` : `- ${Math.abs(modifier)}`);
     }
 
     const completedFormula = formulaParts.join(" ");
-    
+
+    // Roll via DiceBox (physics-based) or fallback
+    let groups, allRolls, total;
+    try {
+      const result = await rollDice(notation, {
+        theme: activeDiceTheme.id,
+        color: activeDiceColor,
+      });
+      groups = result.groups;
+      allRolls = result.allRolls;
+      total = result.total;
+    } catch (err) {
+      console.error("[DiceRollerPanel] rollDice failed:", err);
+      return;
+    }
+
+    // Handle advantage/disadvantage: the physics rolled two d20s;
+    // we must pick the higher/lower and only count one.
+    if (advantage !== "normal" && quantities.d20 === 1) {
+      // groups will have 2 entries, each with a single d20 roll
+      const roll1 = groups[0]?.rolls?.[0]?.value || 0;
+      const roll2 = groups[1]?.rolls?.[0]?.value || 0;
+      const chosen = advantage === "advantage" ? Math.max(roll1, roll2) : Math.min(roll1, roll2);
+      const discarded = advantage === "advantage" ? Math.min(roll1, roll2) : Math.max(roll1, roll2);
+
+      // Recompute total: only the chosen die contributes (plus modifier)
+      total = chosen + modifier;
+
+      // Rebuild allRolls to reflect only the chosen roll for display purposes
+      allRolls = [chosen];
+    }
+
+    const finalTotal = total;
+
     // Create descriptive summary text
     let descriptionText = `rolled ${getFormulaPreview()}! Total: ${finalTotal}`;
 
@@ -319,14 +337,13 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
       rollDetails: {
         rollName: rollLabel.trim() || "Dice Roll",
         formula: completedFormula,
-        rolls: rolls,
+        rolls: allRolls,
         modifier: modifier,
         total: finalTotal,
         isAttack: false,
-        status: "rolling",
+        status: "rolled",
         diceTheme: activeDiceTheme.id,
         diceColor: activeDiceColor,
-        dice3d: dice3d,
       },
     });
   };

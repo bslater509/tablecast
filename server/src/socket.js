@@ -24,7 +24,7 @@ function registerSocketHandlers(io) {
       type: "system",
     });
 
-    socket.on("chat:send", async (payload) => {
+    socket.on("chat:send", async (payload, ackCallback) => {
       if (!payload || typeof payload.text !== "string" || !payload.text.trim()) {
         log("chat:send — rejected (invalid payload from %s)", clientId);
         return;
@@ -67,6 +67,11 @@ function registerSocketHandlers(io) {
 
       message = await persistChatMessage(message);
       io.emit("chat:message", message);
+
+      // Send ACK back to the sender for status indicator
+      if (typeof ackCallback === "function") {
+        ackCallback({ id: message.id, timestamp: message.timestamp });
+      }
 
       // --- Intercept AI Assistant Commands ---
       try {

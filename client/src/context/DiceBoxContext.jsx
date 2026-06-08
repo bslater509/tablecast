@@ -1,11 +1,49 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import DiceBox from "@3d-dice/dice-box";
-import { useSocket } from "./SocketContext";
-import { getDiceThemeOption, getDiceThemePreviewStyles } from "../lib/diceThemes";
 
 const debug = typeof process !== "undefined" && process.env.NODE_ENV !== "production" ? console.log : () => {};
 
 const DiceBoxContext = createContext(null);
+
+// Fallback random generator when 3D dice box is unavailable
+function fallbackRoll(notation) {
+  const groups = [];
+  let allRolls = [];
+  let total = 0;
+
+  const parseNotation = (str) => {
+    const match = str.match(/^(\d+)[dD](\d+)(?:([+-])(\d+))?$/);
+    if (!match) return null;
+    return {
+      qty: parseInt(match[1], 10),
+      sides: parseInt(match[2], 10),
+      modifier: match[3] === "-" ? -parseInt(match[4] || 0, 10) : parseInt(match[4] || 0, 10),
+    };
+  };
+
+  const items = Array.isArray(notation) ? notation : [notation];
+  for (const item of items) {
+    const parsed = parseNotation(item);
+    if (!parsed) continue;
+    const rollValues = [];
+    for (let i = 0; i < parsed.qty; i++) {
+      rollValues.push(Math.floor(Math.random() * parsed.sides) + 1);
+    }
+    const groupSum = rollValues.reduce((a, b) => a + b, 0) + parsed.modifier;
+    const group = {
+      qty: parsed.qty,
+      sides: parsed.sides,
+      modifier: parsed.modifier,
+      value: groupSum,
+      rolls: rollValues.map((v) => ({ value: v, sides: parsed.sides, qty: 1 })),
+    };
+    groups.push(group);
+    allRolls.push(...rollValues);
+    total += groupSum;
+  }
+
+  return { groups, allRolls, total };
+}
 
 export function DiceBoxProvider({ children }) {
   const containerRef = useRef(null);
@@ -16,17 +54,9 @@ export function DiceBoxProvider({ children }) {
   // Keep queue in state to trigger re-renders when queue changes
   const [queue, setQueue] = useState([]);
   const queueRef = useRef([]);
-  const queuedMessageIdsRef = useRef(new Set());
-  const [toasts, setToasts] = useState([]);
-
-  // Trigger toast notifications
-  const showToast = useCallback((toast) => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, ...toast }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
-  }, []);
+  // Pending promise resolve/reject for the active roll
+  const pendingResolve = useRef(null);
+  const pendingReject = useRef(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -52,37 +82,32 @@ export function DiceBoxProvider({ children }) {
       // Force an immediate window resize event to trigger correct layout size calculations
       window.dispatchEvent(new Event("resize"));
 
-      // Setup global complete listener
+      // Setup global complete listener — resolves pending roll promise with physics results
       box.onRollComplete = (results) => {
         debug("[3D Dice] Roll complete:", results);
-        
-        // Find the current active roll in queue
-        const activeRoll = queueRef.current[0];
-        if (activeRoll) {
-          // Dispatch custom event to notify listeners (e.g. ChatPanel)
-          window.dispatchEvent(
-            new CustomEvent("dice:roll:complete", {
-              detail: { messageId: activeRoll.messageId },
-            })
-          );
 
-          // Trigger global roll result toast notification
-          showToast({
-            sender: activeRoll.sender || "Someone",
-            rollName: activeRoll.rollName || "Dice Roll",
-            formula: activeRoll.formula || "1d20",
-            total: activeRoll.total !== undefined ? activeRoll.total : "?",
-            color: activeRoll.color,
-            theme: activeRoll.theme,
-          });
-
-          // Remove completed roll from queue
-          queueRef.current.shift();
-          if (activeRoll.messageId) {
-            queuedMessageIdsRef.current.delete(activeRoll.messageId);
+        // Extract flat roll values from the grouped results
+        const allRolls = [];
+        let total = 0;
+        for (const group of results) {
+          if (group.rolls) {
+            for (const die of group.rolls) {
+              allRolls.push(die.value);
+            }
           }
-          setQueue([...queueRef.current]);
+          total += group.value || 0;
         }
+
+        // Resolve the pending promise so the caller gets the actual physics results
+        if (pendingResolve.current) {
+          pendingResolve.current({ groups: results, allRolls, total });
+          pendingResolve.current = null;
+          pendingReject.current = null;
+        }
+
+        // Remove completed roll from queue
+        queueRef.current.shift();
+        setQueue([...queueRef.current]);
 
         // Delay clearing/hiding dice slightly for better visual polish
         setTimeout(() => {
@@ -103,9 +128,9 @@ export function DiceBoxProvider({ children }) {
         diceBoxRef.current = null;
       }
     };
-  }, [showToast]);
+  }, []);
 
-  // Process the queue
+  // Process the queue — one roll at a time
   useEffect(() => {
     if (!isReady || isRollingRef.current || queue.length === 0) return;
 
@@ -113,23 +138,27 @@ export function DiceBoxProvider({ children }) {
     isRollingRef.current = true;
     setIsRolling(true);
 
-    const { dice3d, color, theme } = nextRoll;
+    const { notation, theme, color, resolve, reject } = nextRoll;
     const box = diceBoxRef.current;
 
-    if (box) {
-      debug("[3D Dice] Simulating roll:", dice3d, "with theme:", theme, "and color:", color);
+    if (box && notation.length > 0) {
+      debug("[3D Dice] Rolling:", notation, "with theme:", theme, "and color:", color);
       
       // Force viewport resize event just in case layout changed before active roll
       window.dispatchEvent(new Event("resize"));
-      
+
       const activeTheme = theme || "default";
       const rollThemeColor = color || "#7c3aed";
+
+      // Store promise callbacks for onRollComplete to call
+      pendingResolve.current = resolve;
+      pendingReject.current = reject;
 
       // Update config with the active theme and color dynamically
       try {
         box.updateConfig({
           theme: activeTheme,
-          themeColor: rollThemeColor
+          themeColor: rollThemeColor,
         });
       } catch (err) {
         console.error("[3D Dice] Failed to update config:", err);
@@ -142,94 +171,63 @@ export function DiceBoxProvider({ children }) {
 
       loadPromise
         .then(() => {
-          return box.roll(dice3d, {
+          return box.roll(notation, {
             theme: activeTheme,
-            themeColor: rollThemeColor
+            themeColor: rollThemeColor,
           });
         })
         .catch((err) => {
           console.error("[3D Dice] Roll error:", err);
-          // Recover queue state on error
-          window.dispatchEvent(
-            new CustomEvent("dice:roll:complete", {
-              detail: { messageId: nextRoll.messageId },
-            })
-          );
-          queueRef.current.shift();
-          if (nextRoll.messageId) {
-            queuedMessageIdsRef.current.delete(nextRoll.messageId);
+          if (pendingReject.current) {
+            pendingReject.current(err);
+            pendingResolve.current = null;
+            pendingReject.current = null;
           }
+          queueRef.current.shift();
           setQueue([...queueRef.current]);
           isRollingRef.current = false;
           setIsRolling(false);
         });
     } else {
-      queueRef.current.shift();
-      if (nextRoll.messageId) {
-        queuedMessageIdsRef.current.delete(nextRoll.messageId);
+      // Box not available — reject the promise
+      if (reject) {
+        reject(new Error("Dice box not available"));
       }
+      queueRef.current.shift();
       setQueue([...queueRef.current]);
       isRollingRef.current = false;
       setIsRolling(false);
     }
   }, [isReady, isRolling, queue]);
 
-  // Queue a roll
-  const trigger3DRoll = useCallback((messageId, dice3d, color, theme, sender, rollName, formula, total) => {
-    const normalizedDice3d = Array.isArray(dice3d) ? dice3d.filter(Boolean) : [dice3d].filter(Boolean);
+  // Public API: roll dice with simple notation, returns actual physics results
+  const rollDice = useCallback(async (notation, options = {}) => {
+    const { theme = "default", color = "#7c3aed" } = options;
 
-    if (normalizedDice3d.length === 0) {
-      // Immediate completion if no 3D dice configured
-      window.dispatchEvent(
-        new CustomEvent("dice:roll:complete", {
-          detail: { messageId },
-        })
-      );
-      return;
+    // Normalize to array of non-empty strings
+    const normalized = Array.isArray(notation)
+      ? notation.filter(Boolean)
+      : [notation].filter(Boolean);
+
+    if (normalized.length === 0) {
+      return { groups: [], allRolls: [], total: 0 };
     }
 
-    if (messageId && queuedMessageIdsRef.current.has(messageId)) {
-      return;
+    // If the 3D box is not available, use fallback random generation
+    if (!diceBoxRef.current || !isReady) {
+      debug("[3D Dice] Box not ready, using fallback random generation");
+      return fallbackRoll(normalized);
     }
 
-    if (messageId) {
-      queuedMessageIdsRef.current.add(messageId);
-    }
-
-    debug("[3D Dice] Queueing roll:", normalizedDice3d, "with theme:", theme, "for:", sender);
-    queueRef.current.push({ messageId, dice3d: normalizedDice3d, color, theme, sender, rollName, formula, total });
-    setQueue([...queueRef.current]);
-  }, [setQueue]);
-
-  const socketContext = useSocket();
-  const socket = socketContext?.socket;
-
-  useEffect(() => {
-    if (!socket) return;
-
-    function handleGlobalRollMessage(msg) {
-      if (msg.type === "roll" && msg.rollDetails?.status === "rolling") {
-        trigger3DRoll(
-          msg.id,
-          msg.rollDetails.dice3d,
-          msg.rollDetails.diceColor,
-          msg.rollDetails.diceTheme,
-          msg.sender,
-          msg.rollDetails.rollName,
-          msg.rollDetails.formula,
-          msg.rollDetails.total
-        );
-      }
-    }
-
-    socket.on("chat:message", handleGlobalRollMessage);
-    return () => {
-      socket.off("chat:message", handleGlobalRollMessage);
-    };
-  }, [socket, trigger3DRoll]);
+    // Queue the roll and return a promise that resolves with physics results
+    return new Promise((resolve, reject) => {
+      queueRef.current.push({ notation: normalized, theme, color, resolve, reject });
+      setQueue([...queueRef.current]);
+    });
+  }, [isReady]);
 
   return (
-    <DiceBoxContext.Provider value={{ trigger3DRoll, isReady, isRolling }}>
+    <DiceBoxContext.Provider value={{ rollDice, isReady, isRolling }}>
       {children}
       {/* Global full-screen canvas overlay */}
       <div
@@ -247,39 +245,6 @@ export function DiceBoxProvider({ children }) {
           opacity: isRolling ? 1 : 0,
         }}
       />
-      {/* Global Toasts Container */}
-      <div style={styles.toastContainer}>
-        {toasts.map((t) => {
-          const toastTheme = getDiceThemeOption(t.theme || "default");
-          const toastThemeStyle = getDiceThemePreviewStyles(toastTheme.id, t.color || toastTheme.defaultColor);
-          return (
-            <div
-              key={t.id}
-              style={{
-                ...styles.toast,
-                borderLeft: `4px solid ${t.color || "var(--color-accent)"}`,
-              }}
-              className="glass-panel slide-down"
-            >
-              <div style={{ ...styles.toastIcon, ...toastThemeStyle.die }}>
-                <span style={{ ...styles.toastIconText, ...toastThemeStyle.text }}>20</span>
-              </div>
-              <div style={styles.toastBody}>
-                <div style={styles.toastHeader}>
-                  <span style={styles.toastSender}>{t.sender}</span>
-                  <span style={styles.toastAction}> rolled </span>
-                  <span style={styles.toastFormula}>{t.rollName} ({t.formula})</span>
-                </div>
-                <div style={styles.toastTotalRow}>
-                  <span style={{ ...styles.toastThemeChip, ...toastThemeStyle.chip }}>{toastTheme.shortName}</span>
-                  <span style={styles.toastTotalLabel}>Total:</span>
-                  <span style={{ ...styles.toastTotalValue, color: t.color || "var(--color-accent)" }}>{t.total}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </DiceBoxContext.Provider>
   );
 }
@@ -292,94 +257,4 @@ export function useDiceBox() {
   return ctx;
 }
 
-const styles = {
-  toastContainer: {
-    position: "fixed",
-    top: "4rem", // Just below top header banner
-    left: "50%",
-    transform: "translateX(-50%)",
-    zIndex: 10500,
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.5rem",
-    width: "90%",
-    maxWidth: "360px",
-    pointerEvents: "none",
-  },
-  toast: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.75rem",
-    padding: "0.75rem 1rem",
-    borderRadius: "8px",
-    background: "rgba(10, 8, 20, 0.92)",
-    backdropFilter: "blur(12px)",
-    border: "1px solid rgba(255, 255, 255, 0.08)",
-    boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
-    pointerEvents: "auto",
-  },
-  toastIcon: {
-    width: "42px",
-    height: "42px",
-    borderRadius: "8px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    transform: "rotate(8deg)",
-  },
-  toastIconText: {
-    fontSize: "0.88rem",
-    fontWeight: 900,
-    lineHeight: 1,
-  },
-  toastBody: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.15rem",
-    flex: 1,
-  },
-  toastHeader: {
-    fontSize: "0.82rem",
-    color: "var(--color-text)",
-  },
-  toastSender: {
-    fontWeight: "bold",
-    color: "var(--color-text)",
-  },
-  toastAction: {
-    color: "var(--color-muted)",
-  },
-  toastFormula: {
-    color: "var(--color-muted)",
-    fontStyle: "italic",
-  },
-  toastTotalRow: {
-    display: "flex",
-    alignItems: "baseline",
-    gap: "0.35rem",
-    marginTop: "0.1rem",
-    flexWrap: "wrap",
-  },
-  toastThemeChip: {
-    minHeight: "22px",
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "0.1rem 0.45rem",
-    borderRadius: "999px",
-    fontSize: "0.64rem",
-    fontWeight: 800,
-    marginRight: "0.1rem",
-  },
-  toastTotalLabel: {
-    fontSize: "0.75rem",
-    color: "var(--color-muted)",
-    fontWeight: 600,
-    textTransform: "uppercase",
-  },
-  toastTotalValue: {
-    fontSize: "1.25rem",
-    fontWeight: "bold",
-    textShadow: "0 0 8px rgba(200, 151, 58, 0.15)",
-  },
-};
+

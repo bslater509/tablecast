@@ -5,6 +5,7 @@
 // =============================================================================
 import { useState, useEffect } from "react";
 import { useSocket } from "../context/SocketContext";
+import { useDiceBox } from "../context/DiceBoxContext";
 import Autocomplete from "./Autocomplete";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
 
@@ -32,6 +33,7 @@ const SKILL_DEFINITIONS = [
 
 export default function CharacterSheet({ characterId, onBack, user }) {
   const { socket } = useSocket();
+  const { rollDice } = useDiceBox();
   const [character, setCharacter] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -374,15 +376,6 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   }
 
   //  DICE ROLLING LOGIC & WEB SOCKET EMITS 
-  
-  // Helper to roll a standard die (e.g. d20, d6)
-  function rollDice(sides, count = 1) {
-    const rolls = [];
-    for (let i = 0; i < count; i++) {
-      rolls.push(Math.floor(Math.random() * sides) + 1);
-    }
-    return rolls;
-  }
 
   // Parse a dice expression like "2d6" or "1d10"
   function parseDiceExpression(expr) {
@@ -393,11 +386,32 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     return { count: 1, sides: 8 }; // Fallback
   }
 
+  async function extractD20FromPhysics(results) {
+    // Extract first d20 value from physics groups
+    for (const group of results.groups) {
+      if (group.sides === 20 && group.rolls?.length > 0) {
+        return group.rolls[0].value;
+      }
+    }
+    // Fallback: use the first roll if no d20 found
+    return results.allRolls[0] || 1;
+  }
+
   // Roll an Ability Check (STR, DEX, etc.)
-  function handleAbilityRoll(statName, score) {
+  async function handleAbilityRoll(statName, score) {
     const modifier = getMod(score);
-    const d20 = rollDice(20, 1)[0];
-    const total = d20 + modifier;
+    let d20, total;
+    try {
+      const results = await rollDice(["1d20"], {
+        theme: user?.diceTheme || "default",
+        color: user?.diceColor || "#7c3aed",
+      });
+      d20 = await extractD20FromPhysics(results);
+      total = d20 + modifier;
+    } catch (err) {
+      console.error("[CharacterSheet] rollDice failed:", err);
+      return;
+    }
     const cleanStatName = statName.charAt(0).toUpperCase() + statName.slice(1);
 
     if (socket) {
@@ -412,23 +426,32 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           modifier,
           total,
           isAttack: false,
-          status: "rolling",
+          status: "rolled",
           diceTheme: user?.diceTheme || "default",
           diceColor: user?.diceColor || "#7c3aed",
-          dice3d: [`1d20@${d20}`],
         },
       });
     }
   }
 
   // Roll a Saving Throw
-  function handleSavingThrowRoll(statName, score) {
+  async function handleSavingThrowRoll(statName, score) {
     const modifier = getMod(score);
     const profBonus = getProficiencyBonus(character.level);
     const isProf = character.modifiers.saveProficiencies.includes(statName);
     const finalMod = modifier + (isProf ? profBonus : 0);
-    const d20 = rollDice(20, 1)[0];
-    const total = d20 + finalMod;
+    let d20, total;
+    try {
+      const results = await rollDice(["1d20"], {
+        theme: user?.diceTheme || "default",
+        color: user?.diceColor || "#7c3aed",
+      });
+      d20 = await extractD20FromPhysics(results);
+      total = d20 + finalMod;
+    } catch (err) {
+      console.error("[CharacterSheet] rollDice failed:", err);
+      return;
+    }
     const cleanStatName = statName.charAt(0).toUpperCase() + statName.slice(1);
 
     if (socket) {
@@ -443,10 +466,9 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           modifier: finalMod,
           total,
           isAttack: false,
-          status: "rolling",
+          status: "rolled",
           diceTheme: user?.diceTheme || "default",
           diceColor: user?.diceColor || "#7c3aed",
-          dice3d: [`1d20@${d20}`],
         },
       });
     }
@@ -471,14 +493,24 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   }
 
   // Roll a Skill Check
-  function handleSkillRoll(skill) {
+  async function handleSkillRoll(skill) {
     const baseStat = character[skill.ability];
     const modifier = getMod(baseStat);
     const profBonus = getProficiencyBonus(character.level);
     const isProf = character.modifiers.proficiencies.includes(skill.name);
     const finalMod = modifier + (isProf ? profBonus : 0);
-    const d20 = rollDice(20, 1)[0];
-    const total = d20 + finalMod;
+    let d20, total;
+    try {
+      const results = await rollDice(["1d20"], {
+        theme: user?.diceTheme || "default",
+        color: user?.diceColor || "#7c3aed",
+      });
+      d20 = await extractD20FromPhysics(results);
+      total = d20 + finalMod;
+    } catch (err) {
+      console.error("[CharacterSheet] rollDice failed:", err);
+      return;
+    }
 
     if (socket) {
       socket.emit("chat:send", {
@@ -492,10 +524,9 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           modifier: finalMod,
           total,
           isAttack: false,
-          status: "rolling",
+          status: "rolled",
           diceTheme: user?.diceTheme || "default",
           diceColor: user?.diceColor || "#7c3aed",
-          dice3d: [`1d20@${d20}`],
         },
       });
     }
@@ -520,19 +551,42 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   }
 
   // Roll Weapon Attack (To Hit & Damage)
-  function handleAttackRoll(atk) {
+  async function handleAttackRoll(atk) {
     const abilityScore = character[atk.ability];
     const abilityMod = getMod(abilityScore);
     const profBonus = getProficiencyBonus(character.level);
     
     // To Hit Math
     const toHitMod = abilityMod + (atk.proficient ? profBonus : 0);
-    const toHitD20 = rollDice(20, 1)[0];
-    const toHitTotal = toHitD20 + toHitMod;
-
-    // Damage Math
     const { count, sides } = parseDiceExpression(atk.dice);
-    const dmgRolls = rollDice(sides, count);
+    let toHitD20, dmgRolls;
+    try {
+      // Roll to-hit and damage dice together in one physics batch
+      const notation = ["1d20"];
+      // Only add damage dice if sides > 0 and count > 0
+      if (sides > 0 && count > 0) {
+        notation.push(`${count}d${sides}`);
+      }
+      const results = await rollDice(notation, {
+        theme: user?.diceTheme || "default",
+        color: user?.diceColor || "#7c3aed",
+      });
+      toHitD20 = await extractD20FromPhysics(results);
+      // Extract damage rolls: all non-d20 rolls
+      dmgRolls = [];
+      for (const group of results.groups) {
+        if (group.sides !== 20 && group.rolls) {
+          for (const die of group.rolls) {
+            dmgRolls.push(die.value);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[CharacterSheet] rollDice failed:", err);
+      return;
+    }
+
+    const toHitTotal = toHitD20 + toHitMod;
     const dmgRollsSum = dmgRolls.reduce((a, b) => a + b, 0);
     const damageTotal = dmgRollsSum + abilityMod;
 
@@ -552,10 +606,9 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           damageDice: atk.dice,
           damageMod: abilityMod,
           damageTotal,
-          status: "rolling",
+          status: "rolled",
           diceTheme: user?.diceTheme || "default",
           diceColor: user?.diceColor || "#7c3aed",
-          dice3d: [`1d20@${toHitD20}`, `${count}d${sides}@${dmgRolls.join(",")}`],
         },
       });
     }
