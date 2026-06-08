@@ -648,8 +648,8 @@ function SettingsPanel({ user }) {
                   ...styles.backupBtn,
                   width: "auto",
                   padding: "0.6rem 1.5rem",
-                  background: oauthLoading ? "rgba(200, 151, 58, 0.2)" : "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
-                  color: oauthLoading ? "var(--color-muted)" : "#0f0e17"
+                  background: oauthLoading ? "var(--color-accent-dim)" : "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
+                  color: oauthLoading ? "var(--color-muted)" : "var(--color-bg)"
                 }}
                 className="touch-target btn-hover-scale"
               >
@@ -727,8 +727,8 @@ function SettingsPanel({ user }) {
                   style={{
                     ...styles.backupBtn,
                     flex: "1 1 200px",
-                    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
-                    color: "#0f0e17",
+                    background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
+                    color: "var(--color-bg)",
                     minHeight: "44px"
                   }}
                   className="touch-target btn-hover-scale"
@@ -774,8 +774,8 @@ function SettingsPanel({ user }) {
                     style={{
                       ...styles.backupBtn,
                       marginTop: "0.5rem",
-                      background: savingConfig ? "rgba(200, 151, 58, 0.2)" : "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
-                      color: savingConfig ? "#888" : "#0f0e17"
+                      background: savingConfig ? "var(--color-accent-dim)" : "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
+                      color: savingConfig ? "var(--color-muted)" : "var(--color-bg)"
                     }}
                     className="touch-target btn-hover-scale"
                   >
@@ -888,10 +888,10 @@ function SettingsPanel({ user }) {
               style={{
                 ...styles.backupBtn,
                 background: loading
-                  ? "rgba(200, 151, 58, 0.2)"
-                  : "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+                  ? "var(--color-accent-dim)"
+                  : "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
                 cursor: loading ? "not-allowed" : "pointer",
-                color: loading ? "var(--color-muted)" : "#0f0e17",
+                color: loading ? "var(--color-muted)" : "var(--color-bg)",
               }}
               className="touch-target btn-hover-scale"
             >
@@ -1012,10 +1012,10 @@ function SettingsPanel({ user }) {
             style={{
               ...styles.backupBtn,
               background: syncingRef
-                ? "rgba(200, 151, 58, 0.2)"
-                : "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+                ? "var(--color-accent-dim)"
+                : "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
               cursor: syncingRef ? "not-allowed" : "pointer",
-              color: syncingRef ? "var(--color-muted)" : "#0f0e17",
+              color: syncingRef ? "var(--color-muted)" : "var(--color-bg)",
             }}
             className="touch-target btn-hover-scale"
           >
@@ -1399,8 +1399,8 @@ function SettingsPanel({ user }) {
                     ...styles.backupBtn,
                     flex: 1,
                     minHeight: "44px",
-                    background: savingAi ? "rgba(200, 151, 58, 0.2)" : "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
-                    color: savingAi ? "var(--color-muted)" : "#0f0e17"
+                    background: savingAi ? "var(--color-accent-dim)" : "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
+                    color: savingAi ? "var(--color-muted)" : "var(--color-bg)"
                   }}
                   className="touch-target btn-hover-scale"
                 >
@@ -1608,7 +1608,7 @@ const styles = {
     marginTop: "0.5rem",
   },
   console: {
-    background: "#05030a",
+    background: "var(--color-bg)",
     border: "1px solid rgba(255, 255, 255, 0.05)",
     borderRadius: "6px",
     padding: "0.85rem",

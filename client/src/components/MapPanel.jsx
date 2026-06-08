@@ -397,7 +397,7 @@ export default function MapPanel({ user, isPopout = false }) {
         ctx.drawImage(imageRef.current, 0, 0);
       } else {
         // Fallback styling texture
-        ctx.fillStyle = "#181729";
+        ctx.fillStyle = "var(--color-surface)";
         ctx.fillRect(0, 0, imgW, imgH);
         ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
         ctx.font = "italic 16px Segoe UI";
@@ -552,7 +552,7 @@ export default function MapPanel({ user, isPopout = false }) {
         ctx.shadowOffsetY = 4;
 
         // Border: gold ring for characters, red for monster/NPCs
-        ctx.strokeStyle = token.characterId ? "#c8973a" : "#eb5757";
+        ctx.strokeStyle = token.characterId ? "var(--color-accent)" : "var(--color-danger)";
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(px, py, radius, 0, Math.PI * 2);
@@ -560,7 +560,7 @@ export default function MapPanel({ user, isPopout = false }) {
         ctx.restore();
 
         // Background backing fill
-        ctx.fillStyle = "#1e1b38";
+        ctx.fillStyle = "var(--color-surface)";
         ctx.beginPath();
         ctx.arc(px, py, radius - 1.5, 0, Math.PI * 2);
         ctx.fill();
@@ -2251,7 +2251,7 @@ export default function MapPanel({ user, isPopout = false }) {
                     disabled={encounterBuilderLoading || !encounterBuilderLevels.trim()}
                     style={{
                       padding: "0.6rem 1.25rem", fontSize: "0.85rem", borderRadius: "6px",
-                      background: "var(--color-accent)", color: "#fff", border: "none",
+                      background: "var(--color-accent)", color: "var(--color-bg)", border: "none",
                       cursor: "pointer", alignSelf: "flex-end",
                       opacity: encounterBuilderLoading || !encounterBuilderLevels.trim() ? 0.5 : 1,
                     }}
@@ -2325,7 +2325,7 @@ export default function MapPanel({ user, isPopout = false }) {
                 <p style={{ color: "var(--color-accent)", fontSize: "0.8rem", margin: "0.5rem 0" }}>{encounterBuilderProgress}</p>
               )}
               {encounterBuilderError && (
-                <p style={{ color: "#eb5757", fontSize: "0.8rem", margin: "0.5rem 0" }}>{encounterBuilderError}</p>
+                <p style={{ color: "var(--color-danger)", fontSize: "0.8rem", margin: "0.5rem 0" }}>{encounterBuilderError}</p>
               )}
             </div>
           </div>
@@ -3190,7 +3190,7 @@ const styles = {
     position: "relative",
     borderRadius: "7px",
     overflow: "hidden",
-    background: "#08070e",
+    background: "var(--color-bg)",
   },
   canvas: {
     display: "block",
@@ -3299,9 +3299,9 @@ const styles = {
   finishShapeBtn: {
     marginTop: "0.25rem",
     width: "100%",
-    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+    background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
     border: "none",
-    color: "#0f0e17",
+    color: "var(--color-bg)",
     fontWeight: "bold",
     borderRadius: "4px",
     fontSize: "0.75rem",
@@ -3380,10 +3380,10 @@ const styles = {
     padding: "0.5rem 1rem",
   },
   btnSubmit: {
-    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+    background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
     border: "none",
     borderRadius: "4px",
-    color: "#0f0e17",
+    color: "var(--color-bg)",
     fontWeight: "bold",
     fontSize: "0.85rem",
     cursor: "pointer",
@@ -3611,7 +3611,7 @@ const styles = {
   hpLabelRow: {
     fontSize: "0.75rem",
     fontWeight: "bold",
-    color: "#eb5757",
+    color: "var(--color-danger)",
     textAlign: "center",
   },
   hpControlsRow: {

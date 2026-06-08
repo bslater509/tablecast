@@ -257,7 +257,7 @@ export function DiceBoxProvider({ children }) {
               key={t.id}
               style={{
                 ...styles.toast,
-                borderLeft: `4px solid ${t.color || "var(--color-accent, #c8973a)"}`,
+                borderLeft: `4px solid ${t.color || "var(--color-accent)"}`,
               }}
               className="glass-panel slide-down"
             >
@@ -273,7 +273,7 @@ export function DiceBoxProvider({ children }) {
                 <div style={styles.toastTotalRow}>
                   <span style={{ ...styles.toastThemeChip, ...toastThemeStyle.chip }}>{toastTheme.shortName}</span>
                   <span style={styles.toastTotalLabel}>Total:</span>
-                  <span style={{ ...styles.toastTotalValue, color: t.color || "var(--color-accent, #c8973a)" }}>{t.total}</span>
+                  <span style={{ ...styles.toastTotalValue, color: t.color || "var(--color-accent)" }}>{t.total}</span>
                 </div>
               </div>
             </div>
@@ -341,17 +341,17 @@ const styles = {
   },
   toastHeader: {
     fontSize: "0.82rem",
-    color: "#e2e8f0",
+    color: "var(--color-text)",
   },
   toastSender: {
     fontWeight: "bold",
-    color: "#ffffff",
+    color: "var(--color-text)",
   },
   toastAction: {
-    color: "#94a3b8",
+    color: "var(--color-muted)",
   },
   toastFormula: {
-    color: "#cbd5e1",
+    color: "var(--color-muted)",
     fontStyle: "italic",
   },
   toastTotalRow: {
@@ -373,7 +373,7 @@ const styles = {
   },
   toastTotalLabel: {
     fontSize: "0.75rem",
-    color: "#94a3b8",
+    color: "var(--color-muted)",
     fontWeight: 600,
     textTransform: "uppercase",
   },

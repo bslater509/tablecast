@@ -307,7 +307,7 @@ export default function ChatPanel({ user, isPopout = false }) {
           id="connection-status"
           style={{
             ...styles.dot,
-            background: isConnected ? "#6fcf97" : "#eb5757",
+            background: isConnected ? "var(--color-success)" : "var(--color-danger)",
           }}
           title={isConnected ? "Connected" : "Disconnected"}
         />
@@ -569,7 +569,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     padding: "1rem",
-    background: "linear-gradient(135deg, #0f0e17 0%, #1a1830 100%)",
+    background: "linear-gradient(135deg, var(--color-bg) 0%, var(--color-surface) 100%)",
   },
   nameForm: {
     background: "rgba(255,255,255,0.05)",
@@ -582,12 +582,12 @@ const styles = {
     boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
   },
   nameTitle: {
-    color: "#c8973a",
+    color: "var(--color-accent)",
     fontSize: "1.75rem",
     marginBottom: "0.25rem",
   },
   nameSub: {
-    color: "#a7a9be",
+    color: "var(--color-muted)",
     fontSize: "0.85rem",
     marginBottom: "1.25rem",
   },
@@ -598,7 +598,7 @@ const styles = {
     borderRadius: "0.5rem",
     border: "1px solid rgba(200,151,58,0.3)",
     background: "rgba(0,0,0,0.3)",
-    color: "#fffffe",
+    color: "var(--color-text)",
     outline: "none",
     marginBottom: "1rem",
   },
@@ -609,8 +609,8 @@ const styles = {
     fontWeight: 600,
     borderRadius: "0.5rem",
     border: "none",
-    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
-    color: "#0f0e17",
+    background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
+    color: "var(--color-bg)",
     cursor: "pointer",
     transition: "opacity 0.2s",
   },
@@ -621,7 +621,7 @@ const styles = {
     flexDirection: "column",
     height: "100vh",
     maxHeight: "100dvh",
-    background: "linear-gradient(135deg, #0f0e17 0%, #1a1830 100%)",
+    background: "linear-gradient(135deg, var(--color-bg) 0%, var(--color-surface) 100%)",
   },
   header: {
     display: "flex",
@@ -639,12 +639,12 @@ const styles = {
   },
   title: {
     fontSize: "1.25rem",
-    color: "#c8973a",
+    color: "var(--color-accent)",
     fontWeight: 700,
   },
   badge: {
     fontSize: "0.7rem",
-    color: "#0f0e17",
+    color: "var(--color-bg)",
     background: "rgba(200,151,58,0.85)",
     padding: "0.15rem 0.5rem",
     borderRadius: "999px",
@@ -670,7 +670,7 @@ const styles = {
   },
   emptyHint: {
     textAlign: "center",
-    color: "#a7a9be",
+    color: "var(--color-muted)",
     fontSize: "0.85rem",
     marginTop: "2rem",
   },
@@ -695,24 +695,24 @@ const styles = {
   sender: {
     fontSize: "0.7rem",
     fontWeight: 700,
-    color: "#c8973a",
+    color: "var(--color-accent)",
     display: "flex",
     alignItems: "center",
     gap: "0.5rem",
   },
   time: {
     fontWeight: 400,
-    color: "#a7a9be",
+    color: "var(--color-muted)",
     fontSize: "0.65rem",
   },
   text: {
     fontSize: "0.9rem",
-    color: "#fffffe",
+    color: "var(--color-text)",
     lineHeight: 1.45,
   },
   typingIndicator: {
     fontSize: "0.75rem",
-    color: "#a7a9be",
+    color: "var(--color-muted)",
     fontStyle: "italic",
     paddingLeft: "0.25rem",
   },
@@ -738,7 +738,7 @@ const styles = {
     borderRadius: "0.5rem",
     border: "1px solid rgba(200,151,58,0.2)",
     background: "rgba(0,0,0,0.3)",
-    color: "#fffffe",
+    color: "var(--color-text)",
     outline: "none",
   },
   sendBtn: {
@@ -747,8 +747,8 @@ const styles = {
     minWidth: 44,
     borderRadius: "0.5rem",
     border: "none",
-    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
-    color: "#0f0e17",
+    background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
+    color: "var(--color-bg)",
     fontSize: "1.2rem",
     cursor: "pointer",
     display: "flex",
@@ -903,7 +903,7 @@ const styles = {
   },
   aiText: {
     fontSize: "0.9rem",
-    color: "#fffffe",
+    color: "var(--color-text)",
     lineHeight: 1.45,
   },
 
@@ -960,7 +960,7 @@ const styles = {
   },
   npcText: {
     fontSize: "0.9rem",
-    color: "#e2d6b5",
+    color: "var(--color-text)",
     fontFamily: "Georgia, serif",
     fontStyle: "italic",
     lineHeight: 1.5,

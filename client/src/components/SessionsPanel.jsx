@@ -1239,7 +1239,7 @@ const styles = {
   deleteBtn: {
     background: "rgba(239, 68, 68, 0.12)",
     border: "1px solid rgba(239, 68, 68, 0.25)",
-    color: "#fca5a5",
+    color: "var(--color-danger)",
     borderRadius: "8px",
     padding: "0.5rem",
     cursor: "pointer",
@@ -1514,12 +1514,12 @@ const styles = {
     margin: 0,
   },
   errorText: {
-    color: "#eb5757",
+    color: "var(--color-danger)",
     fontSize: "0.85rem",
     margin: 0,
   },
   successText: {
-    color: "#86efac",
+    color: "var(--color-success)",
     fontSize: "0.85rem",
     margin: 0,
   },
@@ -1528,7 +1528,7 @@ const styles = {
     borderRadius: "8px",
     background: "rgba(239, 68, 68, 0.12)",
     border: "1px solid rgba(239, 68, 68, 0.25)",
-    color: "#fca5a5",
+    color: "var(--color-danger)",
   },
   emptyState: {
     padding: "2rem 1rem",

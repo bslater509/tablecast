@@ -1273,7 +1273,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                   disabled={charGenLoading || !charGenPrompt.trim()}
                   style={{
                     padding: "0.6rem 1.25rem", fontSize: "0.85rem", borderRadius: "6px",
-                    background: "var(--color-accent)", color: "#fff", border: "none",
+                    background: "var(--color-accent)", color: "var(--color-bg)", border: "none",
                     cursor: "pointer", alignSelf: "flex-end",
                     opacity: charGenLoading || !charGenPrompt.trim() ? 0.5 : 1,
                   }}
@@ -1313,7 +1313,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                   disabled={!charGenSelected || charGenLoading}
                   style={{
                     padding: "0.6rem 1.25rem", fontSize: "0.85rem", borderRadius: "6px",
-                    background: "var(--color-accent)", color: "#fff", border: "none",
+                    background: "var(--color-accent)", color: "var(--color-bg)", border: "none",
                     cursor: "pointer", alignSelf: "flex-end",
                     opacity: !charGenSelected || charGenLoading ? 0.5 : 1,
                   }}
@@ -1328,7 +1328,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
               <p style={{ color: "var(--color-accent)", fontSize: "0.8rem", margin: "0.5rem 0" }}>{charGenProgress}</p>
             )}
             {charGenError && (
-              <p style={{ color: "#eb5757", fontSize: "0.8rem", margin: "0.5rem 0" }}>{charGenError}</p>
+              <p style={{ color: "var(--color-danger)", fontSize: "0.8rem", margin: "0.5rem 0" }}>{charGenError}</p>
             )}
           </div>
         </div>
@@ -1885,7 +1885,7 @@ const styles = {
     background: "var(--color-accent)",
     border: "none",
     borderRadius: "4px",
-    color: "#0f0e17",
+    color: "var(--color-bg)",
     fontWeight: "bold",
     cursor: "pointer",
     fontSize: "0.8rem",

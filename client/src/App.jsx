@@ -534,9 +534,9 @@ const styles = {
   submitBtn: {
     padding: "0.75rem",
     borderRadius: "6px",
-    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+    background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
     border: "none",
-    color: "#0f0e17",
+    color: "var(--color-bg)",
     fontWeight: "bold",
     fontSize: "0.95rem",
     cursor: "pointer",

@@ -335,9 +335,9 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
   const rollButtonStyle = {
     ...styles.rollBtn,
     background: hasDiceSelected
-      ? "linear-gradient(135deg, var(--color-accent) 0%, #a87427 100%)"
+      ? "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)"
       : "rgba(255, 255, 255, 0.04)",
-    color: hasDiceSelected ? "#0f0e17" : "var(--color-muted)",
+    color: hasDiceSelected ? "var(--color-bg)" : "var(--color-muted)",
     boxShadow: hasDiceSelected ? "0 0 15px rgba(200, 151, 58, 0.45)" : "none",
   };
 
@@ -1081,7 +1081,7 @@ const styles = {
   },
   historySender: {
     fontWeight: "bold",
-    color: "#ffffff",
+    color: "var(--color-text)",
   },
   historyMetaGroup: {
     display: "flex",

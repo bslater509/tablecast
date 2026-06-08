@@ -1607,7 +1607,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                     background: npcCopiedPrompt
                       ? "rgba(22,163,74,0.15)"
                       : "rgba(200,151,58,0.1)",
-                    color: npcCopiedPrompt ? "#16a34a" : "var(--color-accent)",
+                    color: npcCopiedPrompt ? "var(--color-success)" : "var(--color-accent)",
                     border: `1px solid ${
                       npcCopiedPrompt
                         ? "rgba(22,163,74,0.3)"
@@ -1855,7 +1855,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                       background: npcCopiedPrompt
                         ? "rgba(22,163,74,0.15)"
                         : "rgba(200,151,58,0.08)",
-                      color: npcCopiedPrompt ? "#16a34a" : "var(--color-accent)",
+                      color: npcCopiedPrompt ? "var(--color-success)" : "var(--color-accent)",
                       border: `1px solid ${
                         npcCopiedPrompt
                           ? "rgba(22,163,74,0.3)"
@@ -2884,7 +2884,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                         <div style={{
                           height: "100%",
                           width: `${Math.min(100, ((npcInterviewHistory.length) / 5) * 100)}%`,
-                          background: "linear-gradient(90deg, #7c3aed, #c8973a)",
+                          background: "linear-gradient(90deg, #7c3aed, var(--color-accent))",
                           borderRadius: "4px",
                           transition: "width 0.3s ease",
                         }} />
@@ -2968,7 +2968,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                                 minWidth: "22px",
                                 borderRadius: "50%",
                                 background: c.accent,
-                                color: "#fff",
+                                color: "var(--color-bg)",
                                 fontSize: "0.72rem",
                                 fontWeight: "700",
                                 display: "flex",
@@ -3105,7 +3105,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                   width: "28px",
                   height: "28px",
                   border: "3px solid rgba(200,151,58,0.2)",
-                  borderTopColor: "#c8973a",
+                  borderTopColor: "var(--color-accent)",
                   borderRadius: "50%",
                   animation: "spin 0.8s linear infinite",
                   margin: "0 auto 0.75rem",
@@ -3411,7 +3411,7 @@ const styles = {
     borderRadius: "0.5rem",
     border: "1px solid rgba(200, 151, 58, 0.25)",
     background: "rgba(0,0,0,0.3)",
-    color: "#fffffe",
+    color: "var(--color-text)",
     outline: "none",
     minWidth: "180px",
   },
@@ -3427,10 +3427,10 @@ const styles = {
   },
   createBtn: {
     padding: "0.6rem 1rem",
-    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+    background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
     border: "none",
     borderRadius: "6px",
-    color: "#0f0e17",
+    color: "var(--color-bg)",
     fontWeight: "bold",
     fontSize: "0.85rem",
     cursor: "pointer",
@@ -3697,9 +3697,9 @@ const styles = {
   saveBtn: {
     padding: "0.45rem 1rem",
     borderRadius: "4px",
-    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+    background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
     border: "none",
-    color: "#0f0e17",
+    color: "var(--color-bg)",
     cursor: "pointer",
     fontSize: "0.8rem",
     fontWeight: 700,

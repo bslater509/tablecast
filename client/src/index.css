@@ -15,6 +15,7 @@
   --color-accent: #c8973a;
   --color-accent-hover: #e0ab4c;
   --color-accent-dim: rgba(200, 151, 58, 0.15);
+  --color-accent-dark: #a87427;
   --color-text: #fffffe;
   --color-muted: #a7a9be;
   --color-border: rgba(200, 151, 58, 0.25);
@@ -27,6 +28,11 @@
   --glass-border: rgba(255, 255, 255, 0.06);
 }
 
+/* Player theme — inherits :root defaults */
+.theme-player {
+  /* Uses :root CSS variable defaults */
+}
+
 /* Tactical console theme for Dungeon Master interface */
 .theme-dm {
   --color-bg: #0d1012;
@@ -35,6 +41,7 @@
   --color-accent: #d7aa47;
   --color-accent-hover: #f0c45b;
   --color-accent-dim: rgba(215, 170, 71, 0.14);
+  --color-accent-dark: #b88a2e;
   --color-border: rgba(215, 170, 71, 0.28);
   --color-border-light: rgba(255, 255, 255, 0.09);
   --color-muted: #9ba4aa;

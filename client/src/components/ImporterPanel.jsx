@@ -457,10 +457,10 @@ const styles = {
   },
   importBtn: {
     padding: "0.45rem 0.85rem",
-    background: "linear-gradient(135deg, #c8973a 0%, #a87427 100%)",
+    background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
     border: "none",
     borderRadius: "4px",
-    color: "#0f0e17",
+    color: "var(--color-bg)",
     fontSize: "0.78rem",
     fontWeight: "bold",
     cursor: "pointer",
