@@ -9,7 +9,8 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 
 const CACHE_DIR = path.resolve(__dirname, "../../uploads/5etools-cache");
-const DATA_BASE_URL = "https://5e.tools/data";
+// Base URL for 5etools raw data (GitHub mirror — 5e.tools is behind Cloudflare)
+const DATA_BASE_URL = "https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/master/data";
 
 // In-memory cache
 let cache = {

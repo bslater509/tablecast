@@ -1,6 +1,8 @@
 // =============================================================================
 // Tablecast  5etools HTTP Cache Manager
-// Fetches D&D 5e reference data from https://5e.tools/ and caches to disk.
+// Fetches D&D 5e reference data from GitHub raw mirror and caches to disk.
+// (5e.tools itself is behind Cloudflare JS challenge, so we use the GitHub
+// mirror at 5etools-mirror-3 which has the exact same data.)
 // =============================================================================
 "use strict";
 
@@ -11,8 +13,8 @@ const { spawnSync } = require("child_process");
 // Cache directory — resolves to server/uploads/5etools-cache/
 const CACHE_DIR = path.resolve(__dirname, "../../uploads/5etools-cache");
 
-// Base URL for 5e.tools data
-const DATA_BASE_URL = "https://5e.tools/data";
+// Base URL for 5etools raw data (GitHub mirror — 5e.tools is behind Cloudflare)
+const DATA_BASE_URL = "https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/master/data";
 
 // Mapping of category to remote JSON paths
 const DATA_FILES = {
@@ -83,8 +85,9 @@ function log(message, type = "info") {
 
 /**
  * HTTP GET helper that returns response body as string.
- * Uses curl via child_process because 5e.tools is behind Cloudflare
- * which blocks Node.js's built-in http/https TLS fingerprint.
+ * Uses curl via child_process to fetch from GitHub (raw.githubusercontent.com).
+ * Curl is also used as a backup strategy if we ever need to bypass Cloudflare
+ * on the main 5e.tools site.
  */
 function fetchUrl(url) {
   return new Promise((resolve, reject) => {
