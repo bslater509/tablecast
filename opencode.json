@@ -52,6 +52,24 @@
         "PUPPETEER_LAUNCH_OPTIONS": "{\"headless\":true,\"args\":[\"--no-sandbox\",\"--disable-setuid-sandbox\",\"--disable-dev-shm-usage\"]}",
         "ALLOW_DANGEROUS": "true"
       }
+    },
+    "filesystem": {
+      "type": "local",
+      "command": [
+        "mcp-server-filesystem",
+        "/root/tablecast",
+        "/root/tablecast/server/uploads",
+        "/root/tablecast/server/prisma/data",
+        "/root/.config/opencode"
+      ]
+    },
+    "sqlite": {
+      "type": "local",
+      "command": [
+        "mcp-server-sqlite",
+        "--db",
+        "/root/tablecast/server/prisma/data/tablecast.db"
+      ]
     }
   }
 }

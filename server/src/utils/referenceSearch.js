@@ -6,7 +6,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const https = require("https");
+const { spawnSync } = require("child_process");
 
 const CACHE_DIR = path.resolve(__dirname, "../../uploads/5etools-cache");
 const DATA_BASE_URL = "https://5e.tools/data";
@@ -41,35 +41,30 @@ function clearCache() {
 }
 
 /**
- * HTTP GET helper.
- * Uses a browser-like User-Agent to avoid 403 blocking from 5e.tools.
+ * HTTP GET helper that returns response body as string.
+ * Uses curl via child_process because 5e.tools is behind Cloudflare
+ * which blocks Node.js's built-in http/https TLS fingerprint.
  */
 function fetchUrl(url) {
   return new Promise((resolve, reject) => {
-    const options = {
-      timeout: 30000,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-      },
-    };
-    https.get(url, options, (res) => {
-      // Handle redirects
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        resolve(fetchUrl(res.headers.location));
-        return;
-      }
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        reject(new Error(`HTTP ${res.statusCode} for ${url}`));
-        return;
-      }
-      let data = "";
-      res.on("data", (chunk) => (data += chunk));
-      res.on("end", () => resolve(data));
-    }).on("error", reject).on("timeout", function () {
-      this.destroy();
-      reject(new Error(`Timeout fetching ${url}`));
-    });
+    const result = spawnSync("curl", [
+      "-s",
+      "-L",
+      "--max-time", "30",
+      "-H", "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "-H", "Accept: application/json, text/plain, */*",
+      url,
+    ], { timeout: 35000, encoding: "utf8" });
+
+    if (result.error) {
+      reject(new Error(`Curl error: ${result.error.message}`));
+      return;
+    }
+    if (result.status !== 0) {
+      reject(new Error(`Curl exit code ${result.status} for ${url}: ${result.stderr?.substring(0, 200)}`));
+      return;
+    }
+    resolve(result.stdout);
   });
 }
 
