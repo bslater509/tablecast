@@ -35,6 +35,10 @@
     "css": {
       "command": ["vscode-css-language-server", "--stdio"],
       "extensions": ["css"]
+    },
+    "prisma": {
+      "command": ["prisma-language-server", "--stdio"],
+      "extensions": ["prisma"]
     }
   },
   "mcp": {
