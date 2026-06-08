@@ -2,6 +2,7 @@
 
 const prisma = require("./prisma");
 const debug = require("./utils/debug");
+const logger = require("./utils/logger");
 const log = debug("tablecast:auth");
 
 function getUserId(req) {
@@ -39,7 +40,7 @@ async function requireDm(req, res, next) {
     log("requireDm — user=%d authorized as DM", user.id);
     next();
   } catch (err) {
-    console.error("[Auth] Failed to verify user:", err.message);
+    logger.error("auth", "Failed to verify user", { error: err.message });
     res.status(500).json({ error: "Failed to verify permissions." });
   }
 }
@@ -60,7 +61,7 @@ async function isDmUser(userId) {
     log("isDmUser — userId=%d role=%s -> %s", id, user?.role || "N/A", result);
     return result;
   } catch (err) {
-    console.error("[Auth] isDmUser error:", err.message);
+    logger.error("auth", "isDmUser error", { error: err.message });
     return false;
   }
 }

@@ -407,6 +407,39 @@ model AiMessage {
   @@map("ai_messages")
 }
 
+/// Audit log of Model Context Protocol (MCP) tool invocations by AI agents.
+/// Captures tool name, arguments, result, and error status for debugging.
+model McpLog {
+  id        Int      @id @default(autoincrement())
+  tool      String
+  arguments String   // JSON string of tool arguments
+  result    String?  // JSON string of tool result or error text
+  isError   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([tool])
+  @@index([createdAt])
+  @@map("mcp_logs")
+}
+
+/// Persisted raw responses from AI provider API calls.
+/// Stores full prompt and reply for debugging LLM output issues.
+model AiResponseLog {
+  id         Int      @id @default(autoincrement())
+  operation  String   // e.g. "npc-generate", "chat-stream", "encounter-build"
+  prompt     String   // The prompt sent to the AI
+  rawReply   String   // Full raw text response from the AI provider
+  parsedOk   Boolean  // Whether JSON parsing of the response succeeded
+  errorMsg   String?  // Error message if parsing failed or call errored
+  durationMs Int?     // Duration of the AI call in milliseconds
+  createdAt  DateTime @default(now())
+
+  @@index([operation])
+  @@index([createdAt])
+  @@index([parsedOk])
+  @@map("ai_response_logs")
+}
+
 /// A DM-imported Non-Player Character (Monster) template with a 5e bestiary statblock
 model Monster {
   id    Int    @id @default(autoincrement())

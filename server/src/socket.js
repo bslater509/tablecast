@@ -4,6 +4,7 @@ const prisma = require("./prisma");
 const { isDmUser } = require("./auth");
 const { performAiCall, performAiStream, performAiStreamTokens, findRelevantRules, buildNpcRoleplaySystemPrompt, loadAiSettings } = require("./routes/ai");
 const debug = require("./utils/debug");
+const logger = require("./utils/logger");
 const log = debug("tablecast:socket");
 
 const MAX_COORDINATE = 10000;
@@ -13,7 +14,7 @@ const MAX_FOG_POINTS = 500;
 function registerSocketHandlers(io) {
   io.on("connection", (socket) => {
     const clientId = socket.id;
-    console.log(`[Socket] Client connected: ${clientId}`);
+    logger.info("socket", "Client connected", { clientId });
     log("connection — clientId=%s transport=%s", clientId, socket.conn.transport.name);
 
     io.emit("chat:message", {
@@ -42,7 +43,7 @@ function registerSocketHandlers(io) {
         rollDetails: payload.rollDetails || null,
       };
 
-      console.log(`[Socket] ${message.sender}: ${message.text} (${message.type})`);
+      logger.info("socket", "Chat message", { sender: message.sender, text: message.text?.slice(0, 100), type: message.type });
 
       if (message.type === "roll" && message.rollDetails) {
         try {
@@ -61,7 +62,7 @@ function registerSocketHandlers(io) {
             }
           });
         } catch (dbErr) {
-          console.error("[Socket] Failed to save roll to DB:", dbErr);
+          logger.error("socket:db", "Failed to save roll to DB", { error: dbErr?.message || String(dbErr) });
         }
       }
 
@@ -144,7 +145,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
             await persistChatMessage(finalMsg);
             io.emit("chat:message", finalMsg);
           } catch (streamErr) {
-            console.error("[Socket AI Stream Error]", streamErr.message);
+            logger.error("socket:ai", "AI stream error", { error: streamErr.message });
             io.emit("chat:message:update", {
               id: placeholderMsg.id,
               text: `*AI Error: ${streamErr.message || "Unknown error"}*`,
@@ -243,7 +244,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
             await persistChatMessage(finalMsg);
             io.emit("chat:message", finalMsg);
           } catch (streamErr) {
-            console.error("[Socket NPC Stream Error]", streamErr.message);
+            logger.error("socket:ai", "NPC stream error", { error: streamErr.message });
             io.emit("chat:message:update", {
               id: placeholderMsg.id,
               text: `*${npc.name} is unable to respond. (${streamErr.message || "Unknown error"})*`,
@@ -256,7 +257,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           }
         }
       } catch (err) {
-        console.error("[Socket AI Error]", err instanceof Error ? err.message : String(err));
+        logger.error("socket:ai", "AI chat error", { error: err instanceof Error ? err.message : String(err) });
         await emitPersistedChatMessage(io, {
           sender: "System",
           text: `AI error: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -300,7 +301,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
         });
         io.emit("token:moved", updatedToken);
       } catch (err) {
-        console.error("[Socket] Error updating token position:", err.message);
+        logger.error("socket:token", "Error updating token position", { error: err.message });
       }
     });
 
@@ -362,7 +363,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
         });
         io.emit("token:created", newToken);
       } catch (err) {
-        console.error("[Socket] Error creating token:", err.message);
+        logger.error("socket:token", "Error creating token", { error: err.message });
       }
     });
 
@@ -390,7 +391,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
         });
         io.emit("token:deleted", { id: parsed.value.id });
       } catch (err) {
-        console.error("[Socket] Error deleting token:", err.message);
+        logger.error("socket:token", "Error deleting token", { error: err.message });
       }
     });
 
@@ -416,7 +417,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           fogState: updatedMap.fogState,
         });
       } catch (err) {
-        console.error("[Socket] Error updating fog state:", err.message);
+        logger.error("socket:fog", "Error updating fog state", { error: err.message });
       }
     });
 
@@ -434,7 +435,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
         log("map:select — mapId=%d", parsed.value.mapId);
         io.emit("map:selected", { mapId: parsed.value.mapId });
       } catch (err) {
-        console.error("[Socket] Error selecting map:", err.message);
+        logger.error("socket:map", "Error selecting map", { error: err.message });
       }
     });
 
@@ -452,7 +453,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
         log("map:delete — mapId=%d", parsed.value.mapId);
         io.emit("map:deleted", { mapId: parsed.value.mapId });
       } catch (err) {
-        console.error("[Socket] Error broadcasting map deletion:", err.message);
+        logger.error("socket:map", "Error broadcasting map deletion", { error: err.message });
       }
     });
 
@@ -479,7 +480,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           turnIndex: encounter.turnIndex,
         });
       } catch (err) {
-        console.error("[Socket] Error broadcasting encounter refresh:", err.message);
+        logger.error("socket:encounter", "Error broadcasting encounter refresh", { error: err.message });
       }
     });
 
@@ -506,12 +507,12 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           status: encounter.status,
         });
       } catch (err) {
-        console.error("[Socket] Error broadcasting encounter turn:", err.message);
+        logger.error("socket:encounter", "Error broadcasting encounter turn", { error: err.message });
       }
     });
 
     socket.on("disconnect", (reason) => {
-      console.log(`[Socket] Client disconnected: ${clientId} (${reason})`);
+      logger.info("socket", "Client disconnected", { clientId, reason });
       log("disconnect — clientId=%s reason=%s", clientId, reason);
 
       io.emit("chat:message", {
@@ -524,7 +525,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
     });
 
     socket.on("error", (err) => {
-      console.error("[Socket] Client socket error:", typeof err === "string" ? err : err?.message || "Unknown error");
+      logger.error("socket", "Client socket error", { error: typeof err === "string" ? err : err?.message || "Unknown" });
       log("error — clientId=%s error=%s", clientId, typeof err === "string" ? err : err?.message || "Unknown error");
     });
   });
@@ -564,7 +565,7 @@ async function persistChatMessage(message) {
       createdAt: saved.createdAt,
     };
   } catch (dbErr) {
-    console.error("[Socket] Failed to save chat message to DB:", dbErr.message);
+    logger.error("socket:db", "Failed to save chat message to DB", { error: dbErr.message });
     return message;
   }
 }

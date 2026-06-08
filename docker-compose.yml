@@ -14,7 +14,9 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=file:./data/tablecast.db
       - PORT=3001
-      # Uncomment to enable debug logging (namespace patterns: tablecast:*, tablecast:socket, tablecast:auth, etc.)
+      # Structured JSON logging level: silent | error | warn | info | debug
+      - LOG_LEVEL=info
+      # Uncomment to enable DEBUG namespace logging (legacy): tablecast:*, tablecast:socket, tablecast:auth, etc.
       # - DEBUG=tablecast:*
 
     extra_hosts:

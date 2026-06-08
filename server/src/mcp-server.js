@@ -9,10 +9,17 @@ const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio
 const { CallToolRequestSchema, ListToolsRequestSchema } = require("@modelcontextprotocol/sdk/types.js");
 const prisma = require("./prisma");
 const referenceSearch = require("./utils/referenceSearch");
+const logger = require("./utils/logger");
 
 // IMPORTANT: Do NOT use console.log for standard outputs as stdout is reserved
 // for JSON-RPC communication. All logging/debugging MUST go to console.error.
-const logError = (...args) => console.error("[MCP Server]", ...args);
+const logError = (...args) => {
+  if (typeof args[0] === "string" && args[0].startsWith("[MCP Server]")) {
+    logger.error("mcp", args[0].replace("[MCP Server] ", ""), { detail: args.slice(1).join(" ") });
+  } else {
+    logger.error("mcp", String(args[0]), { detail: args.slice(1).join(" ") });
+  }
+};
 
 // Initialize the MCP server
 const server = new Server(
@@ -747,11 +754,29 @@ function registerHandlers(srv) {
     return { tools: TOOLS };
   });
 
+  // Persist MCP tool call to audit log
+  async function persistMcpLog(tool, args, result, isError) {
+    try {
+      await prisma.mcpLog.create({
+        data: {
+          tool,
+          arguments: JSON.stringify(args || {}),
+          result: JSON.stringify(result),
+          isError,
+        },
+      });
+    } catch (logErr) {
+      logError("Failed to persist MCP audit log:", logErr.message);
+    }
+  }
+
   srv.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+    const startTime = Date.now();
     logError(`Calling tool: ${name}`, JSON.stringify(args));
 
-    try {
+    // Wrap execution in a function so we can capture the result for audit logging
+    const execute = async () => {
       switch (name) {
         //  USER HANDLERS
         case "list_users": {
@@ -2144,14 +2169,24 @@ function registerHandlers(srv) {
       default:
         throw new Error(`Tool ${name} not found`);
     }
-  } catch (error) {
-    logError(`Error executing tool ${name}:`, error.message);
-    return {
-      content: [{ type: "text", text: `Error: ${error.message}` }],
-      isError: true,
     };
-  }
-});
+
+    try {
+      const result = await execute();
+      // Fire-and-forget audit log persistence (don't block the response)
+      persistMcpLog(name, args, result, false).catch(() => {});
+      return result;
+    } catch (error) {
+      logError(`Error executing tool ${name}:`, error.message);
+      const errorResult = {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+        isError: true,
+      };
+      // Fire-and-forget audit log persistence
+      persistMcpLog(name, args, errorResult, true).catch(() => {});
+      return errorResult;
+    }
+  });
 
 }
 

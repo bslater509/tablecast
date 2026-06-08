@@ -6,6 +6,7 @@
 //             GET  /api/ai/settings     - Get AI settings (masked keys)
 //             PUT  /api/ai/settings     - Update AI settings
 //             POST /api/ai/test         - Test connection settings
+//             GET  /api/ai/debug        - AI subsystem debug info
 // =============================================================================
 "use strict";
 
@@ -15,11 +16,36 @@ const { server: mcpServer, createMcpServer } = require("../mcp-server");
 const prisma = require("../prisma");
 const { requireDm, getRequestUser } = require("../auth");
 const referenceSearch = require("../utils/referenceSearch");
+const logger = require("../utils/logger");
 
 const router = Router();
 
 // Track active SSE transports by sessionId
 const activeTransports = new Map();
+
+// Heartbeat interval handles for SSE connections
+const activeHeartbeats = new Map();
+
+// ---------------------------------------------------------------------------
+// AI Response Audit Logger
+// Persists raw AI responses for debugging LLM output issues.
+// ---------------------------------------------------------------------------
+async function logAiResponse(operation, prompt, rawReply, parsedOk, errorMsg, durationMs) {
+  try {
+    await prisma.aiResponseLog.create({
+      data: {
+        operation,
+        prompt: String(prompt).slice(0, 5000),
+        rawReply: String(rawReply).slice(0, 10000),
+        parsedOk,
+        errorMsg: errorMsg ? String(errorMsg).slice(0, 500) : null,
+        durationMs: durationMs || null,
+      },
+    });
+  } catch (logErr) {
+    logger.error("ai:log", "Failed to persist AI response log", { error: logErr.message });
+  }
+}
 
 // ---------------------------------------------------------------------------
 // MCP SSE Transport Routes
@@ -35,15 +61,32 @@ router.get("/mcp", async (req, res) => {
     await connectionServer.connect(transport);
 
     const sessionId = transport.sessionId;
+    const startTime = Date.now();
     activeTransports.set(sessionId, transport);
-    console.error(`[MCP SSE] New connection established. Session: ${sessionId}`);
+    logger.info("mcp:sse", "MCP SSE connection established", { sessionId });
+
+    // Heartbeat — log session activity every 60s for debugging
+    const heartbeatInterval = setInterval(() => {
+      const age = Date.now() - startTime;
+      logger.debug("mcp:sse:heartbeat", "MCP SSE session alive", {
+        sessionId,
+        ageMs: age,
+        ageSeconds: Math.round(age / 1000),
+      });
+    }, 60_000);
+    activeHeartbeats.set(sessionId, heartbeatInterval);
 
     req.on("close", () => {
-      console.error(`[MCP SSE] Connection closed. Cleaning session: ${sessionId}`);
+      logger.info("mcp:sse", "MCP SSE connection closed", { sessionId });
       activeTransports.delete(sessionId);
+      const hb = activeHeartbeats.get(sessionId);
+      if (hb) {
+        clearInterval(hb);
+        activeHeartbeats.delete(sessionId);
+      }
     });
   } catch (err) {
-    console.error("[MCP SSE] Error setting up transport:", err.message);
+    logger.error("mcp:sse", "Error setting up MCP SSE transport", { error: err.message });
     if (!res.headersSent) {
       res.status(500).send("Failed to initiate MCP connection");
     }
@@ -64,7 +107,7 @@ router.post("/mcp/message", async (req, res) => {
   try {
     await transport.handlePostMessage(req, res);
   } catch (err) {
-    console.error(`[MCP SSE] Error handling post message for session ${sessionId}:`, err.message);
+    logger.error("mcp:sse", "Error handling MCP post message", { sessionId, error: err.message });
     if (!res.headersSent) {
       res.status(500).send("Error processing message");
     }
@@ -163,7 +206,7 @@ async function findRelevantRules(message, user) {
         }
       }
     } catch (err) {
-      console.error("[RAG Wiki Search Error]", err.message);
+      logger.error("ai:rag", "Wiki search error", { error: err.message });
     }
   }
 
@@ -189,7 +232,7 @@ async function findRelevantRules(message, user) {
         }
       }
     } catch (err) {
-      console.error("[RAG NPC Search Error]", err.message);
+      logger.error("ai:rag", "NPC search error", { error: err.message });
     }
   }
 
@@ -354,7 +397,7 @@ async function fetchCampaignWikiSnippet(queryText, limit = 5) {
         if (!articles.some((a) => a.id === art.id)) articles.push(art);
       }
     } catch (err) {
-      console.error("[AI Assist] Wiki context lookup failed:", err.message);
+      logger.error("ai:assist", "Wiki context lookup failed", { error: err.message });
     }
   }
 
@@ -589,7 +632,7 @@ async function pumpOpenAiCompatibleStream(upstream, res) {
       try {
         parsed = JSON.parse(payload);
       } catch {
-        console.warn("[AI] Failed to parse SSE data line:", payload);
+        logger.warn("ai", "Failed to parse SSE data line", { payload });
         continue;
       }
 
@@ -640,7 +683,7 @@ async function pumpOllamaStream(upstream, res) {
       try {
         parsed = JSON.parse(trimmed);
       } catch {
-        console.warn("[AI] Failed to parse Ollama stream line:", trimmed);
+        logger.warn("ai", "Failed to parse Ollama stream line", { line: trimmed });
         continue;
       }
 
@@ -877,12 +920,15 @@ async function safeParseJsonResponse(response) {
   }
 }
 
-async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history = []) {
+async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history = [], operation = "unknown") {
   if (!provider) {
     throw new Error("No AI Provider configured.");
   }
 
-  switch (provider) {
+  const startTime = Date.now();
+
+  const exec = async () => {
+    switch (provider) {
     case "gemini": {
       if (!apiKey) throw new Error("Missing Gemini API Key.");
       const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
@@ -1068,6 +1114,16 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
     default:
       throw new Error(`Unknown AI Provider: ${provider}`);
   }
+    };
+
+    try {
+      const reply = await exec();
+      logAiResponse(operation, userMessage, reply, true, null, Date.now() - startTime).catch(() => {});
+      return reply;
+    } catch (err) {
+      logAiResponse(operation, userMessage, `Error: ${err.message}`, false, err.message, Date.now() - startTime).catch(() => {});
+      throw err;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1104,7 +1160,7 @@ router.get("/models", requireDm, async (req, res) => {
       res.json({ models: [] });
     }
   } catch (err) {
-    console.error("[AI Models Fetch Error]", err.message);
+    logger.error("ai:models", "Models fetch error", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -1137,7 +1193,7 @@ router.get("/zen-models", requireDm, async (req, res) => {
     const models = (data.data || []).map(m => m.id).sort();
     res.json({ models });
   } catch (err) {
-    console.error("[AI Zen Models] Fetch failed:", err.message);
+    logger.error("ai:models", "Zen models fetch failed", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -1182,7 +1238,7 @@ router.get("/settings", requireDm, async (req, res) => {
 
     res.json(config);
   } catch (err) {
-    console.error("[AI Settings] Fetch failed:", err.message);
+    logger.error("ai:settings", "Settings fetch failed", { error: err.message });
     res.status(500).json({ error: "Failed to load AI settings." });
   }
 });
@@ -1245,7 +1301,7 @@ router.put("/settings", requireDm, async (req, res) => {
 
     res.json({ success: true, message: "AI settings saved successfully" });
   } catch (err) {
-    console.error("[AI Settings] Save failed:", err.message);
+    logger.error("ai:settings", "Settings save failed", { error: err.message });
     res.status(500).json({ error: "Failed to update AI settings." });
   }
 });
@@ -1276,7 +1332,7 @@ router.post("/test", requireDm, async (req, res) => {
 
     res.json({ success: true, reply: response.trim() });
   } catch (err) {
-    console.error("[AI Test] Connection test failed:", err.message);
+    logger.error("ai:test", "Connection test failed", { error: err.message });
     res.status(400).json({ error: err.message });
   }
 });
@@ -1346,7 +1402,7 @@ Generate exactly 4 options. Make each one feel distinct and interesting.`;
     try {
       optionsData = JSON.parse(cleanJsonStr);
     } catch (e) {
-      console.error("[AI NPC Options] JSON parse failed on text:", rawResponse);
+      logger.error("ai:npc", "JSON parse failed on text", { response: rawResponse });
       throw new Error("Failed to generate valid NPC options from the AI response.");
     }
 
@@ -1358,7 +1414,7 @@ Generate exactly 4 options. Make each one feel distinct and interesting.`;
     writeSseEvent(res, { type: "done" });
     res.end();
   } catch (err) {
-    console.error("[AI NPC Options] Failed:", err.message);
+    logger.error("ai:npc", "Failed", { error: err.message });
     if (res.headersSent) {
       writeSseEvent(res, { type: "error", message: err.message || "Failed to generate NPC options." });
       res.end();
@@ -1462,7 +1518,7 @@ The JSON must strictly conform to these fields:
     try {
       npcData = JSON.parse(cleanJsonStr);
     } catch (e) {
-      console.error("[AI NPC Gen] JSON parse failed on text:", rawResponse);
+      logger.error("ai:npc", "JSON parse failed on text", { response: rawResponse });
       throw new Error("Failed to generate a valid NPC JSON structure from the AI response.");
     }
 
@@ -1470,7 +1526,7 @@ The JSON must strictly conform to these fields:
     writeSseEvent(res, { type: "done" });
     res.end();
   } catch (err) {
-    console.error("[AI NPC Gen] Failed:", err.message);
+    logger.error("ai:npc", "Failed", { error: err.message });
     if (res.headersSent) {
       writeSseEvent(res, { type: "error", message: err.message || "Failed to generate NPC." });
       res.end();
@@ -1534,7 +1590,7 @@ Generate exactly 4 options. Levels should generally range from 1 to 5 based on t
     try {
       optionsData = JSON.parse(stripAiJsonCodeFences(rawResponse));
     } catch (e) {
-      console.error("[AI Character Options] JSON parse failed on text:", rawResponse);
+      logger.error("ai:character", "JSON parse failed on text", { response: rawResponse });
       throw new Error("Failed to generate valid character options from the AI response.");
     }
 
@@ -1546,7 +1602,7 @@ Generate exactly 4 options. Levels should generally range from 1 to 5 based on t
     writeSseEvent(res, { type: "done" });
     res.end();
   } catch (err) {
-    console.error("[AI Character Options] Failed:", err.message);
+    logger.error("ai:character", "Failed", { error: err.message });
     if (res.headersSent) {
       writeSseEvent(res, { type: "error", message: err.message || "Failed to generate character options." });
       res.end();
@@ -1628,7 +1684,7 @@ The JSON must strictly conform to these fields:
     try {
       characterData = JSON.parse(stripAiJsonCodeFences(rawResponse));
     } catch (e) {
-      console.error("[AI Character Gen] JSON parse failed on text:", rawResponse);
+      logger.error("ai:character", "JSON parse failed on text", { response: rawResponse });
       throw new Error("Failed to generate a valid character JSON structure from the AI response.");
     }
 
@@ -1636,7 +1692,7 @@ The JSON must strictly conform to these fields:
     writeSseEvent(res, { type: "done" });
     res.end();
   } catch (err) {
-    console.error("[AI Character Gen] Failed:", err.message);
+    logger.error("ai:character", "Failed", { error: err.message });
     if (res.headersSent) {
       writeSseEvent(res, { type: "error", message: err.message || "Failed to generate character." });
       res.end();
@@ -1699,7 +1755,7 @@ Generate exactly 4 options. Make each one feel distinct and dangerous.`;
     try {
       optionsData = JSON.parse(stripAiJsonCodeFences(rawResponse));
     } catch (e) {
-      console.error("[AI Monster Options] JSON parse failed on text:", rawResponse);
+      logger.error("ai:monster", "JSON parse failed on text", { response: rawResponse });
       throw new Error("Failed to generate valid monster options from the AI response.");
     }
 
@@ -1711,7 +1767,7 @@ Generate exactly 4 options. Make each one feel distinct and dangerous.`;
     writeSseEvent(res, { type: "done" });
     res.end();
   } catch (err) {
-    console.error("[AI Monster Options] Failed:", err.message);
+    logger.error("ai:monster", "Failed", { error: err.message });
     if (res.headersSent) {
       writeSseEvent(res, { type: "error", message: err.message || "Failed to generate monster options." });
       res.end();
@@ -1801,7 +1857,7 @@ The JSON must strictly conform to these fields:
     try {
       monsterData = JSON.parse(stripAiJsonCodeFences(rawResponse));
     } catch (e) {
-      console.error("[AI Monster Gen] JSON parse failed on text:", rawResponse);
+      logger.error("ai:monster", "JSON parse failed on text", { response: rawResponse });
       throw new Error("Failed to generate a valid monster JSON structure from the AI response.");
     }
 
@@ -1809,7 +1865,7 @@ The JSON must strictly conform to these fields:
     writeSseEvent(res, { type: "done" });
     res.end();
   } catch (err) {
-    console.error("[AI Monster Gen] Failed:", err.message);
+    logger.error("ai:monster", "Failed", { error: err.message });
     if (res.headersSent) {
       writeSseEvent(res, { type: "error", message: err.message || "Failed to generate monster." });
       res.end();
@@ -1896,13 +1952,13 @@ You MUST respond with a single JSON object containing an "encounter" object and 
     try {
       encounterData = JSON.parse(stripAiJsonCodeFences(rawResponse));
     } catch (e) {
-      console.error("[AI Build Encounter] JSON parse failed on text:", rawResponse);
+      logger.error("ai:encounter", "JSON parse failed on text", { response: rawResponse });
       throw new Error("Failed to generate a valid encounter JSON structure from the AI response.");
     }
 
     res.json(encounterData);
   } catch (err) {
-    console.error("[AI Build Encounter] Failed:", err.message);
+    logger.error("ai:encounter", "Failed", { error: err.message });
     res.status(500).json({ error: err.message || "Failed to build encounter." });
   }
 });
@@ -1940,13 +1996,13 @@ You MUST respond with a single JSON object and no other text.
     try {
       encounterData = JSON.parse(stripAiJsonCodeFences(rawResponse));
     } catch (e) {
-      console.error("[AI Encounter Description] JSON parse failed on text:", rawResponse);
+      logger.error("ai:encounter", "JSON parse failed on text", { response: rawResponse });
       throw new Error("Failed to generate a valid encounter description.");
     }
 
     res.json(encounterData);
   } catch (err) {
-    console.error("[AI Encounter Description] Failed:", err.message);
+    logger.error("ai:encounter", "Failed", { error: err.message });
     res.status(500).json({ error: err.message || "Failed to generate encounter description." });
   }
 });
@@ -2036,7 +2092,7 @@ Return plain markdown only.`;
     writeSseEvent(res, { type: "done" });
     res.end();
   } catch (err) {
-    console.error("[AI Session Recap] Failed:", err.message);
+    logger.error("ai:session", "Failed", { error: err.message });
     if (err.message === "sessionId must be a valid positive number.") {
       return res.status(400).json({ error: err.message });
     }
@@ -2097,7 +2153,7 @@ Return plain markdown only.`;
     writeSseEvent(res, { type: "done" });
     res.end();
   } catch (err) {
-    console.error("[AI Session Agenda] Failed:", err.message);
+    logger.error("ai:session", "Failed", { error: err.message });
     if (err.message === "sessionId must be a valid positive number.") {
       return res.status(400).json({ error: err.message });
     }
@@ -2163,7 +2219,7 @@ router.post("/expand-text", requireDm, async (req, res) => {
 
     res.json({ reply });
   } catch (err) {
-    console.error("[AI Expand] Failed:", err.message);
+    logger.error("ai:expand", "Failed", { error: err.message });
     res.status(500).json({ error: err.message || "Failed to process text." });
   }
 });
@@ -2224,7 +2280,7 @@ Keep your responses concise, readable, and structured in Markdown.`;
           }
         }
       } catch (charErr) {
-        console.error("[AI Chat] Failed to fetch character context:", charErr.message);
+        logger.error("ai:chat", "Failed to fetch character context", { error: charErr.message });
       }
     }
 
@@ -2269,7 +2325,7 @@ Keep your responses concise, readable, and structured in Markdown.`;
               data: { updatedAt: new Date() },
             });
           } catch (saveErr) {
-            console.error("[AI Chat] Failed to auto-save conversation:", saveErr.message);
+            logger.error("ai:chat", "Failed to auto-save conversation", { error: saveErr.message });
           }
         }
 
@@ -2278,7 +2334,7 @@ Keep your responses concise, readable, and structured in Markdown.`;
         if (streamErr.name === "AbortError") {
           return;
         }
-        console.error("[AI Chat] Streaming failed:", streamErr.message);
+        logger.error("ai:chat", "Streaming failed", { error: streamErr.message });
         writeSseEvent(res, { type: "error", message: streamErr.message || "Failed to query AI assistant." });
       }
 
@@ -2303,13 +2359,13 @@ Keep your responses concise, readable, and structured in Markdown.`;
           data: { updatedAt: new Date() },
         });
       } catch (saveErr) {
-        console.error("[AI Chat] Failed to auto-save conversation:", saveErr.message);
+        logger.error("ai:chat", "Failed to auto-save conversation", { error: saveErr.message });
       }
     }
 
     res.json({ reply, context: referenceContext, conversationId: conversationId || null });
   } catch (err) {
-    console.error("[AI Chat] Chat operation failed:", err.message);
+    logger.error("ai:chat", "Chat operation failed", { error: err.message });
     if (res.headersSent) {
       writeSseEvent(res, { type: "error", message: err.message || "Failed to query AI assistant." });
       res.end();
@@ -2330,7 +2386,7 @@ router.get("/image-style", async (req, res) => {
     });
     res.json({ style: setting?.value || "" });
   } catch (err) {
-    console.error("[AI Image Style] Fetch failed:", err.message);
+    logger.error("ai:image", "Fetch failed", { error: err.message });
     res.json({ style: "" });
   }
 });
@@ -2352,7 +2408,7 @@ router.get("/conversations", async (req, res) => {
     });
     res.json(conversations);
   } catch (err) {
-    console.error("[AI Conversations] List failed:", err.message);
+    logger.error("ai:conversations", "List failed", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -2374,7 +2430,7 @@ router.post("/conversations", async (req, res) => {
     });
     res.status(201).json(conversation);
   } catch (err) {
-    console.error("[AI Conversations] Create failed:", err.message);
+    logger.error("ai:conversations", "Create failed", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -2392,7 +2448,7 @@ router.get("/conversations/:id", async (req, res) => {
     if (!conversation) return res.status(404).json({ error: "Conversation not found." });
     res.json(conversation);
   } catch (err) {
-    console.error("[AI Conversations] Get failed:", err.message);
+    logger.error("ai:conversations", "Get failed", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -2415,7 +2471,7 @@ router.patch("/conversations/:id", async (req, res) => {
     });
     res.json(updated);
   } catch (err) {
-    console.error("[AI Conversations] Update failed:", err.message);
+    logger.error("ai:conversations", "Update failed", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -2434,7 +2490,7 @@ router.delete("/conversations/:id", async (req, res) => {
     await prisma.aiConversation.delete({ where: { id: Number(req.params.id) } });
     res.json({ success: true });
   } catch (err) {
-    console.error("[AI Conversations] Delete failed:", err.message);
+    logger.error("ai:conversations", "Delete failed", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -2483,7 +2539,7 @@ router.post("/conversations/:id/messages", async (req, res) => {
 
     res.status(201).json(created);
   } catch (err) {
-    console.error("[AI Conversations] Save messages failed:", err.message);
+    logger.error("ai:conversations", "Save messages failed", { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -2587,7 +2643,7 @@ The JSON must strictly conform to these fields:
       try {
         npcData = JSON.parse(cleanJsonStr);
       } catch (e) {
-        console.error("[AI NPC Interview Final] JSON parse failed on text:", rawResponse);
+        logger.error("ai:npc", "JSON parse failed on text", { response: rawResponse });
         throw new Error("Failed to generate a valid NPC JSON from the interview.");
       }
 
@@ -2650,7 +2706,7 @@ When you have enough info (at least 3 questions answered):
     try {
       responseData = JSON.parse(cleanJsonStr);
     } catch (e) {
-      console.error("[AI NPC Interview] JSON parse failed on text:", rawResponse);
+      logger.error("ai:npc", "JSON parse failed on text", { response: rawResponse });
       throw new Error("Failed to parse the AI response. Please try again.");
     }
 
@@ -2670,13 +2726,60 @@ When you have enough info (at least 3 questions answered):
     writeSseEvent(res, { type: "done" });
     res.end();
   } catch (err) {
-    console.error("[AI NPC Interview] Failed:", err.message);
+    logger.error("ai:npc", "Failed", { error: err.message });
     if (res.headersSent) {
       writeSseEvent(res, { type: "error", message: err.message || "Failed during NPC interview." });
       res.end();
       return;
     }
     res.status(500).json({ error: err.message || "Failed during NPC interview." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/ai/debug — AI subsystem debug info (DM only)
+// ---------------------------------------------------------------------------
+router.get("/debug", requireDm, async (req, res) => {
+  try {
+    const settings = await loadAiSettings();
+
+    // Response log stats
+    const [totalLogs, errorLogs, recentOperations] = await Promise.all([
+      prisma.aiResponseLog.count().catch(() => 0),
+      prisma.aiResponseLog.count({ where: { parsedOk: false } }).catch(() => 0),
+      prisma.aiResponseLog
+        .findMany({ orderBy: { createdAt: "desc" }, take: 10, select: { operation: true, parsedOk: true, createdAt: true } })
+        .catch(() => []),
+    ]);
+
+    // Conversation stats
+    const [conversationCount, messageCount] = await Promise.all([
+      prisma.aiConversation.count().catch(() => 0),
+      prisma.aiMessage.count().catch(() => 0),
+    ]);
+
+    res.json({
+      configuration: {
+        provider: settings.provider || "not configured",
+        model: settings.provider === "opencode" ? settings.model : settings.ollamaModel || "not set",
+        hasApiKey: !!settings.apiKey,
+        ollamaUrl: settings.ollamaUrl,
+      },
+      responseLog: {
+        totalEntries: totalLogs,
+        parseErrors: errorLogs,
+        recentOperations,
+      },
+      conversations: {
+        total: conversationCount,
+        totalMessages: messageCount,
+      },
+      activeSseTransports: activeTransports.size,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error("ai:debug", "Failed to gather AI debug info", { error: err.message });
+    res.status(500).json({ error: "Failed to gather AI debug info." });
   }
 });
 
@@ -2689,4 +2792,6 @@ module.exports = {
   buildNpcProfileContext,
   buildNpcRoleplaySystemPrompt,
   loadAiSettings,
+  logAiResponse,
+  getActiveTransportCount: () => activeTransports.size,
 };

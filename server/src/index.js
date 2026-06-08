@@ -9,10 +9,11 @@ const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const crypto = require("crypto");
+const morgan = require("morgan");
 const { Server: SocketServer } = require("socket.io");
 const { registerSocketHandlers } = require("./socket");
-const debug = require("./utils/debug");
-const log = debug("tablecast:index");
+const logger = require("./utils/logger");
 
 // ---------------------------------------------------------------------------
 // Express app
@@ -22,15 +23,52 @@ const PORT = process.env.PORT || 3001;
 const HOST = "0.0.0.0"; // Bind to all interfaces so LAN devices can connect
 
 // ---------------------------------------------------------------------------
+// Request ID middleware — adds a unique ID to every request for log tracing
+// ---------------------------------------------------------------------------
+app.use((req, _res, next) => {
+  req.id = crypto.randomUUID().slice(0, 8);
+  next();
+});
+
+// ---------------------------------------------------------------------------
+// Morgan HTTP request logging  structured JSON output
+// ---------------------------------------------------------------------------
+const morganFormat =
+  ':remote-addr ":method :url HTTP/:http-version" :status :res[content-length] :response-time ms';
+
+app.use(
+  morgan(morganFormat, {
+    stream: {
+      write: (message) => {
+        // Parse morgan's output and re-emit as structured JSON
+        const parts = message.trim().split(" ");
+        const method = parts[1]?.replace(/"/g, "") || "?";
+        const url = parts[2] || "?";
+        const status = parseInt(parts[parts.length - 3], 10);
+        const responseTime = parts[parts.length - 1]?.replace("ms", "") || "?";
+
+        logger.info("http", `${method} ${url} -> ${status}`, {
+          method,
+          url,
+          status,
+          responseTimeMs: responseTime,
+        });
+      },
+    },
+  })
+);
+
+// ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
 
 // CORS  allow the Vite dev server (typically port 5173) during local dev
 app.use(
   cors({
-    origin: process.env.NODE_ENV === "production"
-      ? false // In production the React SPA is served from Express  no CORS needed
-      : ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin:
+      process.env.NODE_ENV === "production"
+        ? false // In production the React SPA is served from Express  no CORS needed
+        : ["http://localhost:5173", "http://127.0.0.1:5173"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
   })
@@ -39,10 +77,11 @@ app.use(
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Debug: log incoming API requests when DEBUG=tablecast:http
+// Legacy debug-log incoming API requests (kept for backwards compat)
+const debug = require("./utils/debug");
 const httpLog = debug("tablecast:http");
 app.use((req, _res, next) => {
-  httpLog("%s %s", req.method, req.path);
+  httpLog("%s %s [reqId=%s]", req.method, req.path, req.id);
   next();
 });
 
@@ -56,9 +95,10 @@ const server = http.createServer(app);
 // ---------------------------------------------------------------------------
 const io = new SocketServer(server, {
   cors: {
-    origin: process.env.NODE_ENV === "production"
-      ? false
-      : ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin:
+      process.env.NODE_ENV === "production"
+        ? false
+        : ["http://localhost:5173", "http://127.0.0.1:5173"],
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -76,7 +116,7 @@ registerSocketHandlers(io);
 
 // Health check  confirms the server is alive
 app.get("/api/health", (_req, res) => {
-  log("Health check — clients connected: %d", io.engine.clientsCount);
+  logger.info("health", "Health check", { clients: io.engine.clientsCount });
   res.json({
     status: "ok",
     service: "tablecast",
@@ -97,7 +137,7 @@ app.get("/api/network-ip", (_req, res) => {
       }
     }
   }
-  log("Network IPs requested — found %d non-internal IPv4 address(es)", ips.length);
+  logger.info("network", "Network IPs requested", { count: ips.length });
   res.json({ ips });
 });
 
@@ -115,6 +155,7 @@ const { router: aiRouter } = require("./routes/ai");
 const rollsRouter = require("./routes/rolls");
 const chatRouter = require("./routes/chat");
 const sessionsRouter = require("./routes/sessions");
+const debugRouter = require("./routes/debug");
 
 app.use("/api/users", usersRouter);
 app.use("/api/characters", charactersRouter);
@@ -129,6 +170,7 @@ app.use("/api/ai", aiRouter);
 app.use("/api/rolls", rollsRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/sessions", sessionsRouter);
+app.use("/api/debug", debugRouter);
 
 // ---------------------------------------------------------------------------
 // Serve map and token image uploads
@@ -158,46 +200,98 @@ for (const etoolsImgPath of etoolsImgPaths) {
 const clientDist = path.join(__dirname, "../../client/dist");
 app.use(express.static(clientDist));
 
-// SPA fallback — return index.html for all unmatched routes so React Router works, but skip API endpoints
+// SPA fallback — return index.html for all unmatched routes so React Router
+// works, but skip API endpoints
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api/")) {
     return next();
   }
-  log("SPA fallback — serving index.html for: %s", req.path);
+  logger.debug("spa", "SPA fallback", { path: req.path });
   res.sendFile(path.join(clientDist, "index.html"));
+});
+
+// ---------------------------------------------------------------------------
+// Centralized Express Error Handler
+// ---------------------------------------------------------------------------
+class AppError extends Error {
+  constructor(status, message, code) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+// 404 catch-all for unknown API routes
+app.use("/api/*", (_req, _res, next) => {
+  next(new AppError(404, "Route not found"));
+});
+
+// Error middleware
+app.use((err, req, res, _next) => {
+  const status = err.status || 500;
+  const message = err.message || "Internal server error";
+  const code = err.code || (status === 500 ? "INTERNAL_ERROR" : undefined);
+
+  logger.error("http:error", `${status} ${req.method} ${req.path}`, {
+    reqId: req.id,
+    status,
+    error: message,
+    stack: status >= 500 ? err.stack : undefined,
+  });
+
+  if (!res.headersSent) {
+    res.status(status).json({ error: message, code });
+  }
 });
 
 // ---------------------------------------------------------------------------
 // Start listening
 // ---------------------------------------------------------------------------
 server.listen(PORT, HOST, () => {
-  console.log(`[Tablecast]   Server running at http://${HOST}:${PORT}`);
+  const startupMsg = `Server running at http://${HOST}:${PORT}`;
+  console.log(`[Tablecast]  ${startupMsg}`);
   console.log(`[Tablecast]  Health check:    http://${HOST}:${PORT}/api/health`);
   console.log(`[Tablecast]  Socket.io ready  awaiting connections`);
-  log("Debug logging enabled — DEBUG=%s", process.env.DEBUG || "(none)");
-  log("Node environment: %s | Port: %d", process.env.NODE_ENV || "development", PORT);
+
+  logger.info("server", "Server started", {
+    port: PORT,
+    host: HOST,
+    env: process.env.NODE_ENV || "development",
+    debug: process.env.DEBUG || "(none)",
+    logLevel: process.env.LOG_LEVEL || "info",
+    healthEndpoint: `http://${HOST}:${PORT}/api/health`,
+  });
 
   // Initialize rclone config file from DB
   const { initRcloneConfig } = require("./utils/backup");
   initRcloneConfig()
-    .then(() => console.log("[Tablecast] rclone config initialized from database."))
-    .catch(err => console.error("[Tablecast] Failed to initialize rclone config from database:", err.message));
+    .then(() => logger.info("backup", "rclone config initialized from database"))
+    .catch((err) =>
+      logger.error("backup", "Failed to initialize rclone config", {
+        error: err.message,
+      })
+    );
 
   const referenceSyncOnStartup = process.env.REFERENCE_SYNC_ON_STARTUP === "true";
-  console.log(`[Tablecast]  Reference sync on startup: ${referenceSyncOnStartup ? "enabled" : "disabled"}`);
+  logger.info("reference", "Reference sync on startup", { enabled: referenceSyncOnStartup });
   if (referenceSyncOnStartup) {
     const { sync } = require("./utils/referenceSync");
     const { clearCache } = require("./utils/referenceSearch");
     const { clearCache: clearTokenImageCache } = require("./utils/tokenImageLookup");
-    console.log(`[Tablecast]  Checking for D&D 5e reference repositories...`);
+    logger.info("reference", "Checking for D&D 5e reference repositories...");
     sync()
       .then(() => {
         clearCache();
         clearTokenImageCache();
+        logger.info("reference", "Reference sync completed");
       })
-      .catch(err => console.error("[Tablecast] Startup references sync failed:", err.message));
+      .catch((err) =>
+        logger.error("reference", "Startup references sync failed", {
+          error: err.message,
+        })
+      );
   }
 });
 
 // Export for testing
-module.exports = { app, server, io };
+module.exports = { app, server, io, AppError };
