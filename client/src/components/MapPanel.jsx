@@ -472,12 +472,12 @@ export default function MapPanel({ user, isPopout = false }) {
           oCtx.fillStyle = "#08080c";
           oCtx.fillRect(0, 0, imgW, imgH);
 
-          // Reveal paths
-          oCtx.globalCompositeOperation = "destination-out";
+          // Process fog polygons in array order (later operations override earlier ones)
           const polygons = parseFogState(activeMap.fogState);
 
           polygons.forEach(p => {
             if (p.type === "reveal" && p.points && p.points.length > 0) {
+              oCtx.globalCompositeOperation = "destination-out";
               oCtx.beginPath();
               oCtx.moveTo(p.points[0].x, p.points[0].y);
               for (let i = 1; i < p.points.length; i++) {
@@ -486,13 +486,8 @@ export default function MapPanel({ user, isPopout = false }) {
               oCtx.closePath();
               oCtx.fillStyle = "black";
               oCtx.fill();
-            }
-          });
-
-          // Re-cover hide paths
-          oCtx.globalCompositeOperation = "source-over";
-          polygons.forEach(p => {
-            if (p.type === "hide" && p.points && p.points.length > 0) {
+            } else if (p.type === "hide" && p.points && p.points.length > 0) {
+              oCtx.globalCompositeOperation = "source-over";
               oCtx.beginPath();
               oCtx.moveTo(p.points[0].x, p.points[0].y);
               for (let i = 1; i < p.points.length; i++) {
