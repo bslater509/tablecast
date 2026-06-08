@@ -55,7 +55,7 @@ function fetchUrl(url) {
       "-H", "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "-H", "Accept: application/json, text/plain, */*",
       url,
-    ], { timeout: 35000, encoding: "utf8" });
+    ], { timeout: 35000, maxBuffer: 50 * 1024 * 1024, encoding: "utf8" });
 
     if (result.error) {
       reject(new Error(`Curl error: ${result.error.message}`));
