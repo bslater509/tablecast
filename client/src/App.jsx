@@ -15,6 +15,7 @@ import {
   MessageCircle,
   Settings,
   SlidersHorizontal,
+  Swords,
   Users,
   Wifi,
 } from "lucide-react";
@@ -32,6 +33,7 @@ import DiceRollerPanel from "./components/DiceRollerPanel";
 import ConnectionHelpPanel from "./components/ConnectionHelpPanel";
 import ImporterPanel from "./components/ImporterPanel";
 import SessionsPanel from "./components/SessionsPanel";
+import EncountersPanel from "./components/EncountersPanel";
 import { useSocket } from "./context/SocketContext";
 
 const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
@@ -95,6 +97,16 @@ const DM_NAV_ITEMS = [
     icon: CalendarDays,
     popoutUrl: "/#/dm/popout/sessions",
     popoutTitle: "Pop out Sessions",
+    popoutFeatures: "width=800,height=900,resizable=yes,scrollbars=yes",
+  },
+  {
+    id: "encounters",
+    label: "Encounters",
+    mobileLabel: "Combat",
+    path: "/dm/encounters",
+    icon: Swords,
+    popoutUrl: "/#/dm/popout/encounters",
+    popoutTitle: "Pop out Encounters",
     popoutFeatures: "width=800,height=900,resizable=yes,scrollbars=yes",
   },
   {
@@ -400,6 +412,7 @@ function App() {
         <Route path="/dm/popout/dice" element={<DiceRollerPanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/sessions" element={<SessionsPanel user={user} isPopout={true} basePath="/dm/popout/sessions" />} />
         <Route path="/dm/popout/sessions/:id" element={<SessionsPanel user={user} isPopout={true} basePath="/dm/popout/sessions" />} />
+        <Route path="/dm/popout/encounters" element={<EncountersPanel user={user} isPopout={true} basePath="/dm/popout/encounters" />} />
         <Route path="/dm/popout/connection" element={<ConnectionHelpPanel user={user} />} />
         <Route path="/dm/popout/characters" element={<CharacterList user={user} onSelectCharacter={(char) => window.open(`/#/dm/popout/characters/${char.id}`, '_blank', 'width=600,height=800,resizable=yes')} isPopout={true} />} />
         <Route path="/dm/popout/characters/:id" element={<CharacterSheetWrapper user={user} basePath="/dm/popout/characters" isPopout={true} />} />
@@ -759,7 +772,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "sheet", "messages", "wiki", "dice", "sessions"].includes(pathParts[2])
+  const currentTab = ["map", "sheet", "messages", "wiki", "dice", "sessions", "encounters"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
@@ -809,6 +822,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
           <Route path="wiki" element={<WikiPanel user={user} isPopout={false} />} />
           <Route path="sessions" element={<SessionsPanel user={user} readOnly basePath="/player/sessions" />} />
           <Route path="sessions/:id" element={<SessionsPanel user={user} readOnly basePath="/player/sessions" />} />
+          <Route path="encounters" element={<EncountersPanel user={user} readOnly basePath="/player/encounters" />} />
           <Route path="chat-journal" element={<Navigate to="/player/messages" replace />} />
           <Route path="chat-journal/chat" element={<Navigate to="/player/messages" replace />} />
           <Route path="chat-journal/journal" element={<Navigate to="/player/wiki" replace />} />
@@ -924,6 +938,21 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
           </span>
           <span style={styles.navLabel}>Sessions</span>
         </button>
+
+        <button
+          id="nav-tab-encounters"
+          onClick={() => navigate("/player/encounters")}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "encounters" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+        >
+          <span style={styles.navIcon}>
+            <Swords size={20} strokeWidth={2} />
+          </span>
+          <span style={styles.navLabel}>Combat</span>
+        </button>
       </nav>
     </div>
   );
@@ -934,7 +963,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "settings", "dice", "importer"].includes(pathParts[2])
+  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "encounters", "settings", "dice", "importer"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
@@ -1043,6 +1072,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="wiki" element={<WikiPanel user={user} isPopout={false} />} />
             <Route path="sessions" element={<SessionsPanel user={user} basePath="/dm/sessions" />} />
             <Route path="sessions/:id" element={<SessionsPanel user={user} basePath="/dm/sessions" />} />
+            <Route path="encounters" element={<EncountersPanel user={user} basePath="/dm/encounters" />} />
             <Route path="chat-journal" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat-journal/chat" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat-journal/journal" element={<Navigate to="/dm/wiki" replace />} />
