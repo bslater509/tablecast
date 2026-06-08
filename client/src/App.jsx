@@ -431,6 +431,7 @@ function App() {
         />
       )}
     </div>
+    </ErrorBoundary>
   );
 }
 
