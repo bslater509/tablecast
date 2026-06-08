@@ -44,12 +44,8 @@ RUN mkdir -p /app/server/prisma/data \
               /app/server/uploads \
               /app/server/backups
 
-RUN chown -R node:node /app/server/prisma /app/server/uploads /app/server/backups
-
 COPY server/docker-entrypoint.sh /app/server/docker-entrypoint.sh
 RUN chmod +x /app/server/docker-entrypoint.sh
-
-USER node
 
 # Run Prisma migrations then start the server
 WORKDIR /app/server
