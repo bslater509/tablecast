@@ -51,6 +51,7 @@ export function DiceBoxProvider({ children }) {
   const [isReady, setIsReady] = useState(false);
   const [isRolling, setIsRolling] = useState(false);
   const isRollingRef = useRef(false);
+  const clearTimeoutRef = useRef(null);
   // Keep queue in state to trigger re-renders when queue changes
   const [queue, setQueue] = useState([]);
   const queueRef = useRef([]);
@@ -110,7 +111,7 @@ export function DiceBoxProvider({ children }) {
         setQueue([...queueRef.current]);
 
         // Delay clearing/hiding dice slightly for better visual polish
-        setTimeout(() => {
+        clearTimeoutRef.current = setTimeout(() => {
           if (diceBoxRef.current) {
             diceBoxRef.current.clear();
           }
@@ -123,6 +124,9 @@ export function DiceBoxProvider({ children }) {
     });
 
     return () => {
+      if (clearTimeoutRef.current) {
+        clearTimeout(clearTimeoutRef.current);
+      }
       if (diceBoxRef.current) {
         diceBoxRef.current.clear();
         diceBoxRef.current = null;
@@ -256,5 +260,4 @@ export function useDiceBox() {
   }
   return ctx;
 }
-
 

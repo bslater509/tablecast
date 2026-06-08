@@ -25,13 +25,24 @@ function compileMarkdown(text) {
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
+  const copiedTimeoutRef = useRef(null);
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+      copiedTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {}
   };
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+    };
+  }, []);
   return (
     <button onClick={handleCopy} style={styles.copyBtn} className="btn-hover-scale" title="Copy">
       {copied ? <Check size={13} color="var(--color-success)" /> : <Copy size={13} />}

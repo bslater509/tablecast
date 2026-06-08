@@ -71,6 +71,7 @@ export default function MapPanel({ user, isPopout = false }) {
   const [encounterBuilderError, setEncounterBuilderError] = useState(null);
   const [encounterBuilderResult, setEncounterBuilderResult] = useState(null);
   const [encounterBuilderProgress, setEncounterBuilderProgress] = useState("");
+  const [loadError, setLoadError] = useState(null);
 
   // Toolbar & View state
   const [tool, setTool] = useState("select"); // "select" (pan/token move), "draw-fog", "reveal-fog"
@@ -112,6 +113,8 @@ export default function MapPanel({ user, isPopout = false }) {
   const [mapImageLoaded, setMapImageLoaded] = useState(false);
   const tokenImagesRef = useRef({}); // tokenId -> Image instance cache
   const gestureRef = useRef(null);
+  const activeMapRef = useRef(activeMap);
+  activeMapRef.current = activeMap;
 
   const gridSize = activeMap?.gridSize || 50;
   const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
@@ -131,6 +134,7 @@ export default function MapPanel({ user, isPopout = false }) {
 
   async function loadMaps(autoSelectId = null) {
     try {
+      setLoadError(null);
       const res = await fetch("/api/maps");
       if (res.ok) {
         const data = await res.json();
@@ -149,11 +153,13 @@ export default function MapPanel({ user, isPopout = false }) {
       }
     } catch (err) {
       console.error("Failed to load maps list:", err);
+      setLoadError("Failed to load maps. Check server connection.");
     }
   }
 
   async function loadCharacters() {
     try {
+      setLoadError(null);
       const res = await fetch("/api/characters");
       if (res.ok) {
         const data = await res.json();
@@ -161,11 +167,13 @@ export default function MapPanel({ user, isPopout = false }) {
       }
     } catch (err) {
       console.error("Failed to load characters list:", err);
+      setLoadError("Failed to load characters. Check server connection.");
     }
   }
 
   async function loadNpcs() {
     try {
+      setLoadError(null);
       const res = await fetch("/api/npcs");
       if (res.ok) {
         const data = await res.json();
@@ -173,11 +181,13 @@ export default function MapPanel({ user, isPopout = false }) {
       }
     } catch (err) {
       console.error("Failed to load NPCs list:", err);
+      setLoadError("Failed to load NPCs. Check server connection.");
     }
   }
 
   async function loadMonsters() {
     try {
+      setLoadError(null);
       const res = await fetch("/api/monsters");
       if (res.ok) {
         const data = await res.json();
@@ -185,6 +195,7 @@ export default function MapPanel({ user, isPopout = false }) {
       }
     } catch (err) {
       console.error("Failed to load Monsters list:", err);
+      setLoadError("Failed to load monsters. Check server connection.");
     }
   }
 
@@ -317,7 +328,8 @@ export default function MapPanel({ user, isPopout = false }) {
 
     // Fog of war was updated
     const handleFogUpdated = (payload) => {
-      if (activeMap && activeMap.id === payload.mapId) {
+      const currentMap = activeMapRef.current;
+      if (currentMap && currentMap.id === payload.mapId) {
         setActiveMap(prev => ({ ...prev, fogState: payload.fogState }));
       }
     };
@@ -326,7 +338,8 @@ export default function MapPanel({ user, isPopout = false }) {
     const handleMapDeleted = (payload) => {
       const deletedId = Number(payload.mapId);
       setMapsList(prev => prev.filter(m => m.id !== deletedId));
-      if (activeMap && activeMap.id === deletedId) {
+      const currentMap = activeMapRef.current;
+      if (currentMap && currentMap.id === deletedId) {
         // Need to find remaining maps - use mapsList from the closure won't work
         // Instead, fetchMapDetails will handle this via the mapsList state
         setActiveMap(null);
@@ -337,9 +350,9 @@ export default function MapPanel({ user, isPopout = false }) {
     };
 
     const handleEncounterRefresh = (payload) => {
-      if (!activeMap || Number(payload.mapId) === Number(activeMap.id)) {
-        loadActiveEncounter(payload.mapId || activeMap?.id);
-        if (activeMap?.id) fetchMapDetails(activeMap.id);
+      const currentMap = activeMapRef.current;
+      if (!currentMap || Number(payload.mapId) === Number(currentMap.id)) {
+        loadActiveEncounter(payload.mapId || currentMap?.id);
       }
     };
 
@@ -362,7 +375,7 @@ export default function MapPanel({ user, isPopout = false }) {
       socket.off("encounter:updated", handleEncounterRefresh);
       socket.off("encounter:turnChanged", handleEncounterRefresh);
     };
-  }, [socket, activeMap]);
+  }, [socket]);
 
   // ---------------------------------------------------------------------------
   // HTML5 Canvas Drawing Loop
@@ -649,7 +662,7 @@ export default function MapPanel({ user, isPopout = false }) {
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [activeMap]);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Touch / Mouse Gesture Helpers

@@ -11,6 +11,7 @@
 const { Router } = require("express");
 const prisma = require("../prisma");
 const { requireDm, getRequestUser } = require("../auth");
+const logger = require("../utils/logger");
 
 const router = Router();
 
@@ -72,7 +73,7 @@ router.get("/", async (req, res) => {
     });
     res.json(monsters);
   } catch (err) {
-    console.error("[API] GET /api/monsters error:", err.message);
+    logger.error("api:route", "Error in GET /api/monsters", { error: err.message });
     res.status(500).json({ error: "Failed to fetch Monsters." });
   }
 });
@@ -103,7 +104,7 @@ router.get("/:id", async (req, res) => {
 
     res.json(monster);
   } catch (err) {
-    console.error("[API] GET /api/monsters/:id error:", err.message);
+    logger.error("api:route", "Error in GET /api/monsters/:id", { error: err.message });
     res.status(500).json({ error: "Failed to fetch Monster." });
   }
 });
@@ -143,7 +144,7 @@ router.post("/", requireDm, async (req, res) => {
     const monster = await prisma.monster.create({ data });
     res.status(201).json(monster);
   } catch (err) {
-    console.error("[API] POST /api/monsters error:", err.message);
+    logger.error("api:route", "Error in POST /api/monsters", { error: err.message });
     res.status(500).json({ error: "Failed to create Monster." });
   }
 });
@@ -188,7 +189,7 @@ router.put("/:id", requireDm, async (req, res) => {
     });
     res.json(monster);
   } catch (err) {
-    console.error("[API] PUT /api/monsters/:id error:", err.message);
+    logger.error("api:route", "Error in PUT /api/monsters/:id", { error: err.message });
     res.status(500).json({ error: "Failed to update Monster." });
   }
 });
@@ -211,7 +212,7 @@ router.delete("/:id", requireDm, async (req, res) => {
     await prisma.monster.delete({ where: { id } });
     res.json({ success: true, message: "Monster deleted successfully." });
   } catch (err) {
-    console.error("[API] DELETE /api/monsters/:id error:", err.message);
+    logger.error("api:route", "Error in DELETE /api/monsters/:id", { error: err.message });
     res.status(500).json({ error: "Failed to delete Monster." });
   }
 });

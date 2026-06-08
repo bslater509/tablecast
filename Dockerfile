@@ -1,7 +1,7 @@
 # =============================================================================
 # Stage 1: Build the React Frontend
 # =============================================================================
-FROM node:20-alpine AS client-builder
+FROM node:22-alpine AS client-builder
 
 WORKDIR /build/client
 
@@ -15,9 +15,9 @@ RUN npm run build
 
 # =============================================================================
 # Stage 2: Runtime — Node.js + Express + rclone
-# Uses node:20-slim (Debian-based) so apt-get is available for rclone
+# Uses node:22-slim (Debian-based) so apt-get is available for rclone
 # =============================================================================
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 
 # Install rclone, openssl (required by Prisma's schema engine), git and ca-certificates via apt-get
 RUN apt-get update && \
@@ -29,8 +29,9 @@ WORKDIR /app
 
 # ── Server dependencies ──────────────────────────────────────────────────────
 COPY server/package*.json ./server/
+RUN cd server && npm ci
 COPY server/prisma/ ./server/prisma/
-RUN cd server && npm ci && npx prisma generate && npm prune --omit=dev
+RUN cd server && npx prisma generate && npm prune --omit=dev
 
 # ── Server source ─────────────────────────────────────────────────────────────
 COPY server/ ./server/
@@ -40,13 +41,22 @@ COPY --from=client-builder /build/client/dist ./client/dist
 
 # ── Create directories that will be mounted as volumes ────────────────────────
 RUN mkdir -p /app/server/prisma/data \
-             /app/server/uploads \
-             /app/server/backups
+              /app/server/uploads \
+              /app/server/backups
+
+RUN chown -R node:node /app/server/prisma /app/server/uploads /app/server/backups
+
+COPY server/docker-entrypoint.sh /app/server/docker-entrypoint.sh
+RUN chmod +x /app/server/docker-entrypoint.sh
+
+USER node
 
 # Run Prisma migrations then start the server
 WORKDIR /app/server
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD node -e "require('http').get({host:'localhost',port:3001,path:'/api/health',timeout:5000},r=>process.exit(r.statusCode!==200?1:0)).on('error',()=>process.exit(1))"
+
 EXPOSE 3001
 
-# Use entrypoint so migrations always run before the server starts
-CMD ["sh", "-c", "npx prisma migrate deploy && node src/index.js"]
+CMD ["/app/server/docker-entrypoint.sh"]

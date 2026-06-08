@@ -11,6 +11,7 @@
 const { Router } = require("express");
 const prisma = require("../prisma");
 const { getRequestUser } = require("../auth");
+const logger = require("../utils/logger");
 
 const router = Router();
 
@@ -49,7 +50,7 @@ router.get("/", async (_req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error("[API] GET /api/users error:", err.message);
+    logger.error("api:route", "Error in GET /api/users", { error: err.message });
     res.status(500).json({ error: "Failed to fetch users." });
   }
 });
@@ -85,7 +86,7 @@ router.get("/:id", async (req, res) => {
 
     res.json(user);
   } catch (err) {
-    console.error("[API] GET /api/users/:id error:", err.message);
+    logger.error("api:route", "Error in GET /api/users/:id", { error: err.message });
     res.status(500).json({ error: "Failed to fetch user." });
   }
 });
@@ -119,7 +120,7 @@ router.post("/", async (req, res) => {
     if (err.code === "P2002") {
       return res.status(409).json({ error: "Username already taken." });
     }
-    console.error("[API] POST /api/users error:", err.message);
+    logger.error("api:route", "Error in POST /api/users", { error: err.message });
     res.status(500).json({ error: "Failed to create user." });
   }
 });
@@ -180,7 +181,7 @@ router.put("/:id", async (req, res) => {
     if (err.code === "P2002") {
       return res.status(409).json({ error: "Username already taken." });
     }
-    console.error("[API] PUT /api/users/:id error:", err.message);
+    logger.error("api:route", "Error in PUT /api/users/:id", { error: err.message });
     res.status(500).json({ error: "Failed to update user." });
   }
 });
@@ -213,7 +214,7 @@ router.delete("/:id", async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "User not found." });
     }
-    console.error("[API] DELETE /api/users/:id error:", err.message);
+    logger.error("api:route", "Error in DELETE /api/users/:id", { error: err.message });
     res.status(500).json({ error: "Failed to delete user." });
   }
 });

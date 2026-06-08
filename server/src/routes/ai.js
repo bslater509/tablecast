@@ -902,11 +902,7 @@ async function performAiStreamTokens(provider, apiKey, ollamaUrl, ollamaModel, s
 
 async function performAiStream(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history, res, signal) {
   const onToken = (text) => writeSseEvent(res, { type: "token", text });
-  try {
-    await performAiStreamTokens(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history, onToken, signal);
-  } catch (err) {
-    throw err;
-  }
+  await performAiStreamTokens(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history, onToken, signal);
 }
 
 /** Safely parse an HTTP response as JSON, with a human-readable error on failure */
@@ -2232,6 +2228,9 @@ router.post("/chat", async (req, res) => {
     const { message, npcId, history, stream: wantsStream, conversationId, characterId } = req.body;
     if (!message || typeof message !== "string" || !message.trim()) {
       return res.status(400).json({ error: "Message content is required." });
+    }
+    if (message.length > 10000) {
+      return res.status(400).json({ error: "Message too long. Maximum 10,000 characters." });
     }
 
     const user = await getRequestUser(req);

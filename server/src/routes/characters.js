@@ -11,6 +11,7 @@
 const { Router } = require("express");
 const prisma = require("../prisma");
 const { getRequestUser } = require("../auth");
+const logger = require("../utils/logger");
 
 const router = Router();
 
@@ -67,7 +68,7 @@ router.get("/", async (req, res) => {
 
     res.json(characters);
   } catch (err) {
-    console.error("[API] GET /api/characters error:", err.message);
+    logger.error("api:route", "Error in GET /api/characters", { error: err.message });
     res.status(500).json({ error: "Failed to fetch characters." });
   }
 });
@@ -93,7 +94,7 @@ router.get("/:id", async (req, res) => {
 
     res.json(character);
   } catch (err) {
-    console.error("[API] GET /api/characters/:id error:", err.message);
+    logger.error("api:route", "Error in GET /api/characters/:id", { error: err.message });
     res.status(500).json({ error: "Failed to fetch character." });
   }
 });
@@ -157,7 +158,7 @@ router.post("/", async (req, res) => {
 
     res.status(201).json(character);
   } catch (err) {
-    console.error("[API] POST /api/characters error:", err.message);
+    logger.error("api:route", "Error in POST /api/characters", { error: err.message });
     res.status(500).json({ error: "Failed to create character." });
   }
 });
@@ -219,7 +220,7 @@ router.put("/:id", async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "Character not found." });
     }
-    console.error("[API] PUT /api/characters/:id error:", err.message);
+    logger.error("api:route", "Error in PUT /api/characters/:id", { error: err.message });
     res.status(500).json({ error: "Failed to update character." });
   }
 });
@@ -260,7 +261,7 @@ router.delete("/:id", async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "Character not found." });
     }
-    console.error("[API] DELETE /api/characters/:id error:", err.message);
+    logger.error("api:route", "Error in DELETE /api/characters/:id", { error: err.message });
     res.status(500).json({ error: "Failed to delete character." });
   }
 });

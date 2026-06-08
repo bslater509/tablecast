@@ -26,15 +26,26 @@ function compileMarkdown(text) {
 // ---------------------------------------------------------------------------
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
+  const copiedTimeoutRef = useRef(null);
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+      copiedTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy text:", err);
     }
   };
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+    };
+  }, []);
   return (
     <button
       onClick={handleCopy}
@@ -100,6 +111,7 @@ export default function AiPanel({ user }) {
   const inputRef = useRef(null);
   const npcScrollRef = useRef(null);
   const npcInputRef = useRef(null);
+  const focusTimeoutRef = useRef(null);
 
   // --- Rules Chat Hook ---
   const rulesChat = useAiChat({
@@ -239,8 +251,16 @@ export default function AiPanel({ user }) {
   useEffect(() => {
     if (!chat.streaming) {
       const ref = activeTab === "rules" ? inputRef : npcInputRef;
-      setTimeout(() => ref.current?.focus(), 100);
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+      }
+      focusTimeoutRef.current = setTimeout(() => ref.current?.focus(), 100);
     }
+    return () => {
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+      }
+    };
   }, [chat.streaming, activeTab]);
 
   // --------------- Conversation Management ---------------

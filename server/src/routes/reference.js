@@ -14,6 +14,7 @@ const referenceSearch = require("../utils/referenceSearch");
 const tokenImageLookup = require("../utils/tokenImageLookup");
 const { requireDm } = require("../auth");
 const prisma = require("../prisma");
+const logger = require("../utils/logger");
 
 const router = Router();
 const SETTINGS_KEY = "reference.allowedSources";
@@ -42,7 +43,7 @@ async function getAllowedSources() {
   try {
     return normalizeSources(JSON.parse(setting.value));
   } catch (err) {
-    console.warn("[API] Invalid reference source settings ignored:", err.message);
+    logger.warn("api:reference", "Invalid reference source settings ignored", { error: err.message });
     return [];
   }
 }
@@ -127,7 +128,7 @@ router.get("/status", async (req, res) => {
     const allowedSources = await getAllowedSources();
     res.json({ ...status, allowedSources });
   } catch (err) {
-    console.error("[API] GET /api/reference/status error:", err.message);
+    logger.error("api:reference", "Error in GET /api/reference/status", { error: err.message });
     res.status(500).json({ error: "Failed to retrieve sync status." });
   }
 });
@@ -141,7 +142,7 @@ router.get("/settings", async (req, res) => {
     const availableSources = referenceSearch.listAvailableSources();
     res.json({ allowedSources, availableSources });
   } catch (err) {
-    console.error("[API] GET /api/reference/settings error:", err.message);
+    logger.error("api:reference", "Error in GET /api/reference/settings", { error: err.message });
     res.status(500).json({ error: "Failed to retrieve reference settings." });
   }
 });
@@ -155,7 +156,7 @@ router.put("/settings", requireDm, async (req, res) => {
     referenceSearch.clearCache();
     res.json({ success: true, allowedSources });
   } catch (err) {
-    console.error("[API] PUT /api/reference/settings error:", err.message);
+    logger.error("api:reference", "Error in PUT /api/reference/settings", { error: err.message });
     res.status(500).json({ error: "Failed to save reference settings." });
   }
 });
@@ -178,12 +179,12 @@ router.post("/sync", requireDm, (req, res) => {
         tokenImageLookup.clearCache();
       })
       .catch((err) => {
-        console.error("[API] Background reference sync failed:", err.message);
+        logger.error("api:reference", "Background reference sync failed", { error: err.message });
       });
 
     res.json({ success: true, message: "Reference sync started in the background." });
   } catch (err) {
-    console.error("[API] POST /api/reference/sync error:", err.message);
+    logger.error("api:reference", "Error in POST /api/reference/sync", { error: err.message });
     res.status(500).json({ error: "Failed to start sync process." });
   }
 });
@@ -208,7 +209,7 @@ router.get("/search", async (req, res) => {
     
     res.json(results);
   } catch (err) {
-    console.error("[API] GET /api/reference/search error:", err.message);
+    logger.error("api:reference", "Error in GET /api/reference/search", { error: err.message });
     res.status(500).json({ error: "Failed to perform reference search." });
   }
 });
@@ -235,7 +236,7 @@ router.get("/detail", async (req, res) => {
 
     res.json(withReferenceInfo(withReferenceImage(item, category), category, allowedSources));
   } catch (err) {
-    console.error("[API] GET /api/reference/detail error:", err.message);
+    logger.error("api:reference", "Error in GET /api/reference/detail", { error: err.message });
     res.status(500).json({ error: "Failed to retrieve reference detail." });
   }
 });
@@ -262,7 +263,7 @@ router.get("/token-image", (req, res) => {
 
     res.json(match);
   } catch (err) {
-    console.error("[API] GET /api/reference/token-image error:", err.message);
+    logger.error("api:reference", "Error in GET /api/reference/token-image", { error: err.message });
     res.status(500).json({ error: "Failed to resolve token image." });
   }
 });
@@ -427,7 +428,7 @@ router.post("/import", requireDm, async (req, res) => {
       return res.json({ success: true, type: "wiki", item: wikiArticle });
     }
   } catch (err) {
-    console.error("[API] POST /api/reference/import error:", err.message);
+    logger.error("api:reference", "Error in POST /api/reference/import", { error: err.message });
     res.status(500).json({ error: `Failed to import reference: ${err.message}` });
   }
 });
@@ -470,7 +471,7 @@ async function copyReferenceImage(sourceUrl) {
     await fs.promises.copyFile(srcFilePath, destFilePath);
     return `/uploads/${uniqueName}`;
   } catch (err) {
-    console.error(`[Importer] Failed to copy reference image ${srcFilePath}:`, err.message);
+    logger.error("api:reference", "Failed to copy reference image", { error: err.message, srcFilePath });
     return "";
   }
 }

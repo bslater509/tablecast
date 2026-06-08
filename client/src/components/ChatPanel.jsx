@@ -175,15 +175,26 @@ function EmojiPicker({ onSelect, visible }) {
 // ---------------------------------------------------------------------------
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
+  const copiedTimeoutRef = useRef(null);
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+      copiedTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy text:", err);
     }
   };
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+    };
+  }, []);
   return (
     <button
       onClick={handleCopy}
@@ -607,6 +618,14 @@ export default function ChatPanel({ user, isPopout = false }) {
   const pendingAcksRef = useRef({});
   const initialLoadRef = useRef(true);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeout.current) {
+        clearTimeout(typingTimeout.current);
+      }
+    };
+  }, []);
 
   // Fetch NPCs for avatar matching
   useEffect(() => {

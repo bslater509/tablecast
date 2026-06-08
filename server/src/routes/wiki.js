@@ -11,6 +11,7 @@
 const { Router } = require("express");
 const prisma = require("../prisma");
 const { requireDm, getRequestUser } = require("../auth");
+const logger = require("../utils/logger");
 
 const router = Router();
 
@@ -48,7 +49,7 @@ router.get("/", async (req, res) => {
 
     res.json(articles);
   } catch (err) {
-    console.error("[API] GET /api/wiki error:", err.message);
+    logger.error("api:route", "Error in GET /api/wiki", { error: err.message });
     res.status(500).json({ error: "Failed to fetch wiki articles." });
   }
 });
@@ -78,7 +79,7 @@ router.get("/:id", async (req, res) => {
 
     res.json(article);
   } catch (err) {
-    console.error("[API] GET /api/wiki/:id error:", err.message);
+    logger.error("api:route", "Error in GET /api/wiki/:id", { error: err.message });
     res.status(500).json({ error: "Failed to fetch wiki article." });
   }
 });
@@ -129,7 +130,7 @@ router.post("/", requireDm, async (req, res) => {
 
     res.status(201).json(article);
   } catch (err) {
-    console.error("[API] POST /api/wiki error:", err.message);
+    logger.error("api:route", "Error in POST /api/wiki", { error: err.message });
     res.status(500).json({ error: "Failed to create wiki article." });
   }
 });
@@ -197,7 +198,7 @@ router.put("/:id", requireDm, async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "Wiki article not found." });
     }
-    console.error("[API] PUT /api/wiki/:id error:", err.message);
+    logger.error("api:route", "Error in PUT /api/wiki/:id", { error: err.message });
     res.status(500).json({ error: "Failed to update wiki article." });
   }
 });
@@ -221,7 +222,7 @@ router.delete("/:id", requireDm, async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "Wiki article not found." });
     }
-    console.error("[API] DELETE /api/wiki/:id error:", err.message);
+    logger.error("api:route", "Error in DELETE /api/wiki/:id", { error: err.message });
     res.status(500).json({ error: "Failed to delete wiki article." });
   }
 });

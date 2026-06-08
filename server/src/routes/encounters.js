@@ -1,10 +1,12 @@
 "use strict";
 
+const crypto = require("crypto");
 const { Router } = require("express");
 const prisma = require("../prisma");
 const { getRequestUser, requireDm } = require("../auth");
 const referenceSearch = require("../utils/referenceSearch");
 const tokenImageLookup = require("../utils/tokenImageLookup");
+const logger = require("../utils/logger");
 
 const router = Router();
 const VALID_STATUSES = new Set(["DRAFT", "ACTIVE", "COMPLETE"]);
@@ -28,7 +30,7 @@ function getModifier(score) {
 }
 
 function rollD20(modifier = 0) {
-  return Math.floor(Math.random() * 20) + 1 + Number(modifier || 0);
+  return crypto.randomInt(1, 21) + Number(modifier || 0);
 }
 
 function cleanEntryText(value) {
@@ -174,7 +176,7 @@ router.get("/active", async (req, res) => {
     });
     res.json(shapeEncounter(encounter, user?.role === "DM"));
   } catch (err) {
-    console.error("[API] GET /api/encounters/active error:", err.message);
+    logger.error("api:route", "Error in GET /api/encounters/active", { error: err.message });
     res.status(500).json({ error: "Failed to fetch active encounter." });
   }
 });
@@ -194,7 +196,7 @@ router.get("/", async (req, res) => {
     });
     res.json(encounters.map((encounter) => shapeEncounter(encounter, user?.role === "DM")));
   } catch (err) {
-    console.error("[API] GET /api/encounters error:", err.message);
+    logger.error("api:route", "Error in GET /api/encounters", { error: err.message });
     res.status(500).json({ error: "Failed to fetch encounters." });
   }
 });
@@ -218,7 +220,7 @@ router.post("/", requireDm, async (req, res) => {
     });
     res.status(201).json(shapeEncounter(encounter, true));
   } catch (err) {
-    console.error("[API] POST /api/encounters error:", err.message);
+    logger.error("api:route", "Error in POST /api/encounters", { error: err.message });
     res.status(500).json({ error: "Failed to create encounter." });
   }
 });
@@ -263,7 +265,7 @@ router.patch("/participants/:id", requireDm, async (req, res) => {
     await respondEncounter(req, res, participant.encounterId);
   } catch (err) {
     if (err.code === "P2025") return res.status(404).json({ error: "Participant not found." });
-    console.error("[API] PATCH /api/encounters/participants/:id error:", err.message);
+    logger.error("api:route", "Error in PATCH /api/encounters/participants/:id", { error: err.message });
     res.status(500).json({ error: "Failed to update participant." });
   }
 });
@@ -276,7 +278,7 @@ router.delete("/participants/:id", requireDm, async (req, res) => {
     await respondEncounter(req, res, participant.encounterId);
   } catch (err) {
     if (err.code === "P2025") return res.status(404).json({ error: "Participant not found." });
-    console.error("[API] DELETE /api/encounters/participants/:id error:", err.message);
+    logger.error("api:route", "Error in DELETE /api/encounters/participants/:id", { error: err.message });
     res.status(500).json({ error: "Failed to delete participant." });
   }
 });
@@ -285,7 +287,7 @@ router.get("/:id", async (req, res) => {
   try {
     await respondEncounter(req, res, req.params.id);
   } catch (err) {
-    console.error("[API] GET /api/encounters/:id error:", err.message);
+    logger.error("api:route", "Error in GET /api/encounters/:id", { error: err.message });
     res.status(500).json({ error: "Failed to fetch encounter." });
   }
 });
@@ -302,7 +304,7 @@ router.patch("/:id", requireDm, async (req, res) => {
     await respondEncounter(req, res, req.params.id);
   } catch (err) {
     if (err.code === "P2025") return res.status(404).json({ error: "Encounter not found." });
-    console.error("[API] PATCH /api/encounters/:id error:", err.message);
+    logger.error("api:route", "Error in PATCH /api/encounters/:id", { error: err.message });
     res.status(500).json({ error: "Failed to update encounter." });
   }
 });
@@ -313,7 +315,7 @@ router.delete("/:id", requireDm, async (req, res) => {
     res.json({ message: "Encounter deleted." });
   } catch (err) {
     if (err.code === "P2025") return res.status(404).json({ error: "Encounter not found." });
-    console.error("[API] DELETE /api/encounters/:id error:", err.message);
+    logger.error("api:route", "Error in DELETE /api/encounters/:id", { error: err.message });
     res.status(500).json({ error: "Failed to delete encounter." });
   }
 });
@@ -393,7 +395,7 @@ router.post("/:id/participants", requireDm, async (req, res) => {
 
     await respondEncounter(req, res, encounterId);
   } catch (err) {
-    console.error("[API] POST /api/encounters/:id/participants error:", err.message);
+    logger.error("api:route", "Error in POST /api/encounters/:id/participants", { error: err.message });
     res.status(500).json({ error: "Failed to add encounter participant." });
   }
 });
@@ -435,7 +437,7 @@ router.post("/:id/deploy", requireDm, async (req, res) => {
 
     await respondEncounter(req, res, encounter.id);
   } catch (err) {
-    console.error("[API] POST /api/encounters/:id/deploy error:", err.message);
+    logger.error("api:route", "Error in POST /api/encounters/:id/deploy", { error: err.message });
     res.status(500).json({ error: "Failed to deploy encounter." });
   }
 });
@@ -464,7 +466,7 @@ router.post("/:id/start", requireDm, async (req, res) => {
     });
     await respondEncounter(req, res, encounter.id);
   } catch (err) {
-    console.error("[API] POST /api/encounters/:id/start error:", err.message);
+    logger.error("api:route", "Error in POST /api/encounters/:id/start", { error: err.message });
     res.status(500).json({ error: "Failed to start encounter." });
   }
 });
@@ -493,7 +495,7 @@ router.post("/:id/turn", requireDm, async (req, res) => {
     });
     await respondEncounter(req, res, encounter.id);
   } catch (err) {
-    console.error("[API] POST /api/encounters/:id/turn error:", err.message);
+    logger.error("api:route", "Error in POST /api/encounters/:id/turn", { error: err.message });
     res.status(500).json({ error: "Failed to advance turn." });
   }
 });

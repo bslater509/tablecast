@@ -7,6 +7,7 @@
 const { Router } = require("express");
 const prisma = require("../prisma");
 const debug = require("../utils/debug");
+const logger = require("../utils/logger");
 const log = debug("tablecast:routes:rolls");
 
 const router = Router();
@@ -24,7 +25,7 @@ router.get("/", async (_req, res) => {
     log("GET /api/rolls — returning %d rolls", rolls.length);
     res.json(rolls);
   } catch (err) {
-    console.error("[API] GET /api/rolls error:", err.message);
+    logger.error("api:route", "Error in GET /api/rolls", { error: err.message });
     res.status(500).json({ error: "Failed to fetch roll history." });
   }
 });

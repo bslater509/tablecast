@@ -89,6 +89,23 @@ function registerSocketHandlers(io) {
         const aiSettings = await loadAiSettings();
         const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
 
+        // Enforce max query length for AI commands to prevent cost abuse
+        const MAX_AI_QUERY_LENGTH = 2000;
+        if (rawText.startsWith("/ai ") && rawText.length > MAX_AI_QUERY_LENGTH) {
+          return emitPersistedChatMessage(io, {
+            sender: "System",
+            text: `AI query too long (${rawText.length} chars). Maximum is ${MAX_AI_QUERY_LENGTH} characters.`,
+            type: "system"
+          });
+        }
+        if (rawText.startsWith("/roleplay ") && rawText.length > MAX_AI_QUERY_LENGTH) {
+          return emitPersistedChatMessage(io, {
+            sender: "System",
+            text: `Roleplay message too long (${rawText.length} chars). Maximum is ${MAX_AI_QUERY_LENGTH} characters.`,
+            type: "system"
+          });
+        }
+
         // 1. /ai [query] -> General AI rules/concepts assistant (streamed)
         if (rawText.startsWith("/ai ")) {
           const query = rawText.slice(4).trim();
@@ -450,7 +467,10 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           log("map:delete — rejected (not DM) userId=%d", parsed.value.userId);
           return emitSocketError(socket, "map:delete", "DM privileges are required.");
         }
-        log("map:delete — mapId=%d", parsed.value.mapId);
+        log("map:delete — deleting map id=%d", parsed.value.mapId);
+        await prisma.map.delete({
+          where: { id: parsed.value.mapId },
+        });
         io.emit("map:deleted", { mapId: parsed.value.mapId });
       } catch (err) {
         logger.error("socket:map", "Error broadcasting map deletion", { error: err.message });
@@ -463,6 +483,9 @@ Keep your answer clear, concise, and formatted in Markdown.`;
         if (!parsed.ok) {
           log("encounter:refresh — validation failed: %s", parsed.error);
           return emitSocketError(socket, "encounter:refresh", parsed.error);
+        }
+        if (!(await isDmUser(parsed.value.userId))) {
+          return emitSocketError(socket, "encounter:refresh", "DM privileges are required.");
         }
         log("encounter:refresh — encounterId=%d", parsed.value.encounterId);
 
@@ -490,6 +513,9 @@ Keep your answer clear, concise, and formatted in Markdown.`;
         if (!parsed.ok) {
           log("encounter:turn — validation failed: %s", parsed.error);
           return emitSocketError(socket, "encounter:turn", parsed.error);
+        }
+        if (!(await isDmUser(parsed.value.userId))) {
+          return emitSocketError(socket, "encounter:turn", "DM privileges are required.");
         }
         log("encounter:turn — encounterId=%d", parsed.value.encounterId);
 

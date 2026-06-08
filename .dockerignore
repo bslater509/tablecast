@@ -32,3 +32,16 @@ coverage/
 # Docker files themselves (avoid infinite recursion risk)
 Dockerfile*
 docker-compose*.yml
+
+# Large submodules (bind-mounted at runtime)
+5etoolssrc/
+5etoolsimg/
+
+# Runtime data (mounted as volumes)
+server/prisma/data/
+server/backups/
+server/uploads/
+
+# Logs
+*.log
+server/src/routes/*.log

@@ -18,6 +18,7 @@ const {
   requireDm,
 } = require("../auth");
 const prisma = require("../prisma");
+const logger = require("../utils/logger");
 
 const router = Router();
 const oauthStates = new Map();
@@ -49,7 +50,7 @@ router.get("/config", requireDm, async (req, res) => {
       remote: remoteSetting?.value || process.env.RCLONE_REMOTE || "gdrive:tablecast-backups"
     });
   } catch (err) {
-    console.error("[Backup Config] Fetch failed:", err.message);
+    logger.error("api:backup", "Backup config fetch failed", { error: err.message });
     res.status(500).json({ error: "Failed to load backup configuration." });
   }
 });
@@ -77,7 +78,7 @@ router.put("/config", requireDm, async (req, res) => {
 
     res.json({ success: true, message: "Backup configuration updated successfully." });
   } catch (err) {
-    console.error("[Backup Config] Save failed:", err.message);
+    logger.error("api:backup", "Backup config save failed", { error: err.message });
     res.status(500).json({ error: "Failed to update backup configuration." });
   }
 });
@@ -131,7 +132,7 @@ router.post("/oauth-init", requireDm, async (req, res) => {
         try {
           clientOrigin = new URL(referer).origin;
         } catch {
-          console.warn("[Backup] Failed to parse referer URL:", referer);
+          logger.warn("api:backup", "Failed to parse referer URL", { referer });
         }
       }
     }
@@ -162,7 +163,7 @@ router.post("/oauth-init", requireDm, async (req, res) => {
 
     res.json({ authUrl });
   } catch (err) {
-    console.error("[Backup OAuth Init] Failed:", err.message);
+    logger.error("api:backup", "Backup OAuth init failed", { error: err.message });
     res.status(500).json({ error: "Failed to initialize Google Drive OAuth flow." });
   }
 });
@@ -290,7 +291,7 @@ router.get("/oauth-callback", async (req, res) => {
       </html>
     `);
   } catch (err) {
-    console.error("[Backup OAuth Callback] Error:", err.message);
+    logger.error("api:backup", "Backup OAuth callback failed", { error: err.message });
     res.setHeader("Content-Type", "text/html");
     res.status(500).send(`
       <!DOCTYPE html>
@@ -347,7 +348,7 @@ router.get("/status", requireDm, async (req, res) => {
       history: listLocalBackups(),
     });
   } catch (err) {
-    console.error("[Backup] Status check failed:", err.message);
+    logger.error("api:backup", "Backup status check failed", { error: err.message });
     res.status(500).json({ error: "Failed to retrieve backup status." });
   }
 });
@@ -364,7 +365,7 @@ router.post("/", requireDm, async (req, res) => {
   backupInProgress = true;
 
   try {
-    console.log("[Backup] Starting backup operation...");
+    logger.info("api:backup", "Starting backup operation");
 
     // 1. Generate local zip backup
     const zipInfo = await createBackupZip();
@@ -388,10 +389,10 @@ router.post("/", requireDm, async (req, res) => {
       });
     }
 
-    console.log(`[Backup] Uploading ${zipInfo.zipName} to ${remoteDest}`);
+    logger.info("api:backup", "Uploading backup to remote", { zipName: zipInfo.zipName, remote: remoteDest });
     const { stdout, stderr } = await copyBackupToRemote(zipInfo.zipPath, remoteDest);
 
-    console.log(`[Backup] rclone upload complete for: ${zipInfo.zipName}`);
+    logger.info("api:backup", "rclone upload complete", { zipName: zipInfo.zipName, remote: remoteDest });
     res.json({
       success: true,
       message: "Backup zip created and uploaded to cloud successfully.",
@@ -404,7 +405,7 @@ router.post("/", requireDm, async (req, res) => {
       stderr: stderr || "",
     });
   } catch (err) {
-    console.error("[Backup] Backup operation failed:", err.message);
+    logger.error("api:backup", "Backup operation failed", { error: err.message });
     res.status(500).json({
       error: "Backup operation failed. Check server logs for details.",
     });

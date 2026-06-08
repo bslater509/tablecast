@@ -6,6 +6,7 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
+const logger = require("../utils/logger");
 
 const router = Router();
 
@@ -26,7 +27,7 @@ router.get("/", async (req, res) => {
 
     res.json(messages.reverse().map(formatChatMessage));
   } catch (err) {
-    console.error("[API] GET /api/chat error:", err.message);
+    logger.error("api:route", "Error in GET /api/chat", { error: err.message });
     res.status(500).json({ error: "Failed to fetch chat history." });
   }
 });

@@ -193,11 +193,15 @@ function App() {
 
   // Fetch users list and restore persisted session when it is still valid.
   useEffect(() => {
+    let cancelled = false;
+
     async function loadUsers() {
       try {
         const res = await fetch("/api/users");
+        if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
+          if (cancelled) return;
           setUsersList(data);
 
           if (!user) {
@@ -211,12 +215,16 @@ function App() {
           }
         }
       } catch (err) {
+        if (cancelled) return;
         console.error("Failed to load users:", err);
       } finally {
-        setLoadingUsers(false);
+        if (!cancelled) setLoadingUsers(false);
       }
     }
     loadUsers();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   // Handle joining as an existing user

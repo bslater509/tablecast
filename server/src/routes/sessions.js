@@ -12,6 +12,7 @@
 const { Router } = require("express");
 const prisma = require("../prisma");
 const { getRequestUser, requireDm } = require("../auth");
+const logger = require("../utils/logger");
 
 const router = Router();
 const VALID_STATUSES = new Set(["PLANNED", "ACTIVE", "COMPLETED"]);
@@ -119,7 +120,7 @@ router.get("/", async (req, res) => {
 
     res.json(sessions);
   } catch (err) {
-    console.error("[API] GET /api/sessions error:", err.message);
+    logger.error("api:route", "Error in GET /api/sessions", { error: err.message });
     res.status(500).json({ error: "Failed to fetch sessions." });
   }
 });
@@ -146,7 +147,7 @@ router.get("/:id", async (req, res) => {
 
     res.json(session);
   } catch (err) {
-    console.error("[API] GET /api/sessions/:id error:", err.message);
+    logger.error("api:route", "Error in GET /api/sessions/:id", { error: err.message });
     res.status(500).json({ error: "Failed to fetch session." });
   }
 });
@@ -198,7 +199,7 @@ router.post("/", requireDm, async (req, res) => {
     const session = await prisma.gameSession.create({ data });
     res.status(201).json(session);
   } catch (err) {
-    console.error("[API] POST /api/sessions error:", err.message);
+    logger.error("api:route", "Error in POST /api/sessions", { error: err.message });
     res.status(500).json({ error: "Failed to create session." });
   }
 });
@@ -333,7 +334,7 @@ router.patch("/:id", requireDm, async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "Session not found." });
     }
-    console.error("[API] PATCH /api/sessions/:id error:", err.message);
+    logger.error("api:route", "Error in PATCH /api/sessions/:id", { error: err.message });
     res.status(500).json({ error: "Failed to update session." });
   }
 });
@@ -354,7 +355,7 @@ router.delete("/:id", requireDm, async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "Session not found." });
     }
-    console.error("[API] DELETE /api/sessions/:id error:", err.message);
+    logger.error("api:route", "Error in DELETE /api/sessions/:id", { error: err.message });
     res.status(500).json({ error: "Failed to delete session." });
   }
 });
@@ -420,7 +421,7 @@ router.post("/:id/publish-recap", requireDm, async (req, res) => {
 
     res.json({ session: updatedSession, wikiArticle });
   } catch (err) {
-    console.error("[API] POST /api/sessions/:id/publish-recap error:", err.message);
+    logger.error("api:route", "Error in POST /api/sessions/:id/publish-recap", { error: err.message });
     res.status(500).json({ error: "Failed to publish session recap." });
   }
 });

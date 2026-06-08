@@ -52,7 +52,7 @@ model User {
 /// A persisted session chat message. This stores regular chat, dice roll chat
 /// cards, NPC replies, and system/AI messages that should survive reloads.
 model ChatMessage {
-  id String @id
+  id String @id @default(cuid())
 
   userId Int?
   user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -68,6 +68,7 @@ model ChatMessage {
 
   @@index([createdAt])
   @@index([userId])
+  @@index([type])
   @@map("chat_messages")
 }
 
@@ -112,6 +113,7 @@ model Character {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([userId])
   @@map("characters")
 }
 
@@ -178,6 +180,7 @@ model Token {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([mapId])
   @@map("tokens")
 }
 
@@ -196,6 +199,8 @@ model WikiArticle {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([category])
+  @@index([isVisibleToPlayers])
   @@map("wiki_articles")
 }
 
@@ -278,6 +283,8 @@ model Encounter {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([mapId])
+  @@index([status])
   @@map("encounters")
 }
 
@@ -313,6 +320,7 @@ model EncounterParticipant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([encounterId])
   @@map("encounter_participants")
 }
 
@@ -361,6 +369,8 @@ model GameSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([status])
+  @@index([scheduledFor])
   @@map("game_sessions")
 }
 
@@ -404,6 +414,7 @@ model AiMessage {
   createdAt DateTime @default(now())
 
   @@index([conversationId])
+  @@index([createdAt])
   @@map("ai_messages")
 }
 

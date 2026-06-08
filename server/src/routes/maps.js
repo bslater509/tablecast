@@ -15,6 +15,7 @@ const fs = require("fs");
 const path = require("path");
 const prisma = require("../prisma");
 const { requireDm } = require("../auth");
+const logger = require("../utils/logger");
 
 const router = Router();
 
@@ -34,7 +35,7 @@ router.get("/", requireDm, async (req, res) => {
     });
     res.json(maps);
   } catch (err) {
-    console.error("[API] GET /api/maps error:", err.message);
+    logger.error("api:route", "Error in GET /api/maps", { error: err.message });
     res.status(500).json({ error: "Failed to fetch maps." });
   }
 });
@@ -60,7 +61,7 @@ router.get("/:id", requireDm, async (req, res) => {
 
     res.json(map);
   } catch (err) {
-    console.error("[API] GET /api/maps/:id error:", err.message);
+    logger.error("api:route", "Error in GET /api/maps/:id", { error: err.message });
     res.status(500).json({ error: "Failed to fetch map." });
   }
 });
@@ -98,7 +99,7 @@ router.post("/", requireDm, async (req, res) => {
         // Write the decoded buffer to file
         await fs.promises.writeFile(filePath, dataBuffer);
         resolvedImageUrl = `/uploads/${filename}`;
-        console.log(`[API] Saved uploaded map image to ${filePath}`);
+        logger.debug("api:route", "Saved uploaded map image", { filePath });
       } else {
         return res.status(400).json({ error: "Invalid base64 image data format." });
       }
@@ -126,7 +127,7 @@ router.post("/", requireDm, async (req, res) => {
 
     res.status(201).json(newMap);
   } catch (err) {
-    console.error("[API] POST /api/maps error:", err.message);
+    logger.error("api:route", "Error in POST /api/maps", { error: err.message });
     res.status(500).json({ error: "Failed to create map." });
   }
 });
@@ -153,10 +154,10 @@ router.delete("/:id", requireDm, async (req, res) => {
       const filePath = path.join(UPLOADS_DIR, filename);
       try {
         await fs.promises.unlink(filePath);
-        console.log(`[API] Deleted map image file: ${filePath}`);
+        logger.debug("api:route", "Deleted map image file", { filePath });
       } catch (fileErr) {
         if (fileErr.code !== "ENOENT") {
-          console.error(`[API] Could not delete image file ${filePath}:`, fileErr.message);
+          logger.error("api:route", "Error deleting map image file", { error: fileErr.message, filePath });
         }
       }
     }
@@ -164,7 +165,7 @@ router.delete("/:id", requireDm, async (req, res) => {
     await prisma.map.delete({ where: { id: mapId } });
     res.json({ message: "Map deleted successfully." });
   } catch (err) {
-    console.error("[API] DELETE /api/maps/:id error:", err.message);
+    logger.error("api:route", "Error in DELETE /api/maps/:id", { error: err.message });
     res.status(500).json({ error: "Failed to delete map." });
   }
 });
@@ -217,7 +218,7 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "Map not found." });
     }
-    console.error("[API] POST /api/maps/:id/tokens error:", err.message);
+    logger.error("api:route", "Error in POST /api/maps/:id/tokens", { error: err.message });
     res.status(500).json({ error: "Failed to create token." });
   }
 });
@@ -271,7 +272,7 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
           });
         }
       } catch (err) {
-        console.error("[API] Failed to sync NPC health from token stats:", err.message);
+        logger.error("api:route", "Error syncing NPC health from token stats", { error: err.message });
       }
     }
     if (existingToken?.monsterId && stats) {
@@ -284,7 +285,7 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
           });
         }
       } catch (err) {
-        console.error("[API] Failed to sync Monster health from token stats:", err.message);
+        logger.error("api:route", "Error syncing Monster health from token stats", { error: err.message });
       }
     }
 
@@ -299,7 +300,7 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "Token not found." });
     }
-    console.error("[API] PUT /api/tokens/:id error:", err.message);
+    logger.error("api:route", "Error in PUT /api/tokens/:id", { error: err.message });
     res.status(500).json({ error: "Failed to update token." });
   }
 });
@@ -319,7 +320,7 @@ router.delete("/tokens/:id", requireDm, async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "Token not found." });
     }
-    console.error("[API] DELETE /api/tokens/:id error:", err.message);
+    logger.error("api:route", "Error in DELETE /api/tokens/:id", { error: err.message });
     res.status(500).json({ error: "Failed to delete token." });
   }
 });

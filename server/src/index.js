@@ -75,6 +75,19 @@ app.use(
 );
 
 app.use(express.json({ limit: "50mb" }));
+
+const rateLimit = require("express-rate-limit");
+
+// API rate limiting — generous limits since this runs on a trusted LAN
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 200, // 200 requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+});
+app.use("/api/", apiLimiter);
+
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Legacy debug-log incoming API requests (kept for backwards compat)

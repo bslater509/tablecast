@@ -11,6 +11,7 @@
 const { Router } = require("express");
 const prisma = require("../prisma");
 const { requireDm, getRequestUser } = require("../auth");
+const logger = require("../utils/logger");
 
 const router = Router();
 
@@ -72,7 +73,7 @@ router.get("/", async (req, res) => {
     });
     res.json(npcs);
   } catch (err) {
-    console.error("[API] GET /api/npcs error:", err.message);
+    logger.error("api:route", "Error in GET /api/npcs", { error: err.message });
     res.status(500).json({ error: "Failed to fetch NPCs." });
   }
 });
@@ -103,7 +104,7 @@ router.get("/:id", async (req, res) => {
 
     res.json(npc);
   } catch (err) {
-    console.error("[API] GET /api/npcs/:id error:", err.message);
+    logger.error("api:route", "Error in GET /api/npcs/:id", { error: err.message });
     res.status(500).json({ error: "Failed to fetch NPC." });
   }
 });
@@ -143,7 +144,7 @@ router.post("/", requireDm, async (req, res) => {
     const npc = await prisma.npc.create({ data });
     res.status(201).json(npc);
   } catch (err) {
-    console.error("[API] POST /api/npcs error:", err.message);
+    logger.error("api:route", "Error in POST /api/npcs", { error: err.message });
     res.status(500).json({ error: "Failed to create NPC." });
   }
 });
@@ -192,7 +193,7 @@ router.put("/:id", requireDm, async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "NPC not found." });
     }
-    console.error("[API] PUT /api/npcs/:id error:", err.message);
+    logger.error("api:route", "Error in PUT /api/npcs/:id", { error: err.message });
     res.status(500).json({ error: "Failed to update NPC." });
   }
 });
@@ -216,7 +217,7 @@ router.delete("/:id", requireDm, async (req, res) => {
     if (err.code === "P2025") {
       return res.status(404).json({ error: "NPC not found." });
     }
-    console.error("[API] DELETE /api/npcs/:id error:", err.message);
+    logger.error("api:route", "Error in DELETE /api/npcs/:id", { error: err.message });
     res.status(500).json({ error: "Failed to delete NPC." });
   }
 });
