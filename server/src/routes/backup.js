@@ -12,8 +12,11 @@ const {
   getRcloneStatus,
   listLocalBackups,
   saveRcloneRemote,
+  writeRcloneConfigFile,
 } = require("../utils/backup");
-const { requireDm } = require("../auth");
+const {
+  requireDm,
+} = require("../auth");
 const prisma = require("../prisma");
 
 const router = Router();
@@ -54,7 +57,6 @@ router.get("/config", requireDm, async (req, res) => {
 router.put("/config", requireDm, async (req, res) => {
   try {
     const { config, remote } = req.body;
-    const { writeRcloneConfigFile } = require("../utils/backup");
 
     if (config !== undefined) {
       await prisma.appSetting.upsert({
@@ -95,12 +97,14 @@ function escapeHtml(str) {
 
 function escapeJsStr(str) {
   if (typeof str !== "string") return "";
-  return str.replace(/['\\\n\r]/g, (m) => {
+  return str.replace(/['\\\n\r<\/]/g, (m) => {
     switch (m) {
       case "'": return "\\'";
       case "\\": return "\\\\";
       case "\n": return "\\n";
       case "\r": return "\\r";
+      case "<": return "\\u003C";
+      case "/": return "\\u002F";
     }
   });
 }
@@ -402,10 +406,7 @@ router.post("/", requireDm, async (req, res) => {
   } catch (err) {
     console.error("[Backup] Backup operation failed:", err.message);
     res.status(500).json({
-      error: "Backup operation failed: " + err.message,
-      stdout: err.stdout || "",
-      stderr: err.stderr || err.message,
-      history: listLocalBackups(),
+      error: "Backup operation failed. Check server logs for details.",
     });
   } finally {
     backupInProgress = false;

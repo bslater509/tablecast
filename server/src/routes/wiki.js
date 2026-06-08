@@ -10,7 +10,7 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
-const { requireDm } = require("../auth");
+const { requireDm, getRequestUser } = require("../auth");
 
 const router = Router();
 
@@ -22,18 +22,22 @@ const router = Router();
 // ---------------------------------------------------------------------------
 router.get("/", async (req, res) => {
   try {
+    const user = await getRequestUser(req);
     const where = {};
 
     // Filter by player-visibility
-    if (req.query.visible === "true") {
+    if (!user || user.role !== "DM") {
+      where.isVisibleToPlayers = true;
+    } else if (req.query.visible === "true") {
       where.isVisibleToPlayers = true;
     }
 
     // Simple text search across title and content
     if (req.query.search) {
+      const search = req.query.search.slice(0, 200);
       where.OR = [
-        { title: { contains: req.query.search } },
-        { content: { contains: req.query.search } },
+        { title: { contains: search } },
+        { content: { contains: search } },
       ];
     }
 
@@ -54,6 +58,7 @@ router.get("/", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
+    const user = await getRequestUser(req);
     const id = Number(req.params.id);
     if (isNaN(id)) {
       return res.status(400).json({ error: "id must be a valid number." });
@@ -64,6 +69,10 @@ router.get("/:id", async (req, res) => {
     });
 
     if (!article) {
+      return res.status(404).json({ error: "Wiki article not found." });
+    }
+
+    if ((!user || user.role !== "DM") && article.isVisibleToPlayers !== true) {
       return res.status(404).json({ error: "Wiki article not found." });
     }
 

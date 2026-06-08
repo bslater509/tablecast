@@ -2,7 +2,7 @@
 // Tablecast  DM Settings & Cloud Backups Panel (Phase 6)
 // Provides controls for zip compression & rclone Google Drive synchronization.
 // =============================================================================
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bot, Cloud, KeyRound } from "lucide-react";
 
 function SettingsPanel({ user }) {
@@ -28,6 +28,7 @@ function SettingsPanel({ user }) {
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthMessage, setOauthMessage] = useState("");
   const [oauthError, setOauthError] = useState("");
+  const oauthTimeoutRef = useRef(null);
   
   // Reference sync status states
   const [refStatus, setRefStatus] = useState(null);
@@ -161,7 +162,6 @@ function SettingsPanel({ user }) {
 
   // Google Drive OAuth callback message handler
   useEffect(() => {
-    const oauthTimeoutRef = { current: null };
     const handleOAuthMessage = (event) => {
       if (event.data && event.data.type === "RCLONE_AUTH_SUCCESS") {
         setOauthMessage("Authentication successful! Saving configuration and refreshing backup status...");

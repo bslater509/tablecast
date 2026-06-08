@@ -73,14 +73,15 @@ function registerSocketHandlers(io) {
           });
         }
 
+        // Load AI settings once for all AI commands
+        const aiSettings = await loadAiSettings();
+        const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+
         // 1. /ai [query] -> General AI rules/concepts assistant
         if (rawText.startsWith("/ai ")) {
           const query = rawText.slice(4).trim();
           if (!query) return;
 
-          // Load AI settings from Database
-          const aiSettings = await loadAiSettings();
-          const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
           const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
 
           if (!provider) {
@@ -106,7 +107,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           });
         }
 
-        // 2. /roleplay [NPC Name]: [message] OR /roleplay [NPC Name] [message]
+        // 2. /roleplay [NPC Name]: [message]
         else if (rawText.startsWith("/roleplay ")) {
           const commandText = rawText.slice(10).trim();
           let npcName = "";
@@ -145,9 +146,6 @@ Keep your answer clear, concise, and formatted in Markdown.`;
             });
           }
 
-          // Load AI settings
-          const aiSettings = await loadAiSettings();
-          const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
           const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
 
           if (!provider) {
@@ -169,10 +167,10 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           });
         }
       } catch (err) {
-        console.error("[Socket AI Error]", err.message);
+        console.error("[Socket AI Error]", err instanceof Error ? err.message : String(err));
         await emitPersistedChatMessage(io, {
           sender: "System",
-          text: `AI error: ${err.message}`,
+          text: `AI error: ${err instanceof Error ? err.message : "Unknown error"}`,
           type: "system"
         });
       }
@@ -392,7 +390,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
     });
 
     socket.on("error", (err) => {
-      console.error(`[Socket] Error on ${clientId}:`, err.message);
+      console.error("[Socket] Client socket error:", typeof err === "string" ? err : err?.message || "Unknown error");
     });
   });
 }

@@ -86,8 +86,8 @@ export function DiceBoxProvider({ children }) {
 
         // Delay clearing/hiding dice slightly for better visual polish
         setTimeout(() => {
-          if (box) {
-            box.clear();
+          if (diceBoxRef.current) {
+            diceBoxRef.current.clear();
           }
           isRollingRef.current = false;
           setIsRolling(false);

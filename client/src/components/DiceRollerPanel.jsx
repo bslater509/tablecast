@@ -272,6 +272,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
     Object.entries(quantities).forEach(([key, qty]) => {
       if (qty <= 0) return;
       const dieConfig = DICE_TYPES.find((d) => d.id === key);
+      if (!dieConfig) return;
       const sides = dieConfig.sides;
 
       if (key === "d20" && advantage !== "normal" && qty === 1) {

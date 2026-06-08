@@ -20,6 +20,7 @@ function ImporterPanel({ user }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [importingItem, setImportingItem] = useState(null);
+  const [statusMessage, setStatusMessage] = useState(null);
 
   // Set of already imported keys (Title/Name + "_" + Source)
   const [importedKeys, setImportedKeys] = useState(new Set());
@@ -72,6 +73,7 @@ function ImporterPanel({ user }) {
     let active = true;
     async function searchData() {
       if (!query.trim()) {
+        setLoading(false);
         setResults([]);
         return;
       }
@@ -132,9 +134,9 @@ function ImporterPanel({ user }) {
         return next;
       });
 
-      alert(`Successfully imported "${item.name}"!`);
+      setStatusMessage({ type: "success", text: `Successfully imported "${item.name}"!` });
     } catch (err) {
-      alert(`Import failed: ${err.message}`);
+      setStatusMessage({ type: "error", text: `Import failed: ${err.message}` });
     } finally {
       setImportingItem(null);
     }
@@ -297,6 +299,13 @@ function ImporterPanel({ user }) {
           );
         })}
       </div>
+
+      {statusMessage && (
+        <div className={`import-status-message ${statusMessage.type}`}>
+          <span>{statusMessage.text}</span>
+          <button onClick={() => setStatusMessage(null)} className="touch-target">✕</button>
+        </div>
+      )}
     </div>
   );
 }

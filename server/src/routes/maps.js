@@ -27,7 +27,7 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 // ---------------------------------------------------------------------------
 // GET /api/maps  List all maps
 // ---------------------------------------------------------------------------
-router.get("/", async (req, res) => {
+router.get("/", requireDm, async (req, res) => {
   try {
     const maps = await prisma.map.findMany({
       orderBy: { createdAt: "asc" },
@@ -42,7 +42,7 @@ router.get("/", async (req, res) => {
 // ---------------------------------------------------------------------------
 // GET /api/maps/:id  Fetch single map with tokens
 // ---------------------------------------------------------------------------
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireDm, async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (isNaN(id)) {
@@ -92,7 +92,7 @@ router.post("/", requireDm, async (req, res) => {
         else if (mimeType.includes("webp")) ext = "webp";
         else if (mimeType.includes("gif")) ext = "gif";
 
-        const filename = `map_${Date.now()}.${ext}`;
+        const filename = `map_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
         const filePath = path.join(UPLOADS_DIR, filename);
 
         // Write the decoded buffer to file
@@ -176,7 +176,7 @@ router.delete("/:id", requireDm, async (req, res) => {
 router.post("/:id/tokens", requireDm, async (req, res) => {
   try {
     const mapId = Number(req.params.id);
-    const { characterId, npcId, label, imageUrl, x, y, stats } = req.body;
+    const { characterId, npcId, monsterId, label, imageUrl, x, y, stats } = req.body;
     const tokenX = x !== undefined ? Number(x) : 0;
     const tokenY = y !== undefined ? Number(y) : 0;
 
@@ -186,12 +186,6 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
 
     if (!Number.isFinite(tokenX) || !Number.isFinite(tokenY) || tokenX < 0 || tokenY < 0 || tokenX > 10000 || tokenY > 10000) {
       return res.status(400).json({ error: "Token coordinates must be valid numbers between 0 and 10000." });
-    }
-
-    // Check map exists
-    const mapExists = await prisma.map.findUnique({ where: { id: mapId } });
-    if (!mapExists) {
-      return res.status(404).json({ error: "Map not found." });
     }
 
     const data = {
@@ -209,8 +203,8 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
     if (npcId) {
       data.npcId = Number(npcId);
     }
-    if (req.body.monsterId) {
-      data.monsterId = Number(req.body.monsterId);
+    if (monsterId) {
+      data.monsterId = Number(monsterId);
     }
 
     const token = await prisma.token.create({
@@ -220,6 +214,9 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
 
     res.status(201).json(token);
   } catch (err) {
+    if (err.code === "P2025") {
+      return res.status(404).json({ error: "Map not found." });
+    }
     console.error("[API] POST /api/maps/:id/tokens error:", err.message);
     res.status(500).json({ error: "Failed to create token." });
   }
@@ -231,7 +228,7 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
 router.put("/tokens/:id", requireDm, async (req, res) => {
   try {
     const tokenId = Number(req.params.id);
-    const { characterId, npcId, label, imageUrl, x, y, stats } = req.body;
+    const { characterId, npcId, monsterId, label, imageUrl, x, y, stats } = req.body;
     if (isNaN(tokenId) || tokenId <= 0) {
       return res.status(400).json({ error: "Invalid token id." });
     }
@@ -255,7 +252,7 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
     }
     if (characterId !== undefined) data.characterId = characterId ? Number(characterId) : null;
     if (npcId !== undefined) data.npcId = npcId ? Number(npcId) : null;
-    if (req.body.monsterId !== undefined) data.monsterId = req.body.monsterId ? Number(req.body.monsterId) : null;
+    if (monsterId !== undefined) data.monsterId = monsterId ? Number(monsterId) : null;
     if (stats !== undefined) data.stats = stats;
 
     // Direct HP sync: if this token is linked to an NPC or Monster and stats are updated with a currentHp,

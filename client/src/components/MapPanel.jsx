@@ -326,17 +326,13 @@ export default function MapPanel({ user, isPopout = false }) {
     const handleMapDeleted = (payload) => {
       const deletedId = Number(payload.mapId);
       setMapsList(prev => prev.filter(m => m.id !== deletedId));
-      // If the deleted map is the currently active map, select another one or clear
       if (activeMap && activeMap.id === deletedId) {
-        const remaining = mapsList.filter(m => m.id !== deletedId);
-        if (remaining.length > 0) {
-          fetchMapDetails(remaining[0].id);
-        } else {
-          setActiveMap(null);
-          setTokens([]);
-          imageRef.current = null;
-          setMapImageLoaded(false);
-        }
+        // Need to find remaining maps - use mapsList from the closure won't work
+        // Instead, fetchMapDetails will handle this via the mapsList state
+        setActiveMap(null);
+        setTokens([]);
+        imageRef.current = null;
+        setMapImageLoaded(false);
       }
     };
 
@@ -381,6 +377,7 @@ export default function MapPanel({ user, isPopout = false }) {
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     ctx.scale(dpr, dpr);
 
     // Canvas drawing function
@@ -717,7 +714,6 @@ export default function MapPanel({ user, isPopout = false }) {
 
       if (hitToken) {
         // Access rules: DM can move all; Player can only move characters owned by them
-        const isDM = user?.role === "DM";
         const isOwner = hitToken.character && hitToken.character.userId === user?.id;
 
         if (isDM || isOwner) {

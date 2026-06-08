@@ -21,11 +21,33 @@ const VALID_ROLES = ["DM", "PLAYER"];
 // ---------------------------------------------------------------------------
 router.get("/", async (_req, res) => {
   try {
+    const reqUser = await getRequestUser(_req);
+    const isAuthenticated = !!reqUser;
+    const isDM = reqUser?.role === "DM";
+
     const users = await prisma.user.findMany({
       orderBy: { createdAt: "asc" },
-      include: { characters: { select: { id: true, name: true } } },
+      include: isAuthenticated ? { characters: { select: { id: true, name: true, userId: true } } } : undefined,
     });
-    res.json(users);
+
+    let result = users;
+    if (!isDM) {
+      result = users.map((u) => {
+        const user = {
+          id: u.id,
+          username: u.username,
+          role: u.role,
+        };
+
+        if (isAuthenticated && reqUser && u.id === reqUser.id) {
+          user.characters = u.characters;
+        }
+
+        return user;
+      });
+    }
+
+    res.json(result);
   } catch (err) {
     console.error("[API] GET /api/users error:", err.message);
     res.status(500).json({ error: "Failed to fetch users." });
@@ -40,6 +62,16 @@ router.get("/:id", async (req, res) => {
     const id = Number(req.params.id);
     if (isNaN(id)) {
       return res.status(400).json({ error: "id must be a valid number." });
+    }
+
+    const reqUser = await getRequestUser(req);
+    if (!reqUser) {
+      return res.status(401).json({ error: "A valid user session is required." });
+    }
+
+    const isDM = reqUser.role === "DM";
+    if (!isDM && reqUser.id !== id) {
+      return res.status(403).json({ error: "You are not authorized to view this user." });
     }
 
     const user = await prisma.user.findUnique({

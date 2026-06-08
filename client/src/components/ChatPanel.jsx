@@ -150,7 +150,12 @@ export default function ChatPanel({ user, isPopout = false }) {
 
   //  Auto-scroll to latest message 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    const el = scrollRef.current;
+    if (!el) return;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+    if (isNearBottom) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
   }, [messages]);
 
   function parseDiceCommand(text) {
