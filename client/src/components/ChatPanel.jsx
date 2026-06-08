@@ -132,6 +132,14 @@ export default function ChatPanel({ user, isPopout = false }) {
       });
     }
 
+    function onMessageUpdate(update) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === update.id ? { ...m, text: update.text } : m
+        )
+      );
+    }
+
     function onTyping(payload) {
       setTypingUser(payload.sender);
       // Clear after 2 seconds
@@ -140,10 +148,12 @@ export default function ChatPanel({ user, isPopout = false }) {
     }
 
     socket.on("chat:message", onMessage);
+    socket.on("chat:message:update", onMessageUpdate);
     socket.on("chat:typing", onTyping);
 
     return () => {
       socket.off("chat:message", onMessage);
+      socket.off("chat:message:update", onMessageUpdate);
       socket.off("chat:typing", onTyping);
     };
   }, [socket]);
@@ -429,6 +439,13 @@ export default function ChatPanel({ user, isPopout = false }) {
                   style={styles.aiText}
                   dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
                 />
+                {msg.text === "_Thinking…" && (
+                  <div style={styles.aiStreamIndicator}>
+                    <span className="dotAnim">.</span>
+                    <span className="dotAnim" style={{ animationDelay: "0.2s" }}>.</span>
+                    <span className="dotAnim" style={{ animationDelay: "0.4s" }}>.</span>
+                  </div>
+                )}
               </div>
             );
           }
@@ -905,6 +922,13 @@ const styles = {
     fontSize: "0.9rem",
     color: "var(--color-text)",
     lineHeight: 1.45,
+  },
+  aiStreamIndicator: {
+    display: "flex",
+    gap: "0.15rem",
+    padding: "0.25rem 0",
+    fontSize: "1.2rem",
+    color: "var(--color-accent)",
   },
 
   /* NPC Scroll Bubble */

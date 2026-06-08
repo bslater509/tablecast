@@ -2,7 +2,7 @@
 
 const prisma = require("./prisma");
 const { isDmUser } = require("./auth");
-const { performAiCall, performAiStream, findRelevantRules, buildNpcRoleplaySystemPrompt, loadAiSettings } = require("./routes/ai");
+const { performAiCall, performAiStream, performAiStreamTokens, findRelevantRules, buildNpcRoleplaySystemPrompt, loadAiSettings } = require("./routes/ai");
 const debug = require("./utils/debug");
 const log = debug("tablecast:socket");
 
@@ -83,7 +83,7 @@ function registerSocketHandlers(io) {
         const aiSettings = await loadAiSettings();
         const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
 
-        // 1. /ai [query] -> General AI rules/concepts assistant
+        // 1. /ai [query] -> General AI rules/concepts assistant (streamed)
         if (rawText.startsWith("/ai ")) {
           const query = rawText.slice(4).trim();
           if (!query) return;
@@ -105,12 +105,51 @@ Answer the question accurately. Rely on the local database context below if appl
 ${ruleContext}
 Keep your answer clear, concise, and formatted in Markdown.`;
 
-          const reply = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, query);
-          await emitPersistedChatMessage(io, {
+          const placeholderMsg = {
+            id: generateId(),
             sender: "D&D AI Assistant",
-            text: reply,
-            type: "system"
-          });
+            text: "_Thinking…_",
+            timestamp: Date.now(),
+            type: "system",
+          };
+          io.emit("chat:message", placeholderMsg);
+
+          try {
+            let fullText = "";
+            const msgId = placeholderMsg.id;
+
+            await performAiStreamTokens(
+              provider, apiKey, ollamaUrl, activeModel,
+              systemPrompt, query, [],
+              (token) => {
+                fullText += token;
+                io.emit("chat:message:update", { id: msgId, text: fullText });
+              },
+              null
+            );
+
+            const finalMsg = {
+              id: msgId,
+              userId: sanitizeUserId(payload.userId),
+              sender: "D&D AI Assistant",
+              text: fullText,
+              timestamp: Date.now(),
+              type: "system",
+            };
+            await persistChatMessage(finalMsg);
+            io.emit("chat:message", finalMsg);
+          } catch (streamErr) {
+            console.error("[Socket AI Stream Error]", streamErr.message);
+            io.emit("chat:message:update", {
+              id: placeholderMsg.id,
+              text: `*AI Error: ${streamErr.message || "Unknown error"}*`,
+            });
+            await emitPersistedChatMessage(io, {
+              sender: "System",
+              text: `AI stream error: ${streamErr instanceof Error ? streamErr.message : "Unknown error"}`,
+              type: "system",
+            });
+          }
         }
 
         // 2. /roleplay [NPC Name]: [message]
@@ -165,12 +204,51 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           const ruleContext = await findRelevantRules(messageText, userObj);
           const systemPrompt = buildNpcRoleplaySystemPrompt(npc, ruleContext);
 
-          const reply = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, messageText);
-          await emitPersistedChatMessage(io, {
+          const placeholderMsg = {
+            id: generateId(),
             sender: npc.name,
-            text: reply,
-            type: "npc" // Flag this message as NPC response
-          });
+            text: "*" + npc.name + " is thinking…*",
+            timestamp: Date.now(),
+            type: "npc",
+          };
+          io.emit("chat:message", placeholderMsg);
+
+          try {
+            let fullText = "";
+            const msgId = placeholderMsg.id;
+
+            await performAiStreamTokens(
+              provider, apiKey, ollamaUrl, activeModel,
+              systemPrompt, messageText, [],
+              (token) => {
+                fullText += token;
+                io.emit("chat:message:update", { id: msgId, text: fullText });
+              },
+              null
+            );
+
+            const finalMsg = {
+              id: msgId,
+              userId: sanitizeUserId(payload.userId),
+              sender: npc.name,
+              text: fullText,
+              timestamp: Date.now(),
+              type: "npc",
+            };
+            await persistChatMessage(finalMsg);
+            io.emit("chat:message", finalMsg);
+          } catch (streamErr) {
+            console.error("[Socket NPC Stream Error]", streamErr.message);
+            io.emit("chat:message:update", {
+              id: placeholderMsg.id,
+              text: `*${npc.name} is unable to respond. (${streamErr.message || "Unknown error"})*`,
+            });
+            await emitPersistedChatMessage(io, {
+              sender: "System",
+              text: `NPC stream error: ${streamErr instanceof Error ? streamErr.message : "Unknown error"}`,
+              type: "system",
+            });
+          }
         }
       } catch (err) {
         console.error("[Socket AI Error]", err instanceof Error ? err.message : String(err));

@@ -39,8 +39,9 @@ model User {
   diceColor String @default("#7c3aed")
 
   // Relations
-  characters   Character[]
-  chatMessages ChatMessage[]
+  characters     Character[]
+  chatMessages   ChatMessage[]
+  aiConversations AiConversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -252,6 +253,7 @@ model Npc {
   // Relations
   tokens                Token[]
   encounterParticipants EncounterParticipant[]
+  aiConversations       AiConversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -360,6 +362,49 @@ model GameSession {
   updatedAt DateTime @updatedAt
 
   @@map("game_sessions")
+}
+
+/// A persisted AI conversation (Rules Scholar or NPC Roleplay session).
+/// Conversations group a sequence of user+assistant messages for continuity.
+model AiConversation {
+  id        Int         @id @default(autoincrement())
+  userId    Int?
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// "rules" or "npc"
+  type      String      @default("rules")
+
+  /// If type="npc", which NPC persona is being roleplayed
+  npcId     Int?
+  npc       Npc?        @relation(fields: [npcId], references: [id], onDelete: SetNull)
+
+  /// Optional auto/summary title
+  title     String      @default("")
+
+  messages  AiMessage[]
+
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([npcId])
+  @@map("ai_conversations")
+}
+
+/// A single message in an AI conversation.
+model AiMessage {
+  id             Int             @id @default(autoincrement())
+  conversationId Int
+  conversation   AiConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  /// "user" or "assistant"
+  role           String
+  text           String
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@map("ai_messages")
 }
 
 /// A DM-imported Non-Player Character (Monster) template with a 5e bestiary statblock

@@ -1,15 +1,15 @@
 // =============================================================================
-// Tablecast  AI Assistant Panel
-// Supports tabbed interaction: Rules Helper and NPC Chat/Roleplay
+// Tablecast — AI Assistant Panel (v2)
+// Persisted conversations, streaming with cancel/retry, quick prompts, model
+// badge, timestamps, copy button, character context indicator.
 // =============================================================================
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import { Copy, Check, Trash2, Plus, RotateCcw, X, Sparkles, User } from "lucide-react";
+import { useAiChat } from "../hooks/useAiChat";
 
-marked.setOptions({
-  gfm: true,
-  breaks: true,
-});
+marked.setOptions({ gfm: true, breaks: true });
 
 function compileMarkdown(text) {
   if (!text) return "";
@@ -21,104 +21,127 @@ function compileMarkdown(text) {
   }
 }
 
-async function streamAiChat({ userId, message, npcId, history, onToken }) {
-  const res = await fetch("/api/ai/chat", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-tablecast-user-id": userId || "",
-    },
-    body: JSON.stringify({
-      message,
-      npcId,
-      history,
-      stream: true,
-    }),
-  });
-
-  const contentType = res.headers.get("content-type") || "";
-  if (!contentType.includes("text/event-stream")) {
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || "Failed to fetch response.");
+// ---------------------------------------------------------------------------
+// Copy Button Component
+// ---------------------------------------------------------------------------
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy text:", err);
     }
-    const data = await res.json();
-    if (data.reply) onToken(data.reply);
-    return;
-  }
-
-  if (!res.ok || !res.body) {
-    throw new Error("Failed to start AI stream.");
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let receivedToken = false;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const payload = line.slice(6).trim();
-      if (!payload) continue;
-
-      let event;
-      try {
-        event = JSON.parse(payload);
-      } catch {
-        continue;
-      }
-
-      if (event.type === "token" && event.text) {
-        receivedToken = true;
-        onToken(event.text);
-      } else if (event.type === "error") {
-        throw new Error(event.message || "Failed to query AI assistant.");
-      }
-    }
-  }
-
-  if (!receivedToken) {
-    throw new Error("AI returned an empty response.");
-  }
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      style={styles.copyBtn}
+      className="btn-hover-scale"
+      title="Copy to clipboard"
+      aria-label="Copy message"
+    >
+      {copied ? <Check size={13} color="var(--color-success)" /> : <Copy size={13} />}
+    </button>
+  );
 }
 
+// ---------------------------------------------------------------------------
+// Quick Action Chips
+// ---------------------------------------------------------------------------
+const RULES_QUICK_PROMPTS = [
+  "How does grappling work?",
+  "Explain concentration saves",
+  "What are the action economy rules?",
+  "Tell me about the Fireball spell",
+];
+
+// ---------------------------------------------------------------------------
+// Time formatting helper
+// ---------------------------------------------------------------------------
+function formatTime(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHrs = Math.floor(diffMin / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  return d.toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+// =============================================================================
+// Main AiPanel Component
+// =============================================================================
 export default function AiPanel({ user }) {
   const [activeTab, setActiveTab] = useState("rules"); // "rules" or "npc"
-  
-  // Rules Helper state
-  const [rulesQuery, setRulesQuery] = useState("");
-  const [rulesHistory, setRulesHistory] = useState([
-    {
-      role: "assistant",
-      text: "Hail! I am your D&D Rules Scholar. Ask me any question about spells, combat, actions, items, or general D&D rules, and I will search the library to help you.",
-    },
-  ]);
-  const [rulesStreaming, setRulesStreaming] = useState(false);
 
-  // NPC Roleplay state
+  // NPC list state
   const [npcs, setNpcs] = useState([]);
   const [selectedNpcId, setSelectedNpcId] = useState("");
-  const [npcQuery, setNpcQuery] = useState("");
-  const [npcHistory, setNpcHistory] = useState([
-    {
-      role: "assistant",
-      text: "Select a tavern guest or campaign NPC from the dropdown above, and we can begin our discussion.",
-    },
-  ]);
-  const [npcStreaming, setNpcStreaming] = useState(false);
 
-  const rulesScrollRef = useRef(null);
+  // AI settings (for model badge)
+  const [aiSettings, setAiSettings] = useState(null);
+
+  // Conversations list
+  const [conversations, setConversations] = useState([]);
+  const [loadingConvs, setLoadingConvs] = useState(false);
+
+  // Character context
+  const [characters, setCharacters] = useState([]);
+  const [selectedCharId, setSelectedCharId] = useState("");
+
+  // Refs
+  const scrollRef = useRef(null);
+  const inputRef = useRef(null);
   const npcScrollRef = useRef(null);
+  const npcInputRef = useRef(null);
 
-  // Fetch list of NPCs
+  // --- Rules Chat Hook ---
+  const rulesChat = useAiChat({
+    user,
+    initialMessage: "Hail! I am your D&D Rules Scholar. Ask me any question about spells, combat, actions, items, or general D&D rules, and I will search the library to help you.",
+    characterId: selectedCharId ? Number(selectedCharId) : undefined,
+    conversationId: undefined,
+  });
+
+  // --- NPC Chat Hook ---
+  const npcChat = useAiChat({
+    user,
+    npcId: selectedNpcId ? Number(selectedNpcId) : undefined,
+    characterId: selectedCharId ? Number(selectedCharId) : undefined,
+    conversationId: undefined,
+  });
+
+  // Get the active chat
+  const chat = activeTab === "rules" ? rulesChat : npcChat;
+
+  // Track the conversation ID from auto-save
+  const [currentRulesConvId, setCurrentRulesConvId] = useState(null);
+  const [currentNpcConvId, setCurrentNpcConvId] = useState(null);
+
+  // Update conversation IDs when auto-saved
+  useEffect(() => {
+    if (rulesChat.conversationId && rulesChat.conversationId !== currentRulesConvId) {
+      setCurrentRulesConvId(rulesChat.conversationId);
+      loadConversationList();
+    }
+  }, [rulesChat.conversationId]);
+
+  useEffect(() => {
+    if (npcChat.conversationId && npcChat.conversationId !== currentNpcConvId) {
+      setCurrentNpcConvId(npcChat.conversationId);
+      loadConversationList();
+    }
+  }, [npcChat.conversationId]);
+
+  // --------------- Data Fetching ---------------
+
+  // Fetch NPCs
   useEffect(() => {
     async function loadNpcs() {
       try {
@@ -131,217 +154,330 @@ export default function AiPanel({ user }) {
           }
         }
       } catch (err) {
-        console.error("Failed to load NPCs for AI chat:", err);
+        console.error("[AiPanel] Failed to load NPCs:", err);
       }
     }
     loadNpcs();
   }, []);
 
-  // Auto-scroll chat boxes
+  // Fetch AI settings for model badge
   useEffect(() => {
-    if (rulesScrollRef.current) {
-      rulesScrollRef.current.scrollTop = rulesScrollRef.current.scrollHeight;
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/ai/settings");
+        if (res.ok) {
+          setAiSettings(await res.json());
+        }
+      } catch (err) {
+        console.error("[AiPanel] Failed to load AI settings:", err);
+      }
     }
-  }, [rulesHistory, rulesStreaming]);
+    loadSettings();
+  }, []);
+
+  // Fetch user characters for context
+  useEffect(() => {
+    if (user?.id) {
+      fetch(`/api/characters?userId=${user.id}`)
+        .then((r) => r.ok ? r.json() : [])
+        .then((chars) => {
+          setCharacters(chars || []);
+          if (chars?.length > 0 && !selectedCharId) {
+            setSelectedCharId(chars[0].id.toString());
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user?.id]);
+
+  // Fetch conversations list
+  const loadConversationList = useCallback(async () => {
+    setLoadingConvs(true);
+    try {
+      const res = await fetch("/api/ai/conversations", {
+        headers: { "x-tablecast-user-id": user?.id || "" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConversations(data);
+      }
+    } catch (err) {
+      console.error("[AiPanel] Failed to load conversations:", err);
+    } finally {
+      setLoadingConvs(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadConversationList();
+    }
+  }, [user?.id, loadConversationList]);
+
+  // Update NPC chat npcId when selected
+  useEffect(() => {
+    if (selectedNpcId) {
+      npcChat.setConversationId(undefined);
+      // We don't need to re-initialize the whole hook; the send function accepts overrides
+    }
+  }, [selectedNpcId]);
+
+  // --------------- Auto-scroll ---------------
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [rulesChat.messages, rulesChat.streaming]);
 
   useEffect(() => {
     if (npcScrollRef.current) {
       npcScrollRef.current.scrollTop = npcScrollRef.current.scrollHeight;
     }
-  }, [npcHistory, npcStreaming]);
+  }, [npcChat.messages, npcChat.streaming]);
 
+  // Auto-focus input after streaming ends
+  useEffect(() => {
+    if (!chat.streaming) {
+      const ref = activeTab === "rules" ? inputRef : npcInputRef;
+      setTimeout(() => ref.current?.focus(), 100);
+    }
+  }, [chat.streaming, activeTab]);
 
+  // --------------- Conversation Management ---------------
 
-  // Submit Rules query
-  const handleRulesSubmit = async (e) => {
-    e.preventDefault();
-    if (!rulesQuery.trim() || rulesStreaming) return;
-
-    const query = rulesQuery.trim();
-    setRulesQuery("");
-
-    const userMsg = { role: "user", text: query };
-    const updatedHistory = [...rulesHistory, userMsg];
-    setRulesHistory(updatedHistory);
-    setRulesStreaming(true);
-
-    let accumulated = "";
-    let assistantStarted = false;
-
+  const createNewConversation = useCallback(async (type) => {
     try {
-      await streamAiChat({
-        userId: user?.id,
-        message: query,
-        history: updatedHistory.slice(1, -1),
-        onToken: (text) => {
-          accumulated += text;
-          setRulesHistory((prev) => {
-            if (!assistantStarted) {
-              assistantStarted = true;
-              return [...prev, { role: "assistant", text: accumulated }];
-            }
-            const copy = [...prev];
-            copy[copy.length - 1] = { role: "assistant", text: accumulated };
-            return copy;
-          });
+      const res = await fetch("/api/ai/conversations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-tablecast-user-id": user?.id || "",
         },
+        body: JSON.stringify({
+          type,
+          npcId: type === "npc" ? (selectedNpcId ? Number(selectedNpcId) : null) : null,
+        }),
       });
-    } catch (err) {
-      const errorText = `Error: ${err.message || "Connection lost."}`;
-      setRulesHistory((prev) => {
-        if (!assistantStarted) {
-          return [...prev, { role: "assistant", text: errorText }];
+      if (res.ok) {
+        const conv = await res.json();
+        if (type === "rules") {
+          rulesChat.clearMessages("Hail! I am your D&D Rules Scholar. Ask me any question about spells, combat, actions, items, or general D&D rules, and I will search the library to help you.");
+          rulesChat.setConversationId(conv.id);
+          setCurrentRulesConvId(conv.id);
+        } else {
+          const npc = npcs.find((n) => n.id.toString() === selectedNpcId);
+          npcChat.clearMessages(npc ? `You are now talking to ${npc.name}. Ask your questions, adventurer.` : "Select an NPC to start roleplaying.");
+          npcChat.setConversationId(conv.id);
+          setCurrentNpcConvId(conv.id);
         }
-        const copy = [...prev];
-        copy[copy.length - 1] = {
-          role: "assistant",
-          text: accumulated ? `${accumulated}\n\n${errorText}` : errorText,
-        };
-        return copy;
+        loadConversationList();
+      }
+    } catch (err) {
+      console.error("[AiPanel] Failed to create conversation:", err);
+    }
+  }, [user, selectedNpcId, npcs, rulesChat, npcChat, loadConversationList]);
+
+  const deleteConversation = useCallback(async (convId, type) => {
+    try {
+      const res = await fetch(`/api/ai/conversations/${convId}`, {
+        method: "DELETE",
+        headers: { "x-tablecast-user-id": user?.id || "" },
       });
-    } finally {
-      setRulesStreaming(false);
+      if (res.ok) {
+        loadConversationList();
+        if (type === "rules" && currentRulesConvId === convId) {
+          rulesChat.clearMessages("Hail! I am your D&D Rules Scholar. Ask me any question about spells, combat, actions, items, or general D&D rules, and I will search the library to help you.");
+          setCurrentRulesConvId(null);
+        } else if (type === "npc" && currentNpcConvId === convId) {
+          const npc = npcs.find((n) => n.id.toString() === selectedNpcId);
+          npcChat.clearMessages(npc ? `You are now talking to ${npc.name}.` : "Select an NPC to start roleplaying.");
+          setCurrentNpcConvId(null);
+        }
+      }
+    } catch (err) {
+      console.error("[AiPanel] Failed to delete conversation:", err);
+    }
+  }, [user, npcs, selectedNpcId, rulesChat, npcChat, currentRulesConvId, currentNpcConvId, loadConversationList]);
+
+  const loadConversation = useCallback(async (conv) => {
+    try {
+      const res = await fetch(`/api/ai/conversations/${conv.id}`, {
+        headers: { "x-tablecast-user-id": user?.id || "" },
+      });
+      if (res.ok) {
+        const full = await res.json();
+        if (conv.type === "rules") {
+          rulesChat.loadConversation(full);
+          setCurrentRulesConvId(full.id);
+        } else {
+          npcChat.loadConversation(full);
+          setCurrentNpcConvId(full.id);
+          if (full.npcId) setSelectedNpcId(full.npcId.toString());
+        }
+      }
+    } catch (err) {
+      console.error("[AiPanel] Failed to load conversation:", err);
+    }
+  }, [user, rulesChat, npcChat]);
+
+  const currentConvId = activeTab === "rules" ? currentRulesConvId : currentNpcConvId;
+
+  // --------------- Submit handlers ---------------
+
+  const handleRulesSubmit = (e) => {
+    e.preventDefault();
+    const input = inputRef.current;
+    if (!input || !input.value.trim() || isStreaming) return;
+    rulesChat.send(input.value, { conversationId: currentRulesConvId });
+    input.value = "";
+  };
+
+  const handleNpcSubmit = (e) => {
+    e.preventDefault();
+    const input = npcInputRef.current;
+    if (!input || !input.value.trim() || isStreaming || !selectedNpcId) return;
+    npcChat.send(input.value, { conversationId: currentNpcConvId, npcId: Number(selectedNpcId) });
+    input.value = "";
+  };
+
+  const handleQuickPrompt = (prompt) => {
+    if (!rulesChat.streaming) {
+      rulesChat.send(prompt, { conversationId: currentRulesConvId });
     }
   };
 
-  // Submit NPC Chat query
-  const handleNpcSubmit = async (e) => {
-    e.preventDefault();
-    if (!npcQuery.trim() || !selectedNpcId || npcStreaming) return;
+  // --------------- Model badge text ---------------
+  const modelBadge = aiSettings
+    ? `${aiSettings.provider || "?"}${aiSettings.model ? ` · ${aiSettings.model}` : ""}`
+    : "";
 
-    const query = npcQuery.trim();
-    const npc = npcs.find((n) => n.id.toString() === selectedNpcId);
-    if (!npc) return;
+  // --------------- Derived ---------------
+  const filteredConvs = conversations.filter((c) => c.type === activeTab);
 
-    setNpcQuery("");
+  const activeChat = activeTab === "rules" ? rulesChat : npcChat;
+  const activeMessages = activeChat.messages;
+  const isStreaming = activeChat.streaming;
+  const activeError = activeChat.error;
 
-    const userMsg = { role: "user", text: query };
-    const updatedHistory = [...npcHistory, userMsg];
-    setNpcHistory(updatedHistory);
-    setNpcStreaming(true);
-
-    let accumulated = "";
-    let assistantStarted = false;
-
-    try {
-      await streamAiChat({
-        userId: user?.id,
-        message: query,
-        npcId: Number(selectedNpcId),
-        history: updatedHistory.slice(1, -1),
-        onToken: (text) => {
-          accumulated += text;
-          setNpcHistory((prev) => {
-            if (!assistantStarted) {
-              assistantStarted = true;
-              return [...prev, { role: "assistant", text: accumulated }];
-            }
-            const copy = [...prev];
-            copy[copy.length - 1] = { role: "assistant", text: accumulated };
-            return copy;
-          });
-        },
-      });
-    } catch (err) {
-      const errorText = `Error: ${err.message || "Connection lost."}`;
-      setNpcHistory((prev) => {
-        if (!assistantStarted) {
-          return [...prev, { role: "assistant", text: errorText }];
-        }
-        const copy = [...prev];
-        copy[copy.length - 1] = {
-          role: "assistant",
-          text: accumulated ? `${accumulated}\n\n${errorText}` : errorText,
-        };
-        return copy;
-      });
-    } finally {
-      setNpcStreaming(false);
-    }
-  };
-
-  const clearRulesHistory = () => {
-    setRulesHistory([
-      {
-        role: "assistant",
-        text: "Hail! I am your D&D Rules Scholar. Ask me any question about spells, combat, actions, items, or general D&D rules, and I will search the library to help you.",
-      },
-    ]);
-  };
-
-  const clearNpcHistory = () => {
-    const npc = npcs.find((n) => n.id.toString() === selectedNpcId);
-    setNpcHistory([
-      {
-        role: "assistant",
-        text: npc ? `You are now talking to ${npc.name}. Ask your questions, adventurer.` : "Select an NPC to start roleplaying.",
-      },
-    ]);
-  };
-
+  // --------------- Render ---------------
   return (
     <div style={styles.container} className="fade-in">
       {/* Tab Selector Nav */}
-      <div style={styles.tabNav}>
-        <button
-          onClick={() => setActiveTab("rules")}
-          style={{
-            ...styles.tabBtn,
-            background: activeTab === "rules" ? "var(--color-accent-dim)" : "rgba(255,255,255,0.02)",
-            color: activeTab === "rules" ? "var(--color-accent)" : "var(--color-muted)",
-            borderColor: activeTab === "rules" ? "var(--color-accent)" : "rgba(255,255,255,0.05)",
-          }}
-          className="touch-target btn-hover-scale"
-        >
-          📜 Rules Scholar
-        </button>
-        <button
-          onClick={() => setActiveTab("npc")}
-          style={{
-            ...styles.tabBtn,
-            background: activeTab === "npc" ? "var(--color-accent-dim)" : "rgba(255,255,255,0.02)",
-            color: activeTab === "npc" ? "var(--color-accent)" : "var(--color-muted)",
-            borderColor: activeTab === "npc" ? "var(--color-accent)" : "rgba(255,255,255,0.05)",
-          }}
-          className="touch-target btn-hover-scale"
-        >
-          🗣️ NPC Roleplay
-        </button>
+      <div style={styles.topSection}>
+        <div style={styles.tabNav}>
+          <button
+            onClick={() => setActiveTab("rules")}
+            style={{
+              ...styles.tabBtn,
+              background: activeTab === "rules" ? "var(--color-accent-dim)" : "rgba(255,255,255,0.02)",
+              color: activeTab === "rules" ? "var(--color-accent)" : "var(--color-muted)",
+              borderColor: activeTab === "rules" ? "var(--color-accent)" : "rgba(255,255,255,0.05)",
+            }}
+            className="touch-target btn-hover-scale"
+          >
+            📜 Rules Scholar
+          </button>
+          <button
+            onClick={() => setActiveTab("npc")}
+            style={{
+              ...styles.tabBtn,
+              background: activeTab === "npc" ? "var(--color-accent-dim)" : "rgba(255,255,255,0.02)",
+              color: activeTab === "npc" ? "var(--color-accent)" : "var(--color-muted)",
+              borderColor: activeTab === "npc" ? "var(--color-accent)" : "rgba(255,255,255,0.05)",
+            }}
+            className="touch-target btn-hover-scale"
+          >
+            🗣️ NPC Roleplay
+          </button>
+        </div>
+
+        {/* Model Badge + Character Context Row */}
+        <div style={styles.badgeRow}>
+          {modelBadge && (
+            <span style={styles.modelBadge} title="Active AI model/provider">
+              <Sparkles size={11} /> {modelBadge}
+            </span>
+          )}
+          {characters.length > 0 && (
+            <span style={styles.charBadge} title="Character context active">
+              <User size={11} /> {characters.find((c) => c.id.toString() === selectedCharId)?.name || "PC"}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Rules Scholar View */}
       {activeTab === "rules" && (
         <div style={styles.viewBody}>
+          {/* Conversation Header */}
           <div style={styles.headerRow}>
-            <span style={styles.panelSubtitle}>Query rules, spells, or combat terms</span>
-            <button onClick={clearRulesHistory} style={styles.resetBtn} className="btn-hover-scale">
-              Clear Logs
-            </button>
+            <span style={styles.panelSubtitle}>
+              {filteredConvs.length > 0
+                ? `${filteredConvs.length} conversation${filteredConvs.length > 1 ? "s" : ""}`
+                : "Ask about D&D rules, spells, or combat"}
+            </span>
+            <div style={styles.headerActions}>
+              <button
+                onClick={() => createNewConversation("rules")}
+                style={styles.iconBtn}
+                className="btn-hover-scale"
+                title="New conversation"
+                aria-label="New conversation"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
 
-          {/* Messages Scrollbox */}
-          <div ref={rulesScrollRef} style={styles.scrollArea}>
-            {rulesHistory.map((msg, idx) => (
-              <div
-                key={msg.id || `${msg.role}-${idx}`}
-                style={{
-                  ...styles.bubble,
-                  alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
-                  background: msg.role === "user" ? "rgba(200, 151, 58, 0.1)" : "rgba(255, 255, 255, 0.04)",
-                  borderColor: msg.role === "user" ? "rgba(200, 151, 58, 0.3)" : "rgba(255, 255, 255, 0.06)",
+          {/* Conversation Selector */}
+          {filteredConvs.length > 1 && (
+            <div style={styles.convSelector}>
+              <select
+                value={currentConvId || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) return;
+                  const conv = conversations.find((c) => c.id.toString() === val);
+                  if (conv) loadConversation(conv);
                 }}
+                style={styles.convSelect}
               >
-                <div style={styles.bubbleHeader}>
-                  {msg.role === "user" ? user?.username || "You" : "Rules Scholar"}
-                </div>
-                <div 
-                  className="wiki-content"
-                  style={styles.bubbleText}
-                  dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
-                />
-              </div>
+                <option value="">-- Current conversation --</option>
+                {filteredConvs.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title || `Conversation #${c.id}`}
+                  </option>
+                ))}
+              </select>
+              {currentConvId && (
+                <button
+                  onClick={() => deleteConversation(currentConvId, "rules")}
+                  style={styles.deleteConvBtn}
+                  className="btn-hover-scale"
+                  title="Delete this conversation"
+                  aria-label="Delete conversation"
+                >
+                  <Trash2 size={12} />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Messages */}
+          <div ref={scrollRef} style={styles.scrollArea}>
+            {activeMessages.length === 0 && (
+              <p style={styles.emptyHint}>Send a message to start a conversation.</p>
+            )}
+            {activeMessages.map((msg, idx) => (
+              <MessageBubble
+                key={msg.id || `${msg.role}-${idx}`}
+                msg={msg}
+                senderName={msg.role === "user" ? user?.username || "You" : "Rules Scholar"}
+                onCopy={msg.text}
+              />
             ))}
-            {rulesStreaming && rulesHistory[rulesHistory.length - 1]?.role !== "assistant" && (
+            {/* Loading indicator */}
+            {isStreaming && activeMessages[activeMessages.length - 1]?.role !== "assistant" && (
               <div style={{ ...styles.bubble, alignSelf: "flex-start" }}>
                 <div style={styles.bubbleHeader}>Rules Scholar</div>
                 <div style={styles.loadingPlaceholder}>
@@ -354,28 +490,65 @@ export default function AiPanel({ user }) {
             )}
           </div>
 
-          {/* Form Input */}
+          {/* Error Banner */}
+          {activeError && (
+            <div style={styles.errorBanner}>
+              <span>{activeError}</span>
+              <button onClick={() => rulesChat.retry()} style={styles.retryBtn} className="btn-hover-scale">
+                <RotateCcw size={13} /> Retry
+              </button>
+            </div>
+          )}
+
+          {/* Quick Prompts */}
+          {!isStreaming && activeMessages.length <= 2 && (
+            <div style={styles.quickPrompts}>
+              {RULES_QUICK_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => handleQuickPrompt(p)}
+                  style={styles.quickChip}
+                  className="btn-hover-scale"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
           <form onSubmit={handleRulesSubmit} style={styles.formRow}>
             <input
+              ref={inputRef}
               type="text"
               placeholder="Ask a rule (e.g. 'How does grappling work?')"
-              value={rulesQuery}
-              onChange={(e) => setRulesQuery(e.target.value)}
-              style={styles.input}
+              disabled={isStreaming}
+              style={{ ...styles.input, opacity: isStreaming ? 0.6 : 1 }}
               className="form-input"
               maxLength={500}
             />
-            <button
-              type="submit"
-              disabled={rulesStreaming || !rulesQuery.trim()}
-              style={{
-                ...styles.sendBtn,
-                opacity: rulesQuery.trim() && !rulesStreaming ? 1 : 0.4,
-              }}
-              className="touch-target btn-hover-scale"
-            >
-              ➤
-            </button>
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={() => rulesChat.cancel()}
+                style={styles.cancelBtn}
+                className="touch-target btn-hover-scale"
+                title="Cancel generation"
+              >
+                <X size={16} />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                style={styles.sendBtn}
+                className="touch-target btn-hover-scale"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            )}
           </form>
         </div>
       )}
@@ -383,6 +556,7 @@ export default function AiPanel({ user }) {
       {/* NPC Roleplay View */}
       {activeTab === "npc" && (
         <div style={styles.viewBody}>
+          {/* NPC Config + Conv Actions */}
           <div style={styles.npcHeaderConfig} className="glass-panel">
             <div style={styles.npcSelectCol}>
               <label style={styles.selectLabel}>Select NPC Persona</label>
@@ -391,12 +565,10 @@ export default function AiPanel({ user }) {
                 onChange={(e) => {
                   setSelectedNpcId(e.target.value);
                   const selected = npcs.find((n) => n.id.toString() === e.target.value);
-                  setNpcHistory([
-                    {
-                      role: "assistant",
-                      text: selected ? `You are now talking to ${selected.name}. Ask your questions, adventurer.` : "Select an NPC template.",
-                    },
-                  ]);
+                  if (selected) {
+                    npcChat.clearMessages(`You are now talking to ${selected.name}. Ask your questions, adventurer.`);
+                    setCurrentNpcConvId(null);
+                  }
                 }}
                 style={styles.select}
               >
@@ -408,14 +580,32 @@ export default function AiPanel({ user }) {
                 ))}
               </select>
             </div>
-            <button onClick={clearNpcHistory} style={styles.resetBtn} className="btn-hover-scale">
-              Reset
-            </button>
+            <div style={styles.npcHeaderActions}>
+              <button
+                onClick={() => createNewConversation("npc")}
+                style={styles.iconBtn}
+                className="btn-hover-scale"
+                title="New conversation"
+                aria-label="New conversation"
+              >
+                <Plus size={14} />
+              </button>
+              {currentNpcConvId && (
+                <button
+                  onClick={() => deleteConversation(currentNpcConvId, "npc")}
+                  style={{ ...styles.iconBtn, color: "var(--color-danger)" }}
+                  className="btn-hover-scale"
+                  title="Delete conversation"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* NPC Messages Scrollbox */}
+          {/* Messages */}
           <div ref={npcScrollRef} style={styles.scrollArea}>
-            {npcHistory.map((msg, idx) => {
+            {activeMessages.map((msg, idx) => {
               const selectedNpc = npcs.find((n) => n.id.toString() === selectedNpcId);
               const senderName = msg.role === "user" ? user?.username || "You" : (selectedNpc?.name || "NPC");
               const npcAvatar = msg.role === "assistant" && selectedNpc?.imageUrl ? selectedNpc.imageUrl : "";
@@ -429,17 +619,23 @@ export default function AiPanel({ user }) {
                     borderColor: msg.role === "user" ? "rgba(200, 151, 58, 0.3)" : "rgba(255, 255, 255, 0.06)",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", marginBottom: "0.15rem" }}>
-                    {npcAvatar && (
-                      <img 
-                        src={npcAvatar} 
-                        alt={senderName} 
-                        style={{ width: 18, height: 18, borderRadius: "50%", border: "1px solid var(--color-accent)", objectFit: "cover" }} 
-                      />
-                    )}
-                    <div style={styles.bubbleHeader}>{senderName}</div>
+                  <div style={styles.bubbleTopRow}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                      {npcAvatar && (
+                        <img
+                          src={npcAvatar}
+                          alt={senderName}
+                          style={{ width: 18, height: 18, borderRadius: "50%", border: "1px solid var(--color-accent)", objectFit: "cover" }}
+                        />
+                      )}
+                      <div style={styles.bubbleHeader}>{senderName}</div>
+                    </div>
+                    <div style={styles.bubbleTopRight}>
+                      <span style={styles.timestamp}>{formatTime(msg.timestamp || msg.createdAt)}</span>
+                      {msg.role === "assistant" && <CopyButton text={msg.text} />}
+                    </div>
                   </div>
-                  <div 
+                  <div
                     className="wiki-content"
                     style={styles.bubbleText}
                     dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
@@ -447,7 +643,7 @@ export default function AiPanel({ user }) {
                 </div>
               );
             })}
-            {npcStreaming && npcHistory[npcHistory.length - 1]?.role !== "assistant" && (
+            {isStreaming && activeMessages[activeMessages.length - 1]?.role !== "assistant" && (
               <div style={{ ...styles.bubble, alignSelf: "flex-start" }}>
                 <div style={styles.bubbleHeader}>
                   {npcs.find((n) => n.id.toString() === selectedNpcId)?.name || "NPC"}
@@ -462,29 +658,49 @@ export default function AiPanel({ user }) {
             )}
           </div>
 
-          {/* Form Input */}
+          {/* Error Banner */}
+          {activeError && (
+            <div style={styles.errorBanner}>
+              <span>{activeError}</span>
+              <button onClick={() => npcChat.retry()} style={styles.retryBtn} className="btn-hover-scale">
+                <RotateCcw size={13} /> Retry
+              </button>
+            </div>
+          )}
+
+          {/* Input */}
           <form onSubmit={handleNpcSubmit} style={styles.formRow}>
             <input
+              ref={npcInputRef}
               type="text"
               placeholder={selectedNpcId ? `Talk to ${npcs.find((n) => n.id.toString() === selectedNpcId)?.name || "NPC"}...` : "Select an NPC template first"}
-              value={npcQuery}
-              onChange={(e) => setNpcQuery(e.target.value)}
-              disabled={!selectedNpcId || npcStreaming}
-              style={styles.input}
+              disabled={!selectedNpcId || isStreaming}
+              style={{ ...styles.input, opacity: !selectedNpcId || isStreaming ? 0.6 : 1 }}
               className="form-input"
               maxLength={500}
             />
-            <button
-              type="submit"
-              disabled={npcStreaming || !npcQuery.trim() || !selectedNpcId}
-              style={{
-                ...styles.sendBtn,
-                opacity: npcQuery.trim() && !npcStreaming && selectedNpcId ? 1 : 0.4,
-              }}
-              className="touch-target btn-hover-scale"
-            >
-              ➤
-            </button>
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={() => npcChat.cancel()}
+                style={styles.cancelBtn}
+                className="touch-target btn-hover-scale"
+                title="Cancel generation"
+              >
+                <X size={16} />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                style={styles.sendBtn}
+                className="touch-target btn-hover-scale"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            )}
           </form>
         </div>
       )}
@@ -493,7 +709,36 @@ export default function AiPanel({ user }) {
 }
 
 // ---------------------------------------------------------------------------
-// Component CSS-in-JS Styles
+// Message Bubble Sub-component
+// ---------------------------------------------------------------------------
+function MessageBubble({ msg, senderName, onCopy }) {
+  return (
+    <div
+      style={{
+        ...styles.bubble,
+        alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+        background: msg.role === "user" ? "rgba(200, 151, 58, 0.1)" : "rgba(255, 255, 255, 0.04)",
+        borderColor: msg.role === "user" ? "rgba(200, 151, 58, 0.3)" : "rgba(255, 255, 255, 0.06)",
+      }}
+    >
+      <div style={styles.bubbleTopRow}>
+        <div style={styles.bubbleHeader}>{senderName}</div>
+        <div style={styles.bubbleTopRight}>
+          <span style={styles.timestamp}>{formatTime(msg.timestamp || msg.createdAt)}</span>
+          {msg.role === "assistant" && <CopyButton text={onCopy} />}
+        </div>
+      </div>
+      <div
+        className="wiki-content"
+        style={styles.bubbleText}
+        dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Styles
 // ---------------------------------------------------------------------------
 const styles = {
   container: {
@@ -501,8 +746,14 @@ const styles = {
     flexDirection: "column",
     height: "100%",
     padding: "0.5rem 0.75rem",
-    gap: "0.5rem",
+    gap: "0.4rem",
     background: "var(--color-bg)",
+  },
+  topSection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.25rem",
+    flexShrink: 0,
   },
   tabNav: {
     display: "flex",
@@ -521,11 +772,42 @@ const styles = {
     textAlign: "center",
     transition: "all 0.2s",
   },
+  badgeRow: {
+    display: "flex",
+    gap: "0.5rem",
+    alignItems: "center",
+    flexWrap: "wrap",
+    padding: "0.1rem 0.15rem",
+  },
+  modelBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    fontSize: "0.65rem",
+    color: "var(--color-accent)",
+    background: "rgba(200, 151, 58, 0.08)",
+    border: "1px solid rgba(200, 151, 58, 0.2)",
+    borderRadius: "999px",
+    padding: "0.1rem 0.5rem",
+    whiteSpace: "nowrap",
+  },
+  charBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    fontSize: "0.65rem",
+    color: "var(--color-muted)",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "999px",
+    padding: "0.1rem 0.5rem",
+    whiteSpace: "nowrap",
+  },
   viewBody: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
-    gap: "0.5rem",
+    gap: "0.4rem",
     overflow: "hidden",
   },
   headerRow: {
@@ -536,35 +818,194 @@ const styles = {
     flexShrink: 0,
   },
   panelSubtitle: {
-    fontSize: "0.75rem",
-    color: "var(--color-muted)",
-  },
-  resetBtn: {
-    background: "transparent",
-    border: "1px solid rgba(255,255,255,0.08)",
-    padding: "0.2rem 0.6rem",
-    borderRadius: "4px",
     fontSize: "0.7rem",
     color: "var(--color-muted)",
+  },
+  headerActions: {
+    display: "flex",
+    gap: "0.3rem",
+    alignItems: "center",
+  },
+  iconBtn: {
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "4px",
+    color: "var(--color-text)",
     cursor: "pointer",
+    padding: "0.25rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 28,
+    minHeight: 28,
+  },
+  convSelector: {
+    display: "flex",
+    gap: "0.3rem",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  convSelect: {
+    flex: 1,
+    background: "rgba(0,0,0,0.3)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "4px",
+    color: "var(--color-text)",
+    padding: "0.3rem 0.4rem",
+    fontSize: "0.75rem",
+    outline: "none",
+  },
+  deleteConvBtn: {
+    background: "rgba(255,50,50,0.08)",
+    border: "1px solid rgba(255,50,50,0.2)",
+    borderRadius: "4px",
+    color: "var(--color-danger)",
+    cursor: "pointer",
+    padding: "0.25rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 28,
+    minHeight: 28,
+  },
+  scrollArea: {
+    flex: 1,
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    padding: "0.25rem",
+    background: "rgba(0, 0, 0, 0.15)",
+    borderRadius: "8px",
+    border: "1px solid rgba(255, 255, 255, 0.02)",
+  },
+  emptyHint: {
+    textAlign: "center",
+    color: "var(--color-muted)",
+    fontSize: "0.8rem",
+    padding: "2rem 0.5rem",
+  },
+  bubble: {
+    maxWidth: "85%",
+    borderRadius: "8px",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    padding: "0.45rem 0.7rem",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.1rem",
+  },
+  bubbleTopRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "0.5rem",
+    marginBottom: "0.1rem",
+  },
+  bubbleTopRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.35rem",
+  },
+  bubbleHeader: {
+    fontSize: "0.7rem",
+    fontWeight: "bold",
+    color: "var(--color-accent)",
+  },
+  timestamp: {
+    fontSize: "0.6rem",
+    color: "var(--color-muted)",
+    opacity: 0.7,
+  },
+  bubbleText: {
+    fontSize: "0.85rem",
+    color: "var(--color-text)",
+    lineHeight: 1.45,
+  },
+  loadingPlaceholder: {
+    fontSize: "0.8rem",
+    fontStyle: "italic",
+    color: "var(--color-muted)",
+  },
+  errorBanner: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "0.5rem",
+    background: "rgba(255,50,50,0.08)",
+    border: "1px solid rgba(255,50,50,0.2)",
+    borderRadius: "6px",
+    padding: "0.4rem 0.6rem",
+    fontSize: "0.75rem",
+    color: "var(--color-danger)",
+    flexShrink: 0,
+  },
+  retryBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: "4px",
+    padding: "0.2rem 0.5rem",
+    fontSize: "0.7rem",
+    color: "var(--color-text)",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  quickPrompts: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "0.3rem",
+    flexShrink: 0,
+  },
+  quickChip: {
+    background: "rgba(200, 151, 58, 0.06)",
+    border: "1px solid rgba(200, 151, 58, 0.2)",
+    borderRadius: "999px",
+    padding: "0.25rem 0.6rem",
+    fontSize: "0.7rem",
+    color: "var(--color-accent)",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    transition: "all 0.15s",
+  },
+  copyBtn: {
+    background: "transparent",
+    border: "none",
+    color: "var(--color-muted)",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0.15rem",
+    borderRadius: "3px",
+    transition: "all 0.2s",
+    opacity: 0.6,
   },
   npcHeaderConfig: {
     display: "flex",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    padding: "0.6rem 0.75rem",
+    padding: "0.5rem 0.65rem",
     borderRadius: "8px",
-    gap: "1rem",
+    gap: "0.75rem",
     flexShrink: 0,
   },
   npcSelectCol: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
+    gap: "0.2rem",
+  },
+  npcHeaderActions: {
+    display: "flex",
     gap: "0.25rem",
+    alignItems: "center",
+    paddingBottom: "0.1rem",
   },
   selectLabel: {
-    fontSize: "0.65rem",
+    fontSize: "0.6rem",
     textTransform: "uppercase",
     fontWeight: "bold",
     color: "var(--color-accent)",
@@ -575,56 +1016,26 @@ const styles = {
     border: "1px solid rgba(255, 255, 255, 0.08)",
     borderRadius: "6px",
     color: "var(--color-text)",
-    padding: "0.45rem",
-    fontSize: "0.85rem",
+    padding: "0.4rem",
+    fontSize: "0.8rem",
     outline: "none",
     width: "100%",
-  },
-  scrollArea: {
-    flex: 1,
-    overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.6rem",
-    padding: "0.25rem",
-    background: "rgba(0, 0, 0, 0.15)",
-    borderRadius: "8px",
-    border: "1px solid rgba(255, 255, 255, 0.02)",
-  },
-  bubble: {
-    maxWidth: "85%",
-    borderRadius: "8px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    padding: "0.5rem 0.75rem",
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.15rem",
-  },
-  bubbleHeader: {
-    fontSize: "0.7rem",
-    fontWeight: "bold",
-    color: "var(--color-accent)",
-  },
-  bubbleText: {
-    fontSize: "0.85rem",
-    color: "var(--color-text)",
-  },
-  loadingPlaceholder: {
-    fontSize: "0.8rem",
-    fontStyle: "italic",
-    color: "var(--color-muted)",
   },
   formRow: {
     display: "flex",
     gap: "0.4rem",
     flexShrink: 0,
-    paddingTop: "0.2rem",
+    paddingTop: "0.15rem",
   },
   input: {
     flex: 1,
     padding: "0.65rem 0.95rem",
     fontSize: "0.9rem",
+    borderRadius: "6px",
+    border: "1px solid rgba(200,151,58,0.2)",
+    background: "rgba(0,0,0,0.3)",
+    color: "var(--color-text)",
+    outline: "none",
   },
   sendBtn: {
     width: 44,
@@ -634,31 +1045,24 @@ const styles = {
     border: "none",
     background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
     color: "var(--color-bg)",
-    fontSize: "1.05rem",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     transition: "opacity 0.2s",
   },
-  // Formatted response items
-  paragraph: {
-    marginBottom: "0.5rem",
-    lineHeight: "1.45",
-  },
-  boldText: {
-    color: "var(--color-accent)",
-    fontWeight: "bold",
-  },
-  textLine: {
-    marginBottom: "0.15rem",
-  },
-  bulletList: {
-    margin: "0.15rem 0",
-    paddingLeft: "1.1rem",
-  },
-  bulletItem: {
-    fontSize: "0.82rem",
-    marginBottom: "0.1rem",
+  cancelBtn: {
+    width: 44,
+    height: 44,
+    minWidth: 44,
+    borderRadius: "6px",
+    border: "1px solid rgba(255,50,50,0.3)",
+    background: "rgba(255,50,50,0.1)",
+    color: "var(--color-danger)",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.2s",
   },
 };

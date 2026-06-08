@@ -661,7 +661,125 @@ async function pumpOllamaStream(upstream, res) {
   }
 }
 
-async function performAiStream(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history, res, signal) {
+/**
+ * Pump a streaming OpenAI-compatible response to an onToken callback.
+ */
+async function pumpOpenAiCompatibleStreamToCallback(upstream, onToken) {
+  if (!upstream.ok) {
+    const errText = await upstream.text().catch(() => "");
+    throw new Error(`Upstream responded with status: ${upstream.status}${errText ? ` - ${errText}` : ""}`);
+  }
+  if (!upstream.body) {
+    throw new Error("Upstream returned no response body.");
+  }
+
+  const reader = upstream.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let receivedContent = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n");
+    buffer = parts.pop() || "";
+
+    for (const line of parts) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+
+      const payload = trimmed.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+
+      let parsed;
+      try {
+        parsed = JSON.parse(payload);
+      } catch {
+        continue;
+      }
+
+      if (parsed.error) {
+        throw new Error(parsed.error.message || JSON.stringify(parsed.error));
+      }
+
+      const choice = parsed.choices?.[0];
+      const content = choice?.delta?.content || choice?.text || "";
+      if (content) {
+        receivedContent = true;
+        onToken(content);
+      }
+    }
+  }
+
+  if (!receivedContent) {
+    throw new Error("AI returned an empty response.");
+  }
+}
+
+/**
+ * Pump a streaming Ollama response to an onToken callback.
+ */
+async function pumpOllamaStreamToCallback(upstream, onToken) {
+  if (!upstream.ok) {
+    const errText = await upstream.text().catch(() => "");
+    throw new Error(`Upstream responded with status: ${upstream.status}${errText ? ` - ${errText}` : ""}`);
+  }
+  if (!upstream.body) {
+    throw new Error("Ollama returned no response body.");
+  }
+
+  const reader = upstream.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let receivedContent = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      let parsed;
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        continue;
+      }
+
+      if (parsed.done) {
+        if (!receivedContent && parsed.message?.content) {
+          onToken(parsed.message.content);
+          receivedContent = true;
+        }
+        break;
+      }
+
+      const content = parsed.message?.content || "";
+      if (content) {
+        receivedContent = true;
+        onToken(content);
+      }
+    }
+  }
+
+  if (!receivedContent) {
+    throw new Error("Empty response from Ollama server.");
+  }
+}
+
+/**
+ * Streaming AI call that yields tokens via onToken callback.
+ * Used by both HTTP SSE endpoints and Socket.io handlers.
+ */
+async function performAiStreamTokens(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history, onToken, signal) {
   if (!provider) {
     throw new Error("No AI Provider configured.");
   }
@@ -684,7 +802,7 @@ async function performAiStream(provider, apiKey, ollamaUrl, ollamaModel, systemP
         }),
         signal
       });
-      await pumpOpenAiCompatibleStream(response, res);
+      await pumpOpenAiCompatibleStreamToCallback(response, onToken);
       return;
     }
 
@@ -699,7 +817,7 @@ async function performAiStream(provider, apiKey, ollamaUrl, ollamaModel, systemP
         }),
         signal
       });
-      await pumpOllamaStream(response, res);
+      await pumpOllamaStreamToCallback(response, onToken);
       return;
     }
 
@@ -719,15 +837,32 @@ async function performAiStream(provider, apiKey, ollamaUrl, ollamaModel, systemP
         }),
         signal
       });
-      await pumpOpenAiCompatibleStream(response, res);
+      await pumpOpenAiCompatibleStreamToCallback(response, onToken);
+      return;
+    }
+
+    case "gemini":
+    case "openai":
+    case "anthropic":
+    case "openrouter": {
+      const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history);
+      onToken(reply);
       return;
     }
 
     default: {
       const reply = await performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history);
-      writeSseEvent(res, { type: "token", text: reply });
-      writeSseEvent(res, { type: "done" });
+      onToken(reply);
     }
+  }
+}
+
+async function performAiStream(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history, res, signal) {
+  const onToken = (text) => writeSseEvent(res, { type: "token", text });
+  try {
+    await performAiStreamTokens(provider, apiKey, ollamaUrl, ollamaModel, systemPrompt, userMessage, history, onToken, signal);
+  } catch (err) {
+    throw err;
   }
 }
 
@@ -2038,7 +2173,7 @@ router.post("/expand-text", requireDm, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post("/chat", async (req, res) => {
   try {
-    const { message, npcId, history, stream: wantsStream } = req.body;
+    const { message, npcId, history, stream: wantsStream, conversationId, characterId } = req.body;
     if (!message || typeof message !== "string" || !message.trim()) {
       return res.status(400).json({ error: "Message content is required." });
     }
@@ -2072,6 +2207,27 @@ Keep your responses concise, readable, and structured in Markdown.`;
       }
     }
 
+    // Inject character context if characterId provided
+    if (characterId) {
+      try {
+        const character = await prisma.character.findUnique({
+          where: { id: Number(characterId) },
+          select: { name: true, race: true, class: true, level: true, hp: true, maxHp: true, strength: true, dexterity: true, constitution: true, intelligence: true, wisdom: true, charisma: true },
+        });
+        if (character) {
+          const charContext = `\n=== PLAYER CHARACTER CONTEXT ===\nName: ${character.name}\nRace: ${character.race || "unknown"}\nClass: ${character.class || "unknown"}\nLevel: ${character.level}\nHP: ${character.hp}/${character.maxHp}\nStats: STR ${character.strength} DEX ${character.dexterity} CON ${character.constitution} INT ${character.intelligence} WIS ${character.wisdom} CHA ${character.charisma}\n================================\n`;
+          // If this is NPC roleplay, the NPC knows about this character
+          if (npcId) {
+            systemPrompt += `\nThe player's character speaking to you is:\n${charContext}`;
+          } else {
+            systemPrompt += `\nThe player's character (for context):\n${charContext}`;
+          }
+        }
+      } catch (charErr) {
+        console.error("[AI Chat] Failed to fetch character context:", charErr.message);
+      }
+    }
+
     const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
 
     if (wantsStream) {
@@ -2081,8 +2237,10 @@ Keep your responses concise, readable, and structured in Markdown.`;
 
       writeSseEvent(res, { type: "context", text: referenceContext });
 
+      let fullResponse = "";
+
       try {
-        await performAiStream(
+        await performAiStreamTokens(
           provider,
           apiKey,
           ollamaUrl,
@@ -2090,9 +2248,31 @@ Keep your responses concise, readable, and structured in Markdown.`;
           systemPrompt,
           message,
           history,
-          res,
+          (token) => {
+            fullResponse += token;
+            writeSseEvent(res, { type: "token", text: token });
+          },
           controller.signal
         );
+
+        if (conversationId) {
+          try {
+            const convId = Number(conversationId);
+            await prisma.aiMessage.createMany({
+              data: [
+                { conversationId: convId, role: "user", text: message },
+                { conversationId: convId, role: "assistant", text: fullResponse },
+              ],
+            });
+            await prisma.aiConversation.update({
+              where: { id: convId },
+              data: { updatedAt: new Date() },
+            });
+          } catch (saveErr) {
+            console.error("[AI Chat] Failed to auto-save conversation:", saveErr.message);
+          }
+        }
+
         writeSseEvent(res, { type: "done" });
       } catch (streamErr) {
         if (streamErr.name === "AbortError") {
@@ -2109,7 +2289,25 @@ Keep your responses concise, readable, and structured in Markdown.`;
     // 3. Make the API call to the configured LLM provider
     const reply = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, message, history);
 
-    res.json({ reply, context: referenceContext });
+    if (conversationId) {
+      try {
+        const convId = Number(conversationId);
+        await prisma.aiMessage.createMany({
+          data: [
+            { conversationId: convId, role: "user", text: message },
+            { conversationId: convId, role: "assistant", text: reply },
+          ],
+        });
+        await prisma.aiConversation.update({
+          where: { id: convId },
+          data: { updatedAt: new Date() },
+        });
+      } catch (saveErr) {
+        console.error("[AI Chat] Failed to auto-save conversation:", saveErr.message);
+      }
+    }
+
+    res.json({ reply, context: referenceContext, conversationId: conversationId || null });
   } catch (err) {
     console.error("[AI Chat] Chat operation failed:", err.message);
     if (res.headersSent) {
@@ -2134,6 +2332,159 @@ router.get("/image-style", async (req, res) => {
   } catch (err) {
     console.error("[AI Image Style] Fetch failed:", err.message);
     res.json({ style: "" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// AI Conversation Management
+// ---------------------------------------------------------------------------
+
+// GET /api/ai/conversations — List user's conversations
+router.get("/conversations", async (req, res) => {
+  try {
+    const userId = req.headers["x-tablecast-user-id"];
+    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+
+    const conversations = await prisma.aiConversation.findMany({
+      where: { userId: Number(userId) },
+      orderBy: { updatedAt: "desc" },
+      include: { _count: { select: { messages: true } } },
+    });
+    res.json(conversations);
+  } catch (err) {
+    console.error("[AI Conversations] List failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/ai/conversations — Create new conversation
+router.post("/conversations", async (req, res) => {
+  try {
+    const userId = req.headers["x-tablecast-user-id"];
+    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+
+    const { type, npcId, title } = req.body;
+    const conversation = await prisma.aiConversation.create({
+      data: {
+        userId: Number(userId),
+        type: type || "rules",
+        npcId: npcId || null,
+        title: title || "",
+      },
+    });
+    res.status(201).json(conversation);
+  } catch (err) {
+    console.error("[AI Conversations] Create failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/ai/conversations/:id — Get conversation with messages
+router.get("/conversations/:id", async (req, res) => {
+  try {
+    const userId = req.headers["x-tablecast-user-id"];
+    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+
+    const conversation = await prisma.aiConversation.findFirst({
+      where: { id: Number(req.params.id), userId: Number(userId) },
+      include: { messages: { orderBy: { createdAt: "asc" } } },
+    });
+    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+    res.json(conversation);
+  } catch (err) {
+    console.error("[AI Conversations] Get failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/ai/conversations/:id — Update conversation title
+router.patch("/conversations/:id", async (req, res) => {
+  try {
+    const userId = req.headers["x-tablecast-user-id"];
+    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+
+    const { title } = req.body;
+    const conversation = await prisma.aiConversation.findFirst({
+      where: { id: Number(req.params.id), userId: Number(userId) },
+    });
+    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+
+    const updated = await prisma.aiConversation.update({
+      where: { id: Number(req.params.id) },
+      data: { title: title || "" },
+    });
+    res.json(updated);
+  } catch (err) {
+    console.error("[AI Conversations] Update failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/ai/conversations/:id — Delete conversation
+router.delete("/conversations/:id", async (req, res) => {
+  try {
+    const userId = req.headers["x-tablecast-user-id"];
+    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+
+    const conversation = await prisma.aiConversation.findFirst({
+      where: { id: Number(req.params.id), userId: Number(userId) },
+    });
+    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+
+    await prisma.aiConversation.delete({ where: { id: Number(req.params.id) } });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[AI Conversations] Delete failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/ai/conversations/:id/messages — Batch-save messages to a conversation
+router.post("/conversations/:id/messages", async (req, res) => {
+  try {
+    const userId = req.headers["x-tablecast-user-id"];
+    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: "Messages array is required." });
+    }
+
+    const conversation = await prisma.aiConversation.findFirst({
+      where: { id: Number(req.params.id), userId: Number(userId) },
+    });
+    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+
+    const created = await prisma.$transaction(
+      messages.map((msg) =>
+        prisma.aiMessage.create({
+          data: {
+            conversationId: Number(req.params.id),
+            role: msg.role || "user",
+            text: msg.text,
+          },
+        })
+      )
+    );
+
+    // Auto-generate title from first exchange if empty
+    if (!conversation.title && messages.length > 0) {
+      const firstUserMsg = messages.find(m => m.role === "user");
+      const generatedTitle = firstUserMsg
+        ? firstUserMsg.text.slice(0, 80) + (firstUserMsg.text.length > 80 ? "…" : "")
+        : "";
+      if (generatedTitle) {
+        await prisma.aiConversation.update({
+          where: { id: Number(req.params.id) },
+          data: { title: generatedTitle },
+        });
+      }
+    }
+
+    res.status(201).json(created);
+  } catch (err) {
+    console.error("[AI Conversations] Save messages failed:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -2333,6 +2684,7 @@ module.exports = {
   router,
   performAiCall,
   performAiStream,
+  performAiStreamTokens,
   findRelevantRules,
   buildNpcProfileContext,
   buildNpcRoleplaySystemPrompt,
