@@ -4,6 +4,7 @@
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
 import {
+  AlertCircle,
   Eye,
   Grid3x3,
   Hand,
@@ -72,6 +73,7 @@ export default function MapPanel({ user, isPopout = false }) {
   const [encounterBuilderResult, setEncounterBuilderResult] = useState(null);
   const [encounterBuilderProgress, setEncounterBuilderProgress] = useState("");
   const [loadError, setLoadError] = useState(null);
+  const [isCreatingMap, setIsCreatingMap] = useState(false);
 
   // Toolbar & View state
   const [tool, setTool] = useState("select"); // "select" (pan/token move), "draw-fog", "reveal-fog"
@@ -897,12 +899,22 @@ export default function MapPanel({ user, isPopout = false }) {
     applyZoomAt(zoom + amount, rect.left + rect.width / 2, rect.top + rect.height / 2);
   };
 
+  const handleCancelAddMap = () => {
+    setShowAddMapModal(false);
+    setNewMapName("");
+    setNewMapGridSize(50);
+    setNewMapFile(null);
+    setNewMapImagePath("");
+    setLoadError(null);
+  };
+
   const handleMapPresetSelect = (presetLabel) => {
     const preset = MAP_IMPORT_PRESETS.find((item) => item.label === presetLabel);
     if (!preset) return;
 
     setNewMapImagePath(preset.path);
     setNewMapGridSize(preset.gridSize);
+    setNewMapFile(null);
     if (!newMapName.trim()) {
       setNewMapName(preset.name);
     }
@@ -957,7 +969,10 @@ export default function MapPanel({ user, isPopout = false }) {
 
   const handleCreateMap = async (e) => {
     e.preventDefault();
-    if (!newMapName.trim()) return;
+    if (!newMapName.trim() || isCreatingMap) return;
+
+    setIsCreatingMap(true);
+    setLoadError(null);
 
     const submitMap = async (imageData = null) => {
       try {
@@ -979,6 +994,7 @@ export default function MapPanel({ user, isPopout = false }) {
           setNewMapName("");
           setNewMapFile(null);
           setNewMapImagePath("");
+          setLoadError(null);
           
           // Re-load list and auto-select newly made map
           await loadMaps(map.id);
@@ -995,6 +1011,8 @@ export default function MapPanel({ user, isPopout = false }) {
       } catch (err) {
         console.error("Failed to create map:", err);
         setLoadError("Failed to create map. Check server connection.");
+      } finally {
+        setIsCreatingMap(false);
       }
     };
 
@@ -1002,7 +1020,11 @@ export default function MapPanel({ user, isPopout = false }) {
       const reader = new FileReader();
       reader.readAsDataURL(newMapFile);
       reader.onload = () => submitMap(reader.result);
-      reader.onerror = () => console.error("Failed to read map image file.");
+      reader.onerror = () => {
+        console.error("Failed to read map image file.");
+        setLoadError("Failed to read the selected image file.");
+        setIsCreatingMap(false);
+      };
     } else {
       await submitMap();
     }
@@ -1736,6 +1758,17 @@ export default function MapPanel({ user, isPopout = false }) {
           </span>
         </div>
       </header>
+
+      {/* Global error banner */}
+      {loadError && !showAddMapModal && (
+        <div style={styles.errorBanner}>
+          <AlertCircle size={16} />
+          <span>{loadError}</span>
+          <button onClick={() => setLoadError(null)} style={styles.errorDismiss} className="touch-target">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Main Grid/Map Arena Workspace */}
       <div 
@@ -2861,10 +2894,17 @@ export default function MapPanel({ user, isPopout = false }) {
                 />
               </div>
 
+              {loadError && (
+                <div style={styles.modalError}>
+                  <AlertCircle size={16} />
+                  <span>{loadError}</span>
+                </div>
+              )}
+
               <div style={styles.modalActions}>
                 <button
                   type="button"
-                  onClick={() => setShowAddMapModal(false)}
+                  onClick={handleCancelAddMap}
                   style={styles.btnCancel}
                   className="touch-target"
                 >
@@ -2874,9 +2914,9 @@ export default function MapPanel({ user, isPopout = false }) {
                   type="submit"
                   style={styles.btnSubmit}
                   className="touch-target btn-hover-scale"
-                  disabled={!newMapName.trim()}
+                  disabled={!newMapName.trim() || isCreatingMap}
                 >
-                  Create Map
+                  {isCreatingMap ? "Creating..." : "Create Map"}
                 </button>
               </div>
             </form>
@@ -3097,6 +3137,31 @@ const styles = {
     height: "100%",
     padding: "0.75rem",
     gap: "0.75rem",
+  },
+  errorBanner: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    padding: "0.5rem 0.75rem",
+    background: "rgba(235, 87, 87, 0.12)",
+    border: "1px solid var(--color-danger)",
+    borderRadius: "6px",
+    color: "var(--color-danger)",
+    fontSize: "0.8rem",
+    flexShrink: 0,
+  },
+  errorDismiss: {
+    marginLeft: "auto",
+    background: "none",
+    border: "none",
+    color: "var(--color-danger)",
+    cursor: "pointer",
+    padding: "0.25rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: "28px",
+    minHeight: "28px",
   },
   tokenTypeSelector: {
     display: "flex",
@@ -3381,6 +3446,17 @@ const styles = {
   fileInput: {
     fontSize: "0.8rem",
     color: "var(--color-text)",
+  },
+  modalError: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    padding: "0.5rem 0.75rem",
+    background: "rgba(235, 87, 87, 0.12)",
+    border: "1px solid var(--color-danger)",
+    borderRadius: "6px",
+    color: "var(--color-danger)",
+    fontSize: "0.8rem",
   },
   modalActions: {
     display: "flex",

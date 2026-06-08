@@ -193,6 +193,61 @@ const uploadsPath = path.join(__dirname, "../uploads");
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
 }
+
+// Generate placeholder map image if it doesn't exist
+const placeholderPath = path.join(uploadsPath, "placeholder_map.png");
+if (!fs.existsSync(placeholderPath)) {
+  try {
+    // Simple 400x400 dark grid PNG
+    const width = 400, height = 400;
+    const pixels = [];
+    for (let y = 0; y < height; y++) {
+      const row = Buffer.alloc(width * 4);
+      for (let x = 0; x < width; x++) {
+        const off = x * 4;
+        // Dark background
+        row[off] = 30; row[off+1] = 28; row[off+2] = 40; row[off+3] = 255;
+        // Grid lines every 50px
+        if (x % 50 < 2 || y % 50 < 2) {
+          row[off] = 60; row[off+1] = 55; row[off+2] = 80;
+        }
+        // Gold crosshair in center
+        const cx = width / 2, cy = height / 2;
+        if (Math.abs(x - cx) < 3 || Math.abs(y - cy) < 3) {
+          row[off] = 200; row[off+1] = 151; row[off+2] = 58;
+        }
+      }
+      pixels.push(row);
+    }
+
+    // Build PNG manually (no dependencies needed)
+    function pngChunk(type, data) {
+      const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+      const c = Buffer.concat([Buffer.from(type), data]);
+      const crc = Buffer.alloc(4); crc.writeUInt32BE(require("zlib").crc32(c) >>> 0);
+      return Buffer.concat([len, c, crc]);
+    }
+
+    const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const ihdrData = Buffer.alloc(13);
+    ihdrData.writeUInt32BE(width, 0);
+    ihdrData.writeUInt32BE(height, 4);
+    ihdrData[8] = 8;  // bit depth
+    ihdrData[9] = 6;  // RGBA
+    ihdrData[10] = 0; ihdrData[11] = 0; ihdrData[12] = 0;
+    const ihdr = pngChunk("IHDR", ihdrData);
+
+    const raw = Buffer.concat(pixels.map(r => Buffer.concat([Buffer.from([0]), r])));
+    const idat = pngChunk("IDAT", require("zlib").deflateSync(raw));
+    const iend = pngChunk("IEND", Buffer.alloc(0));
+
+    fs.writeFileSync(placeholderPath, Buffer.concat([sig, ihdr, idat, iend]));
+    logger.info("http", "Generated placeholder map image", { path: placeholderPath });
+  } catch (err) {
+    logger.warn("http", "Failed to generate placeholder map image", { error: err.message });
+  }
+}
+
 app.use("/uploads", express.static(uploadsPath));
 
 // Serve 5etools images repository statically. Local dev keeps it at repo root;
