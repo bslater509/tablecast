@@ -4,7 +4,11 @@
     "oh-my-opencode-slim",
     "composio",
     "opencode-supermemory",
-    "opencode-pty"
+    "opencode-pty",
+    "@tarquinen/opencode-dcp",
+    "opencode-skills-collection",
+    "opencode-snip",
+    "opencode-notify"
   ],
   "agent": {
     "explore": {
@@ -14,6 +18,24 @@
   "permission": {
     "edit": "allow",
     "bash": "allow"
+  },
+  "lsp": {
+    "typescript": {
+      "command": ["typescript-language-server", "--stdio"],
+      "extensions": ["js", "jsx", "ts", "tsx", "mjs", "cjs"]
+    },
+    "tailwindcss": {
+      "command": ["tailwindcss-language-server", "--stdio"],
+      "extensions": ["css", "jsx", "tsx"]
+    },
+    "json": {
+      "command": ["vscode-json-language-server", "--stdio"],
+      "extensions": ["json", "jsonc"]
+    },
+    "css": {
+      "command": ["vscode-css-language-server", "--stdio"],
+      "extensions": ["css"]
+    }
   },
   "mcp": {
     "puppeteer": {
