@@ -20,10 +20,57 @@ This document defines the specialized agent roles and system prompts to be used 
 * **Git Version Control & Deployment Trigger:** Always push all changes to the repository, even if the changes were not originally made by the agent itself. Pushing is required to trigger the webhook and deploy the live changes. When finished with a task, there should be no uncommitted or unpushed changes left in the workspace.
 * **No 5etools Repository Modifications:** Do not create, modify, or place any files in the 5etools repository folders (`5etoolsimg/`, `5etoolssrc/`). Any files or changes created in these directories that are not part of the official repositories must be deleted.
 
+## Logging & Debugging Infrastructure
 
+The server has a structured logging and debugging system designed to help AI agents self-diagnose.
 
+### Structured JSON Logger (`server/src/utils/logger.js`)
+- **Usage:** `const logger = require("../utils/logger")` → `logger.info(ns, msg, meta)`, `logger.error(ns, msg, meta)`, etc.
+- **Namespaces** (`ns`): Use dotted hierarchies like `"http"`, `"socket"`, `"ai:chat"`, `"mcp"`, `"auth"`.
+- **Output:** Every call produces a single JSON line on stdout (info/warn/debug) or stderr (error).
+- **Control:** Set `LOG_LEVEL` env var — `silent` | `error` | `warn` | `info` (default) | `debug`.
+- **Legacy DEBUG env:** The older `DEBUG=tablecast:*` namespace logger (`server/src/utils/debug.js`) still works alongside the new logger.
+- **Migration:** When editing server code, prefer `logger.info/error/warn/debug` over `console.log/error`.
+
+### Request ID Middleware
+- Every HTTP request gets a unique `req.id` (8-char hex via `crypto.randomUUID()`).
+- Log lines for the same request can be correlated by including `reqId: req.id` in the meta object.
+
+### Morgan HTTP Logging
+- All HTTP requests are logged as structured JSON via `morgan` with method, URL, status code, and response time.
+- Output goes through the structured logger under namespace `"http"`.
+
+### Centralized Error Handler (`server/src/index.js`)
+- Use `throw new AppError(statusCode, message)` in routes to produce consistent JSON error responses.
+- 500 errors include stack traces in the log; 4xx errors do not.
+- The error middleware logs via `logger.error("http:error", ...)` with `reqId`, `status`, `error`, and `stack`.
+
+### Debug Endpoints (all require DM auth via `x-tablecast-user-id: 1`)
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/debug` | Full server health: uptime, memory, DB status, entity counts, reference cache, active SSE transports |
+| `GET /api/debug/mcp-logs?limit=50&tool=` | Recent MCP tool call audit trail from the `mcp_logs` table |
+| `GET /api/debug/ai-logs?limit=50&operation=` | Recent AI response history from the `ai_response_logs` table (raw LLM output included) |
+| `GET /api/ai/debug` | AI subsystem state: provider, model, API key status, response log stats, conversation counts, active SSE transports |
+
+### Prisma Audit Models
+
+**`mcp_logs`** — Every MCP tool invocation is persisted automatically:
+- `tool`, `arguments` (JSON), `result` (JSON), `isError`, `createdAt`
+- Indexed by `tool` and `createdAt` for efficient querying.
+
+**`ai_response_logs`** — Every AI API call (via `performAiCall`) is persisted automatically:
+- `operation`, `prompt` (first 5000 chars), `rawReply` (first 10000 chars), `parsedOk`, `errorMsg`, `durationMs`, `createdAt`
+- Indexed by `operation`, `parsedOk`, and `createdAt`.
+- Use this to debug LLM output issues: find failed parses with `WHERE parsedOk = false`.
+
+### MCP SSE Heartbeat
+- Active MCP SSE transport sessions log a `debug`-level heartbeat every 60s via namespace `"mcp:sse:heartbeat"`.
+- Includes `sessionId`, `ageMs`, and `ageSeconds` to detect stale connections.
 
 ---
+
 
 ## Agent Roles
 
