@@ -94,7 +94,7 @@ const toJsonObjectString = (value, fieldName, fallback = {}) => {
 };
 
 const VALID_ENCOUNTER_STATUSES = new Set(["DRAFT", "ACTIVE", "COMPLETE"]);
-const VALID_SESSION_STATUSES = new Set(["PLANNED", "ACTIVE", "COMPLETE"]);
+const VALID_SESSION_STATUSES = new Set(["PLANNED", "ACTIVE", "COMPLETED"]);
 
 // Tool schemas definition
 const TOOLS = [
@@ -595,7 +595,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        status: { type: "string", enum: ["PLANNED", "ACTIVE", "COMPLETE"], description: "Filter by status." },
+        status: { type: "string", enum: ["PLANNED", "ACTIVE", "COMPLETED"], description: "Filter by status." },
       },
     },
   },
@@ -607,7 +607,7 @@ const TOOLS = [
       properties: {
         title: { type: "string", description: "Session title." },
         sessionNumber: { type: "number", description: "Session number." },
-        status: { type: "string", enum: ["PLANNED", "ACTIVE", "COMPLETE"], description: "Session status (default: PLANNED)." },
+        status: { type: "string", enum: ["PLANNED", "ACTIVE", "COMPLETED"], description: "Session status (default: PLANNED)." },
         scheduledFor: { type: "string", description: "ISO date string." },
         agenda: { type: "string" },
         recap: { type: "string" },
@@ -625,7 +625,7 @@ const TOOLS = [
         id: { type: "number", description: "Session ID to update." },
         title: { type: "string" },
         sessionNumber: { type: "number" },
-        status: { type: "string", enum: ["PLANNED", "ACTIVE", "COMPLETE"] },
+        status: { type: "string", enum: ["PLANNED", "ACTIVE", "COMPLETED"] },
         scheduledFor: { type: "string" },
         agenda: { type: "string" },
         recap: { type: "string" },
@@ -1763,7 +1763,7 @@ function registerHandlers(srv) {
         if (args.status !== undefined) {
           const status = String(args.status).toUpperCase();
           if (!VALID_SESSION_STATUSES.has(status)) {
-            throw new Error("Session status must be PLANNED, ACTIVE, or COMPLETE.");
+            throw new Error("Session status must be PLANNED, ACTIVE, or COMPLETED.");
           }
           filter.status = status;
         }
@@ -1807,7 +1807,7 @@ function registerHandlers(srv) {
 
         const nextStatus = status ? String(status).toUpperCase() : "PLANNED";
         if (!VALID_SESSION_STATUSES.has(nextStatus)) {
-          throw new Error("Session status must be PLANNED, ACTIVE, or COMPLETE.");
+          throw new Error("Session status must be PLANNED, ACTIVE, or COMPLETED.");
         }
 
         const data = {
@@ -1900,7 +1900,7 @@ function registerHandlers(srv) {
         if (status !== undefined) {
           const nextStatus = String(status).toUpperCase();
           if (!VALID_SESSION_STATUSES.has(nextStatus)) {
-            throw new Error("Session status must be PLANNED, ACTIVE, or COMPLETE.");
+            throw new Error("Session status must be PLANNED, ACTIVE, or COMPLETED.");
           }
           data.status = nextStatus;
         }
@@ -1942,7 +1942,7 @@ function registerHandlers(srv) {
         if (data.status === "ACTIVE") {
           await prisma.gameSession.updateMany({
             where: { status: "ACTIVE", id: { not: sessionId } },
-            data: { status: "COMPLETE" },
+            data: { status: "COMPLETED" },
           });
         }
 
