@@ -6,6 +6,8 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
+const debug = require("../utils/debug");
+const log = debug("tablecast:routes:rolls");
 
 const router = Router();
 
@@ -14,10 +16,12 @@ const router = Router();
 // ---------------------------------------------------------------------------
 router.get("/", async (_req, res) => {
   try {
+    log("GET /api/rolls — fetching latest 50 rolls");
     const rolls = await prisma.roll.findMany({
       orderBy: { createdAt: "desc" },
       take: 50,
     });
+    log("GET /api/rolls — returning %d rolls", rolls.length);
     res.json(rolls);
   } catch (err) {
     console.error("[API] GET /api/rolls error:", err.message);

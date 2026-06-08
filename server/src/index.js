@@ -11,6 +11,8 @@ const cors = require("cors");
 const path = require("path");
 const { Server: SocketServer } = require("socket.io");
 const { registerSocketHandlers } = require("./socket");
+const debug = require("./utils/debug");
+const log = debug("tablecast:index");
 
 // ---------------------------------------------------------------------------
 // Express app
@@ -36,6 +38,13 @@ app.use(
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// Debug: log incoming API requests when DEBUG=tablecast:http
+const httpLog = debug("tablecast:http");
+app.use((req, _res, next) => {
+  httpLog("%s %s", req.method, req.path);
+  next();
+});
 
 // ---------------------------------------------------------------------------
 // HTTP server  shared between Express & Socket.io
@@ -67,6 +76,7 @@ registerSocketHandlers(io);
 
 // Health check  confirms the server is alive
 app.get("/api/health", (_req, res) => {
+  log("Health check — clients connected: %d", io.engine.clientsCount);
   res.json({
     status: "ok",
     service: "tablecast",
@@ -87,6 +97,7 @@ app.get("/api/network-ip", (_req, res) => {
       }
     }
   }
+  log("Network IPs requested — found %d non-internal IPv4 address(es)", ips.length);
   res.json({ ips });
 });
 
@@ -152,6 +163,7 @@ app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api/")) {
     return next();
   }
+  log("SPA fallback — serving index.html for: %s", req.path);
   res.sendFile(path.join(clientDist, "index.html"));
 });
 
@@ -162,6 +174,8 @@ server.listen(PORT, HOST, () => {
   console.log(`[Tablecast]   Server running at http://${HOST}:${PORT}`);
   console.log(`[Tablecast]  Health check:    http://${HOST}:${PORT}/api/health`);
   console.log(`[Tablecast]  Socket.io ready  awaiting connections`);
+  log("Debug logging enabled — DEBUG=%s", process.env.DEBUG || "(none)");
+  log("Node environment: %s | Port: %d", process.env.NODE_ENV || "development", PORT);
 
   // Initialize rclone config file from DB
   const { initRcloneConfig } = require("./utils/backup");

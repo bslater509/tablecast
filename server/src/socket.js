@@ -3,6 +3,8 @@
 const prisma = require("./prisma");
 const { isDmUser } = require("./auth");
 const { performAiCall, performAiStream, findRelevantRules, buildNpcRoleplaySystemPrompt, loadAiSettings } = require("./routes/ai");
+const debug = require("./utils/debug");
+const log = debug("tablecast:socket");
 
 const MAX_COORDINATE = 10000;
 const MAX_FOG_POLYGONS = 200;
@@ -12,6 +14,7 @@ function registerSocketHandlers(io) {
   io.on("connection", (socket) => {
     const clientId = socket.id;
     console.log(`[Socket] Client connected: ${clientId}`);
+    log("connection — clientId=%s transport=%s", clientId, socket.conn.transport.name);
 
     io.emit("chat:message", {
       id: generateId(),
@@ -23,8 +26,10 @@ function registerSocketHandlers(io) {
 
     socket.on("chat:send", async (payload) => {
       if (!payload || typeof payload.text !== "string" || !payload.text.trim()) {
+        log("chat:send — rejected (invalid payload from %s)", clientId);
         return;
       }
+      log("chat:send — sender=%s type=%s text_len=%d", payload.sender, payload.type, payload.text?.length);
 
       const rawText = payload.text.trim();
       let message = {
@@ -42,6 +47,7 @@ function registerSocketHandlers(io) {
       if (message.type === "roll" && message.rollDetails) {
         try {
           const rd = message.rollDetails;
+          log("chat:send — persisting roll formula=%s total=%d", rd.formula, rd.total);
           await prisma.roll.create({
             data: {
               sender: message.sender,
@@ -177,6 +183,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
     });
 
     socket.on("chat:typing", (payload) => {
+      log("chat:typing — sender=%s", payload?.sender);
       socket.broadcast.emit("chat:typing", {
         sender: sanitizeShortText(payload?.sender, "Someone"),
       });
@@ -185,7 +192,11 @@ Keep your answer clear, concise, and formatted in Markdown.`;
     socket.on("token:move", async (payload) => {
       try {
         const parsed = validateTokenMovePayload(payload);
-        if (!parsed.ok) return emitSocketError(socket, "token:move", parsed.error);
+        if (!parsed.ok) {
+          log("token:move — validation failed: %s", parsed.error);
+          return emitSocketError(socket, "token:move", parsed.error);
+        }
+        log("token:move — id=%d x=%d y=%d userId=%d", parsed.value.id, payload.x, payload.y, parsed.value.userId);
 
         const token = await prisma.token.findUnique({
           where: { id: parsed.value.id },
@@ -214,8 +225,12 @@ Keep your answer clear, concise, and formatted in Markdown.`;
       try {
         if (payload?.id) {
           const parsed = validateIdPayload(payload, "id");
-          if (!parsed.ok) return emitSocketError(socket, "token:create", parsed.error);
+          if (!parsed.ok) {
+            log("token:create — validation failed: %s", parsed.error);
+            return emitSocketError(socket, "token:create", parsed.error);
+          }
           if (!(await isDmUser(parsed.value.userId))) {
+            log("token:create — rejected (not DM) userId=%d", parsed.value.userId);
             return emitSocketError(socket, "token:create", "DM privileges are required.");
           }
 
@@ -224,15 +239,21 @@ Keep your answer clear, concise, and formatted in Markdown.`;
             include: { character: true, npc: true, monster: true },
           });
           if (!token) return emitSocketError(socket, "token:create", "Token not found.");
+          log("token:create — broadcasting existing token id=%d", token.id);
           io.emit("token:created", token);
           return;
         }
 
         const parsed = validateTokenCreatePayload(payload);
-        if (!parsed.ok) return emitSocketError(socket, "token:create", parsed.error);
+        if (!parsed.ok) {
+          log("token:create — validation failed: %s", parsed.error);
+          return emitSocketError(socket, "token:create", parsed.error);
+        }
         if (!(await isDmUser(parsed.value.userId))) {
+          log("token:create — rejected (not DM) userId=%d", parsed.value.userId);
           return emitSocketError(socket, "token:create", "DM privileges are required.");
         }
+        log("token:create — creating label=%s mapId=%d", parsed.value.label, parsed.value.mapId);
 
         const data = {
           mapId: parsed.value.mapId,
@@ -265,16 +286,22 @@ Keep your answer clear, concise, and formatted in Markdown.`;
     socket.on("token:delete", async (payload) => {
       try {
         const parsed = validateIdPayload(payload, "id");
-        if (!parsed.ok) return emitSocketError(socket, "token:delete", parsed.error);
+        if (!parsed.ok) {
+          log("token:delete — validation failed: %s", parsed.error);
+          return emitSocketError(socket, "token:delete", parsed.error);
+        }
         if (!(await isDmUser(parsed.value.userId))) {
+          log("token:delete — rejected (not DM) userId=%d", parsed.value.userId);
           return emitSocketError(socket, "token:delete", "DM privileges are required.");
         }
 
         if (payload.broadcastOnly === true) {
+          log("token:delete — broadcast only id=%d", parsed.value.id);
           io.emit("token:deleted", { id: parsed.value.id });
           return;
         }
 
+        log("token:delete — removing id=%d", parsed.value.id);
         await prisma.token.delete({
           where: { id: parsed.value.id },
         });
@@ -287,10 +314,15 @@ Keep your answer clear, concise, and formatted in Markdown.`;
     socket.on("fog:update", async (payload) => {
       try {
         const parsed = validateFogPayload(payload);
-        if (!parsed.ok) return emitSocketError(socket, "fog:update", parsed.error);
+        if (!parsed.ok) {
+          log("fog:update — validation failed: %s", parsed.error);
+          return emitSocketError(socket, "fog:update", parsed.error);
+        }
         if (!(await isDmUser(parsed.value.userId))) {
+          log("fog:update — rejected (not DM) userId=%d", parsed.value.userId);
           return emitSocketError(socket, "fog:update", "DM privileges are required.");
         }
+        log("fog:update — mapId=%d polygons=%d", parsed.value.mapId, parsed.value.fogState?.length);
 
         const updatedMap = await prisma.map.update({
           where: { id: parsed.value.mapId },
@@ -308,10 +340,15 @@ Keep your answer clear, concise, and formatted in Markdown.`;
     socket.on("map:select", async (payload) => {
       try {
         const parsed = validateIdPayload(payload, "mapId");
-        if (!parsed.ok) return emitSocketError(socket, "map:select", parsed.error);
+        if (!parsed.ok) {
+          log("map:select — validation failed: %s", parsed.error);
+          return emitSocketError(socket, "map:select", parsed.error);
+        }
         if (!(await isDmUser(parsed.value.userId))) {
+          log("map:select — rejected (not DM) userId=%d", parsed.value.userId);
           return emitSocketError(socket, "map:select", "DM privileges are required.");
         }
+        log("map:select — mapId=%d", parsed.value.mapId);
         io.emit("map:selected", { mapId: parsed.value.mapId });
       } catch (err) {
         console.error("[Socket] Error selecting map:", err.message);
@@ -321,10 +358,15 @@ Keep your answer clear, concise, and formatted in Markdown.`;
     socket.on("map:delete", async (payload) => {
       try {
         const parsed = validateIdPayload(payload, "mapId");
-        if (!parsed.ok) return emitSocketError(socket, "map:delete", parsed.error);
+        if (!parsed.ok) {
+          log("map:delete — validation failed: %s", parsed.error);
+          return emitSocketError(socket, "map:delete", parsed.error);
+        }
         if (!(await isDmUser(parsed.value.userId))) {
+          log("map:delete — rejected (not DM) userId=%d", parsed.value.userId);
           return emitSocketError(socket, "map:delete", "DM privileges are required.");
         }
+        log("map:delete — mapId=%d", parsed.value.mapId);
         io.emit("map:deleted", { mapId: parsed.value.mapId });
       } catch (err) {
         console.error("[Socket] Error broadcasting map deletion:", err.message);
@@ -334,7 +376,11 @@ Keep your answer clear, concise, and formatted in Markdown.`;
     socket.on("encounter:refresh", async (payload) => {
       try {
         const parsed = validateIdPayload(payload, "encounterId");
-        if (!parsed.ok) return emitSocketError(socket, "encounter:refresh", parsed.error);
+        if (!parsed.ok) {
+          log("encounter:refresh — validation failed: %s", parsed.error);
+          return emitSocketError(socket, "encounter:refresh", parsed.error);
+        }
+        log("encounter:refresh — encounterId=%d", parsed.value.encounterId);
 
         const encounter = await prisma.encounter.findUnique({
           where: { id: parsed.value.encounterId },
@@ -357,7 +403,11 @@ Keep your answer clear, concise, and formatted in Markdown.`;
     socket.on("encounter:turn", async (payload) => {
       try {
         const parsed = validateIdPayload(payload, "encounterId");
-        if (!parsed.ok) return emitSocketError(socket, "encounter:turn", parsed.error);
+        if (!parsed.ok) {
+          log("encounter:turn — validation failed: %s", parsed.error);
+          return emitSocketError(socket, "encounter:turn", parsed.error);
+        }
+        log("encounter:turn — encounterId=%d", parsed.value.encounterId);
 
         const encounter = await prisma.encounter.findUnique({
           where: { id: parsed.value.encounterId },
@@ -379,6 +429,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
 
     socket.on("disconnect", (reason) => {
       console.log(`[Socket] Client disconnected: ${clientId} (${reason})`);
+      log("disconnect — clientId=%s reason=%s", clientId, reason);
 
       io.emit("chat:message", {
         id: generateId(),
@@ -391,6 +442,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
 
     socket.on("error", (err) => {
       console.error("[Socket] Client socket error:", typeof err === "string" ? err : err?.message || "Unknown error");
+      log("error — clientId=%s error=%s", clientId, typeof err === "string" ? err : err?.message || "Unknown error");
     });
   });
 }

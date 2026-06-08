@@ -1,11 +1,15 @@
 "use strict";
 
 const prisma = require("./prisma");
+const debug = require("./utils/debug");
+const log = debug("tablecast:auth");
 
 function getUserId(req) {
   const raw = req.get("x-tablecast-user-id");
   const id = Number(raw);
-  return Number.isInteger(id) && id > 0 ? id : null;
+  const result = Number.isInteger(id) && id > 0 ? id : null;
+  log("getUserId — raw=%s resolved=%s", raw, result);
+  return result;
 }
 
 async function getRequestUser(req) {
@@ -22,14 +26,17 @@ async function requireDm(req, res, next) {
   try {
     const user = await getRequestUser(req);
     if (!user) {
+      log("requireDm — no valid user (401)");
       return res.status(401).json({ error: "A valid user is required." });
     }
 
     if (user.role !== "DM") {
+      log("requireDm — user=%d role=%s (403)", user.id, user.role);
       return res.status(403).json({ error: "DM privileges are required." });
     }
 
     req.tablecastUser = user;
+    log("requireDm — user=%d authorized as DM", user.id);
     next();
   } catch (err) {
     console.error("[Auth] Failed to verify user:", err.message);
@@ -40,13 +47,18 @@ async function requireDm(req, res, next) {
 async function isDmUser(userId) {
   try {
     const id = Number(userId);
-    if (!Number.isInteger(id) || id <= 0) return false;
+    if (!Number.isInteger(id) || id <= 0) {
+      log("isDmUser — invalid userId=%s -> false", userId);
+      return false;
+    }
 
     const user = await prisma.user.findUnique({
       where: { id },
       select: { role: true },
     });
-    return user?.role === "DM";
+    const result = user?.role === "DM";
+    log("isDmUser — userId=%d role=%s -> %s", id, user?.role || "N/A", result);
+    return result;
   } catch (err) {
     console.error("[Auth] isDmUser error:", err.message);
     return false;
