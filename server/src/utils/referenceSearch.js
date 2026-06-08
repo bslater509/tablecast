@@ -174,10 +174,9 @@ function loadSingleFromCache(filename, arrayKey) {
 // ---------------------------------------------------------------------------
 function getSpells() {
   if (cache.spells) return cache.spells;
-  // Scan cache for all spell- prefixed files (spells-phb, spells-xge, etc.)
-  cache.spells = loadAllFromCache("data_spells_spells-", "spell");
+  cache.spells = loadAllFromCache("spells_spells-", "spell");
   if (!cache.spells.length) {
-    cache.spells = loadSingleFromCache("data_spells_spells-phb.json", "spell");
+    cache.spells = loadSingleFromCache("spells_spells-phb.json", "spell");
   }
   console.log(`[ReferenceSearch] Loaded ${cache.spells.length} spells from cache.`);
   return cache.spells;
@@ -185,9 +184,9 @@ function getSpells() {
 
 function getMonsters() {
   if (cache.monsters) return cache.monsters;
-  cache.monsters = loadAllFromCache("data_bestiary_bestiary-", "monster");
+  cache.monsters = loadAllFromCache("bestiary_bestiary-", "monster");
   if (!cache.monsters.length) {
-    cache.monsters = loadSingleFromCache("data_bestiary_bestiary-mm.json", "monster");
+    cache.monsters = loadSingleFromCache("bestiary_bestiary-mm.json", "monster");
   }
   console.log(`[ReferenceSearch] Loaded ${cache.monsters.length} monsters from cache.`);
   return cache.monsters;
@@ -195,9 +194,9 @@ function getMonsters() {
 
 function getMonsterFluff() {
   if (cache.monsterFluff) return cache.monsterFluff;
-  cache.monsterFluff = loadAllFromCache("data_bestiary_fluff-bestiary-", "monsterFluff");
+  cache.monsterFluff = loadAllFromCache("bestiary_fluff-bestiary-", "monsterFluff");
   if (!cache.monsterFluff.length) {
-    cache.monsterFluff = loadSingleFromCache("data_bestiary_fluff-bestiary-mm.json", "monsterFluff");
+    cache.monsterFluff = loadSingleFromCache("bestiary_fluff-bestiary-mm.json", "monsterFluff");
   }
   console.log(`[ReferenceSearch] Loaded ${cache.monsterFluff.length} monster fluff entries from cache.`);
   return cache.monsterFluff;
@@ -205,9 +204,9 @@ function getMonsterFluff() {
 
 function getItems() {
   if (cache.items) return cache.items;
-  cache.items = loadSingleFromCache("data_items.json", "item");
+  cache.items = loadSingleFromCache("items.json", "item");
   if (!cache.items.length) {
-    cache.items = loadSingleFromCache("data_items.json", "item");
+    cache.items = loadSingleFromCache("items.json", "item");
   }
   console.log(`[ReferenceSearch] Loaded ${cache.items.length} items from cache.`);
   return cache.items;
@@ -215,16 +214,16 @@ function getItems() {
 
 function getRaces() {
   if (cache.races) return cache.races;
-  cache.races = loadSingleFromCache("data_races.json", "race");
+  cache.races = loadSingleFromCache("races.json", "race");
   console.log(`[ReferenceSearch] Loaded ${cache.races.length} races from cache.`);
   return cache.races;
 }
 
 function getClasses() {
   if (cache.classes) return cache.classes;
-  cache.classes = loadAllFromCache("data_class_class-", "class");
+  cache.classes = loadAllFromCache("class_class-", "class");
   if (!cache.classes.length) {
-    cache.classes = loadSingleFromCache("data_class_class-barbarian.json", "class");
+    cache.classes = loadSingleFromCache("class_class-barbarian.json", "class");
   }
   console.log(`[ReferenceSearch] Loaded ${cache.classes.length} classes from cache.`);
   return cache.classes;
@@ -232,10 +231,7 @@ function getClasses() {
 
 function getRules() {
   if (cache.rules) return cache.rules;
-  cache.rules = loadSingleFromCache("data_rules.json", "rules");
-  if (!cache.rules.length) {
-    cache.rules = loadSingleFromCache("data_actions.json", "action");
-  }
+  cache.rules = loadSingleFromCache("actions.json", "action");
   console.log(`[ReferenceSearch] Loaded ${cache.rules.length} rules/actions from cache.`);
   return cache.rules;
 }
