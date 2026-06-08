@@ -6,6 +6,7 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
+const { getRequestUser } = require("../auth");
 const debug = require("../utils/debug");
 const logger = require("../utils/logger");
 const log = debug("tablecast:routes:rolls");
@@ -15,8 +16,13 @@ const router = Router();
 // ---------------------------------------------------------------------------
 // GET /api/rolls  list latest 50 rolls
 // ---------------------------------------------------------------------------
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
+    const user = await getRequestUser(req);
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
     log("GET /api/rolls — fetching latest 50 rolls");
     const rolls = await prisma.roll.findMany({
       orderBy: { createdAt: "desc" },

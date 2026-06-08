@@ -122,7 +122,7 @@ function withReferenceInfo(item, category, allowedSources) {
 // ---------------------------------------------------------------------------
 // GET /api/reference/status  Retrieve repository and sync status
 // ---------------------------------------------------------------------------
-router.get("/status", async (req, res) => {
+router.get("/status", requireDm, async (req, res) => {
   try {
     const status = referenceSync.getStatus();
     const allowedSources = await getAllowedSources();
@@ -136,7 +136,7 @@ router.get("/status", async (req, res) => {
 // ---------------------------------------------------------------------------
 // GET /api/reference/settings  Retrieve DM-controlled source filters
 // ---------------------------------------------------------------------------
-router.get("/settings", async (req, res) => {
+router.get("/settings", requireDm, async (req, res) => {
   try {
     const allowedSources = await getAllowedSources();
     const availableSources = referenceSearch.listAvailableSources();
@@ -448,13 +448,17 @@ async function copyReferenceImage(sourceUrl) {
   
   let srcFilePath = "";
   for (const root of imgRoots) {
-    const fullPath = path.join(root, cleanPath);
+    const fullPath = path.resolve(root, cleanPath);
+    // Guard against path traversal
+    if (!fullPath.startsWith(path.resolve(root) + path.sep) && fullPath !== path.resolve(root)) {
+      continue;
+    }
     if (fs.existsSync(fullPath)) {
       srcFilePath = fullPath;
       break;
     }
   }
-  
+
   if (!srcFilePath) return "";
   
   const ext = path.extname(srcFilePath);

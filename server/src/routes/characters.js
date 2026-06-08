@@ -56,13 +56,26 @@ function isValidJson(value) {
 // ---------------------------------------------------------------------------
 router.get("/", async (req, res) => {
   try {
+    const reqUser = await getRequestUser(req);
+    if (!reqUser) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const isDM = reqUser.role === "DM";
     const where = {};
     if (req.query.userId) {
       const uId = Number(req.query.userId);
       if (isNaN(uId)) {
         return res.status(400).json({ error: "userId query parameter must be a valid number." });
       }
+      // Non-DM can only filter their own characters
+      if (!isDM && uId !== reqUser.id) {
+        return res.status(403).json({ error: "You are not authorized to view other users' characters." });
+      }
       where.userId = uId;
+    } else if (!isDM) {
+      // Non-DM sees only their own characters by default
+      where.userId = reqUser.id;
     }
 
     const characters = await prisma.character.findMany({
@@ -71,7 +84,15 @@ router.get("/", async (req, res) => {
       include: { user: { select: { id: true, username: true, role: true } } },
     });
 
-    res.json(characters);
+    // Strip sensitive fields for non-owners
+    const result = characters.map((c) => {
+      const isOwner = c.userId === reqUser.id;
+      if (isOwner || isDM) return c;
+      const { inventory, modifiers, spells, spellSlots, ...safe } = c;
+      return safe;
+    });
+
+    res.json(result);
   } catch (err) {
     logger.error("api:route", "Error in GET /api/characters", { error: err.message });
     res.status(500).json({ error: "Failed to fetch characters." });
@@ -88,6 +109,11 @@ router.get("/:id", async (req, res) => {
       return res.status(400).json({ error: "id must be a valid number." });
     }
 
+    const reqUser = await getRequestUser(req);
+    if (!reqUser) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
     const character = await prisma.character.findUnique({
       where: { id },
       include: { user: { select: { id: true, username: true, role: true } } },
@@ -95,6 +121,20 @@ router.get("/:id", async (req, res) => {
 
     if (!character) {
       return res.status(404).json({ error: "Character not found." });
+    }
+
+    const isDM = reqUser.role === "DM";
+    const isOwner = character.userId === reqUser.id;
+    if (!isDM && !isOwner) {
+      return res.status(403).json({ error: "You are not authorized to view this character." });
+    }
+
+    // Strip sensitive fields for non-owners
+    if (!isOwner && isDM) {
+      // DM sees all
+    } else if (!isOwner) {
+      const { inventory, modifiers, spells, spellSlots, ...safe } = character;
+      return res.json(safe);
     }
 
     res.json(character);

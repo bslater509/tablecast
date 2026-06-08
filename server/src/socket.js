@@ -1,7 +1,6 @@
 "use strict";
 
 const prisma = require("./prisma");
-const { isDmUser } = require("./auth");
 const { performAiCall, performAiStream, performAiStreamTokens, findRelevantRules, buildNpcRoleplaySystemPrompt, loadAiSettings } = require("./routes/ai");
 const { sanitizeText, sanitizeShortText } = require("./utils/sanitize");
 const debug = require("./utils/debug");
@@ -13,6 +12,30 @@ const MAX_FOG_POLYGONS = 200;
 const MAX_FOG_POINTS = 500;
 
 function registerSocketHandlers(io) {
+  // Auth middleware: authenticate via socket handshake
+  io.use(async (socket, next) => {
+    try {
+      const rawUserId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
+      if (rawUserId) {
+        const userId = Number(rawUserId);
+        if (Number.isInteger(userId) && userId > 0) {
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, username: true, role: true },
+          });
+          if (user) {
+            socket.data.user = user;
+            logger.info("socket:auth", "Socket authenticated", { userId: user.id, role: user.role });
+          }
+        }
+      }
+      next();
+    } catch (err) {
+      logger.error("socket:auth", "Auth middleware error", { error: err.message });
+      next(err);
+    }
+  });
+
   io.on("connection", (socket) => {
     const clientId = socket.id;
     logger.info("socket", "Client connected", { clientId });
@@ -36,7 +59,7 @@ function registerSocketHandlers(io) {
       const rawText = payload.text.trim();
       let message = {
         id: generateId(),
-        userId: sanitizeUserId(payload.userId),
+        userId: socket.data.user?.id ?? sanitizeUserId(payload.userId),
         sender: sanitizeShortText(payload.sender, "Anonymous"),
         text: rawText.slice(0, 2000),
         timestamp: Date.now(),
@@ -77,14 +100,8 @@ function registerSocketHandlers(io) {
 
       // --- Intercept AI Assistant Commands ---
       try {
-        // Fetch user from DB to evaluate role and permissions
-        let userObj = null;
-        if (message.userId) {
-          userObj = await prisma.user.findUnique({
-            where: { id: message.userId },
-            select: { role: true }
-          });
-        }
+        // Use authenticated user from socket middleware
+        const userObj = socket.data.user || null;
 
         // Load AI settings once for all AI commands
         const aiSettings = await loadAiSettings();
@@ -215,6 +232,15 @@ Keep your answer clear, concise, and formatted in Markdown.`;
             });
           }
 
+          // NPC visibility check: non-DM users can't roleplay hidden NPCs
+          if (!npc.isVisibleToPlayers && socket.data.user?.role !== "DM") {
+            return emitPersistedChatMessage(io, {
+              sender: "System",
+              text: `NPC '${npcName}' exists but is hidden from players.`,
+              type: "system"
+            });
+          }
+
           const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
 
           if (!provider) {
@@ -306,8 +332,8 @@ Keep your answer clear, concise, and formatted in Markdown.`;
         });
         if (!token) return emitSocketError(socket, "token:move", "Token not found.");
 
-        const isDm = await isDmUser(parsed.value.userId);
-        const isOwner = token.character?.userId === parsed.value.userId;
+        const isDm = socket.data.user?.role === "DM";
+        const isOwner = token.character?.userId === socket.data.user?.id;
         if (!isDm && !isOwner) {
           return emitSocketError(socket, "token:move", "You do not have permission to move this token.");
         }
@@ -331,8 +357,8 @@ Keep your answer clear, concise, and formatted in Markdown.`;
             log("token:create — validation failed: %s", parsed.error);
             return emitSocketError(socket, "token:create", parsed.error);
           }
-          if (!(await isDmUser(parsed.value.userId))) {
-            log("token:create — rejected (not DM) userId=%d", parsed.value.userId);
+          if (socket.data.user?.role !== "DM") {
+            log("token:create — rejected (not DM) userId=%d", socket.data.user?.id);
             return emitSocketError(socket, "token:create", "DM privileges are required.");
           }
 
@@ -351,8 +377,8 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           log("token:create — validation failed: %s", parsed.error);
           return emitSocketError(socket, "token:create", parsed.error);
         }
-        if (!(await isDmUser(parsed.value.userId))) {
-          log("token:create — rejected (not DM) userId=%d", parsed.value.userId);
+        if (socket.data.user?.role !== "DM") {
+          log("token:create — rejected (not DM) userId=%d", socket.data.user?.id);
           return emitSocketError(socket, "token:create", "DM privileges are required.");
         }
         log("token:create — creating label=%s mapId=%d", parsed.value.label, parsed.value.mapId);
@@ -392,8 +418,8 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           log("token:delete — validation failed: %s", parsed.error);
           return emitSocketError(socket, "token:delete", parsed.error);
         }
-        if (!(await isDmUser(parsed.value.userId))) {
-          log("token:delete — rejected (not DM) userId=%d", parsed.value.userId);
+        if (socket.data.user?.role !== "DM") {
+          log("token:delete — rejected (not DM) userId=%d", socket.data.user?.id);
           return emitSocketError(socket, "token:delete", "DM privileges are required.");
         }
 
@@ -420,8 +446,8 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           log("fog:update — validation failed: %s", parsed.error);
           return emitSocketError(socket, "fog:update", parsed.error);
         }
-        if (!(await isDmUser(parsed.value.userId))) {
-          log("fog:update — rejected (not DM) userId=%d", parsed.value.userId);
+        if (socket.data.user?.role !== "DM") {
+          log("fog:update — rejected (not DM) userId=%d", socket.data.user?.id);
           return emitSocketError(socket, "fog:update", "DM privileges are required.");
         }
         log("fog:update — mapId=%d polygons=%d", parsed.value.mapId, parsed.value.fogState?.length);
@@ -446,8 +472,8 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           log("map:select — validation failed: %s", parsed.error);
           return emitSocketError(socket, "map:select", parsed.error);
         }
-        if (!(await isDmUser(parsed.value.userId))) {
-          log("map:select — rejected (not DM) userId=%d", parsed.value.userId);
+        if (socket.data.user?.role !== "DM") {
+          log("map:select — rejected (not DM) userId=%d", socket.data.user?.id);
           return emitSocketError(socket, "map:select", "DM privileges are required.");
         }
         log("map:select — mapId=%d", parsed.value.mapId);
@@ -464,8 +490,8 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           log("map:delete — validation failed: %s", parsed.error);
           return emitSocketError(socket, "map:delete", parsed.error);
         }
-        if (!(await isDmUser(parsed.value.userId))) {
-          log("map:delete — rejected (not DM) userId=%d", parsed.value.userId);
+        if (socket.data.user?.role !== "DM") {
+          log("map:delete — rejected (not DM) userId=%d", socket.data.user?.id);
           return emitSocketError(socket, "map:delete", "DM privileges are required.");
         }
         log("map:delete — deleting map id=%d", parsed.value.mapId);
@@ -485,7 +511,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           log("encounter:refresh — validation failed: %s", parsed.error);
           return emitSocketError(socket, "encounter:refresh", parsed.error);
         }
-        if (!(await isDmUser(parsed.value.userId))) {
+        if (socket.data.user?.role !== "DM") {
           return emitSocketError(socket, "encounter:refresh", "DM privileges are required.");
         }
         log("encounter:refresh — encounterId=%d", parsed.value.encounterId);
@@ -515,7 +541,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           log("encounter:turn — validation failed: %s", parsed.error);
           return emitSocketError(socket, "encounter:turn", parsed.error);
         }
-        if (!(await isDmUser(parsed.value.userId))) {
+        if (socket.data.user?.role !== "DM") {
           return emitSocketError(socket, "encounter:turn", "DM privileges are required.");
         }
         log("encounter:turn — encounterId=%d", parsed.value.encounterId);

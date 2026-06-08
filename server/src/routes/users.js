@@ -10,7 +10,7 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
-const { getRequestUser } = require("../auth");
+const { getRequestUser, requireDm } = require("../auth");
 const logger = require("../utils/logger");
 
 const router = Router();
@@ -95,7 +95,7 @@ router.get("/:id", async (req, res) => {
 // POST /api/users  create a new user
 // Body: { username: string, role?: "DM" | "PLAYER" }
 // ---------------------------------------------------------------------------
-router.post("/", async (req, res) => {
+router.post("/", requireDm, async (req, res) => {
   try {
     const { username, role } = req.body;
 

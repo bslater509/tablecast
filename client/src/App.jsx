@@ -127,7 +127,7 @@ const DM_NAV_ITEMS = [
 ];
 
 function App() {
-  const { connectionStatus } = useSocket();
+  const { connectionStatus, setUserId, clearAuth } = useSocket();
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(null);
@@ -141,6 +141,7 @@ function App() {
   // Handle log out
   const handleLogout = () => {
     setUser(null);
+    clearAuth();
     localStorage.removeItem(SELECTED_USER_STORAGE_KEY);
     navigate("/", { replace: true });
   };
@@ -243,6 +244,7 @@ function App() {
   // Handle joining as an existing user
   function handleSelectUser(selectedUser) {
     setUser(selectedUser);
+    setUserId(selectedUser.id);
     localStorage.setItem(SELECTED_USER_STORAGE_KEY, String(selectedUser.id));
     if (location.pathname === "/") {
       if (selectedUser.role === "DM") {

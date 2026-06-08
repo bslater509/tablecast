@@ -137,7 +137,8 @@ router.post("/oauth-init", requireDm, async (req, res) => {
       }
     }
     if (!clientOrigin) {
-      clientOrigin = "*";
+      // Cannot determine safe target origin; reject rather than use "*"
+      return res.status(400).json({ error: "Origin or Referer header is required for OAuth authorization." });
     }
 
     const state = crypto.randomBytes(16).toString("hex");

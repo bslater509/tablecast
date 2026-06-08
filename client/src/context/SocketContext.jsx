@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { io } from "socket.io-client";
 
 const debug = import.meta.env.DEV ? console.log : () => {};
@@ -19,11 +19,26 @@ function createSocket() {
 export function SocketProvider({ children }) {
   const [socket] = useState(() => createSocket());
   const [isConnected, setIsConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState("connecting");
+  const [connectionStatus, setConnectionStatus] = useState("disconnected");
+  const [userId, setUserIdState] = useState(null);
+
+  // Connect only when auth userId is set; disconnect on logout
+  useEffect(() => {
+    if (userId) {
+      socket.auth = { userId };
+      socket.connect();
+    } else {
+      socket.disconnect();
+      setConnectionStatus("disconnected");
+      setIsConnected(false);
+    }
+
+    return () => {
+      // cleanup handled by the lifecycle effect below
+    };
+  }, [userId, socket]);
 
   useEffect(() => {
-    socket.connect();
-
     function onConnect() {
       debug("[Socket] Connected:", socket.id);
       setIsConnected(true);
@@ -58,8 +73,11 @@ export function SocketProvider({ children }) {
     };
   }, [socket]);
 
+  const setUserId = useCallback((id) => setUserIdState(id), []);
+  const clearAuth = useCallback(() => setUserIdState(null), []);
+
   return (
-    <SocketContext.Provider value={{ socket, isConnected, connectionStatus }}>
+    <SocketContext.Provider value={{ socket, isConnected, connectionStatus, setUserId, clearAuth, userId }}>
       {children}
     </SocketContext.Provider>
   );

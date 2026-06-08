@@ -52,7 +52,7 @@ async function logAiResponse(operation, prompt, rawReply, parsedOk, errorMsg, du
 // MCP SSE Transport Routes
 // ---------------------------------------------------------------------------
 
-router.get("/mcp", async (req, res) => {
+router.get("/mcp", requireDm, async (req, res) => {
   try {
     // Instantiate SSE transport directing POST messages to /api/ai/mcp/message
     const transport = new SSEServerTransport("/api/ai/mcp/message", res);
@@ -94,7 +94,7 @@ router.get("/mcp", async (req, res) => {
   }
 });
 
-router.post("/mcp/message", async (req, res) => {
+router.post("/mcp/message", requireDm, async (req, res) => {
   const { sessionId } = req.query;
   if (!sessionId) {
     return res.status(400).send("Missing sessionId query parameter");
@@ -2264,6 +2264,10 @@ Keep your responses concise, readable, and structured in Markdown.`;
     if (npcId) {
       const npc = await prisma.npc.findUnique({ where: { id: Number(npcId) } });
       if (npc) {
+        // Non-DM users can only roleplay with NPCs marked visible to players
+        if (user.role !== "DM" && !npc.isVisibleToPlayers) {
+          return res.status(403).json({ error: "This NPC is not available for roleplay." });
+        }
         systemPrompt = buildNpcRoleplaySystemPrompt(npc, referenceContext);
       }
     }
@@ -2273,9 +2277,13 @@ Keep your responses concise, readable, and structured in Markdown.`;
       try {
         const character = await prisma.character.findUnique({
           where: { id: Number(characterId) },
-          select: { name: true, race: true, class: true, level: true, hp: true, maxHp: true, strength: true, dexterity: true, constitution: true, intelligence: true, wisdom: true, charisma: true },
+          select: { userId: true, name: true, race: true, class: true, level: true, hp: true, maxHp: true, strength: true, dexterity: true, constitution: true, intelligence: true, wisdom: true, charisma: true },
         });
         if (character) {
+          // Verify ownership: only the character's owner or DM can use it
+          if (user.role !== "DM" && character.userId !== user.id) {
+            return res.status(403).json({ error: "You are not authorized to use this character." });
+          }
           const charContext = `\n=== PLAYER CHARACTER CONTEXT ===\nName: ${character.name}\nRace: ${character.race || "unknown"}\nClass: ${character.class || "unknown"}\nLevel: ${character.level}\nHP: ${character.hp}/${character.maxHp}\nStats: STR ${character.strength} DEX ${character.dexterity} CON ${character.constitution} INT ${character.intelligence} WIS ${character.wisdom} CHA ${character.charisma}\n================================\n`;
           // If this is NPC roleplay, the NPC knows about this character
           if (npcId) {
@@ -2319,16 +2327,22 @@ Keep your responses concise, readable, and structured in Markdown.`;
         if (conversationId) {
           try {
             const convId = Number(conversationId);
-            await prisma.aiMessage.createMany({
-              data: [
-                { conversationId: convId, role: "user", text: message },
-                { conversationId: convId, role: "assistant", text: fullResponse },
-              ],
-            });
-            await prisma.aiConversation.update({
+            const conv = await prisma.aiConversation.findUnique({
               where: { id: convId },
-              data: { updatedAt: new Date() },
+              select: { userId: true },
             });
+            if (conv && conv.userId === user.id) {
+              await prisma.aiMessage.createMany({
+                data: [
+                  { conversationId: convId, role: "user", text: message },
+                  { conversationId: convId, role: "assistant", text: fullResponse },
+                ],
+              });
+              await prisma.aiConversation.update({
+                where: { id: convId },
+                data: { updatedAt: new Date() },
+              });
+            }
           } catch (saveErr) {
             logger.error("ai:chat", "Failed to auto-save conversation", { error: saveErr.message });
           }
@@ -2353,16 +2367,22 @@ Keep your responses concise, readable, and structured in Markdown.`;
     if (conversationId) {
       try {
         const convId = Number(conversationId);
-        await prisma.aiMessage.createMany({
-          data: [
-            { conversationId: convId, role: "user", text: message },
-            { conversationId: convId, role: "assistant", text: reply },
-          ],
-        });
-        await prisma.aiConversation.update({
+        const conv = await prisma.aiConversation.findUnique({
           where: { id: convId },
-          data: { updatedAt: new Date() },
+          select: { userId: true },
         });
+        if (conv && conv.userId === user.id) {
+          await prisma.aiMessage.createMany({
+            data: [
+              { conversationId: convId, role: "user", text: message },
+              { conversationId: convId, role: "assistant", text: reply },
+            ],
+          });
+          await prisma.aiConversation.update({
+            where: { id: convId },
+            data: { updatedAt: new Date() },
+          });
+        }
       } catch (saveErr) {
         logger.error("ai:chat", "Failed to auto-save conversation", { error: saveErr.message });
       }
@@ -2403,11 +2423,11 @@ router.get("/image-style", async (req, res) => {
 // GET /api/ai/conversations — List user's conversations
 router.get("/conversations", async (req, res) => {
   try {
-    const userId = req.headers["x-tablecast-user-id"];
-    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+    const user = await getRequestUser(req);
+    if (!user) return res.status(401).json({ error: "Authentication required." });
 
     const conversations = await prisma.aiConversation.findMany({
-      where: { userId: Number(userId) },
+      where: { userId: user.id },
       orderBy: { updatedAt: "desc" },
       include: { _count: { select: { messages: true } } },
     });
@@ -2421,13 +2441,13 @@ router.get("/conversations", async (req, res) => {
 // POST /api/ai/conversations — Create new conversation
 router.post("/conversations", async (req, res) => {
   try {
-    const userId = req.headers["x-tablecast-user-id"];
-    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+    const user = await getRequestUser(req);
+    if (!user) return res.status(401).json({ error: "Authentication required." });
 
     const { type, npcId, title } = req.body;
     const conversation = await prisma.aiConversation.create({
       data: {
-        userId: Number(userId),
+        userId: user.id,
         type: type || "rules",
         npcId: npcId || null,
         title: title || "",
@@ -2443,11 +2463,11 @@ router.post("/conversations", async (req, res) => {
 // GET /api/ai/conversations/:id — Get conversation with messages
 router.get("/conversations/:id", async (req, res) => {
   try {
-    const userId = req.headers["x-tablecast-user-id"];
-    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+    const user = await getRequestUser(req);
+    if (!user) return res.status(401).json({ error: "Authentication required." });
 
     const conversation = await prisma.aiConversation.findFirst({
-      where: { id: Number(req.params.id), userId: Number(userId) },
+      where: { id: Number(req.params.id), userId: user.id },
       include: { messages: { orderBy: { createdAt: "asc" } } },
     });
     if (!conversation) return res.status(404).json({ error: "Conversation not found." });
@@ -2461,12 +2481,12 @@ router.get("/conversations/:id", async (req, res) => {
 // PATCH /api/ai/conversations/:id — Update conversation title
 router.patch("/conversations/:id", async (req, res) => {
   try {
-    const userId = req.headers["x-tablecast-user-id"];
-    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+    const user = await getRequestUser(req);
+    if (!user) return res.status(401).json({ error: "Authentication required." });
 
     const { title } = req.body;
     const conversation = await prisma.aiConversation.findFirst({
-      where: { id: Number(req.params.id), userId: Number(userId) },
+      where: { id: Number(req.params.id), userId: user.id },
     });
     if (!conversation) return res.status(404).json({ error: "Conversation not found." });
 
@@ -2484,11 +2504,11 @@ router.patch("/conversations/:id", async (req, res) => {
 // DELETE /api/ai/conversations/:id — Delete conversation
 router.delete("/conversations/:id", async (req, res) => {
   try {
-    const userId = req.headers["x-tablecast-user-id"];
-    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+    const user = await getRequestUser(req);
+    if (!user) return res.status(401).json({ error: "Authentication required." });
 
     const conversation = await prisma.aiConversation.findFirst({
-      where: { id: Number(req.params.id), userId: Number(userId) },
+      where: { id: Number(req.params.id), userId: user.id },
     });
     if (!conversation) return res.status(404).json({ error: "Conversation not found." });
 
@@ -2503,29 +2523,35 @@ router.delete("/conversations/:id", async (req, res) => {
 // POST /api/ai/conversations/:id/messages — Batch-save messages to a conversation
 router.post("/conversations/:id/messages", async (req, res) => {
   try {
-    const userId = req.headers["x-tablecast-user-id"];
-    if (!userId) return res.status(401).json({ error: "Missing user ID header." });
+    const user = await getRequestUser(req);
+    if (!user) return res.status(401).json({ error: "Authentication required." });
 
     const { messages } = req.body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: "Messages array is required." });
     }
+    if (messages.length > 50) {
+      return res.status(400).json({ error: "Maximum 50 messages per batch." });
+    }
 
     const conversation = await prisma.aiConversation.findFirst({
-      where: { id: Number(req.params.id), userId: Number(userId) },
+      where: { id: Number(req.params.id), userId: user.id },
     });
     if (!conversation) return res.status(404).json({ error: "Conversation not found." });
 
+    const VALID_ROLES = new Set(["user", "assistant"]);
     const created = await prisma.$transaction(
-      messages.map((msg) =>
-        prisma.aiMessage.create({
+      messages.map((msg) => {
+        const role = VALID_ROLES.has(msg.role) ? msg.role : "user";
+        const text = (msg.text || "").slice(0, 10000);
+        return prisma.aiMessage.create({
           data: {
             conversationId: Number(req.params.id),
-            role: msg.role || "user",
-            text: msg.text,
+            role,
+            text,
           },
-        })
-      )
+        });
+      })
     );
 
     // Auto-generate title from first exchange if empty

@@ -8,6 +8,7 @@ const { Router } = require("express");
 const prisma = require("../prisma");
 const logger = require("../utils/logger");
 const { sanitizeText } = require("../utils/sanitize");
+const { getRequestUser } = require("../auth");
 
 const router = Router();
 
@@ -17,6 +18,11 @@ const router = Router();
 // ---------------------------------------------------------------------------
 router.get("/", async (req, res) => {
   try {
+    const user = await getRequestUser(req);
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
     const requestedLimit = Number(req.query.limit);
     const limit = Number.isInteger(requestedLimit)
       ? Math.min(Math.max(requestedLimit, 1), 500)

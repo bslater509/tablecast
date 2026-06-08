@@ -17,7 +17,7 @@ const router = Router();
 // ---------------------------------------------------------------------------
 // GET /api/debug — Comprehensive server health & status
 // ---------------------------------------------------------------------------
-router.get("/", async (_req, res) => {
+router.get("/", requireDm, async (_req, res) => {
   try {
     const start = Date.now();
 
@@ -109,7 +109,7 @@ router.get("/", async (_req, res) => {
 // ---------------------------------------------------------------------------
 // GET /api/debug/mcp-logs — Recent MCP tool call history
 // ---------------------------------------------------------------------------
-router.get("/mcp-logs", async (req, res) => {
+router.get("/mcp-logs", requireDm, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const tool = req.query.tool || undefined;
@@ -132,7 +132,7 @@ router.get("/mcp-logs", async (req, res) => {
 // ---------------------------------------------------------------------------
 // GET /api/debug/ai-logs — Recent AI response history
 // ---------------------------------------------------------------------------
-router.get("/ai-logs", async (req, res) => {
+router.get("/ai-logs", requireDm, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const operation = req.query.operation || undefined;

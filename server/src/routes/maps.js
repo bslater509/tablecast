@@ -87,6 +87,18 @@ router.post("/", requireDm, async (req, res) => {
         const base64Data = matches[2];
         const dataBuffer = Buffer.from(base64Data, "base64");
 
+        // Enforce decoded image size cap (10MB)
+        if (dataBuffer.length > 10 * 1024 * 1024) {
+          return res.status(400).json({ error: "Image too large. Maximum decoded size is 10MB." });
+        }
+
+        // Validate image magic bytes
+        const magicBytes = dataBuffer.slice(0, 4).toString("hex").toUpperCase();
+        const VALID_MAGIC = new Set(["89504E47", "FFD8FFE0", "FFD8FFE1", "FFD8FFDB", "52494646", "47494638"]);
+        if (!VALID_MAGIC.has(magicBytes) && !magicBytes.startsWith("FFD8FF")) {
+          return res.status(400).json({ error: "Invalid image format. Only PNG, JPEG, WEBP, and GIF are allowed." });
+        }
+
         // Determine extension
         let ext = "png";
         if (mimeType.includes("jpeg") || mimeType.includes("jpg")) ext = "jpg";
@@ -105,10 +117,17 @@ router.post("/", requireDm, async (req, res) => {
       }
     } else if (imageUrl && typeof imageUrl === "string") {
       const trimmedImageUrl = imageUrl.trim();
-      const isAllowedLocalPath = trimmedImageUrl.startsWith("/uploads/") || trimmedImageUrl.startsWith("/5etoolsimg/");
       const isAllowedRemotePath = /^https?:\/\/\S+$/i.test(trimmedImageUrl);
 
-      if (!isAllowedLocalPath && !isAllowedRemotePath) {
+      // Validate local paths with path.resolve to prevent traversal
+      if (trimmedImageUrl.startsWith("/uploads/")) {
+        const resolved = path.resolve(UPLOADS_DIR, "." + trimmedImageUrl.slice("/uploads".length));
+        if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) {
+          return res.status(400).json({ error: "Invalid image URL path." });
+        }
+      } else if (trimmedImageUrl.startsWith("/5etoolsimg/")) {
+        // Allow 5etoolsimg paths without further resolution
+      } else if (!isAllowedRemotePath) {
         return res.status(400).json({ error: "Image URL must be an uploads path, 5etools image path, or http(s) URL." });
       }
 

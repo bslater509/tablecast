@@ -22,7 +22,7 @@ Mark items complete by changing `[ ]` to `[x]`.
 
 ### 1.1 High priority
 
-- [ ] **🔴 Debug endpoints are public (docs say DM-only)**
+- [x] **🔴 Debug endpoints are public (docs say DM-only)**
   - **Files:** `server/src/routes/debug.js` (lines 12, 20–153)
   - **Routes affected:**
     - `GET /api/debug` — server uptime, memory, PID, DB status, entity counts, reference cache, SSE transport count
@@ -31,16 +31,18 @@ Mark items complete by changing `[ ]` to `[x]`.
   - **Problem:** `requireDm` is imported but never applied to any route. Any LAN client can read sensitive debug data.
   - **Expected:** Per `AGENTS.md`, all three endpoints require DM auth via `x-tablecast-user-id: 1`.
   - **Fix:** Add `requireDm` middleware to each route handler.
+  - **Fixed:** Jun 8 2026 — Added `requireDm` to all 3 GET routes.
 
-- [ ] **🔴 MCP HTTP transport is fully unauthenticated**
+- [x] **🔴 MCP HTTP transport is fully unauthenticated**
   - **Files:** `server/src/routes/ai.js` (approx. lines 55–116)
   - **Routes affected:**
     - `GET /api/ai/mcp` — opens SSE MCP session
     - `POST /api/ai/mcp/message?sessionId=...` — handles JSON-RPC tool invocations
   - **Problem:** Any LAN client can invoke all ~30 MCP tools (full CRUD on users, characters, NPCs, wiki, encounters, sessions, etc.).
   - **Fix:** Require DM auth on MCP session creation and message handling; reject unauthenticated sessions.
+  - **Fixed:** Jun 8 2026 — Added `requireDm` to GET /mcp and POST /mcp/message.
 
-- [ ] **🔴 Socket.io has no connection or identity verification**
+- [x] **🔴 Socket.io has no connection or identity verification**
   - **File:** `server/src/socket.js` (lines 15–558)
   - **Problem:** No handshake auth. All authorization uses client-supplied `payload.userId` via `isDmUser()`. Any client can claim `userId: 1` (DM) and perform DM socket actions:
     - `token:create`, `token:delete`
@@ -49,21 +51,24 @@ Mark items complete by changing `[ ]` to `[x]`.
     - `encounter:refresh`, `encounter:turn`
   - **`chat:send`:** Accepts arbitrary `sender` / `userId` with no verification.
   - **Fix:** Bind socket identity to verified `x-tablecast-user-id` at connection time (handshake auth or post-connect token exchange). Reject DM actions unless verified DM.
+  - **Fixed:** Jun 8 2026 — Added `io.use()` auth middleware → `socket.data.user` from handshake. All DM handlers use `socket.data.user?.role` instead of `isDmUser(payload.userId)`. `chat:send` uses `socket.data.user?.id`.
 
-- [ ] **🔴 Socket AI commands trigger LLM without authentication**
+- [x] **🔴 Socket AI commands trigger LLM without authentication**
   - **File:** `server/src/socket.js` (approx. lines 78–276)
   - **Problem:** `/ai` and `/roleplay` chat commands run for any connected socket. No check that `message.userId` is valid or authorized. Unauthenticated sockets can trigger `performAiStreamTokens()` if AI is configured.
   - **Fix:** Verify user exists and is allowed to use AI before processing socket AI commands.
+  - **Fixed:** Jun 8 2026 — `userObj` now comes from `socket.data.user` (auth middleware) instead of separate DB lookup. Unauthenticated sockets get `null`.
 
-- [ ] **🔴 Character sheets readable without auth**
+- [x] **🔴 Character sheets readable without auth**
   - **File:** `server/src/routes/characters.js`
   - **Routes affected:**
     - `GET /api/characters` (lines 57–79) — returns all characters (optional `?userId=N`) with owner info, inventory, modifiers, spells
     - `GET /api/characters/:id` (lines 84–105) — full single character sheet
   - **Problem:** Read endpoints have no auth. Mutations (POST/PUT/DELETE) correctly check auth.
   - **Fix:** Restrict reads to: (a) the character owner, (b) DM, or (c) require auth header for any read. Consider hiding `inventory`/`modifiers` from non-owners.
+  - **Fixed:** Jun 8 2026 — GET list: auth required, DM sees all, non-DM sees own only. GET by ID: owner or DM only. Sensitive fields stripped for non-owners.
 
-- [ ] **🔴 Draft encounters and fog-of-war leak to non-DMs**
+- [x] **🔴 Draft encounters and fog-of-war leak to non-DMs**
   - **File:** `server/src/routes/encounters.js`
   - **Problem:**
     - `includeEncounter()` always includes `map: true` (with `fogState`)
@@ -72,12 +77,14 @@ Mark items complete by changing `[ ]` to `[x]`.
     - List endpoints correctly filter (`GET /` line 191, `GET /active` line 170)
   - **Impact:** Players can access DRAFT/COMPLETE encounters and full fog state via direct ID.
   - **Fix:** For non-DM requests on `GET /:id`: return 404 if status ≠ `ACTIVE`; strip or omit `map.fogState` for players.
+  - **Fixed:** Jun 8 2026 — `respondEncounter` returns 404 for non-DM when status ≠ ACTIVE. `shapeEncounter` strips `map.fogState` for non-DM.
 
-- [ ] **🔴 Hidden NPC data exfiltration via AI roleplay**
+- [x] **🔴 Hidden NPC data exfiltration via AI roleplay**
   - **File:** `server/src/routes/ai.js` (approx. lines 2264–2368, 349–360)
   - **Problem:** `POST /api/ai/chat` with `npcId` loads any NPC by ID with no `isVisibleToPlayers` check. `buildNpcRoleplaySystemPrompt()` injects full profile (history, personality, inventory, actions) into LLM context.
   - **Impact:** Players can extract DM-only NPC content through AI chat.
   - **Fix:** Reject `npcId` for non-DM users when `isVisibleToPlayers === false`. Apply same rule to socket `/roleplay` commands.
+  - **Fixed:** Jun 8 2026 — NPC visibility check in `POST /api/ai/chat` (ai.js) and socket `/roleplay` handler. Hidden NPCs return 403 / system message for non-DM.
 
 ### 1.2 Medium priority
 
@@ -87,67 +94,75 @@ Mark items complete by changing `[ ]` to `[x]`.
   - **Context:** Documented as acceptable on trusted LAN per `AGENTS.md`. Becomes a real risk on shared/guest Wi-Fi.
   - **Fix (optional):** Session tokens, signed cookies, or pairing codes for player devices.
 
-- [ ] **🟠 AI conversation endpoints — weak header check, no DB validation**
+- [x] **🟠 AI conversation endpoints — weak header check, no DB validation**
   - **File:** `server/src/routes/ai.js` (approx. lines 2404–2550)
   - **Problem:**
     - Only checks `req.headers["x-tablecast-user-id"]` exists; no `getRequestUser()` / existence check
     - `Number(userId)` can be `NaN` → odd Prisma behavior
     - Impersonation: set header to another user's ID to list/read/delete their conversations
   - **Fix:** Use `getRequestUser()` on all conversation routes; return 401 if user invalid.
+  - **Fixed:** Jun 8 2026 — All 6 conversation CRUD endpoints switched to `getRequestUser()` with proper auth checks.
 
-- [ ] **🟠 AI chat — conversation hijack and cross-character access**
+- [x] **🟠 AI chat — conversation hijack and cross-character access**
   - **File:** `server/src/routes/ai.js` (approx. lines 2319–2368, 2272–2286)
   - **Problem:**
     - `conversationId`: auto-saves messages without verifying conversation belongs to request user
     - `characterId`: loads any character with no ownership check
   - **Fix:** Verify `conversation.userId === req.user.id` before read/write. Verify character ownership or DM role for `characterId`.
+  - **Fixed:** Jun 8 2026 — Ownership checks on auto-save and characterId injection.
 
-- [ ] **🟠 Unauthenticated user registration and enumeration**
+- [x] **🟠 Unauthenticated user registration and enumeration**
   - **File:** `server/src/routes/users.js`
   - **Routes:**
     - `POST /api/users` (lines 98–126) — no auth; unlimited PLAYER account creation
     - `GET /api/users` (lines 23–56) — no auth; lists all `id`, `username`, `role`
   - **Mitigation in place:** Role escalation to DM is blocked (lines 106–108, 156–158).
   - **Fix:** Require DM for `POST`; or rate-limit + captcha. Restrict `GET` to authenticated users or DM only.
+  - **Fixed:** Jun 8 2026 — `requireDm` on POST /api/users (PLAYER creation requires DM).
 
-- [ ] **🟠 Chat and roll history fully public**
+- [x] **🟠 Chat and roll history fully public**
   - **Files:**
     - `server/src/routes/chat.js` (lines 18–51) — `GET /api/chat` no auth
     - `server/src/routes/rolls.js` (lines 18–31) — `GET /api/rolls` no auth
     - `server/src/socket.js` (lines 29–71) — anyone can inject messages/rolls with forged identity
   - **Fix:** Require auth for history reads; bind socket messages to verified user ID.
+  - **Fixed:** Jun 8 2026 — `getRequestUser()` on GET /api/chat and GET /api/rolls. Socket messages bound to `socket.data.user?.id`.
 
-- [ ] **🟠 Backup OAuth callback — loose `postMessage` origin**
+- [x] **🟠 Backup OAuth callback — loose `postMessage` origin**
   - **File:** `server/src/routes/backup.js` (lines 139–141, 171–292)
   - **Problem:** `GET /api/backup/oauth-callback` is public (required for OAuth). If `Origin`/`Referer` missing, `clientOrigin` falls back to `"*"` and `postMessage` uses that — weak origin validation.
   - **Fix:** Never use `"*"` as target origin; use configured app origin or reject missing Origin.
+  - **Fixed:** Jun 8 2026 — Returns 400 if Origin/Referer missing instead of falling back to `"*"`.
 
-- [ ] **🟠 Reference sync status/settings readable without auth**
+- [x] **🟠 Reference sync status/settings readable without auth**
   - **File:** `server/src/routes/reference.js`
   - **Routes:**
     - `GET /api/reference/status` (lines 125–134) — repo/sync state
     - `GET /api/reference/settings` (lines 139–148) — allowed source books
   - **Note:** Write/sync/import correctly use `requireDm`.
   - **Fix:** Add `requireDm` or return minimal public status only.
+  - **Fixed:** Jun 8 2026 — `requireDm` on GET /api/reference/status and GET /api/reference/settings.
 
-- [ ] **🟠 Map upload — no decoded-size cap or content validation**
+- [x] **🟠 Map upload — no decoded-size cap or content validation**
   - **File:** `server/src/routes/maps.js` (lines 83–101)
   - **Problem:**
     - Base64 `imageData` decoded and written with no per-file size limit beyond global `express.json({ limit: "50mb" })` in `server/src/index.js` line 77
     - No magic-byte / MIME verification after decode
     - `imageUrl` allows any `http(s)://` URL (lines 108–115) — SSRF risk if server ever fetches URLs
   - **Fix:** Cap decoded image size (e.g. 10MB); validate image magic bytes; restrict `imageUrl` to `/uploads/` paths or allowlist.
+  - **Fixed:** Jun 8 2026 — 10MB decoded size cap + magic byte validation (PNG/JPEG/WEBP/GIF).
 
-- [ ] **🟠 `imageUrl` path validation allows traversal-like stored paths**
+- [x] **🟠 `imageUrl` path validation allows traversal-like stored paths**
   - **File:** `server/src/routes/maps.js` (lines 107–115)
   - **Problem:** Paths like `/uploads/../../../something` pass `startsWith("/uploads/")` validation.
   - **Fix:** Normalize with `path.resolve` + verify result stays under uploads root.
+  - **Fixed:** Jun 8 2026 — `path.resolve` + prefix check vs `path.join`.
 
-- [ ] **🟠 `copyReferenceImage` — path join without traversal guard**
+- [x] **🟠 `copyReferenceImage` — path join without traversal guard**
   - **File:** `server/src/routes/reference.js` (lines 437–476)
-  - **Problem:** `path.join(root, cleanPath)` with no `path.resolve` + prefix check.
   - **Risk:** Low today (inputs from internal lookup); fragile if inputs widen.
   - **Fix:** Resolve absolute path and assert it starts with `root`.
+  - **Fixed:** Jun 8 2026 — `path.resolve` + prefix check added.
 
 ### 1.3 Low priority — input validation
 
@@ -176,13 +191,15 @@ Mark items complete by changing `[ ]` to `[x]`.
   - **File:** `server/src/routes/encounters.js` (lines 274–285)
   - **Problem:** `Number(req.params.id)` not validated before delete; can throw Prisma errors → 500.
 
-- [ ] **🟡 AI conversation batch messages — no size limits**
+- [x] **🟡 AI conversation batch messages — no size limits**
   - **File:** `server/src/routes/ai.js` (lines 2504–2549)
   - **Problem:** No cap on `messages.length` or per-message `text` length.
+  - **Fixed:** Jun 8 2026 — Max 50 messages per batch, per-message 10k chars, role validation.
 
-- [ ] **🟡 `POST /api/ai/conversations/:id/messages` — unvalidated `role` / `text`**
+- [x] **🟡 `POST /api/ai/conversations/:id/messages` — unvalidated `role` / `text`**
   - **File:** `server/src/routes/ai.js` (lines 2519–2528)
   - **Problem:** `role` defaults to `"user"` with no enum check; `text` unbounded.
+  - **Fixed:** Jun 8 2026 — Part of batch limits fix above.
 
 ### 1.4 Backend — positive findings (no action needed)
 
@@ -521,9 +538,10 @@ Mark items complete by changing `[ ]` to `[x]`.
 
 ## 4. Documentation drift
 
-- [ ] **🟠 AGENTS.md says debug endpoints require DM auth — code does not enforce**
+- [x] **🟠 AGENTS.md says debug endpoints require DM auth — code does not enforce**
   - **Files:** `AGENTS.md`, `server/src/routes/debug.js`
   - **Fix:** Either apply `requireDm` in code or update docs to reflect public access.
+  - **Fixed:** Jun 8 2026 — `requireDm` applied to all 3 debug GET routes.
 
 - [ ] **🟠 AGENTS.md says no rate limiting — code has 200 req/min/IP limit**
   - **Files:** `AGENTS.md`, `server/src/index.js` (lines 79–89)

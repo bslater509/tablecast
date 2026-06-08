@@ -137,6 +137,7 @@ function shapeEncounter(encounter, isDm) {
 
   return {
     ...encounter,
+    map: encounter.map ? { ...encounter.map, fogState: isDm ? encounter.map.fogState : undefined } : undefined,
     participants: visibleParticipants,
     currentParticipantId: currentIsVisible ? current.id : null,
   };
@@ -153,6 +154,10 @@ async function respondEncounter(req, res, id) {
   const user = await getRequestUser(req);
   const encounter = await fetchEncounter(id);
   if (!encounter) return res.status(404).json({ error: "Encounter not found." });
+  // Non-DM users should not see DRAFT or COMPLETE encounters
+  if (user?.role !== "DM" && encounter.status !== "ACTIVE") {
+    return res.status(404).json({ error: "Encounter not found." });
+  }
   res.json(shapeEncounter(encounter, user?.role === "DM"));
 }
 
