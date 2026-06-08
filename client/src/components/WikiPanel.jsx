@@ -9,19 +9,8 @@ import { ExternalLink, Menu } from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
-
-// Common NPC token image presets (shared between DM and for AI suggestions)
-const NPC_TOKEN_PRESETS = [
-  { label: "Bandit", imageUrl: "/5etoolsimg/adventure/BQGT/004-00-004.bandit.webp" },
-  { label: "Goblin", imageUrl: "/5etoolsimg/adventure/HotB/025-01-014.goblin-warrior-c.webp" },
-  { label: "Goblin Boss", imageUrl: "/5etoolsimg/adventure/HotB/026-01-015.goblin-boss-c.webp" },
-  { label: "Skeleton", imageUrl: "/5etoolsimg/adventure/DrDe/133-07-003.brandles-rest-skeleton.webp" },
-  { label: "Orc", imageUrl: "/5etoolsimg/adventure/LMoP/018-06-07.orc-finger.webp" },
-  { label: "Guard", imageUrl: "/5etoolsimg/adventure/LMoP/017-06-06.red-brand-ruffian.webp" },
-  { label: "Cultist", imageUrl: "/5etoolsimg/adventure/HotB/027-01-016.cult-fanatic-c.webp" },
-  { label: "Zombie", imageUrl: "/5etoolsimg/adventure/DrDe/135-07-005.hard-to-die-zombie.webp" },
-  { label: "Wolf", imageUrl: "/5etoolsimg/adventure/LMoP/019-06-08.wolf.webp" },
-];
+import TokenPresetIcon from "./TokenPresetIcon";
+import { NPC_TOKEN_PRESETS, matchNpcPreset, generateTokenSvgUrl } from "../data/npcTokenPresets";
 import WikiTreeSidebar from "./WikiTreeSidebar";
 import { useSocket } from "../context/SocketContext";
 import { WikiPanelSkeleton } from "./PanelSkeleton";
@@ -1287,29 +1276,48 @@ export default function WikiPanel({ user, isPopout = false }) {
     });
   };
 
-  // Auto-find token image for the NPC being edited
+  // Auto-find token image for the NPC being edited (tries API first, falls back to SVG)
   const handleNpcAutoFindImage = async () => {
     if (!editingNpc) return;
     const searchName = editingNpc.name || editingNpc.race || "";
     if (!searchName.trim()) return;
 
+    // First try the reference token-image API
     try {
       const params = new URLSearchParams({ name: searchName.trim() });
       const res = await fetch(`/api/reference/token-image?${params.toString()}`);
-      if (!res.ok) return;
-      const match = await res.json();
-      if (match?.url) {
-        handleNpcFieldChange("imageUrl", match.url);
+      if (res.ok) {
+        const match = await res.json();
+        if (match?.url) {
+          handleNpcFieldChange("imageUrl", match.url);
+          return;
+        }
       }
     } catch (err) {
-      console.error("[WikiPanel] Auto-find NPC image failed:", err);
+      console.warn("[WikiPanel] Token lookup failed, using SVG fallback:", err);
+    }
+
+    // Fallback: generate an SVG data URI
+    try {
+      const resp = await fetch("/api/reference/generate-token-svg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editingNpc.name || "", race: editingNpc.race || "" }),
+      });
+      if (resp.ok) {
+        const { url } = await resp.json();
+        if (url) handleNpcFieldChange("imageUrl", url);
+      }
+    } catch (err) {
+      console.error("[WikiPanel] SVG token generation failed:", err);
     }
   };
 
-  // Select a preset token image for the NPC
+  // Select a preset token image for the NPC (generates SVG data URI instantly)
   const handleNpcTokenPresetSelect = (preset) => {
     if (!editingNpc) return;
-    handleNpcFieldChange("imageUrl", preset.imageUrl);
+    const url = generateTokenSvgUrl(preset.label, preset.label);
+    handleNpcFieldChange("imageUrl", url);
   };
 
   const handleNpcActionChange = (index, key, value) => {
@@ -2099,19 +2107,11 @@ export default function WikiPanel({ user, isPopout = false }) {
                           onClick={() => handleNpcTokenPresetSelect(preset)}
                           style={{
                             ...styles.npcPresetBtn,
-                            border: editingNpc.imageUrl === preset.imageUrl
-                              ? "2px solid var(--color-accent)"
-                              : "1px solid rgba(255,255,255,0.08)",
                           }}
                           className="touch-target btn-hover-scale"
                           title={preset.label}
                         >
-                          <img
-                            src={preset.imageUrl}
-                            alt={preset.label}
-                            style={styles.npcPresetImg}
-                            onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }}
-                          />
+                          <TokenPresetIcon label={preset.label} size={40} />
                           <span style={styles.npcPresetLabel}>{preset.label}</span>
                         </button>
                       ))}

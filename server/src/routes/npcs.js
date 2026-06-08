@@ -11,7 +11,7 @@
 const { Router } = require("express");
 const prisma = require("../prisma");
 const { requireDm, getRequestUser } = require("../auth");
-const tokenImageLookup = require("../utils/tokenImageLookup");
+const generateTokenSvg = require("../utils/generateTokenSvg");
 const logger = require("../utils/logger");
 
 const router = Router();
@@ -142,14 +142,9 @@ router.post("/", requireDm, async (req, res) => {
       }
     }
 
-    // Auto-resolve token image if none provided
+    // Auto-assign SVG token if none provided
     if (!data.imageUrl) {
-      const imgMatch = tokenImageLookup.findMonsterTokenImage({ name: data.name, source: "" }) ||
-        tokenImageLookup.findReferenceImage({ name: data.race || "", source: "", section: "bestiary", preferToken: true, tokenOnly: true }) ||
-        tokenImageLookup.findReferenceImage({ name: data.name, source: "", section: "bestiary", preferToken: false, excludeTokens: false });
-      if (imgMatch) {
-        data.imageUrl = imgMatch.url;
-      }
+      data.imageUrl = generateTokenSvg(data.name, data.race);
     }
 
     const npc = await prisma.npc.create({ data });
@@ -194,16 +189,9 @@ router.put("/:id", requireDm, async (req, res) => {
       return res.status(400).json({ error: "No valid fields to update." });
     }
 
-    // Auto-resolve token image if none provided and updating a relevant field
+    // Auto-assign SVG token if image not provided and name/race is being updated
     if (!data.imageUrl && (data.name || data.race)) {
-      const name = data.name || "";
-      const race = data.race || "";
-      const imgMatch = tokenImageLookup.findMonsterTokenImage({ name, source: "" }) ||
-        tokenImageLookup.findReferenceImage({ name: race, source: "", section: "bestiary", preferToken: true, tokenOnly: true }) ||
-        tokenImageLookup.findReferenceImage({ name, source: "", section: "bestiary", preferToken: false, excludeTokens: false });
-      if (imgMatch) {
-        data.imageUrl = imgMatch.url;
-      }
+      data.imageUrl = generateTokenSvg(data.name || "", data.race || "");
     }
 
     const npc = await prisma.npc.update({

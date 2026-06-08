@@ -6,6 +6,7 @@ const prisma = require("../prisma");
 const { getRequestUser, requireDm } = require("../auth");
 const referenceSearch = require("../utils/referenceSearch");
 const tokenImageLookup = require("../utils/tokenImageLookup");
+const generateTokenSvg = require("../utils/generateTokenSvg");
 const logger = require("../utils/logger");
 
 const router = Router();
@@ -413,9 +414,7 @@ router.post("/:id/deploy", requireDm, async (req, res) => {
       const participant = participants[index];
       let deployImageUrl = participant.imageUrl || participant.npc?.imageUrl || participant.monster?.imageUrl || "";
       if (!deployImageUrl) {
-        const imgMatch = tokenImageLookup.findMonsterTokenImage({ name: participant.name, source: "" }) ||
-          tokenImageLookup.findReferenceImage({ name: participant.name, source: "", section: "bestiary", preferToken: false, excludeTokens: false });
-        if (imgMatch) deployImageUrl = imgMatch.url;
+        deployImageUrl = generateTokenSvg(participant.name, "");
       }
 
       const token = await prisma.token.create({

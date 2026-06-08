@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
 import Autocomplete from "./Autocomplete";
+import TokenPresetIcon from "./TokenPresetIcon";
+import { NPC_TOKEN_PRESETS, generateTokenSvgUrl } from "../data/npcTokenPresets";
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 3;
@@ -30,12 +32,7 @@ const MAP_IMPORT_PRESETS = [
   { label: "AitFR Dungeon Map", name: "AitFR Dungeon Map", path: "/5etoolsimg/adventure/AitFR-DN/16_1476395070.webp", gridSize: 70 },
 ];
 
-const TOKEN_IMPORT_PRESETS = [
-  { label: "Goblin", imageUrl: "/5etoolsimg/adventure/HotB/025-01-014.goblin-warrior-c.webp" },
-  { label: "Goblin Boss", imageUrl: "/5etoolsimg/adventure/HotB/026-01-015.goblin-boss-c.webp" },
-  { label: "Skeleton", imageUrl: "/5etoolsimg/adventure/DrDe/133-07-003.brandles-rest-skeleton.webp" },
-  { label: "Bandit", imageUrl: "/5etoolsimg/adventure/BQGT/004-00-004.bandit.webp" },
-];
+
 
 export default function MapPanel({ user, isPopout = false }) {
   const { socket, isConnected } = useSocket();
@@ -916,13 +913,14 @@ export default function MapPanel({ user, isPopout = false }) {
   };
 
   const handleTokenPresetSelect = (presetLabel) => {
-    const preset = TOKEN_IMPORT_PRESETS.find((item) => item.label === presetLabel);
+    const preset = NPC_TOKEN_PRESETS.find((item) => item.label === presetLabel);
     if (!preset) return;
 
+    const svgUrl = generateTokenSvgUrl(presetLabel, presetLabel);
     setNewTokenIsMonster(true);
     setNewTokenCharacterId("");
     setNewTokenLabel(preset.label);
-    setNewTokenImageUrl(preset.imageUrl);
+    setNewTokenImageUrl(svgUrl);
     setNewTokenStats(null);
   };
 
@@ -2986,7 +2984,7 @@ export default function MapPanel({ user, isPopout = false }) {
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Quick token presets</label>
                   <div style={styles.quickPresetGrid}>
-                    {TOKEN_IMPORT_PRESETS.map((preset) => (
+                    {NPC_TOKEN_PRESETS.map((preset) => (
                       <button
                         key={preset.label}
                         type="button"
@@ -2994,7 +2992,8 @@ export default function MapPanel({ user, isPopout = false }) {
                         style={styles.presetBtn}
                         className="touch-target btn-hover-scale"
                       >
-                        {preset.label}
+                        <TokenPresetIcon label={preset.label} size={36} />
+                        <span style={{ fontSize: "0.65rem", marginTop: "0.15rem" }}>{preset.label}</span>
                       </button>
                     ))}
                   </div>
@@ -3480,19 +3479,24 @@ const styles = {
   },
   quickPresetGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))",
-    gap: "0.4rem",
+    gridTemplateColumns: "repeat(auto-fill, minmax(62px, 1fr))",
+    gap: "0.35rem",
   },
   presetBtn: {
     background: "rgba(255,255,255,0.05)",
     border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: "4px",
+    borderRadius: "6px",
     color: "var(--color-text)",
     cursor: "pointer",
     fontSize: "0.75rem",
     fontWeight: 600,
-    padding: "0.45rem",
+    padding: "0.35rem",
     minHeight: "44px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.15rem",
   },
   floatingTokenDetails: {
     position: "absolute",
