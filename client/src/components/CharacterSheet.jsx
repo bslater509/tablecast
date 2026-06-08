@@ -64,8 +64,21 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   const [itemQty, setItemQty] = useState(1);
   const [itemWeight, setItemWeight] = useState(0);
 
-  // Keep a reference to the active layout tab on the sheet (Stats, Skills, Attacks, Inventory)
+  // Keep a reference to the active layout tab on the sheet (Stats, Skills, Attacks, Inventory, Spells)
   const [sheetTab, setSheetTab] = useState("stats");
+  
+  // Spellcasting state
+  const [spellSlots, setSpellSlots] = useState({});
+  const [spells, setSpells] = useState([]);
+  const [spellcastingAbility, setSpellcastingAbility] = useState("");
+  const [spellSaveDc, setSpellSaveDc] = useState(10);
+  const [spellAttackBonus, setSpellAttackBonus] = useState(5);
+  
+  // Spell add form
+  const [showAddSpell, setShowAddSpell] = useState(false);
+  
+  // Expanded spell card tracking
+  const [expandedSpell, setExpandedSpell] = useState(null);
 
   // Fetch character details from backend on mount/ID change
   useEffect(() => {
@@ -96,6 +109,21 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           };
         } catch (e) {}
 
+        // Parse spell JSON blobs
+        let parsedSpellSlots = {};
+        let parsedSpells = [];
+        try {
+          parsedSpellSlots = JSON.parse(data.spellSlots || "{}");
+        } catch (e) {}
+        try {
+          parsedSpells = JSON.parse(data.spells || "[]");
+        } catch (e) {}
+        setSpellSlots(parsedSpellSlots);
+        setSpells(parsedSpells);
+        setSpellcastingAbility(data.spellcastingAbility || "");
+        setSpellSaveDc(data.spellSaveDc || 10);
+        setSpellAttackBonus(data.spellAttackBonus || 5);
+
         setCharacter({
           ...data,
           inventory: parsedInventory,
@@ -113,6 +141,11 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     }
     loadCharacter();
   }, [characterId]);
+
+  // Recalculate spell save DC and attack bonus when level or casting ability changes
+  useEffect(() => {
+    recalcSpellStats(spellcastingAbility);
+  }, [character?.level, character?.strength, character?.dexterity, character?.constitution, character?.intelligence, character?.wisdom, character?.charisma, spellcastingAbility]);
 
   // Default weapon templates if character has none
   function getDefaultAttacks() {
@@ -150,6 +183,11 @@ export default function CharacterSheet({ characterId, onBack, user }) {
         charisma: Number(updatedChar.charisma),
         inventory: JSON.stringify(updatedChar.inventory),
         modifiers: JSON.stringify(updatedChar.modifiers),
+        spellSlots: JSON.stringify(spellSlots),
+        spells: JSON.stringify(spells),
+        spellcastingAbility: spellcastingAbility,
+        spellSaveDc: Number(spellSaveDc),
+        spellAttackBonus: Number(spellAttackBonus),
         backstory: updatedChar.backstory || "",
         personality: updatedChar.personality || "",
         appearance: updatedChar.appearance || "",
@@ -685,6 +723,134 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     ? character.inventory.reduce((sum, item) => sum + item.quantity * item.weight, 0).toFixed(1)
     : "0.0";
 
+  // ─── SPELLCASTING HANDLERS ───────────────────────────────────────────────
+
+  // Recalculate spell save DC and attack bonus when ability or level changes
+  function recalcSpellStats(ability) {
+    const abil = ability || spellcastingAbility;
+    if (!abil || !character) {
+      setSpellSaveDc(10);
+      setSpellAttackBonus(5);
+      return;
+    }
+    const mod = getMod(character[abil] || 10);
+    const prof = getProficiencyBonus(character.level);
+    setSpellSaveDc(8 + mod + prof);
+    setSpellAttackBonus(mod + prof);
+  }
+
+  // Handle spellcasting ability dropdown change
+  function handleSpellcastingAbilityChange(newAbility) {
+    setSpellcastingAbility(newAbility);
+    recalcSpellStats(newAbility);
+    // Trigger save
+    updateCharacterState((prev) => ({ ...prev }));
+  }
+
+  // Toggle a spell slot as used/recovered
+  function handleSlotToggle(level) {
+    const slotKey = String(level);
+    const current = spellSlots[slotKey];
+    if (!current) return;
+    const updated = { ...spellSlots };
+    if (current.used < current.total) {
+      // Use a slot
+      updated[slotKey] = { ...current, used: current.used + 1 };
+    }
+    setSpellSlots(updated);
+    updateCharacterState((prev) => ({ ...prev }));
+  }
+
+  // Recover a used spell slot
+  function handleRecoverSlot(level) {
+    const slotKey = String(level);
+    const current = spellSlots[slotKey];
+    if (!current || current.used <= 0) return;
+    const updated = { ...spellSlots };
+    updated[slotKey] = { ...current, used: Math.max(0, current.used - 1) };
+    setSpellSlots(updated);
+    updateCharacterState((prev) => ({ ...prev }));
+  }
+
+  // Reset all spell slots (long rest)
+  function handleResetSlots() {
+    const reset = {};
+    for (const [level, slot] of Object.entries(spellSlots)) {
+      reset[level] = { total: slot.total, used: 0 };
+    }
+    setSpellSlots(reset);
+    updateCharacterState((prev) => ({ ...prev }));
+  }
+
+  // Add spell to the character's spell list
+  function handleAddSpell(spellData) {
+    const newSpell = {
+      name: spellData.name,
+      level: spellData.level !== undefined ? spellData.level : 0,
+      school: spellData.school || "Magic",
+      prepared: spellData.level === 0, // Cantrips always prepared
+      ritual: spellData.ritual || false,
+      concentration: spellData.concentration || false,
+      castingTime: spellData.time?.[0]?.number + " " + spellData.time?.[0]?.unit || "",
+      range: spellData.range?.distance?.amount + " " + spellData.range?.distance?.type || spellData.range?.type || "",
+      components: spellData.components?.required?.join(", ") || "",
+      duration: spellData.duration?.[0]?.duration?.amount + " " + spellData.duration?.[0]?.duration?.type || spellData.duration?.[0]?.type || "",
+      description: spellData.entries || [],
+      higherLevels: spellData.entriesHigherLevel?.[0]?.entries || [],
+      source: spellData.source || "",
+    };
+    const updatedSpells = [...spells, newSpell];
+    setSpells(updatedSpells);
+    updateCharacterState((prev) => ({ ...prev }));
+    setShowAddSpell(false);
+  }
+
+  // Remove spell from the character's spell list
+  function handleRemoveSpell(index) {
+    const updated = spells.filter((_, i) => i !== index);
+    setSpells(updated);
+    updateCharacterState((prev) => ({ ...prev }));
+  }
+
+  // Toggle prepared status of a spell
+  function handleTogglePrepared(index) {
+    const updated = spells.map((s, i) =>
+      i === index ? { ...s, prepared: !s.prepared } : s
+    );
+    setSpells(updated);
+    updateCharacterState((prev) => ({ ...prev }));
+  }
+
+  // Fetch spell detail from reference API
+  async function fetchSpellDetail(spellName) {
+    try {
+      const res = await fetch(`/api/reference/search?category=spells&q=${encodeURIComponent(spellName)}&limit=5`);
+      if (!res.ok) return null;
+      const results = await res.json();
+      if (!results?.length) return null;
+      // Get the detail for the first match
+      const match = results.results[0];
+      const detailRes = await fetch(`/api/reference/detail?category=spells&source=${encodeURIComponent(match.source || "")}&name=${encodeURIComponent(match.name)}`);
+      if (!detailRes.ok) return match;
+      const detail = await detailRes.json();
+      return detail || match;
+    } catch (e) {
+      console.error("[CharacterSheet] fetchSpellDetail error:", e);
+      return null;
+    }
+  }
+
+  // Handle autocomplete spell selection
+  async function onSpellSelect(spellItem) {
+    const detail = await fetchSpellDetail(spellItem.name);
+    if (detail) {
+      handleAddSpell(detail);
+    } else {
+      // Fallback: add what we have from search results
+      handleAddSpell(spellItem);
+    }
+  }
+
   // Check state loading / error
   if (loading) return <div style={styles.stateContainer}><p>Consulting character scrolls</p></div>;
   if (error) return <div style={styles.stateContainer}><p style={{ color: "var(--color-danger)" }}> Error: {error}</p></div>;
@@ -884,7 +1050,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
       {/* Internal Tabs (Stats, Skills, Attacks, Inventory) */}
       <nav style={styles.tabNav}>
-        {["stats", "skills", "attacks", "inventory"].map((tab) => (
+        {["stats", "skills", "attacks", "inventory", "spells"].map((tab) => (
           <button
             key={tab}
             id={`sheet-tab-${tab}`}
@@ -1278,6 +1444,273 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/*  SPELLS TAB  */}
+        {sheetTab === "spells" && (
+          <div style={styles.spellsContainer} className="fade-in">
+
+            {/* Spellcasting Header */}
+            <div style={styles.spellHeaderRow}>
+              <div style={styles.spellAbilityGroup}>
+                <label style={styles.spellLabel}>Casting Ability</label>
+                <select
+                  id="spell-ability-select"
+                  value={spellcastingAbility}
+                  onChange={(e) => handleSpellcastingAbilityChange(e.target.value)}
+                  style={styles.spellSelect}
+                >
+                  <option value="">— None —</option>
+                  <option value="intelligence">Intelligence</option>
+                  <option value="wisdom">Wisdom</option>
+                  <option value="charisma">Charisma</option>
+                </select>
+              </div>
+              <div style={styles.spellStatBox}>
+                <span style={styles.spellStatLabel}>Save DC</span>
+                <span style={styles.spellStatValue}>{spellSaveDc}</span>
+              </div>
+              <div style={styles.spellStatBox}>
+                <span style={styles.spellStatLabel}>Attack</span>
+                <span style={styles.spellStatValue}>{formatMod(spellAttackBonus)}</span>
+              </div>
+            </div>
+
+            {/* Spell Slots Tracker */}
+            {Object.keys(spellSlots).length > 0 && (
+              <div style={styles.spellSlotsSection} className="glass-panel">
+                <div style={styles.spellSlotsHeader}>
+                  <span style={styles.spellSectionTitle}>Spell Slots</span>
+                  <button
+                    id="reset-slots-btn"
+                    onClick={handleResetSlots}
+                    style={styles.spellSmallBtn}
+                    className="touch-target"
+                  >
+                    Reset (Long Rest)
+                  </button>
+                </div>
+                <div style={styles.spellSlotsGrid}>
+                  {Object.entries(spellSlots)
+                    .sort(([a], [b]) => Number(a) - Number(b))
+                    .map(([level, slot]) => {
+                      const used = slot.used || 0;
+                      const total = slot.total || 0;
+                      const remaining = total - used;
+                      return (
+                        <div key={level} style={styles.slotRow}>
+                          <span style={styles.slotLevelLabel}>Lv {level}</span>
+                          <div style={styles.slotDots}>
+                            {Array.from({ length: total }, (_, i) => (
+                              <button
+                                key={i}
+                                id={`slot-${level}-${i}`}
+                                onClick={() => i < remaining ? handleSlotToggle(level) : handleRecoverSlot(level)}
+                                style={{
+                                  ...styles.slotDot,
+                                  background: i < remaining
+                                    ? "var(--color-accent)"
+                                    : "rgba(255,255,255,0.08)",
+                                }}
+                                className="touch-target"
+                                title={i < remaining ? `Use level ${level} slot` : `Recover level ${level} slot`}
+                              />
+                            ))}
+                          </div>
+                          <span style={styles.slotCount}>
+                            {used}/{total}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* Add Spell Button */}
+            <div style={styles.spellAddRow}>
+              <h3 style={styles.spellSectionTitle}>Spells</h3>
+              {!showAddSpell && (
+                <button
+                  id="add-spell-btn"
+                  onClick={() => setShowAddSpell(true)}
+                  style={styles.addBtn}
+                  className="touch-target btn-hover-scale"
+                >
+                  + Add Spell
+                </button>
+              )}
+            </div>
+
+            {/* Add Spell Form */}
+            {showAddSpell && (
+              <form
+                onSubmit={(e) => { e.preventDefault(); }}
+                style={styles.subForm}
+                className="glass-panel gold-border-glow"
+              >
+                <h4 style={styles.subFormTitle}>Add Spell</h4>
+                <div style={styles.inputGroup}>
+                  <label style={styles.subLabel}>Search Spell</label>
+                  <Autocomplete
+                    id="spell-search-input"
+                    category="spells"
+                    placeholder="e.g. Fireball, Cure Wounds..."
+                    onSelect={onSpellSelect}
+                    className="form-input"
+                    inputStyle={styles.subInput}
+                  />
+                </div>
+                <div style={styles.subBtnRow}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSpell(false)}
+                    style={styles.subCancelBtn}
+                    className="touch-target btn-hover-scale"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Spell List Grouped by Level */}
+            {spells.length === 0 ? (
+              <div style={styles.spellEmpty}>
+                No spells yet. Add spells from the 5e reference library above.
+              </div>
+            ) : (
+              <div style={styles.spellList}>
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((level) => {
+                  const levelSpells = spells.filter((s) => s.level === level);
+                  if (levelSpells.length === 0) return null;
+                  return (
+                    <div key={level} style={styles.spellGroup}>
+                      <div style={styles.spellGroupHeader}>
+                        <span style={styles.spellGroupTitle}>
+                          {level === 0 ? "Cantrips" : `Level ${level}`}
+                        </span>
+                        <span style={styles.spellGroupCount}>{levelSpells.length}</span>
+                      </div>
+                      {levelSpells.map((spell, idx) => {
+                        const spellIndex = spells.indexOf(spell);
+                        const isExpanded = expandedSpell === spellIndex;
+                        return (
+                          <div key={spell.name + idx} style={styles.spellCard} className="glass-panel">
+                            <div
+                              style={styles.spellCardHeader}
+                              onClick={() => setExpandedSpell(isExpanded ? null : spellIndex)}
+                            >
+                              <div style={styles.spellCardLeft}>
+                                {spell.level > 0 && (
+                                  <input
+                                    id={`prepared-${spell.name.toLowerCase().replace(/\s/g, "")}`}
+                                    type="checkbox"
+                                    checked={spell.prepared}
+                                    onChange={() => handleTogglePrepared(spellIndex)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={styles.checkbox}
+                                    title="Toggle prepared"
+                                  />
+                                )}
+                                <div style={styles.spellCardInfo}>
+                                  <span style={styles.spellCardName}>{spell.name}</span>
+                                  <span style={styles.spellCardMeta}>
+                                    {spell.school}
+                                    {spell.concentration && " • Concentration"}
+                                    {spell.ritual && " • Ritual"}
+                                  </span>
+                                </div>
+                              </div>
+                              <div style={styles.spellCardActions}>
+                                <span style={styles.expandIcon}>{isExpanded ? "▲" : "▼"}</span>
+                                <button
+                                  id={`remove-spell-${spell.name.toLowerCase().replace(/\s/g, "")}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveSpell(spellIndex);
+                                  }}
+                                  style={styles.deleteBtn}
+                                  className="touch-target"
+                                  title="Remove spell"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Expanded Spell Detail */}
+                            {isExpanded && (
+                              <div style={styles.spellDetail}>
+                                <div style={styles.spellMetaGrid}>
+                                  {spell.castingTime && (
+                                    <div style={styles.spellMetaItem}>
+                                      <span style={styles.spellMetaLabel}>Casting Time</span>
+                                      <span style={styles.spellMetaVal}>{spell.castingTime}</span>
+                                    </div>
+                                  )}
+                                  {spell.range && (
+                                    <div style={styles.spellMetaItem}>
+                                      <span style={styles.spellMetaLabel}>Range</span>
+                                      <span style={styles.spellMetaVal}>{spell.range}</span>
+                                    </div>
+                                  )}
+                                  {spell.components && (
+                                    <div style={styles.spellMetaItem}>
+                                      <span style={styles.spellMetaLabel}>Components</span>
+                                      <span style={styles.spellMetaVal}>{spell.components}</span>
+                                    </div>
+                                  )}
+                                  {spell.duration && (
+                                    <div style={styles.spellMetaItem}>
+                                      <span style={styles.spellMetaLabel}>Duration</span>
+                                      <span style={styles.spellMetaVal}>{spell.duration}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                {spell.description && spell.description.length > 0 && (
+                                  <div style={styles.spellDescSection}>
+                                    <span style={styles.spellDescLabel}>Description</span>
+                                    <div style={styles.spellDescText}>
+                                      {Array.isArray(spell.description)
+                                        ? spell.description.map((entry, ei) => (
+                                            <p key={ei} style={{ margin: "0.25rem 0" }}>
+                                              {typeof entry === "string" ? entry : entry.name || ""}
+                                            </p>
+                                          ))
+                                        : typeof spell.description === "string"
+                                          ? <p style={{ margin: "0.25rem 0" }}>{spell.description}</p>
+                                          : null}
+                                    </div>
+                                  </div>
+                                )}
+                                {spell.higherLevels && spell.higherLevels.length > 0 && (
+                                  <div style={styles.spellDescSection}>
+                                    <span style={styles.spellDescLabel}>At Higher Levels</span>
+                                    <div style={styles.spellDescText}>
+                                      {Array.isArray(spell.higherLevels)
+                                        ? spell.higherLevels.map((entry, hi) => (
+                                            <p key={hi} style={{ margin: "0.25rem 0" }}>
+                                              {typeof entry === "string" ? entry : entry.name || ""}
+                                            </p>
+                                          ))
+                                        : typeof spell.higherLevels === "string"
+                                          ? <p style={{ margin: "0.25rem 0" }}>{spell.higherLevels}</p>
+                                          : null}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -1942,5 +2375,248 @@ const styles = {
     fontWeight: "bold",
     cursor: "pointer",
     fontSize: "0.8rem",
+  },
+
+  /* Spells Tab */
+  spellsContainer: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.75rem",
+    paddingBottom: "1rem",
+  },
+  spellHeaderRow: {
+    display: "flex",
+    gap: "0.5rem",
+    alignItems: "center",
+  },
+  spellAbilityGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.2rem",
+    flex: 1,
+  },
+  spellLabel: {
+    fontSize: "0.7rem",
+    color: "var(--color-muted)",
+    fontWeight: 600,
+  },
+  spellSelect: {
+    background: "rgba(0,0,0,0.3)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "6px",
+    color: "var(--color-text)",
+    padding: "0.45rem",
+    fontSize: "0.85rem",
+    outline: "none",
+  },
+  spellStatBox: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    background: "rgba(200,151,58,0.08)",
+    border: "1px solid rgba(200,151,58,0.2)",
+    borderRadius: "6px",
+    padding: "0.4rem 0.7rem",
+    minWidth: "60px",
+  },
+  spellStatLabel: {
+    fontSize: "0.6rem",
+    color: "var(--color-muted)",
+    fontWeight: 600,
+  },
+  spellStatValue: {
+    fontSize: "1.1rem",
+    fontWeight: 700,
+    color: "var(--color-accent)",
+  },
+  spellSectionTitle: {
+    fontSize: "0.9rem",
+    color: "var(--color-accent)",
+    fontWeight: 600,
+  },
+  /* Spell Slots */
+  spellSlotsSection: {
+    padding: "0.6rem 0.75rem",
+    borderRadius: "8px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  },
+  spellSlotsHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  spellSmallBtn: {
+    padding: "0.25rem 0.5rem",
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "4px",
+    color: "var(--color-muted)",
+    cursor: "pointer",
+    fontSize: "0.65rem",
+  },
+  spellSlotsGrid: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.35rem",
+  },
+  slotRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  slotLevelLabel: {
+    fontSize: "0.75rem",
+    fontWeight: 700,
+    color: "var(--color-muted)",
+    minWidth: "28px",
+  },
+  slotDots: {
+    display: "flex",
+    gap: "0.3rem",
+    flex: 1,
+  },
+  slotDot: {
+    width: "22px",
+    height: "22px",
+    borderRadius: "50%",
+    border: "1px solid rgba(255,255,255,0.12)",
+    cursor: "pointer",
+    padding: 0,
+    transition: "background 0.15s ease",
+  },
+  slotCount: {
+    fontSize: "0.7rem",
+    color: "var(--color-muted)",
+    minWidth: "30px",
+    textAlign: "right",
+  },
+  /* Spell Add */
+  spellAddRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  /* Spell List */
+  spellEmpty: {
+    textAlign: "center",
+    color: "var(--color-muted)",
+    fontSize: "0.8rem",
+    padding: "2rem 0",
+  },
+  spellList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.75rem",
+  },
+  spellGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.35rem",
+  },
+  spellGroupHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0.25rem 0",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
+  },
+  spellGroupTitle: {
+    fontSize: "0.8rem",
+    fontWeight: 700,
+    color: "var(--color-muted)",
+  },
+  spellGroupCount: {
+    fontSize: "0.7rem",
+    color: "var(--color-muted)",
+    background: "rgba(255,255,255,0.05)",
+    padding: "0.1rem 0.4rem",
+    borderRadius: "8px",
+  },
+  spellCard: {
+    borderRadius: "6px",
+    overflow: "hidden",
+  },
+  spellCardHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0.6rem 0.75rem",
+    cursor: "pointer",
+    gap: "0.5rem",
+  },
+  spellCardLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    flex: 1,
+    minWidth: 0,
+  },
+  spellCardInfo: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.1rem",
+    minWidth: 0,
+  },
+  spellCardName: {
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    color: "var(--color-text)",
+  },
+  spellCardMeta: {
+    fontSize: "0.65rem",
+    color: "var(--color-muted)",
+  },
+  spellCardActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.4rem",
+    flexShrink: 0,
+  },
+  expandIcon: {
+    fontSize: "0.6rem",
+    color: "var(--color-muted)",
+  },
+  spellDetail: {
+    borderTop: "1px solid rgba(255,255,255,0.06)",
+    padding: "0.6rem 0.75rem",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  },
+  spellMetaGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: "0.35rem",
+  },
+  spellMetaItem: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.1rem",
+  },
+  spellMetaLabel: {
+    fontSize: "0.6rem",
+    color: "var(--color-muted)",
+    fontWeight: 600,
+  },
+  spellMetaVal: {
+    fontSize: "0.75rem",
+    color: "var(--color-text)",
+  },
+  spellDescSection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.2rem",
+  },
+  spellDescLabel: {
+    fontSize: "0.65rem",
+    color: "var(--color-muted)",
+    fontWeight: 600,
+  },
+  spellDescText: {
+    fontSize: "0.78rem",
+    color: "var(--color-text)",
+    lineHeight: 1.4,
   },
 };

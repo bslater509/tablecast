@@ -31,6 +31,11 @@ const ALLOWED_FIELDS = [
   "charisma",
   "inventory",
   "modifiers",
+  "spellSlots",
+  "spells",
+  "spellcastingAbility",
+  "spellSaveDc",
+  "spellAttackBonus",
 ];
 
 /**
@@ -142,7 +147,7 @@ router.post("/", async (req, res) => {
       if (field === "name") continue; // already set
       if (req.body[field] !== undefined) {
         // Validate JSON string fields
-        if ((field === "inventory" || field === "modifiers") && !isValidJson(req.body[field])) {
+        if ((field === "inventory" || field === "modifiers" || field === "spellSlots" || field === "spells") && !isValidJson(req.body[field])) {
           return res
             .status(400)
             .json({ error: `${field} must be a valid JSON string.` });
@@ -196,7 +201,7 @@ router.put("/:id", async (req, res) => {
 
     for (const field of ALLOWED_FIELDS) {
       if (req.body[field] !== undefined) {
-        if ((field === "inventory" || field === "modifiers") && !isValidJson(req.body[field])) {
+        if ((field === "inventory" || field === "modifiers" || field === "spellSlots" || field === "spells") && !isValidJson(req.body[field])) {
           return res
             .status(400)
             .json({ error: `${field} must be a valid JSON string.` });
