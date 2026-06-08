@@ -11,6 +11,7 @@
 const { Router } = require("express");
 const prisma = require("../prisma");
 const { requireDm, getRequestUser } = require("../auth");
+const tokenImageLookup = require("../utils/tokenImageLookup");
 const logger = require("../utils/logger");
 
 const router = Router();
@@ -141,6 +142,16 @@ router.post("/", requireDm, async (req, res) => {
       }
     }
 
+    // Auto-resolve token image if none provided
+    if (!data.imageUrl) {
+      const imgMatch = tokenImageLookup.findMonsterTokenImage({ name: data.name, source: "" }) ||
+        tokenImageLookup.findReferenceImage({ name: data.race || "", source: "", section: "bestiary", preferToken: true, tokenOnly: true }) ||
+        tokenImageLookup.findReferenceImage({ name: data.name, source: "", section: "bestiary", preferToken: false, excludeTokens: false });
+      if (imgMatch) {
+        data.imageUrl = imgMatch.url;
+      }
+    }
+
     const npc = await prisma.npc.create({ data });
     res.status(201).json(npc);
   } catch (err) {
@@ -181,6 +192,18 @@ router.put("/:id", requireDm, async (req, res) => {
 
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: "No valid fields to update." });
+    }
+
+    // Auto-resolve token image if none provided and updating a relevant field
+    if (!data.imageUrl && (data.name || data.race)) {
+      const name = data.name || "";
+      const race = data.race || "";
+      const imgMatch = tokenImageLookup.findMonsterTokenImage({ name, source: "" }) ||
+        tokenImageLookup.findReferenceImage({ name: race, source: "", section: "bestiary", preferToken: true, tokenOnly: true }) ||
+        tokenImageLookup.findReferenceImage({ name, source: "", section: "bestiary", preferToken: false, excludeTokens: false });
+      if (imgMatch) {
+        data.imageUrl = imgMatch.url;
+      }
     }
 
     const npc = await prisma.npc.update({

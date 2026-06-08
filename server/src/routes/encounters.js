@@ -411,6 +411,13 @@ router.post("/:id/deploy", requireDm, async (req, res) => {
 
     for (let index = 0; index < participants.length; index += 1) {
       const participant = participants[index];
+      let deployImageUrl = participant.imageUrl || participant.npc?.imageUrl || participant.monster?.imageUrl || "";
+      if (!deployImageUrl) {
+        const imgMatch = tokenImageLookup.findMonsterTokenImage({ name: participant.name, source: "" }) ||
+          tokenImageLookup.findReferenceImage({ name: participant.name, source: "", section: "bestiary", preferToken: false, excludeTokens: false });
+        if (imgMatch) deployImageUrl = imgMatch.url;
+      }
+
       const token = await prisma.token.create({
         data: {
           mapId: encounter.mapId,
@@ -418,7 +425,7 @@ router.post("/:id/deploy", requireDm, async (req, res) => {
           npcId: participant.npcId,
           monsterId: participant.monsterId,
           label: participant.name,
-          imageUrl: participant.imageUrl || participant.npc?.imageUrl || participant.monster?.imageUrl || "",
+          imageUrl: deployImageUrl,
           x: startX + (index % 5),
           y: startY + Math.floor(index / 5),
           stats: JSON.stringify({

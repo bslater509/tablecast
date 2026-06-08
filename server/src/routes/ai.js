@@ -16,6 +16,7 @@ const { server: mcpServer, createMcpServer } = require("../mcp-server");
 const prisma = require("../prisma");
 const { requireDm, getRequestUser } = require("../auth");
 const referenceSearch = require("../utils/referenceSearch");
+const tokenImageLookup = require("../utils/tokenImageLookup");
 const logger = require("../utils/logger");
 
 const router = Router();
@@ -1518,6 +1519,16 @@ The JSON must strictly conform to these fields:
       throw new Error("Failed to generate a valid NPC JSON structure from the AI response.");
     }
 
+    // Auto-resolve token image from NPC name/race
+    if (!npcData.imageUrl) {
+      const imgMatch = tokenImageLookup.findMonsterTokenImage({ name: npcData.name, source: "" }) ||
+        tokenImageLookup.findReferenceImage({ name: npcData.race || "", source: "", section: "bestiary", preferToken: true, tokenOnly: true }) ||
+        tokenImageLookup.findReferenceImage({ name: npcData.name, source: "", section: "bestiary", preferToken: false, excludeTokens: false });
+      if (imgMatch) {
+        npcData.imageUrl = imgMatch.url;
+      }
+    }
+
     writeSseEvent(res, { type: "result", data: npcData });
     writeSseEvent(res, { type: "done" });
     res.end();
@@ -2644,6 +2655,16 @@ The JSON must strictly conform to these fields:
       } catch (e) {
         logger.error("ai:npc", "JSON parse failed on text", { response: rawResponse });
         throw new Error("Failed to generate a valid NPC JSON from the interview.");
+      }
+
+      // Auto-resolve token image from NPC name/race
+      if (!npcData.imageUrl) {
+        const imgMatch = tokenImageLookup.findMonsterTokenImage({ name: npcData.name, source: "" }) ||
+          tokenImageLookup.findReferenceImage({ name: npcData.race || "", source: "", section: "bestiary", preferToken: true, tokenOnly: true }) ||
+          tokenImageLookup.findReferenceImage({ name: npcData.name, source: "", section: "bestiary", preferToken: false, excludeTokens: false });
+        if (imgMatch) {
+          npcData.imageUrl = imgMatch.url;
+        }
       }
 
       writeSseEvent(res, { type: "result", data: npcData });

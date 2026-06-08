@@ -9,6 +9,19 @@ import { ExternalLink, Menu } from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
+
+// Common NPC token image presets (shared between DM and for AI suggestions)
+const NPC_TOKEN_PRESETS = [
+  { label: "Bandit", imageUrl: "/5etoolsimg/adventure/BQGT/004-00-004.bandit.webp" },
+  { label: "Goblin", imageUrl: "/5etoolsimg/adventure/HotB/025-01-014.goblin-warrior-c.webp" },
+  { label: "Goblin Boss", imageUrl: "/5etoolsimg/adventure/HotB/026-01-015.goblin-boss-c.webp" },
+  { label: "Skeleton", imageUrl: "/5etoolsimg/adventure/DrDe/133-07-003.brandles-rest-skeleton.webp" },
+  { label: "Orc", imageUrl: "/5etoolsimg/adventure/LMoP/018-06-07.orc-finger.webp" },
+  { label: "Guard", imageUrl: "/5etoolsimg/adventure/LMoP/017-06-06.red-brand-ruffian.webp" },
+  { label: "Cultist", imageUrl: "/5etoolsimg/adventure/HotB/027-01-016.cult-fanatic-c.webp" },
+  { label: "Zombie", imageUrl: "/5etoolsimg/adventure/DrDe/135-07-005.hard-to-die-zombie.webp" },
+  { label: "Wolf", imageUrl: "/5etoolsimg/adventure/LMoP/019-06-08.wolf.webp" },
+];
 import WikiTreeSidebar from "./WikiTreeSidebar";
 import { useSocket } from "../context/SocketContext";
 import { WikiPanelSkeleton } from "./PanelSkeleton";
@@ -1274,6 +1287,31 @@ export default function WikiPanel({ user, isPopout = false }) {
     });
   };
 
+  // Auto-find token image for the NPC being edited
+  const handleNpcAutoFindImage = async () => {
+    if (!editingNpc) return;
+    const searchName = editingNpc.name || editingNpc.race || "";
+    if (!searchName.trim()) return;
+
+    try {
+      const params = new URLSearchParams({ name: searchName.trim() });
+      const res = await fetch(`/api/reference/token-image?${params.toString()}`);
+      if (!res.ok) return;
+      const match = await res.json();
+      if (match?.url) {
+        handleNpcFieldChange("imageUrl", match.url);
+      }
+    } catch (err) {
+      console.error("[WikiPanel] Auto-find NPC image failed:", err);
+    }
+  };
+
+  // Select a preset token image for the NPC
+  const handleNpcTokenPresetSelect = (preset) => {
+    if (!editingNpc) return;
+    handleNpcFieldChange("imageUrl", preset.imageUrl);
+  };
+
   const handleNpcActionChange = (index, key, value) => {
     let actionsArray = [];
     try {
@@ -2027,6 +2065,60 @@ export default function WikiPanel({ user, isPopout = false }) {
                     </label>
                   </div>
                 </div>
+
+                {/* Token image preview + quick presets + auto-find */}
+                <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+                  {editingNpc.imageUrl && (
+                    <div style={styles.npcTokenPreview}>
+                      <img
+                        src={editingNpc.imageUrl}
+                        alt="Token preview"
+                        style={styles.npcTokenPreviewImg}
+                        onError={(e) => { e.target.style.display = "none"; }}
+                      />
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.4rem", flexWrap: "wrap" }}>
+                      <label style={{ ...styles.label, margin: 0 }}>Quick Token Images</label>
+                      <button
+                        type="button"
+                        onClick={handleNpcAutoFindImage}
+                        style={styles.autoFindBtn}
+                        className="touch-target btn-hover-scale"
+                        title={`Auto-find image for "${editingNpc.name || editingNpc.race || ""}"`}
+                      >
+                        Auto-find Image
+                      </button>
+                    </div>
+                    <div style={styles.npcPresetGrid}>
+                      {NPC_TOKEN_PRESETS.map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => handleNpcTokenPresetSelect(preset)}
+                          style={{
+                            ...styles.npcPresetBtn,
+                            border: editingNpc.imageUrl === preset.imageUrl
+                              ? "2px solid var(--color-accent)"
+                              : "1px solid rgba(255,255,255,0.08)",
+                          }}
+                          className="touch-target btn-hover-scale"
+                          title={preset.label}
+                        >
+                          <img
+                            src={preset.imageUrl}
+                            alt={preset.label}
+                            style={styles.npcPresetImg}
+                            onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }}
+                          />
+                          <span style={styles.npcPresetLabel}>{preset.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
               </div>
 
               {/* Core Ability Scores */}
@@ -4117,6 +4209,62 @@ const styles = {
     fontSize: "0.75rem",
     fontWeight: 700,
     minHeight: "44px",
+  },
+  // NPC token image preview
+  npcTokenPreview: {
+    width: "64px",
+    height: "64px",
+    borderRadius: "8px",
+    overflow: "hidden",
+    border: "2px solid var(--color-accent)",
+    flexShrink: 0,
+    background: "var(--color-surface)",
+  },
+  npcTokenPreviewImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  // Auto-find button
+  autoFindBtn: {
+    padding: "0.3rem 0.75rem",
+    borderRadius: "6px",
+    background: "rgba(100, 180, 255, 0.1)",
+    border: "1px solid rgba(100, 180, 255, 0.25)",
+    color: "var(--color-accent)",
+    cursor: "pointer",
+    fontSize: "0.72rem",
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+  },
+  // NPC token preset grid
+  npcPresetGrid: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "0.4rem",
+  },
+  npcPresetBtn: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "0.2rem",
+    padding: "0.3rem",
+    borderRadius: "6px",
+    background: "rgba(255,255,255,0.03)",
+    cursor: "pointer",
+    width: "60px",
+  },
+  npcPresetImg: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "4px",
+    objectFit: "cover",
+  },
+  npcPresetLabel: {
+    fontSize: "0.6rem",
+    color: "var(--color-muted)",
+    textAlign: "center",
+    lineHeight: 1.1,
   },
 };
 
