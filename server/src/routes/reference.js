@@ -93,7 +93,9 @@ function withReferenceImage(item, category) {
 function imageHrefToUrl(image) {
   const imagePath = image?.href?.type === "internal" ? image.href.path : "";
   if (!imagePath || typeof imagePath !== "string") return "";
-  return `/5etoolsimg/${imagePath.split("/").map(encodeURIComponent).join("/")}`;
+  // Build URL pointing to 5e.tools CDN: https://5e.tools/img/{path}
+  const parts = imagePath.split("/").map(encodeURIComponent).join("/");
+  return `https://5e.tools/img/${parts}`;
 }
 
 function withReferenceInfo(item, category, allowedSources) {
@@ -162,7 +164,22 @@ router.put("/settings", requireDm, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/reference/sync  Trigger background git clone/pull operation
+// POST /api/reference/clear-cache  Clear disk and memory cache
+// ---------------------------------------------------------------------------
+router.post("/clear-cache", requireDm, (req, res) => {
+  try {
+    referenceSync.clearDiskCache();
+    referenceSearch.clearCache();
+    tokenImageLookup.clearCache();
+    res.json({ success: true, message: "Cache cleared." });
+  } catch (err) {
+    logger.error("api:reference", "Error clearing cache", { error: err.message });
+    res.status(500).json({ error: "Failed to clear cache." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/reference/sync  Trigger background HTTP cache refresh
 // ---------------------------------------------------------------------------
 router.post("/sync", requireDm, (req, res) => {
   try {
@@ -171,21 +188,21 @@ router.post("/sync", requireDm, (req, res) => {
       return res.status(400).json({ error: "Sync is already in progress." });
     }
 
-    // Trigger sync in background
+    // Trigger cache refresh in background
     referenceSync.sync()
       .then(() => {
-        // Clear cached JSON data so it reloads the fresh pulled data next search
+        // Clear in-memory cache so next search uses fresh data
         referenceSearch.clearCache();
         tokenImageLookup.clearCache();
       })
       .catch((err) => {
-        logger.error("api:reference", "Background reference sync failed", { error: err.message });
+        logger.error("api:reference", "Background cache refresh failed", { error: err.message });
       });
 
-    res.json({ success: true, message: "Reference sync started in the background." });
+    res.json({ success: true, message: "Reference cache refresh started in the background." });
   } catch (err) {
     logger.error("api:reference", "Error in POST /api/reference/sync", { error: err.message });
-    res.status(500).json({ error: "Failed to start sync process." });
+    res.status(500).json({ error: "Failed to start cache refresh." });
   }
 });
 
@@ -437,47 +454,88 @@ router.post("/import", requireDm, async (req, res) => {
 async function copyReferenceImage(sourceUrl) {
   if (!sourceUrl || typeof sourceUrl !== "string") return "";
   
-  const cleanPath = decodeURIComponent(sourceUrl.replace(/^\/5etoolsimg\//, ""));
-  
-  const imgRoots = [
-    path.resolve(__dirname, "../../5etoolsimg"),
-    path.resolve(__dirname, "../../../5etoolsimg"),
-  ].filter((dir) => fs.existsSync(dir));
-  
-  if (imgRoots.length === 0) return "";
-  
-  let srcFilePath = "";
-  for (const root of imgRoots) {
-    const fullPath = path.resolve(root, cleanPath);
-    // Guard against path traversal
-    if (!fullPath.startsWith(path.resolve(root) + path.sep) && fullPath !== path.resolve(root)) {
-      continue;
-    }
-    if (fs.existsSync(fullPath)) {
-      srcFilePath = fullPath;
-      break;
-    }
+  // If it's a 5e.tools URL, download it
+  if (sourceUrl.startsWith("https://5e.tools/img/")) {
+    return downloadReferenceImage(sourceUrl);
   }
+  
+  // Legacy: if it's an uploads URL, return as-is (already local)
+  if (sourceUrl.startsWith("/uploads/")) {
+    return sourceUrl;
+  }
+  
+  // Otherwise, treat any http/https URL as a remote image to download
+  if (sourceUrl.startsWith("http://") || sourceUrl.startsWith("https://")) {
+    return downloadReferenceImage(sourceUrl);
+  }
+  
+  return "";
+}
 
-  if (!srcFilePath) return "";
-  
-  const ext = path.extname(srcFilePath);
-  const base = path.basename(srcFilePath, ext);
-  const uniqueName = `imported_${base.replace(/[^a-z0-9]+/gi, "_")}_${Date.now()}${ext}`;
-  const destDir = path.resolve(__dirname, "../../uploads");
-  
-  if (!fs.existsSync(destDir)) {
-    fs.mkdirSync(destDir, { recursive: true });
-  }
-  
-  const destFilePath = path.join(destDir, uniqueName);
-  try {
-    await fs.promises.copyFile(srcFilePath, destFilePath);
-    return `/uploads/${uniqueName}`;
-  } catch (err) {
-    logger.error("api:reference", "Failed to copy reference image", { error: err.message, srcFilePath });
-    return "";
-  }
+/**
+ * Downloads an image from a remote URL to the local uploads directory.
+ */
+function downloadReferenceImage(url) {
+  return new Promise((resolve) => {
+    const https = require("https");
+    const http = require("http");
+    const protocol = url.startsWith("https") ? https : http;
+    
+    const destDir = path.resolve(__dirname, "../../uploads");
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+    
+    const urlObj = new URL(url);
+    const ext = path.extname(urlObj.pathname) || ".webp";
+    const base = path.basename(urlObj.pathname, ext);
+    const uniqueName = `imported_${base.replace(/[^a-z0-9]+/gi, "_")}_${Date.now()}${ext}`;
+    const destFilePath = path.join(destDir, uniqueName);
+    
+    protocol.get(url, { timeout: 15000 }, (res) => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        logger.error("api:reference", "Failed to download reference image", { url, status: res.statusCode });
+        resolve("");
+        return;
+      }
+      
+      // Handle redirects
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        resolve(downloadReferenceImage(res.headers.location));
+        return;
+      }
+      
+      const fileStream = fs.createWriteStream(destFilePath);
+      res.pipe(fileStream);
+      
+      fileStream.on("finish", () => {
+        fileStream.close();
+        // Verify the file is valid
+        const stats = fs.statSync(destFilePath);
+        if (stats.size === 0) {
+          fs.unlinkSync(destFilePath);
+          logger.error("api:reference", "Downloaded image is empty", { url });
+          resolve("");
+        } else {
+          logger.info("api:reference", "Downloaded reference image", { url, dest: destFilePath, size: stats.size });
+          resolve(`/uploads/${uniqueName}`);
+        }
+      });
+      
+      fileStream.on("error", (err) => {
+        fs.unlink(destFilePath, () => {});
+        logger.error("api:reference", "Error writing downloaded image", { error: err.message, url });
+        resolve("");
+      });
+    }).on("error", (err) => {
+      logger.error("api:reference", "Error downloading reference image", { error: err.message, url });
+      resolve("");
+    }).on("timeout", function () {
+      this.destroy();
+      logger.error("api:reference", "Timeout downloading reference image", { url });
+      resolve("");
+    });
+  });
 }
 
 function getModifier(val) {

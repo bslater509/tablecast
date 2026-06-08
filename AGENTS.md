@@ -17,7 +17,7 @@ This document is a **living reference** describing the project's standards, arch
 - **No Local Docker Rebuilds:** All Docker builds/rebuilds happen on the remote server via the webhook. Do **not** run `docker compose build` or similar locally.
 - **Debugging Tools:** Chrome (Debian package) is available for browser testing against `http://192.168.0.77:3001`. If browser subagents fail, verify endpoints directly with `curl`.
 - **Git Version Control & Deployment Trigger:** Always push all changes to the repository. When finished with a task, there should be no uncommitted or unpushed changes left.
-- **No 5etools Repository Modifications:** Do not create, modify, or place any files in the `5etoolsimg/` or `5etoolssrc/` directories. These are git submodules. Any files placed there that are not part of the official repos must be deleted.
+- **No 5etools Repository Modifications:** The `5etoolsimg/` and `5etoolssrc/` git submodules have been removed. 5etools reference data (JSON) and images are now fetched from `https://5e.tools/` at runtime and cached to `server/uploads/5etools-cache/`. Do not create or modify files in that cache directory directly.
 - **Auth Pattern:** The server uses header-based auth: `x-tablecast-user-id: <id>`. DM-only endpoints use the `requireDm` middleware (checks `req.get("x-tablecast-user-id")` and verifies role in DB).
 - **AI Tool Config:** The `opencode.json` at repo root configures MCP servers (puppeteer) and agent behavior. Do not break the MCP server configuration when making changes.
 
@@ -272,7 +272,7 @@ The server has a structured logging and debugging system designed to help AI age
 **Directives:**
 - **Maintain** the AI subsystem in `server/src/routes/ai.js` — multi-provider support (OpenAI-compatible + Ollama), streaming, NPC generation, encounter building, rules scholar.
 - **Maintain** the MCP server (`server/src/mcp-server.js`) — the bridge between AI agents and the game data. Tools follow the `{ name, description, inputSchema }` pattern from the MCP SDK.
-- **Maintain** reference syncing (`server/src/utils/referenceSync.js`) — loads D&D 5e SRD data from `5etoolssrc/` into SQLite for local offline rules lookup.
+- **Maintain** reference syncing (`server/src/utils/referenceSync.js`) — fetches D&D 5e SRD data from `https://5e.tools/data/` and caches it to disk (`server/uploads/5etools-cache/`) and memory for local offline rules lookup.
 - **Maintain** reference search (`server/src/utils/referenceSearch.js`) — full-text search across synced SRD data with relevance ranking.
 - **Support** chat commands (`/ai <query>`) and dedicated NPC roleplay AI conversations in the frontend.
 - **Ensure** AI audit logging: every LLM API call is persisted to `ai_response_logs`, every MCP tool call to `mcp_logs` for debugging.

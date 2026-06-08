@@ -28,8 +28,8 @@ const DRAG_THRESHOLD_PX = 9;
 
 const MAP_IMPORT_PRESETS = [
   { label: "Blank 5 ft Grid", name: "Blank Encounter Grid", path: "/uploads/placeholder_map.png", gridSize: 50 },
-  { label: "AitFR Adventurer Map", name: "AitFR Encounter Map", path: "/5etoolsimg/adventure/AitFR-AVT/13_1476395018.webp", gridSize: 70 },
-  { label: "AitFR Dungeon Map", name: "AitFR Dungeon Map", path: "/5etoolsimg/adventure/AitFR-DN/16_1476395070.webp", gridSize: 70 },
+  { label: "AitFR Adventurer Map", name: "AitFR Encounter Map", path: "https://5e.tools/img/adventure/AitFR-AVT/13_1476395018.webp", gridSize: 70 },
+  { label: "AitFR Dungeon Map", name: "AitFR Dungeon Map", path: "https://5e.tools/img/adventure/AitFR-DN/16_1476395070.webp", gridSize: 70 },
 ];
 
 
@@ -2869,7 +2869,7 @@ export default function MapPanel({ user, isPopout = false }) {
                 </select>
                 <input
                   type="text"
-                  placeholder="/uploads/map.png, /5etoolsimg/..., or https://..."
+                  placeholder="/uploads/map.png, https://5e.tools/..., or https://..."
                   value={newMapImagePath}
                   onChange={(e) => setNewMapImagePath(e.target.value)}
                   style={styles.input}

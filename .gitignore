@@ -35,6 +35,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# 5etools HTTP cache directory
+/server/uploads/5etools-cache/
+
 # OS clutter
 .DS_Store
 .DS_Store?

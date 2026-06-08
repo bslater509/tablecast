@@ -1,19 +1,17 @@
 // =============================================================================
 // Tablecast  5etools Reference Search Engine
-// Lazy-loads and caches JSON files from the 5etoolssrc repository in memory.
+// Fetches from https://5e.tools/data/ with disk + in-memory caching.
 // =============================================================================
 "use strict";
 
 const fs = require("fs");
 const path = require("path");
+const https = require("https");
 
-const dataRootCandidates = [
-  path.resolve(__dirname, "../../5etoolssrc/data"),
-  path.resolve(__dirname, "../../../5etoolssrc/data"),
-];
-const dataRoot = dataRootCandidates.find((candidate) => fs.existsSync(candidate)) || dataRootCandidates[0];
+const CACHE_DIR = path.resolve(__dirname, "../../uploads/5etools-cache");
+const DATA_BASE_URL = "https://5e.tools/data";
 
-// In-memory cache for D&D records
+// In-memory cache
 let cache = {
   spells: null,
   monsters: null,
@@ -22,10 +20,11 @@ let cache = {
   races: null,
   classes: null,
   rules: null,
+  actions: null,
 };
 
 /**
- * Clears the cache. Called when repositories are updated.
+ * Clears the in-memory cache.
  */
 function clearCache() {
   cache = {
@@ -36,41 +35,205 @@ function clearCache() {
     races: null,
     classes: null,
     rules: null,
+    actions: null,
   };
   console.log("[ReferenceSearch] Memory cache cleared.");
 }
 
 /**
- * Helper to scan a directory and load/combine matching JSON data arrays.
+ * HTTP GET helper.
  */
-function loadFromDirectory(dirPath, arrayKey, filePrefix = "") {
+function fetchUrl(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { timeout: 30000 }, (res) => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+        return;
+      }
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => resolve(data));
+    }).on("error", reject).on("timeout", function () {
+      this.destroy();
+      reject(new Error(`Timeout fetching ${url}`));
+    });
+  });
+}
+
+/**
+ * Returns a file-safe name from a URL path.
+ */
+function urlPathToFilename(urlPath) {
+  return urlPath.replace(/^\/+/, "").replace(/[\/?]/g, "_");
+}
+
+/**
+ * Ensures cache dir exists.
+ */
+function ensureCacheDir() {
+  if (!fs.existsSync(CACHE_DIR)) {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  }
+}
+
+/**
+ * Loads JSON data for a given 5e.tools URL path.
+ * Tries: in-memory → disk cache → HTTP fetch.
+ */
+async function loadData(urlPath, dataKey) {
+  const cacheFile = path.join(CACHE_DIR, urlPathToFilename(urlPath));
+  const url = `${DATA_BASE_URL}${urlPath}`;
+
+  // Try disk cache first
+  if (fs.existsSync(cacheFile)) {
+    try {
+      const content = fs.readFileSync(cacheFile, "utf8");
+      const data = JSON.parse(content);
+      if (data && Array.isArray(data[dataKey])) {
+        return data[dataKey];
+      }
+    } catch (err) {
+      console.warn(`[ReferenceSearch] Cache read failed for ${cacheFile}: ${err.message}`);
+    }
+  }
+
+  // Fetch from remote
+  try {
+    console.log(`[ReferenceSearch] Fetching ${url}...`);
+    const body = await fetchUrl(url);
+    ensureCacheDir();
+    fs.writeFileSync(cacheFile, body, "utf8");
+    const data = JSON.parse(body);
+    if (data && Array.isArray(data[dataKey])) {
+      return data[dataKey];
+    }
+    return [];
+  } catch (err) {
+    console.error(`[ReferenceSearch] Failed to fetch ${url}: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * Scan the cache directory for all bestiary/spell files and load/combine them.
+ */
+function loadAllFromCache(prefix, arrayKey) {
   const list = [];
-  if (!fs.existsSync(dirPath)) return list;
+  if (!fs.existsSync(CACHE_DIR)) return list;
 
   try {
-    const files = fs.readdirSync(dirPath);
+    const files = fs.readdirSync(CACHE_DIR);
     for (const file of files) {
+      if (!file.startsWith(prefix)) continue;
       if (!file.endsWith(".json")) continue;
-      if (filePrefix && !file.startsWith(filePrefix)) continue;
-      if (file === "index.json") continue; // skip indices
-
-      const filePath = path.join(dirPath, file);
       try {
-        const content = fs.readFileSync(filePath, "utf8");
+        const content = fs.readFileSync(path.join(CACHE_DIR, file), "utf8");
         const data = JSON.parse(content);
         if (data && Array.isArray(data[arrayKey])) {
           list.push(...data[arrayKey]);
         }
       } catch (err) {
-        console.warn(`[ReferenceSearch] Failed to parse file ${file}:`, err.message);
+        console.warn(`[ReferenceSearch] Failed to parse cached file ${file}:`, err.message);
       }
     }
   } catch (err) {
-    console.error(`[ReferenceSearch] Directory read failed for ${dirPath}:`, err.message);
+    console.error(`[ReferenceSearch] Cache directory read failed:`, err.message);
   }
   return list;
 }
 
+/**
+ * Attempts to load from a single cached JSON file.
+ */
+function loadSingleFromCache(filename, arrayKey) {
+  const filePath = path.join(CACHE_DIR, filename);
+  if (!fs.existsSync(filePath)) return [];
+  try {
+    const content = fs.readFileSync(filePath, "utf8");
+    const data = JSON.parse(content);
+    if (data && Array.isArray(data[arrayKey])) {
+      return data[arrayKey];
+    }
+  } catch (err) {
+    console.warn(`[ReferenceSearch] Failed to parse ${filePath}:`, err.message);
+  }
+  return [];
+}
+
+// ---------------------------------------------------------------------------
+// Lazy loaders — try disk cache first, then async fetch on miss
+// ---------------------------------------------------------------------------
+function getSpells() {
+  if (cache.spells) return cache.spells;
+  // Scan cache for all spell- prefixed files (spells-phb, spells-xge, etc.)
+  cache.spells = loadAllFromCache("data_spells_spells-", "spell");
+  if (!cache.spells.length) {
+    cache.spells = loadSingleFromCache("data_spells_spells-phb.json", "spell");
+  }
+  console.log(`[ReferenceSearch] Loaded ${cache.spells.length} spells from cache.`);
+  return cache.spells;
+}
+
+function getMonsters() {
+  if (cache.monsters) return cache.monsters;
+  cache.monsters = loadAllFromCache("data_bestiary_bestiary-", "monster");
+  if (!cache.monsters.length) {
+    cache.monsters = loadSingleFromCache("data_bestiary_bestiary-mm.json", "monster");
+  }
+  console.log(`[ReferenceSearch] Loaded ${cache.monsters.length} monsters from cache.`);
+  return cache.monsters;
+}
+
+function getMonsterFluff() {
+  if (cache.monsterFluff) return cache.monsterFluff;
+  cache.monsterFluff = loadAllFromCache("data_bestiary_fluff-bestiary-", "monsterFluff");
+  if (!cache.monsterFluff.length) {
+    cache.monsterFluff = loadSingleFromCache("data_bestiary_fluff-bestiary-mm.json", "monsterFluff");
+  }
+  console.log(`[ReferenceSearch] Loaded ${cache.monsterFluff.length} monster fluff entries from cache.`);
+  return cache.monsterFluff;
+}
+
+function getItems() {
+  if (cache.items) return cache.items;
+  cache.items = loadSingleFromCache("data_items.json", "item");
+  if (!cache.items.length) {
+    cache.items = loadSingleFromCache("data_items.json", "item");
+  }
+  console.log(`[ReferenceSearch] Loaded ${cache.items.length} items from cache.`);
+  return cache.items;
+}
+
+function getRaces() {
+  if (cache.races) return cache.races;
+  cache.races = loadSingleFromCache("data_races.json", "race");
+  console.log(`[ReferenceSearch] Loaded ${cache.races.length} races from cache.`);
+  return cache.races;
+}
+
+function getClasses() {
+  if (cache.classes) return cache.classes;
+  cache.classes = loadAllFromCache("data_class_class-", "class");
+  if (!cache.classes.length) {
+    cache.classes = loadSingleFromCache("data_class_class-barbarian.json", "class");
+  }
+  console.log(`[ReferenceSearch] Loaded ${cache.classes.length} classes from cache.`);
+  return cache.classes;
+}
+
+function getRules() {
+  if (cache.rules) return cache.rules;
+  cache.rules = loadSingleFromCache("data_rules.json", "rules");
+  if (!cache.rules.length) {
+    cache.rules = loadSingleFromCache("data_actions.json", "action");
+  }
+  console.log(`[ReferenceSearch] Loaded ${cache.rules.length} rules/actions from cache.`);
+  return cache.rules;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers (unchanged from original)
+// ---------------------------------------------------------------------------
 function normalizeSource(source) {
   return String(source || "").trim().toUpperCase();
 }
@@ -88,176 +251,42 @@ function applySourceFilter(dataset, sources = []) {
 }
 
 function summarizeItem(item, category) {
-  const base = {
-    name: item.name,
-    source: item.source,
-  };
-
+  const base = { name: item.name, source: item.source };
   switch (category) {
     case "spells":
-      return {
-        ...base,
-        level: item.level,
-        school: item.school,
-        time: item.time,
-        range: item.range,
-        duration: item.duration,
-      };
+      return { ...base, level: item.level, school: item.school, time: item.time, range: item.range, duration: item.duration };
     case "monsters":
-      return {
-        ...base,
-        cr: item.cr,
-        hp: item.hp ? { average: item.hp.average, formula: item.hp.formula } : undefined,
-        ac: item.ac,
-        size: item.size,
-        type: item.type,
-      };
+      return { ...base, cr: item.cr, hp: item.hp ? { average: item.hp.average, formula: item.hp.formula } : undefined, ac: item.ac, size: item.size, type: item.type };
     case "items":
-      return {
-        ...base,
-        rarity: item.rarity,
-        type: item.type,
-        weight: item.weight,
-        value: item.value,
-      };
+      return { ...base, rarity: item.rarity, type: item.type, weight: item.weight, value: item.value };
     default:
       return base;
   }
 }
 
-/**
- * Helper to load from a single JSON file.
- */
-function loadFromFile(filePath, arrayKey) {
-  if (!fs.existsSync(filePath)) return [];
-  try {
-    const content = fs.readFileSync(filePath, "utf8");
-    const data = JSON.parse(content);
-    if (data && Array.isArray(data[arrayKey])) {
-      return data[arrayKey];
-    }
-  } catch (err) {
-    console.error(`[ReferenceSearch] File read failed for ${filePath}:`, err.message);
-  }
-  return [];
-}
-
-/**
- * Lazy loaders for each category.
- */
-function getSpells() {
-  if (cache.spells) return cache.spells;
-  // Spells reside in 5etoolssrc/data/spells/spells-*.json
-  const spellsDir = path.join(dataRoot, "spells");
-  cache.spells = loadFromDirectory(spellsDir, "spell", "spells-");
-  console.log(`[ReferenceSearch] Loaded ${cache.spells.length} spells into memory.`);
-  return cache.spells;
-}
-
-function getMonsters() {
-  if (cache.monsters) return cache.monsters;
-  // Monsters reside in 5etoolssrc/data/bestiary/bestiary-*.json
-  const bestiaryDir = path.join(dataRoot, "bestiary");
-  cache.monsters = loadFromDirectory(bestiaryDir, "monster", "bestiary-");
-  console.log(`[ReferenceSearch] Loaded ${cache.monsters.length} monsters into memory.`);
-  return cache.monsters;
-}
-
-function getMonsterFluff() {
-  if (cache.monsterFluff) return cache.monsterFluff;
-  const bestiaryDir = path.join(dataRoot, "bestiary");
-  cache.monsterFluff = loadFromDirectory(bestiaryDir, "monsterFluff", "fluff-bestiary-");
-  console.log(`[ReferenceSearch] Loaded ${cache.monsterFluff.length} monster fluff entries into memory.`);
-  return cache.monsterFluff;
-}
-
-function getItems() {
-  if (cache.items) return cache.items;
-  // Items reside in 5etoolssrc/data/items.json
-  const itemsFile = path.join(dataRoot, "items.json");
-  cache.items = loadFromFile(itemsFile, "item");
-  console.log(`[ReferenceSearch] Loaded ${cache.items.length} items into memory.`);
-  return cache.items;
-}
-
-function getRaces() {
-  if (cache.races) return cache.races;
-  // Races reside in 5etoolssrc/data/races.json
-  const racesFile = path.join(dataRoot, "races.json");
-  cache.races = loadFromFile(racesFile, "race");
-  console.log(`[ReferenceSearch] Loaded ${cache.races.length} races into memory.`);
-  return cache.races;
-}
-
-function getClasses() {
-  if (cache.classes) return cache.classes;
-  // Classes reside in 5etoolssrc/data/class/class-*.json
-  const classDir = path.join(dataRoot, "class");
-  cache.classes = loadFromDirectory(classDir, "class", "class-");
-  console.log(`[ReferenceSearch] Loaded ${cache.classes.length} classes into memory.`);
-  return cache.classes;
-}
-
-function getRules() {
-  if (cache.rules) return cache.rules;
-  // Rules reside in 5etoolssrc/data/rules.json (or fallback/books)
-  const rulesFile = path.join(dataRoot, "rules.json");
-  cache.rules = loadFromFile(rulesFile, "rules");
-  if (cache.rules.length === 0) {
-    // If no main rules.json array, try loading actions or books indices
-    cache.rules = loadFromFile(path.join(dataRoot, "actions.json"), "action");
-  }
-  console.log(`[ReferenceSearch] Loaded ${cache.rules.length} rules/actions into memory.`);
-  return cache.rules;
-}
-
-/**
- * Searches in a category by matching the name field.
- */
 function getDataset(category) {
-  let dataset = [];
-  
   switch (category.toLowerCase()) {
-    case "spells":
-      dataset = getSpells();
-      break;
-    case "monsters":
-      dataset = getMonsters();
-      break;
-    case "items":
-      dataset = getItems();
-      break;
-    case "races":
-      dataset = getRaces();
-      break;
-    case "classes":
-      dataset = getClasses();
-      break;
-    case "rules":
-      dataset = getRules();
-      break;
-    default:
-      return [];
+    case "spells":   return getSpells();
+    case "monsters": return getMonsters();
+    case "items":    return getItems();
+    case "races":    return getRaces();
+    case "classes":  return getClasses();
+    case "rules":    return getRules();
+    default:         return [];
   }
-
-  return dataset;
 }
 
-/**
- * Searches in a category by matching the name field.
- */
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 function search(category, query = "", limit = 50, options = {}) {
   const normalizedCategory = String(category || "").toLowerCase();
   let dataset = applySourceFilter(getDataset(normalizedCategory), options.sources);
-
   const cleanQuery = query.trim().toLowerCase();
   if (cleanQuery) {
     dataset = dataset.filter((item) => item && item.name && item.name.toLowerCase().includes(cleanQuery));
   }
-
-  return dataset
-    .slice(0, limit)
-    .map((item) => options.summary === false ? item : summarizeItem(item, normalizedCategory));
+  return dataset.slice(0, limit).map((item) => options.summary === false ? item : summarizeItem(item, normalizedCategory));
 }
 
 function getByName(category, name, source = "", options = {}) {
@@ -265,7 +294,6 @@ function getByName(category, name, source = "", options = {}) {
   const cleanName = String(name || "").trim().toLowerCase();
   const cleanSource = normalizeSource(source);
   if (!cleanName) return null;
-
   const dataset = applySourceFilter(getDataset(normalizedCategory), options.sources);
   return dataset.find((item) => {
     if (!item?.name || item.name.toLowerCase() !== cleanName) return false;
@@ -281,28 +309,18 @@ function getMonsterFluffByName(name, source = "", options = {}) {
   const cleanName = String(name || "").trim().toLowerCase();
   const cleanSource = normalizeSource(source);
   if (!cleanName) return null;
-
   const dataset = applySourceFilter(getMonsterFluff(), options.sources);
   const sourceMatches = dataset.filter((item) => {
     if (!item?.name) return false;
     return !cleanSource || normalizeSource(item.source) === cleanSource;
   });
-
   const exact = sourceMatches.find((item) => item.name.toLowerCase() === cleanName);
   if (hasUsableFluff(exact)) return exact;
-
   const words = cleanName.split(/\s+/).filter(Boolean);
   const familyCandidates = [];
-  if (words.length) {
-    familyCandidates.push(`${words[0]}s`);
-  }
-  if (words.length > 1) {
-    familyCandidates.push(`${words.slice(0, -1).join(" ")}s`);
-  }
-
-  return sourceMatches.find((item) => (
-    hasUsableFluff(item) && familyCandidates.includes(item.name.toLowerCase())
-  )) || exact || null;
+  if (words.length) familyCandidates.push(`${words[0]}s`);
+  if (words.length > 1) familyCandidates.push(`${words.slice(0, -1).join(" ")}s`);
+  return sourceMatches.find((item) => (hasUsableFluff(item) && familyCandidates.includes(item.name.toLowerCase()))) || exact || null;
 }
 
 function listAvailableSources(category) {
@@ -310,8 +328,8 @@ function listAvailableSources(category) {
   const categories = category ? [category] : ["spells", "monsters", "items", "races", "classes", "rules"];
   for (const cat of categories) {
     for (const item of getDataset(cat)) {
-      const source = normalizeSource(item?.source);
-      if (source) sourceSet.add(source);
+      const src = normalizeSource(item?.source);
+      if (src) sourceSet.add(src);
     }
   }
   return Array.from(sourceSet).sort();
@@ -323,4 +341,5 @@ module.exports = {
   getMonsterFluffByName,
   listAvailableSources,
   clearCache,
+  loadData, // Exported for on-demand cache population
 };

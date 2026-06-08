@@ -125,8 +125,6 @@ router.post("/", requireDm, async (req, res) => {
         if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) {
           return res.status(400).json({ error: "Invalid image URL path." });
         }
-      } else if (trimmedImageUrl.startsWith("/5etoolsimg/")) {
-        // Allow 5etoolsimg paths without further resolution
       } else if (!isAllowedRemotePath) {
         return res.status(400).json({ error: "Image URL must be an uploads path, 5etools image path, or http(s) URL." });
       }

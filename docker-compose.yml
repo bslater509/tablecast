@@ -39,13 +39,14 @@ services:
       # Uploads directory — map images, token art, etc.
       - tablecast-uploads:/app/server/uploads
 
-      # D&D 5e references repositories (5etoolssrc and 5etoolsimg)
-      - ./5etoolssrc:/app/server/5etoolssrc
-      - ./5etoolsimg:/app/server/5etoolsimg
+      # D&D 5e cache directory for HTTP-fetched reference data
+      - tablecast-5etools-cache:/app/server/uploads/5etools-cache
 
 # Named volumes — Docker manages the storage location on the host
 volumes:
   tablecast-db:
     driver: local
   tablecast-uploads:
+    driver: local
+  tablecast-5etools-cache:
     driver: local

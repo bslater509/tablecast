@@ -30,9 +30,10 @@ function SettingsPanel({ user }) {
   const [oauthError, setOauthError] = useState("");
   const oauthTimeoutRef = useRef(null);
   
-  // Reference sync status states
+  // Reference cache status states
   const [refStatus, setRefStatus] = useState(null);
   const [syncingRef, setSyncingRef] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
   const [allowedSourcesInput, setAllowedSourcesInput] = useState("");
   const [availableSources, setAvailableSources] = useState([]);
   const [savingSources, setSavingSources] = useState(false);
@@ -244,12 +245,34 @@ function SettingsPanel({ user }) {
         fetchRefStatus();
       } else {
         const err = await res.json();
-        alert(`Error starting sync: ${err.error || "Unknown"}`);
+        alert(`Error starting cache refresh: ${err.error || "Unknown"}`);
         setSyncingRef(false);
       }
     } catch (err) {
-      alert(`Network error starting sync: ${err.message}`);
+      alert(`Network error starting cache refresh: ${err.message}`);
       setSyncingRef(false);
+    }
+  };
+
+  const handleClearCache = async () => {
+    if (clearingCache) return;
+    setClearingCache(true);
+    try {
+      const res = await fetch("/api/reference/clear-cache", {
+        method: "POST",
+        headers: authHeaders,
+      });
+      if (res.ok) {
+        alert("Cache cleared. Data will be re-fetched on next search.");
+        fetchRefStatus();
+      } else {
+        const err = await res.json();
+        alert(`Error clearing cache: ${err.error || "Unknown"}`);
+      }
+    } catch (err) {
+      alert(`Network error clearing cache: ${err.message}`);
+    } finally {
+      setClearingCache(false);
     }
   };
 
@@ -907,36 +930,30 @@ function SettingsPanel({ user }) {
           </form>
         </section>
 
-        {/* D&D 5e Reference Library Sync Card */}
+        {/* D&D 5e Reference Library Cache Card */}
         <section style={styles.card} className="glass-panel gold-border-glow">
-          <h2 style={styles.cardTitle}>D&D 5e Reference Library Sync</h2>
+          <h2 style={styles.cardTitle}>D&D 5e Reference Data Cache</h2>
           <p style={styles.cardDesc}>
-            Clones or pulls the latest D&D rules data (<code style={styles.codeInline}>5etoolssrc</code>)
-            and VTT token images (<code style={styles.codeInline}>5etoolsimg</code>) from remote repositories.
-            Runs asynchronously in the background.
+            Fetches D&D 5e rules data (spells, monsters, items, races, classes)
+            and token images from <code style={styles.codeInline}>https://5e.tools</code> and
+            caches them on the server. Data is stored in memory and on disk for offline access.
           </p>
 
           {refStatus && (
             <div style={styles.detailsTable}>
               <div style={styles.detailsRow}>
-                <span style={styles.detailsLabel}>Data Repository (5etoolssrc):</span>
-                <span style={{ ...styles.detailsVal, color: refStatus.srcExists ? "var(--color-success)" : "var(--color-danger)" }}>
-                  {refStatus.srcExists ? "Cloned (Ready)" : "Missing"}
-                </span>
-              </div>
-              <div style={styles.detailsRow}>
-                <span style={styles.detailsLabel}>Images Repository (5etoolsimg):</span>
-                <span style={{ ...styles.detailsVal, color: refStatus.imgExists ? "var(--color-success)" : "var(--color-danger)" }}>
-                  {refStatus.imgExists ? "Cloned (Ready)" : "Missing"}
-                </span>
-              </div>
-              <div style={styles.detailsRow}>
                 <span style={styles.detailsLabel}>Current Status:</span>
                 <span style={styles.detailsVal}>{refStatus.progress}</span>
               </div>
               <div style={styles.detailsRow}>
-                <span style={styles.detailsLabel}>Startup Sync:</span>
-                <span style={styles.detailsVal}>{refStatus.syncOnStartup ? "Enabled" : "Manual only"}</span>
+                <span style={styles.detailsLabel}>Cached Files:</span>
+                <span style={styles.detailsVal}>{refStatus.cacheFileCount ?? 0}</span>
+              </div>
+              <div style={styles.detailsRow}>
+                <span style={styles.detailsLabel}>Cache Size:</span>
+                <span style={styles.detailsVal}>
+                  {refStatus.cachedBytes ? formatBytes(refStatus.cachedBytes) : "0 B"}
+                </span>
               </div>
               <div style={styles.detailsRow}>
                 <span style={styles.detailsLabel}>Allowed Sources:</span>
@@ -1005,33 +1022,51 @@ function SettingsPanel({ user }) {
             </div>
           )}
 
-          <button
-            id="trigger-ref-sync-btn"
-            onClick={handleSyncReferences}
-            disabled={syncingRef}
-            style={{
-              ...styles.backupBtn,
-              background: syncingRef
-                ? "var(--color-accent-dim)"
-                : "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
-              cursor: syncingRef ? "not-allowed" : "pointer",
-              color: syncingRef ? "var(--color-muted)" : "var(--color-bg)",
-            }}
-            className="touch-target btn-hover-scale"
-          >
-            {syncingRef ? (
-              <div style={styles.loadingSpinnerContainer}>
-                <div style={styles.spinner}></div>
-                <span>Syncing Repositories...</span>
-              </div>
-            ) : (
-              "Update References Now"
-            )}
-          </button>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              id="trigger-ref-sync-btn"
+              onClick={handleSyncReferences}
+              disabled={syncingRef}
+              style={{
+                ...styles.backupBtn,
+                flex: 2,
+                background: syncingRef
+                  ? "var(--color-accent-dim)"
+                  : "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
+                cursor: syncingRef ? "not-allowed" : "pointer",
+                color: syncingRef ? "var(--color-muted)" : "var(--color-bg)",
+              }}
+              className="touch-target btn-hover-scale"
+            >
+              {syncingRef ? (
+                <div style={styles.loadingSpinnerContainer}>
+                  <div style={styles.spinner}></div>
+                  <span>Refreshing Cache...</span>
+                </div>
+              ) : (
+                "Refresh Cache Now"
+              )}
+            </button>
+
+            <button
+              id="clear-ref-cache-btn"
+              onClick={handleClearCache}
+              disabled={clearingCache || syncingRef}
+              style={{
+                ...styles.secondaryBtn,
+                flex: 1,
+                cursor: (clearingCache || syncingRef) ? "not-allowed" : "pointer",
+                opacity: (clearingCache || syncingRef) ? 0.7 : 1,
+              }}
+              className="touch-target btn-hover-scale"
+            >
+              {clearingCache ? "Clearing..." : "Clear Cache"}
+            </button>
+          </div>
 
           {refStatus && refStatus.logs && refStatus.logs.length > 0 && (
             <>
-              <h3 style={styles.consoleTitle}>git sync Output Log</h3>
+              <h3 style={styles.consoleTitle}>Cache Refresh Log</h3>
               <div style={{ ...styles.console, maxHeight: "250px" }} id="ref-console-log">
                 <div style={styles.consoleStdout}>
                   {refStatus.logs.map((logLine, idx) => (

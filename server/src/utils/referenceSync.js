@@ -1,21 +1,62 @@
 // =============================================================================
-// Tablecast  5etools Repositories Synchronization Manager
-// Executes asynchronous git clones and pulls using shallow clones.
+// Tablecast  5etools HTTP Cache Manager
+// Fetches D&D 5e reference data from https://5e.tools/ and caches to disk.
 // =============================================================================
 "use strict";
 
-const { spawn, execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const https = require("https");
 
-// Target directories (relative to server/src/utils/)
-const srcPath = path.resolve(__dirname, "../../5etoolssrc");
-const imgPath = path.resolve(__dirname, "../../5etoolsimg");
-const rootPath = path.resolve(__dirname, "../..");
+// Cache directory — resolves to server/uploads/5etools-cache/
+const CACHE_DIR = path.resolve(__dirname, "../../uploads/5etools-cache");
 
-// Repository URL variables (defaulting to mirror endpoints)
-const srcUrl = process.env.FIVE_E_TOOLS_SRC_URL || "https://github.com/5etools-mirror-3/5etools-src.git";
-const imgUrl = process.env.FIVE_E_TOOLS_IMG_URL || "https://github.com/5etools-mirror-3/5etools-img.git";
+// Base URL for 5e.tools data
+const DATA_BASE_URL = "https://5e.tools/data";
+
+// Mapping of category to remote JSON paths
+const DATA_FILES = {
+  spells:   "/spells/spells-phb.json",
+  monsters: "/bestiary/bestiary-mm.json",
+  items:    "/items.json",
+  races:    "/races.json",
+  classes:  "/class/class-barbarian.json",
+  rules:    "/rules.json",
+};
+
+// Additional spell/monster/class source files (discovered at sync time)
+const ADDITIONAL_SOURCES = [
+  "/spells/spells-xge.json",
+  "/spells/spells-tce.json",
+  "/spells/spells-ftd.json",
+  "/spells/spells-scc.json",
+  "/spells/spells-bmt.json",
+  "/spells/spells-ggr.json",
+  "/spells/spells-idrotf.json",
+  "/spells/spells-ai.json",
+  "/bestiary/bestiary-xmm.json",
+  "/bestiary/bestiary-ftd.json",
+  "/bestiary/bestiary-tce.json",
+  "/bestiary/bestiary-bmt.json",
+  "/bestiary/bestiary-scc.json",
+  "/bestiary/bestiary-ggr.json",
+  "/bestiary/bestiary-mot.json",
+  "/bestiary/fluff-bestiary-mm.json",
+  "/bestiary/fluff-bestiary-xmm.json",
+  "/class/class-bard.json",
+  "/class/class-cleric.json",
+  "/class/class-druid.json",
+  "/class/class-fighter.json",
+  "/class/class-monk.json",
+  "/class/class-paladin.json",
+  "/class/class-ranger.json",
+  "/class/class-rogue.json",
+  "/class/class-sorcerer.json",
+  "/class/class-warlock.json",
+  "/class/class-wizard.json",
+  "/class/class-artificer.json",
+  "/actions.json",
+];
 
 // In-memory sync state
 let syncState = {
@@ -23,6 +64,8 @@ let syncState = {
   status: "idle", // "idle", "syncing", "success", "error"
   progress: "Idle",
   logs: [],
+  cachedBytes: 0,
+  cacheFileCount: 0,
 };
 
 /**
@@ -34,88 +77,113 @@ function log(message, type = "info") {
   console.log(`[ReferenceSync] ${logLine}`);
   syncState.logs.push(logLine);
   if (syncState.logs.length > 500) {
-    syncState.logs.shift(); // keep log buffer manageable
+    syncState.logs.shift();
   }
 }
 
 /**
- * Executes a terminal command asynchronously, logging output line-by-line.
+ * HTTP GET helper that returns response body as string.
  */
-function execCmd(cmd, args, cwd) {
+function fetchUrl(url) {
   return new Promise((resolve, reject) => {
-    const finalArgs = cmd === "git" ? ["-c", "safe.directory=*", ...args] : args;
-    log(`Executing: ${cmd} ${finalArgs.join(" ")} (Cwd: ${cwd})`, "info");
-    
-    // Set environment variable to skip prompts and avoid blocking
-    const env = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
-    const child = spawn(cmd, finalArgs, { cwd, env });
-
-    child.stdout.on("data", (data) => {
-      const lines = data.toString().split(/\r?\n/);
-      lines.forEach((line) => {
-        if (line.trim()) log(line, "stdout");
-      });
-    });
-
-    child.stderr.on("data", (data) => {
-      const lines = data.toString().split(/\r?\n/);
-      lines.forEach((line) => {
-        if (line.trim()) log(line, "stderr");
-      });
-    });
-
-    child.on("close", (code) => {
-      if (code === 0) {
-        log(`Command completed successfully.`, "info");
-        resolve();
-      } else {
-        log(`Command failed with exit code ${code}.`, "error");
-        reject(new Error(`Exit code ${code}`));
+    https.get(url, { timeout: 30000 }, (res) => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+        return;
       }
-    });
-
-    child.on("error", (err) => {
-      log(`Process execution error: ${err.message}`, "error");
-      reject(err);
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => resolve(data));
+    }).on("error", reject).on("timeout", function () {
+      this.destroy();
+      reject(new Error(`Timeout fetching ${url}`));
     });
   });
 }
 
 /**
- * Checks if a directory contains a valid Git repository with at least one commit.
+ * Ensures the cache directory exists.
  */
-function isGitRepoValid(repoPath) {
-  if (!fs.existsSync(repoPath) || !fs.existsSync(path.join(repoPath, ".git"))) {
-    return false;
+function ensureCacheDir() {
+  if (!fs.existsSync(CACHE_DIR)) {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+    log(`Created cache directory: ${CACHE_DIR}`);
+  }
+}
+
+/**
+ * Returns a file-safe name from a URL path.
+ */
+function urlPathToFilename(urlPath) {
+  return urlPath.replace(/^\/+/, "").replace(/[\/?]/g, "_");
+}
+
+/**
+ * Returns full local path for a cached file.
+ */
+function getCacheFilePath(urlPath) {
+  return path.join(CACHE_DIR, urlPathToFilename(urlPath));
+}
+
+/**
+ * Scans the cache directory and computes total size.
+ */
+function scanCache() {
+  if (!fs.existsSync(CACHE_DIR)) {
+    syncState.cachedBytes = 0;
+    syncState.cacheFileCount = 0;
+    return;
   }
   try {
-    execSync("git -c safe.directory=* rev-parse HEAD", { cwd: repoPath, stdio: "ignore" });
+    const files = fs.readdirSync(CACHE_DIR);
+    syncState.cacheFileCount = files.length;
+    syncState.cachedBytes = files.reduce((total, file) => {
+      const filePath = path.join(CACHE_DIR, file);
+      try {
+        return total + fs.statSync(filePath).size;
+      } catch { return total; }
+    }, 0);
+  } catch (err) {
+    log(`Cache scan failed: ${err.message}`, "error");
+  }
+}
+
+/**
+ * Returns current sync status.
+ */
+function getStatus() {
+  scanCache();
+  return { ...syncState };
+}
+
+/**
+ * Fetches a data file from 5e.tools and caches it to disk.
+ */
+async function fetchAndCache(urlPath) {
+  const url = `${DATA_BASE_URL}${urlPath}`;
+  const cacheFile = getCacheFilePath(urlPath);
+  const label = urlPath.split("/").pop();
+
+  try {
+    log(`Fetching ${label} from ${url}...`);
+    const body = await fetchUrl(url);
+
+    // Validate JSON before caching
+    try { JSON.parse(body); } catch (e) {
+      throw new Error(`Invalid JSON for ${label}: ${e.message}`);
+    }
+
+    fs.writeFileSync(cacheFile, body, "utf8");
+    log(`Cached ${label} (${(Buffer.byteLength(body) / 1024).toFixed(1)} KB)`);
     return true;
-  } catch (e) {
+  } catch (err) {
+    log(`Failed to fetch ${label}: ${err.message}`, "error");
     return false;
   }
 }
 
 /**
- * Returns current sync status and folder existences.
- */
-function getStatus() {
-  const srcExists = isGitRepoValid(srcPath);
-  const imgExists = isGitRepoValid(imgPath);
-  const syncOnStartup = process.env.REFERENCE_SYNC_ON_STARTUP === "true";
-  
-  return {
-    ...syncState,
-    srcExists,
-    imgExists,
-    srcUrl,
-    imgUrl,
-    syncOnStartup,
-  };
-}
-
-/**
- * Orchestrates cloning/pulling repositories in the background.
+ * Orchestrates fetching data files in the background.
  */
 async function sync() {
   if (syncState.isSyncing) {
@@ -126,75 +194,72 @@ async function sync() {
   syncState.isSyncing = true;
   syncState.status = "syncing";
   syncState.logs = [];
+  log("Starting 5etools data cache refresh...");
+
+  ensureCacheDir();
 
   try {
-    // 1. Sync 5etoolssrc (Data Repo)
-    const srcExists = isGitRepoValid(srcPath);
-    if (!srcExists) {
-      syncState.progress = "Cloning 5etoolssrc (Shallow Clone)...";
-      log(`Cloning 5etoolssrc from ${srcUrl} to ${srcPath}`, "info");
-      
-      // Clean up contents inside the volume (avoid deleting the mount point itself)
-      if (fs.existsSync(srcPath)) {
-        try {
-          const files = fs.readdirSync(srcPath);
-          for (const file of files) {
-            fs.rmSync(path.join(srcPath, file), { recursive: true, force: true });
-          }
-        } catch (e) {
-          log(`Cleaning srcPath failed: ${e.message}`, "warn");
-        }
-      } else {
-        fs.mkdirSync(srcPath, { recursive: true });
-      }
-      
-      await execCmd("git", ["clone", "--depth", "1", "--progress", srcUrl, "."], srcPath);
-    } else {
-      syncState.progress = "Pulling updates for 5etoolssrc...";
-      log(`Updating 5etoolssrc repository at ${srcPath}`, "info");
-      await execCmd("git", ["pull", "--progress"], srcPath);
+    // Collect all URLs to fetch
+    const allSources = new Set(Object.values(DATA_FILES));
+    for (const src of ADDITIONAL_SOURCES) {
+      allSources.add(src);
     }
 
-    // 2. Sync 5etoolsimg (Images Repo)
-    const imgExists = isGitRepoValid(imgPath);
-    if (!imgExists) {
-      syncState.progress = "Cloning 5etoolsimg (Shallow Clone, this might take a moment)...";
-      log(`Cloning 5etoolsimg from ${imgUrl} to ${imgPath}`, "info");
-      
-      // Clean up contents inside the volume
-      if (fs.existsSync(imgPath)) {
-        try {
-          const files = fs.readdirSync(imgPath);
-          for (const file of files) {
-            fs.rmSync(path.join(imgPath, file), { recursive: true, force: true });
-          }
-        } catch (e) {
-          log(`Cleaning imgPath failed: ${e.message}`, "warn");
-        }
-      } else {
-        fs.mkdirSync(imgPath, { recursive: true });
-      }
-      
-      await execCmd("git", ["clone", "--depth", "1", "--progress", imgUrl, "."], imgPath);
-    } else {
-      syncState.progress = "Pulling updates for 5etoolsimg...";
-      log(`Updating 5etoolsimg repository at ${imgPath}`, "info");
-      await execCmd("git", ["pull", "--progress"], imgPath);
+    const urls = Array.from(allSources);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < urls.length; i++) {
+      const urlPath = urls[i];
+      syncState.progress = `Fetching ${i + 1}/${urls.length}: ${urlPath.split("/").pop()}...`;
+
+      const ok = await fetchAndCache(urlPath);
+      if (ok) successCount++;
+      else failCount++;
     }
 
-    syncState.progress = "Sync completed successfully!";
-    syncState.status = "success";
-    log("References sync finished successfully.", "info");
+    scanCache();
+    syncState.progress = `Cache refresh complete: ${successCount} OK, ${failCount} failed, ${syncState.cacheFileCount} files (${(syncState.cachedBytes / 1024 / 1024).toFixed(1)} MB)`;
+    syncState.status = failCount > 0 ? "error" : "success";
+    log(`Sync finished. ${successCount} OK, ${failCount} failed. Total cache: ${syncState.cacheFileCount} files, ${(syncState.cachedBytes / 1024 / 1024).toFixed(1)} MB`);
   } catch (err) {
     syncState.progress = `Sync failed: ${err.message}`;
     syncState.status = "error";
-    log(`References sync failed: ${err.message}`, "error");
+    log(`Sync failed: ${err.message}`, "error");
   } finally {
     syncState.isSyncing = false;
   }
 }
 
+/**
+ * Clears the entire disk cache.
+ */
+function clearDiskCache() {
+  if (!fs.existsSync(CACHE_DIR)) return;
+  try {
+    const files = fs.readdirSync(CACHE_DIR);
+    for (const file of files) {
+      fs.unlinkSync(path.join(CACHE_DIR, file));
+    }
+    syncState.cachedBytes = 0;
+    syncState.cacheFileCount = 0;
+    log("Disk cache cleared.");
+  } catch (err) {
+    log(`Failed to clear disk cache: ${err.message}`, "error");
+  }
+}
+
+/**
+ * Returns the cache directory path for use by referenceSearch.
+ */
+function getCacheDir() {
+  return CACHE_DIR;
+}
+
 module.exports = {
   getStatus,
   sync,
+  clearDiskCache,
+  getCacheDir,
+  DATA_BASE_URL,
 };

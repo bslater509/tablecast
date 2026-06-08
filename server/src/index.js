@@ -250,16 +250,8 @@ if (!fs.existsSync(placeholderPath)) {
 
 app.use("/uploads", express.static(uploadsPath));
 
-// Serve 5etools images repository statically. Local dev keeps it at repo root;
-// Docker mounts it under server/.
-const etoolsImgPaths = [
-  path.join(__dirname, "../5etoolsimg"),
-  path.join(__dirname, "../../5etoolsimg"),
-].filter((dir, index, all) => fs.existsSync(dir) && all.indexOf(dir) === index);
-
-for (const etoolsImgPath of etoolsImgPaths) {
-  app.use("/5etoolsimg", express.static(etoolsImgPath));
-}
+// 5etools images are now served directly from 5e.tools website via https://5e.tools/img/...
+// No local static mount needed.
 
 // ---------------------------------------------------------------------------
 // Serve the compiled React frontend (built by Vite  client/dist)
@@ -341,20 +333,20 @@ server.listen(PORT, HOST, () => {
     );
 
   const referenceSyncOnStartup = process.env.REFERENCE_SYNC_ON_STARTUP === "true";
-  logger.info("reference", "Reference sync on startup", { enabled: referenceSyncOnStartup });
+  logger.info("reference", "Reference cache refresh on startup", { enabled: referenceSyncOnStartup });
   if (referenceSyncOnStartup) {
     const { sync } = require("./utils/referenceSync");
     const { clearCache } = require("./utils/referenceSearch");
     const { clearCache: clearTokenImageCache } = require("./utils/tokenImageLookup");
-    logger.info("reference", "Checking for D&D 5e reference repositories...");
+    logger.info("reference", "Refreshing 5etools data cache on startup...");
     sync()
       .then(() => {
         clearCache();
         clearTokenImageCache();
-        logger.info("reference", "Reference sync completed");
+        logger.info("reference", "Startup cache refresh completed");
       })
       .catch((err) =>
-        logger.error("reference", "Startup references sync failed", {
+        logger.error("reference", "Startup cache refresh failed", {
           error: err.message,
         })
       );

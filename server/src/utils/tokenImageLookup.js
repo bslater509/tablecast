@@ -1,23 +1,15 @@
+// =============================================================================
+// Tablecast  5etools Token Image URL Constructor
+// Constructs https://5e.tools/img/... URLs programmatically.
+// No local filesystem walk needed — all references point to 5e.tools CDN.
+// =============================================================================
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
+const IMG_BASE_URL = "https://5e.tools/img";
 
-const IMAGE_EXTENSIONS = new Set([".webp", ".png", ".jpg", ".jpeg", ".gif"]);
-const CACHE_TTL_MS = 5 * 60 * 1000;
-
-let cache = {
-  builtAt: 0,
-  files: [],
-};
-
-function getImageRoots() {
-  return [
-    path.resolve(__dirname, "../../5etoolsimg"),
-    path.resolve(__dirname, "../../../5etoolsimg"),
-  ].filter((dir, index, all) => fs.existsSync(dir) && all.indexOf(dir) === index);
-}
-
+/**
+ * Normalize a string for comparison.
+ */
 function normalize(value) {
   return String(value || "")
     .toLowerCase()
@@ -27,124 +19,92 @@ function normalize(value) {
     .replace(/\s+/g, " ");
 }
 
-function toUrlPath(root, filePath) {
-  const relativePath = path.relative(root, filePath).split(path.sep).map(encodeURIComponent).join("/");
-  return `/5etoolsimg/${relativePath}`;
+/**
+ * Encode a name for use in a URL path.
+ */
+function urlEncodeName(name) {
+  return encodeURIComponent(name);
 }
 
-function walkImages(root, dir, list) {
-  let entries = [];
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch (err) {
-    console.warn(`[TokenImageLookup] Could not scan ${dir}:`, err.message);
-    return;
-  }
-
-  for (const entry of entries) {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      walkImages(root, entryPath, list);
-      continue;
-    }
-
-    const ext = path.extname(entry.name).toLowerCase();
-    if (!IMAGE_EXTENSIONS.has(ext)) continue;
-
-    const relativeParts = path.relative(root, entryPath).split(path.sep);
-    const isToken = relativeParts[0] === "bestiary" && relativeParts[1] === "tokens";
-    const source = isToken
-      ? (relativeParts.length >= 3 ? relativeParts[2] : "")
-      : (relativeParts.length >= 2 ? relativeParts[1] : "");
-    list.push({
-      name: path.basename(entry.name, ext),
-      normalizedName: normalize(path.basename(entry.name, ext)),
-      source: normalize(source),
-      section: normalize(relativeParts[0] || ""),
-      isToken,
-      url: toUrlPath(root, entryPath),
-    });
-  }
+/**
+ * Constructs the 5e.tools URL for a monster token image.
+ * Format: https://5e.tools/img/bestiary/tokens/{source}/{name}.webp
+ */
+function getMonsterTokenUrl(name, source) {
+  const cleanSource = (source || "MM").trim();
+  const cleanName = (name || "").trim();
+  if (!cleanName) return null;
+  return `${IMG_BASE_URL}/bestiary/tokens/${urlEncodeName(cleanSource)}/${urlEncodeName(cleanName)}.webp`;
 }
 
-function getImageIndex() {
-  const now = Date.now();
-  if (cache.files.length && now - cache.builtAt < CACHE_TTL_MS) {
-    return cache.files;
-  }
-
-  const files = [];
-  for (const root of getImageRoots()) {
-    walkImages(root, root, files);
-  }
-
-  cache = {
-    builtAt: now,
-    files,
-  };
-
-  console.log(`[TokenImageLookup] Indexed ${files.length} 5etools image files.`);
-  return files;
+/**
+ * Constructs the 5e.tools URL for a monster portrait image.
+ * Format: https://5e.tools/img/bestiary/{source}/{name}.webp
+ */
+function getMonsterPortraitUrl(name, source) {
+  const cleanSource = (source || "MM").trim();
+  const cleanName = (name || "").trim();
+  if (!cleanName) return null;
+  return `${IMG_BASE_URL}/bestiary/${urlEncodeName(cleanSource)}/${urlEncodeName(cleanName)}.webp`;
 }
 
-function scoreCandidate(candidate, referenceName, source, section = "", options = {}) {
-  const normalizedReference = normalize(referenceName);
-  const normalizedSource = normalize(source);
-  const normalizedSection = normalize(section);
-  let score = 0;
-
-  if (normalizedSection && candidate.section !== normalizedSection) return 0;
-  if (normalizedSource && candidate.source !== normalizedSource) return 0;
-
-  if (candidate.normalizedName === normalizedReference) score += 100;
-  else if (normalizedReference.length >= 4 && candidate.normalizedName.startsWith(normalizedReference)) score += 60;
-  else if (candidate.normalizedName.length >= 4 && normalizedReference.includes(candidate.normalizedName)) score += 35;
-  else return 0;
-
-  if (normalizedSection && candidate.section === normalizedSection) score += 35;
-  else if (candidate.section === "bestiary") score += 25;
-  if (normalizedSource && candidate.source === normalizedSource) score += 50;
-  if (options.preferToken && candidate.isToken) score += 75;
-  if (options.tokenOnly && !candidate.isToken) return 0;
-  if (options.excludeTokens && candidate.isToken) return 0;
-  if (candidate.url.endsWith(".webp")) score += 5;
-
-  return score;
-}
-
+/**
+ * Find a reference image URL by constructing it from known patterns.
+ * Since we can't scan the remote filesystem, we construct the most likely URL.
+ *
+ * Returns a match object with the constructed URL, or null if name is empty.
+ */
 function findReferenceImage({ name, source, section, preferToken = false, tokenOnly = false, excludeTokens = false }) {
-  if (!name || typeof name !== "string") {
+  if (!name || typeof name !== "string" || !name.trim()) {
     return null;
   }
 
-  const matches = getImageIndex()
-    .map((candidate) => ({
-      candidate,
-      score: scoreCandidate(candidate, name, source, section, { preferToken, tokenOnly, excludeTokens }),
-    }))
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score);
+  const cleanName = name.trim();
+  const cleanSource = (source || "").trim() || "MM";
+  const cleanSection = (section || "").trim().toLowerCase();
 
-  if (!matches.length) {
-    return null;
+  let url = null;
+  let isToken = false;
+
+  if (cleanSection === "bestiary") {
+    if (preferToken || tokenOnly) {
+      url = getMonsterTokenUrl(cleanName, cleanSource);
+      isToken = true;
+    }
+    if (!url && !tokenOnly) {
+      url = getMonsterPortraitUrl(cleanName, cleanSource);
+    }
+  } else if (cleanSection) {
+    // Generic section: construct URL from section/source/name
+    url = `${IMG_BASE_URL}/${urlEncodeName(cleanSection)}/${urlEncodeName(cleanSource)}/${urlEncodeName(cleanName)}.webp`;
+  } else {
+    // No section specified — default to bestiary token
+    url = getMonsterTokenUrl(cleanName, cleanSource);
+    isToken = true;
   }
 
-  const best = matches[0].candidate;
   return {
-    name: best.name,
-    source: best.source,
-    section: best.section,
-    url: best.url,
-    matchCount: matches.length,
+    name: cleanName,
+    source: cleanSource,
+    section: cleanSection || "bestiary",
+    url,
+    isToken,
+    matchCount: 1,
   };
 }
 
+/**
+ * Find a monster token image (convenience wrapper).
+ */
 function findMonsterTokenImage({ name, source }) {
   return findReferenceImage({ name, source, section: "bestiary", preferToken: true, tokenOnly: true });
 }
 
+/**
+ * Clear cache — no-op since no in-memory index is maintained.
+ */
 function clearCache() {
-  cache = { builtAt: 0, files: [] };
+  // No filesystem index to clear
 }
 
 module.exports = {
