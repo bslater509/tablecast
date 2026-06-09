@@ -1123,3 +1123,22 @@ textarea:focus-visible {
 .conv-item:active {
   background: rgba(200, 151, 58, 0.08) !important;
 }
+
+/* =============================================================================
+   Toast Notification Animations
+   Used by ToastContainer.jsx — slide-up + fade-in entrance.
+   ============================================================================= */
+@keyframes toastEnter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-enter {
+  animation: toastEnter 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

@@ -4,8 +4,10 @@
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
 import { Bot, Cloud, KeyRound } from "lucide-react";
+import { useToast } from "../context/ToastContext";
 
 function SettingsPanel({ user }) {
+  const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [backupStatus, setBackupStatus] = useState(null);
@@ -245,11 +247,11 @@ function SettingsPanel({ user }) {
         fetchRefStatus();
       } else {
         const err = await res.json();
-        alert(`Error starting cache refresh: ${err.error || "Unknown"}`);
+        addToast(`Error starting cache refresh: ${err.error || "Unknown"}`, "error");
         setSyncingRef(false);
       }
     } catch (err) {
-      alert(`Network error starting cache refresh: ${err.message}`);
+      addToast(`Network error starting cache refresh: ${err.message}`, "error");
       setSyncingRef(false);
     }
   };
@@ -263,14 +265,14 @@ function SettingsPanel({ user }) {
         headers: authHeaders,
       });
       if (res.ok) {
-        alert("Cache cleared. Data will be re-fetched on next search.");
+        addToast("Cache cleared. Data will be re-fetched on next search.", "success");
         fetchRefStatus();
       } else {
         const err = await res.json();
-        alert(`Error clearing cache: ${err.error || "Unknown"}`);
+        addToast(`Error clearing cache: ${err.error || "Unknown"}`, "error");
       }
     } catch (err) {
-      alert(`Network error clearing cache: ${err.message}`);
+      addToast(`Network error clearing cache: ${err.message}`, "error");
     } finally {
       setClearingCache(false);
     }
@@ -302,7 +304,7 @@ function SettingsPanel({ user }) {
       setAllowedSourcesInput((data.allowedSources || []).join(", "));
       fetchRefStatus();
     } catch (err) {
-      alert(`Error saving sources: ${err.message}`);
+      addToast(`Error saving sources: ${err.message}`, "error");
     } finally {
       setSavingSources(false);
     }
@@ -410,7 +412,7 @@ function SettingsPanel({ user }) {
 
       if (!saveRes.ok) {
         const err = await saveRes.json();
-        alert(`Error saving AI settings: ${err.error || "Unknown"}`);
+        addToast(`Error saving AI settings: ${err.error || "Unknown"}`, "error");
         return;
       }
 
@@ -428,16 +430,16 @@ function SettingsPanel({ user }) {
       });
 
       if (testRes.ok) {
-        alert("AI settings saved and connection successful!");
+        addToast("AI settings saved and connection successful!", "success");
       } else {
         const testErr = await testRes.json();
-        alert(`AI settings saved, but connection test failed: ${testErr.error || "Unknown"}`);
+        addToast(`AI settings saved, but connection test failed: ${testErr.error || "Unknown"}`, "warning");
       }
 
       // Reload from DB to reflect saved state
       fetchAiSettings();
     } catch (err) {
-      alert(`Network error saving AI settings: ${err.message}`);
+      addToast(`Network error saving AI settings: ${err.message}`, "error");
     } finally {
       setSavingAi(false);
     }
@@ -459,13 +461,13 @@ function SettingsPanel({ user }) {
             setAiOllamaModel(data.models[0]);
           }
         } else {
-          alert("No loaded models found. Make sure your local server has a model active/loaded.");
+          addToast("No loaded models found. Make sure your local server has a model active/loaded.", "warning");
         }
       } else {
-        alert(`Failed to fetch models: ${data.error || "Unknown error"}`);
+        addToast(`Failed to fetch models: ${data.error || "Unknown error"}`, "error");
       }
     } catch (err) {
-      alert(`Network error fetching models: ${err.message}`);
+      addToast(`Network error fetching models: ${err.message}`, "error");
     } finally {
       setFetchingAiModels(false);
     }
@@ -486,10 +488,10 @@ function SettingsPanel({ user }) {
           }
         }
       } else {
-        alert(`Failed to fetch Zen models: ${data.error || "Unknown error"}`);
+        addToast(`Failed to fetch Zen models: ${data.error || "Unknown error"}`, "error");
       }
     } catch (err) {
-      alert(`Network error fetching Zen models: ${err.message}`);
+      addToast(`Network error fetching Zen models: ${err.message}`, "error");
     } finally {
       setFetchingZenModels(false);
     }
@@ -572,7 +574,7 @@ function SettingsPanel({ user }) {
                       type="button"
                       onClick={() => {
                         navigator.clipboard.writeText(`${window.location.origin}/api/backup/oauth-callback`);
-                        alert("Redirect URI copied to clipboard!");
+                        addToast("Redirect URI copied to clipboard!", "info");
                       }}
                       style={styles.copyBtn}
                       className="touch-target"

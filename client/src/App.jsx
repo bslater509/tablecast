@@ -36,6 +36,7 @@ import ImporterPanel from "./components/ImporterPanel";
 import SessionsPanel from "./components/SessionsPanel";
 import EncountersPanel from "./components/EncountersPanel";
 import { useSocket } from "./context/SocketContext";
+import { useToast } from "./context/ToastContext";
 
 const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
 
@@ -127,6 +128,7 @@ const DM_NAV_ITEMS = [
 ];
 
 function App() {
+  const { addToast } = useToast();
   const { connectionStatus, connectionFailed, setUserId, clearAuth } = useSocket();
   const navigate = useNavigate();
   const location = useLocation();
@@ -283,7 +285,7 @@ function App() {
       const newUser = await res.json();
       handleSelectUser(newUser);
     } catch (err) {
-      alert(err.message);
+      addToast(err.message, "error");
     }
   }
 

@@ -13,6 +13,7 @@ import TokenPresetIcon from "./TokenPresetIcon";
 import { NPC_TOKEN_PRESETS, matchNpcPreset, generateTokenSvgUrl } from "../data/npcTokenPresets";
 import WikiTreeSidebar from "./WikiTreeSidebar";
 import { useSocket } from "../context/SocketContext";
+import { useToast } from "../context/ToastContext";
 import { WikiPanelSkeleton } from "./PanelSkeleton";
 
 marked.setOptions({
@@ -202,6 +203,7 @@ function NpcStatblock({ npc, socket, isDM, onHpChange }) {
 }
 
 export default function WikiPanel({ user, isPopout = false }) {
+  const { addToast } = useToast();
   const navigate = useNavigate();
   const { socket } = useSocket();
   const npcTimerRef = useRef(null);
@@ -1273,7 +1275,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       });
       setImportQuery("");
     } catch (err) {
-      alert(`Import error: ${err.message}`);
+      addToast(`Import error: ${err.message}`, "error");
     }
   };
 

@@ -18,6 +18,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
+import { useToast } from "../context/ToastContext";
 import Autocomplete from "./Autocomplete";
 import TokenPresetIcon from "./TokenPresetIcon";
 import { NPC_TOKEN_PRESETS, generateTokenSvgUrl } from "../data/npcTokenPresets";
@@ -36,6 +37,7 @@ const MAP_IMPORT_PRESETS = [
 
 export default function MapPanel({ user, isPopout = false }) {
   const { socket, isConnected, reconnectCount } = useSocket();
+  const { addToast } = useToast();
 
   // Map & token state
   const [mapsList, setMapsList] = useState([]);
@@ -1162,7 +1164,7 @@ export default function MapPanel({ user, isPopout = false }) {
     }
 
     if (!label) {
-      alert("Please enter a token label or choose an option.");
+      addToast("Please enter a token label or choose an option.", "warning");
       return;
     }
 
@@ -1222,7 +1224,7 @@ export default function MapPanel({ user, isPopout = false }) {
       setEncounterName("");
       setShowEncounterDrawer(true);
     } catch (err) {
-      alert(err.message);
+      addToast(err.message, "error");
     } finally {
       setEncounterBusy(false);
     }
@@ -1404,7 +1406,7 @@ export default function MapPanel({ user, isPopout = false }) {
       setEncounterMonsterQuery("");
       setEncounterQuantity(1);
     } catch (err) {
-      alert(err.message);
+      addToast(err.message, "error");
     } finally {
       setEncounterBusy(false);
     }
@@ -1426,7 +1428,7 @@ export default function MapPanel({ user, isPopout = false }) {
       await persistEncounterResult(res);
       setEncounterNpcId("");
     } catch (err) {
-      alert(err.message);
+      addToast(err.message, "error");
     } finally {
       setEncounterBusy(false);
     }
@@ -1448,7 +1450,7 @@ export default function MapPanel({ user, isPopout = false }) {
       await persistEncounterResult(res);
       setEncounterCharacterId("");
     } catch (err) {
-      alert(err.message);
+      addToast(err.message, "error");
     } finally {
       setEncounterBusy(false);
     }
@@ -1465,7 +1467,7 @@ export default function MapPanel({ user, isPopout = false }) {
       });
       await persistEncounterResult(res);
     } catch (err) {
-      alert(err.message);
+      addToast(err.message, "error");
     } finally {
       setEncounterBusy(false);
     }
@@ -1482,7 +1484,7 @@ export default function MapPanel({ user, isPopout = false }) {
       });
       await persistEncounterResult(res, { turnChanged: true });
     } catch (err) {
-      alert(err.message);
+      addToast(err.message, "error");
     } finally {
       setEncounterBusy(false);
     }
@@ -1499,7 +1501,7 @@ export default function MapPanel({ user, isPopout = false }) {
       });
       await persistEncounterResult(res, { turnChanged: true });
     } catch (err) {
-      alert(err.message);
+      addToast(err.message, "error");
     } finally {
       setEncounterBusy(false);
     }
@@ -1516,7 +1518,7 @@ export default function MapPanel({ user, isPopout = false }) {
       });
       await persistEncounterResult(res);
     } catch (err) {
-      alert(err.message);
+      addToast(err.message, "error");
     } finally {
       setEncounterBusy(false);
     }
@@ -1534,7 +1536,7 @@ export default function MapPanel({ user, isPopout = false }) {
       });
       await persistEncounterResult(res);
     } catch (err) {
-      alert(err.message);
+      addToast(err.message, "error");
     } finally {
       setEncounterBusy(false);
     }
@@ -1725,11 +1727,11 @@ export default function MapPanel({ user, isPopout = false }) {
         }
       } else {
         const errData = await res.json();
-        alert(`Failed to delete map: ${errData.error || "Unknown error"}`);
+        addToast(`Failed to delete map: ${errData.error || "Unknown error"}`, "error");
       }
     } catch (err) {
       console.error("Failed to delete map:", err);
-      alert("Failed to delete map due to a network error.");
+      addToast("Failed to delete map due to a network error.", "error");
     }
   };
 

@@ -16,6 +16,7 @@ import {
   UserPlus,
   Zap,
 } from "lucide-react";
+import { useToast } from "../context/ToastContext";
 import { useSocket } from "../context/SocketContext";
 
 /* ------------------------------------------------------------------ */
@@ -45,6 +46,7 @@ export default function EncountersPanel({
   isPopout = false,
   basePath = "/dm/encounters",
 }) {
+  const { addToast } = useToast();
   const navigate = useNavigate();
   const { socket, isConnected } = useSocket();
   const isDm = user?.role === "DM" && !readOnly;
@@ -249,7 +251,7 @@ export default function EncountersPanel({
     try {
       const mapId = selectedMapId || (maps[0]?.id);
       if (!mapId) {
-        alert("Select a map first.");
+        addToast("Select a map first.", "warning");
         return;
       }
       const map = maps.find((m) => Number(m.id) === Number(mapId));
@@ -525,7 +527,7 @@ export default function EncountersPanel({
     setAiLoading(true);
     try {
       const mapId = selectedMapId || (maps[0]?.id);
-      if (!mapId) { alert("Select a map first."); return; }
+      if (!mapId) { addToast("Select a map first.", "warning"); return; }
       const encRes = await fetch("/api/encounters", {
         method: "POST",
         headers: authHeaders,

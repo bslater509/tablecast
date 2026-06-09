@@ -5,8 +5,10 @@
 import { useState, useEffect } from "react";
 import { ChevronRight, Plus, UserRound } from "lucide-react";
 import Autocomplete from "./Autocomplete";
+import { useToast } from "../context/ToastContext";
 
 export default function CharacterList({ user, onSelectCharacter }) {
+  const { addToast } = useToast();
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -103,7 +105,7 @@ export default function CharacterList({ user, onSelectCharacter }) {
       onSelectCharacter(newChar);
     } catch (err) {
       console.error("[CharacterList] Create error:", err);
-      alert(err.message);
+      addToast(err.message, "error");
     } finally {
       setCreating(false);
     }
