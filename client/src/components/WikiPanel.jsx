@@ -1894,7 +1894,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                 id={`wiki-article-${article.id}`}
                 onClick={() => setSelectedArticle(article)}
                 style={styles.articleCard}
-                className="glass-panel btn-hover-scale"
+                className="glass-panel btn-hover-scale wiki-article-card"
               >
                 <div style={styles.cardHeader}>
                   <h3 style={styles.cardTitle}>{article.title}</h3>
