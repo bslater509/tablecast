@@ -86,7 +86,9 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/characters/${characterId}`);
+        const res = await fetch(`/api/characters/${characterId}`, {
+          headers: { "x-tablecast-user-id": String(user?.id || "") },
+        });
         if (!res.ok) {
           throw new Error("Failed to load character sheet.");
         }

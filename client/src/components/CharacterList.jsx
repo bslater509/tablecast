@@ -28,7 +28,9 @@ export default function CharacterList({ user, onSelectCharacter }) {
       try {
         // DM lists all characters. Players list only their own characters.
         const url = isDM ? "/api/characters" : `/api/characters?userId=${user.id}`;
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          headers: { "x-tablecast-user-id": String(user?.id || "") },
+        });
         if (!res.ok) {
           throw new Error("Failed to load characters.");
         }

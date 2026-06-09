@@ -198,7 +198,9 @@ export default function AiPanel({ user }) {
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
-    fetch(`/api/characters?userId=${user.id}`)
+    fetch(`/api/characters?userId=${user.id}`, {
+        headers: { "x-tablecast-user-id": String(user?.id || "") },
+      })
       .then((r) => r.ok ? r.json() : [])
       .then((chars) => {
         if (cancelled) return;

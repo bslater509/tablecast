@@ -180,7 +180,9 @@ export default function MapPanel({ user, isPopout = false }) {
   async function loadCharacters(fetchId) {
     try {
       setLoadError(null);
-      const res = await fetch("/api/characters");
+      const res = await fetch("/api/characters", {
+        headers: { "x-tablecast-user-id": String(user?.id || "") },
+      });
       if (fetchId !== undefined && isStale(fetchId)) return;
       if (res.ok) {
         const data = await res.json();
