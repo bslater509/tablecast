@@ -2705,8 +2705,8 @@ export default function WikiPanel({ user, isPopout = false }) {
             </div>
           </form>
         )
-      ) : isDM && !isPopout ? (
-        /*  DM: SPLIT-PANE LAYOUT  */
+      ) : !isPopout ? (
+        /*  SPLIT-PANE LAYOUT (DM + Player)  */
         <div style={styles.splitPaneLayout}>
           <WikiTreeSidebar
             articles={articles}
@@ -2720,7 +2720,7 @@ export default function WikiPanel({ user, isPopout = false }) {
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
             isDM={isDM}
-            onCreateNew={(tab) => handleSelectCategoryToCreate(tab)}
+            onCreateNew={isDM ? (tab) => handleSelectCategoryToCreate(tab) : undefined}
           />
           <div style={styles.splitContent}>
             {selectedArticle ? renderReaderContent() : (
