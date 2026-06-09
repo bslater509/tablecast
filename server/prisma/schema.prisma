@@ -190,6 +190,9 @@ model Token {
   updatedAt DateTime @updatedAt
 
   @@index([mapId])
+  @@index([characterId])
+  @@index([npcId])
+  @@index([monsterId])
   @@map("tokens")
 }
 
@@ -204,6 +207,9 @@ model WikiArticle {
 
   // JSON array of tag strings, e.g. ["NPC","Neverwinter"]
   tags String @default("[]") // JSON
+
+  /// GameSessions that link this article as their wikiLog
+  gameSessions GameSession[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -272,6 +278,7 @@ model Npc {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([name])
   @@map("npcs")
 }
 
@@ -330,8 +337,16 @@ model EncounterParticipant {
   updatedAt DateTime @updatedAt
 
   @@index([encounterId])
+  @@index([tokenId])
+  @@index([npcId])
+  @@index([characterId])
+  @@index([monsterId])
   @@map("encounter_participants")
 }
+
+// TODO (#22): Audit/log tables (mcp_logs, ai_response_logs) grow unbounded.
+// Consider implementing a retention policy: delete records older than N days,
+// either via a scheduled job or a capped table approach.
 
 /// A history record of a dice roll made by a player or DM.
 model Roll {
@@ -346,6 +361,7 @@ model Roll {
   diceColor String   @default("#7c3aed")
   createdAt DateTime @default(now())
 
+  @@index([createdAt])
   @@map("rolls")
 }
 
@@ -368,6 +384,7 @@ model GameSession {
 
   /// Optional link to a published WikiArticle with category "LOG"
   wikiLogId Int?
+  wikiLog   WikiArticle? @relation(fields: [wikiLogId], references: [id], onDelete: SetNull)
 
   linkedWikiIds      String @default("[]") // JSON array of wiki article IDs
   linkedMapIds       String @default("[]") // JSON array of map IDs
@@ -508,5 +525,6 @@ model Monster {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([name])
   @@map("monsters")
 }

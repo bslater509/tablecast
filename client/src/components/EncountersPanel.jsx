@@ -197,14 +197,31 @@ export default function EncountersPanel({
     if (!socket) return;
 
     const onEncounterUpdated = (payload) => {
+      // Patch the single encounter in local state instead of a full refetch
+      if (payload.encounter) {
+        setEncounters(prev =>
+          prev.map(e => e.id === payload.encounter.id ? payload.encounter : e)
+        );
+      } else if (payload.encounterId) {
+        // Single-encounter payload: fetch just that encounter and patch
+        fetch(`/api/encounters/${payload.encounterId}`, { headers: authHeaders })
+          .then(r => r.ok ? r.json() : null)
+          .then(updated => {
+            if (updated) {
+              setEncounters(prev =>
+                prev.map(e => e.id === updated.id ? updated : e)
+              );
+            }
+          })
+          .catch(() => {});
+      }
+      // Update selected encounter if it matches
       if (
         selectedEncounter &&
         Number(payload.encounterId) === Number(selectedEncounter.id)
       ) {
         fetchEncounter(selectedEncounter.id);
       }
-      // Also refresh the list
-      fetchEncounters(selectedMapId || undefined);
     };
 
     socket.on("encounter:updated", onEncounterUpdated);
@@ -214,7 +231,7 @@ export default function EncountersPanel({
       socket.off("encounter:updated", onEncounterUpdated);
       socket.off("encounter:turnChanged", onEncounterUpdated);
     };
-  }, [socket, selectedEncounter, selectedMapId, fetchEncounter, fetchEncounters]);
+  }, [socket, selectedEncounter, selectedMapId, fetchEncounter, authHeaders]);
 
   /* ---- actions ---- */
   const notifyRefresh = (encounterId) => {

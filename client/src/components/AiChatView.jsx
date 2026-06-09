@@ -19,7 +19,7 @@ function compileMarkdown(text) {
     return DOMPurify.sanitize(marked.parse(text));
   } catch (e) {
     console.error("[AiChatView] Markdown failed:", e);
-    return text;
+    return DOMPurify.sanitize(text);
   }
 }
 
@@ -240,8 +240,8 @@ export default function AiChatView({
 
       {/* Messages */}
       <div ref={scrollRef} style={styles.messages}>
-        {chat.messages.map((msg, i) => (
-          <ChatBubble key={i} msg={msg} />
+        {chat.messages.map((msg) => (
+          <ChatBubble key={msg.id || `msg-${msg.role}-${msg.createdAt || msg.timestamp || Math.random()}`} msg={msg} />
         ))}
 
         {/* Loading / streaming indicator */}

@@ -54,6 +54,18 @@ function isValidJson(value) {
   }
 }
 
+function isValidImageUrl(url) {
+  if (typeof url !== "string") return false;
+  if (url.startsWith("/uploads/")) return true;
+  if (url.startsWith("https://5e.tools/")) return true;
+  try {
+    new URL(url);
+    return url.startsWith("http://") || url.startsWith("https://");
+  } catch {
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/monsters  List all Monsters
 // ---------------------------------------------------------------------------
@@ -141,6 +153,13 @@ router.post("/", requireDm, async (req, res) => {
       }
     }
 
+    // Validate imageUrl / largeImageUrl
+    for (const imgField of ["imageUrl", "largeImageUrl"]) {
+      if (data[imgField] && !isValidImageUrl(data[imgField])) {
+        return res.status(400).json({ error: `${imgField} must be a valid /uploads/ path, 5etools URL, or http(s) URL.` });
+      }
+    }
+
     const monster = await prisma.monster.create({ data });
     res.status(201).json(monster);
   } catch (err) {
@@ -180,6 +199,13 @@ router.put("/:id", requireDm, async (req, res) => {
         } else {
           data[field] = req.body[field];
         }
+      }
+    }
+
+    // Validate imageUrl / largeImageUrl
+    for (const imgField of ["imageUrl", "largeImageUrl"]) {
+      if (data[imgField] && !isValidImageUrl(data[imgField])) {
+        return res.status(400).json({ error: `${imgField} must be a valid /uploads/ path, 5etools URL, or http(s) URL.` });
       }
     }
 

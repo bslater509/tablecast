@@ -160,8 +160,17 @@ router.put("/:id", async (req, res) => {
     const data = {};
     if (username && typeof username === "string") data.username = username.trim();
     if (role) data.role = role;
-    if (diceTheme !== undefined) data.diceTheme = String(diceTheme);
-    if (diceColor !== undefined) data.diceColor = String(diceColor);
+    if (diceTheme !== undefined) {
+      const theme = String(diceTheme).slice(0, 100);
+      data.diceTheme = theme;
+    }
+    if (diceColor !== undefined) {
+      const color = String(diceColor).slice(0, 100);
+      if (!/^#[0-9a-fA-F]{6}$/.test(color)) {
+        return res.status(400).json({ error: "diceColor must be a valid hex color (e.g. #7c3aed)." });
+      }
+      data.diceColor = color;
+    }
 
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: "No valid fields to update." });

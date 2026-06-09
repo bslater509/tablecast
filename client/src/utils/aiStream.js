@@ -59,7 +59,7 @@ export async function streamAiChat({
     if (data.reply) {
       onToken(data.reply);
     }
-    return data.reply || "";
+    return { text: data.reply || "", conversationId: data.conversationId };
   }
 
   // Streaming response (SSE)
@@ -108,7 +108,7 @@ export async function streamAiChat({
     throw new Error("AI returned an empty response.");
   }
 
-  return fullText;
+  return { text: fullText, conversationId: opts.conversationId };
 }
 
 /**

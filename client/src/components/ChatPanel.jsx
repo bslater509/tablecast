@@ -23,7 +23,7 @@ function compileMarkdown(text) {
     return DOMPurify.sanitize(marked.parse(text));
   } catch (e) {
     console.error("[ChatPanel] Markdown parsing failed:", e);
-    return text;
+    return DOMPurify.sanitize(text);
   }
 }
 
@@ -623,6 +623,7 @@ export default function ChatPanel({ user, isPopout = false }) {
   const pendingAcksRef = useRef({});
   const initialLoadRef = useRef(true);
   const inputRef = useRef(null);
+  const loadingMoreRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -634,18 +635,20 @@ export default function ChatPanel({ user, isPopout = false }) {
 
   // Fetch NPCs for avatar matching
   useEffect(() => {
+    let cancelled = false;
     async function fetchNpcs() {
       try {
         const res = await fetch("/api/npcs");
-        if (res.ok) {
+        if (!cancelled && res.ok) {
           const data = await res.json();
           setNpcs(data);
         }
       } catch (err) {
-        console.error("Failed to fetch NPCs in ChatPanel:", err);
+        if (!cancelled) console.error("Failed to fetch NPCs in ChatPanel:", err);
       }
     }
     fetchNpcs();
+    return () => { cancelled = true; };
   }, []);
 
   // Sync user prop
@@ -680,8 +683,9 @@ export default function ChatPanel({ user, isPopout = false }) {
   }, []);
 
   const loadEarlierMessages = useCallback(async () => {
-    if (!oldestMsgId || loadingMore || !hasMore) return;
+    if (!oldestMsgId || loadingMoreRef.current || !hasMore) return;
 
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     try {
       const res = await fetch(`/api/chat?limit=150&before=${oldestMsgId}`);
@@ -693,9 +697,10 @@ export default function ChatPanel({ user, isPopout = false }) {
     } catch (err) {
       console.error("Failed to load earlier chat messages:", err);
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [hasMore, loadingMore, oldestMsgId]);
+  }, [hasMore, oldestMsgId]);
 
   // Socket listeners
   useEffect(() => {
@@ -767,7 +772,7 @@ export default function ChatPanel({ user, isPopout = false }) {
     } else {
       setUnreadCount((prev) => prev + 1);
     }
-  }, [messages.length]);
+  }, [messages.length, messages[messages.length - 1]?.text?.length]);
 
   // Scroll handler
   const handleScroll = useCallback(() => {
@@ -1031,10 +1036,14 @@ export default function ChatPanel({ user, isPopout = false }) {
             background: isConnected ? "var(--color-success)" : "var(--color-danger)",
           }}
           title={isConnected ? "Connected" : "Disconnected"}
+          role="status"
+          aria-live="polite"
+          aria-label={isConnected ? "Connected to server" : "Disconnected from server"}
         />
       </header>
 
       {/* Messages area */}
+      {/* TODO: Virtualize long chat histories using react-window or similar for performance */}
       <div
         id="chat-messages"
         ref={scrollRef}

@@ -58,8 +58,10 @@ export function DiceBoxProvider({ children }) {
   // Pending promise resolve/reject for the active roll
   const pendingResolve = useRef(null);
   const pendingReject = useRef(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     if (!containerRef.current) return;
 
     // Initialize the DiceBox instance
@@ -76,6 +78,7 @@ export function DiceBoxProvider({ children }) {
     });
 
     box.init().then(() => {
+      if (!mountedRef.current) return;
       diceBoxRef.current = box;
       setIsReady(true);
       debug("[3D Dice] DiceBox initialized successfully.");
@@ -112,6 +115,7 @@ export function DiceBoxProvider({ children }) {
 
         // Delay clearing/hiding dice slightly for better visual polish
         clearTimeoutRef.current = setTimeout(() => {
+          if (!mountedRef.current) return;
           if (diceBoxRef.current) {
             diceBoxRef.current.clear();
           }
@@ -120,10 +124,12 @@ export function DiceBoxProvider({ children }) {
         }, 1200);
       };
     }).catch(err => {
+      if (!mountedRef.current) return;
       console.error("[3D Dice] Failed to initialize DiceBox:", err);
     });
 
     return () => {
+      mountedRef.current = false;
       if (clearTimeoutRef.current) {
         clearTimeout(clearTimeoutRef.current);
       }

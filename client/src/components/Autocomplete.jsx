@@ -22,6 +22,8 @@ function Autocomplete({
   const [query, setQuery] = useState(value || "");
   const containerRef = useRef(null);
   const debounceTimer = useRef(null);
+  const monsterCacheRef = useRef(null);
+  const fetchCancelledRef = useRef(false);
 
   // Sync state if value changes externally
   useEffect(() => {
@@ -30,6 +32,7 @@ function Autocomplete({
 
   // Handle clicking outside to close suggestions
   useEffect(() => {
+    fetchCancelledRef.current = false;
     function handleClickOutside(event) {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
         setIsOpen(false);
@@ -38,6 +41,7 @@ function Autocomplete({
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("touchstart", handleClickOutside);
     return () => {
+      fetchCancelledRef.current = true;
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("touchstart", handleClickOutside);
     };
@@ -56,13 +60,20 @@ function Autocomplete({
     }
 
     setLoading(true);
+    const id = Date.now();
     debounceTimer.current = setTimeout(async () => {
+      const currentId = id;
       try {
         if (category === "monsters") {
-          const res = await fetch(`/api/monsters`);
-          if (res.ok) {
-            const allMonsters = await res.json();
-            const filtered = allMonsters.filter(m =>
+          if (!monsterCacheRef.current) {
+            const res = await fetch(`/api/monsters`);
+            if (res.ok) {
+              monsterCacheRef.current = await res.json();
+            }
+          }
+          if (currentId !== id || fetchCancelledRef.current) return;
+          if (monsterCacheRef.current) {
+            const filtered = monsterCacheRef.current.filter(m =>
               m.name.toLowerCase().includes(searchQuery.toLowerCase())
             );
             setSuggestions(filtered.slice(0, 15));
@@ -70,6 +81,7 @@ function Autocomplete({
           }
         } else {
           const res = await fetch(`/api/reference/search?category=${category}&q=${encodeURIComponent(searchQuery)}&limit=15`);
+          if (currentId !== id || fetchCancelledRef.current) return;
           if (res.ok) {
             const data = await res.json();
             setSuggestions(data);
@@ -77,9 +89,9 @@ function Autocomplete({
           }
         }
       } catch (err) {
-        console.error("Autocomplete fetch error:", err);
+        if (!fetchCancelledRef.current) console.error("Autocomplete fetch error:", err);
       } finally {
-        setLoading(false);
+        if (currentId === id && !fetchCancelledRef.current) setLoading(false);
       }
     }, 300);
   };

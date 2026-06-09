@@ -55,6 +55,18 @@ function isValidJson(value) {
   }
 }
 
+function isValidImageUrl(url) {
+  if (typeof url !== "string") return false;
+  if (url.startsWith("/uploads/")) return true;
+  if (url.startsWith("https://5e.tools/")) return true;
+  try {
+    new URL(url);
+    return url.startsWith("http://") || url.startsWith("https://");
+  } catch {
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/npcs  List all NPCs
 // ---------------------------------------------------------------------------
@@ -142,6 +154,13 @@ router.post("/", requireDm, async (req, res) => {
       }
     }
 
+    // Validate imageUrl / largeImageUrl
+    for (const imgField of ["imageUrl", "largeImageUrl"]) {
+      if (data[imgField] && !isValidImageUrl(data[imgField])) {
+        return res.status(400).json({ error: `${imgField} must be a valid /uploads/ path, 5etools URL, or http(s) URL.` });
+      }
+    }
+
     // Auto-assign SVG token if none provided
     if (!data.imageUrl) {
       data.imageUrl = generateTokenSvg(data.name, data.race);
@@ -187,6 +206,13 @@ router.put("/:id", requireDm, async (req, res) => {
 
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: "No valid fields to update." });
+    }
+
+    // Validate imageUrl / largeImageUrl
+    for (const imgField of ["imageUrl", "largeImageUrl"]) {
+      if (data[imgField] && !isValidImageUrl(data[imgField])) {
+        return res.status(400).json({ error: `${imgField} must be a valid /uploads/ path, 5etools URL, or http(s) URL.` });
+      }
     }
 
     // Auto-assign SVG token if image not provided and name/race is being updated

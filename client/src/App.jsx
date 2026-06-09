@@ -127,7 +127,7 @@ const DM_NAV_ITEMS = [
 ];
 
 function App() {
-  const { connectionStatus, setUserId, clearAuth } = useSocket();
+  const { connectionStatus, connectionFailed, setUserId, clearAuth } = useSocket();
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(null);
@@ -387,16 +387,23 @@ function App() {
       className={user?.role === "DM" ? "theme-dm" : "theme-player"}
     >
       <div
+        role="status"
+        aria-live="polite"
+        aria-label={connectionFailed ? "Connection failed" : connectionStatus === "connected" ? "Connected" : connectionStatus === "reconnecting" ? "Reconnecting" : "Offline"}
         style={{
           ...styles.connectionIndicator,
-          ...(connectionStatus === "connected"
+          ...(connectionFailed
+            ? styles.connectionOffline
+            : connectionStatus === "connected"
             ? styles.connectionOnline
             : connectionStatus === "reconnecting"
             ? styles.connectionReconnecting
             : styles.connectionOffline),
         }}
       >
-        {connectionStatus === "connected"
+        {connectionFailed
+          ? "Failed"
+          : connectionStatus === "connected"
           ? "Live"
           : connectionStatus === "reconnecting"
           ? "Reconnecting"
@@ -409,10 +416,10 @@ function App() {
         <Route path="/dm/*" element={<DmLayout user={user} onLogout={handleLogout} onOpenDiceSettings={() => setDiceModalOpen(true)} />} />
         
         {/* Standalone Popout Panel Routes */}
-        <Route path="/dm/popout/map" element={<MapPanel user={user} isPopout={true} />} />
-        <Route path="/dm/popout/chat" element={<ChatPanel user={user} isPopout={true} />} />
+        <Route path="/dm/popout/map" element={<ErrorBoundary critical={false}><MapPanel user={user} isPopout={true} /></ErrorBoundary>} />
+        <Route path="/dm/popout/chat" element={<ErrorBoundary critical={false}><ChatPanel user={user} isPopout={true} /></ErrorBoundary>} />
         <Route path="/dm/popout/ai" element={<AiPanel user={user} />} />
-        <Route path="/dm/popout/wiki" element={<WikiPanel user={user} isPopout={true} />} />
+        <Route path="/dm/popout/wiki" element={<ErrorBoundary critical={false}><WikiPanel user={user} isPopout={true} /></ErrorBoundary>} />
         <Route path="/dm/popout/reference" element={<ReferencePanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/dice" element={<DiceRollerPanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/sessions" element={<SessionsPanel user={user} isPopout={true} basePath="/dm/popout/sessions" />} />
@@ -420,7 +427,7 @@ function App() {
         <Route path="/dm/popout/encounters" element={<EncountersPanel user={user} isPopout={true} basePath="/dm/popout/encounters" />} />
         <Route path="/dm/popout/connection" element={<ConnectionHelpPanel user={user} />} />
         <Route path="/dm/popout/characters" element={<CharacterList user={user} onSelectCharacter={(char) => window.open(`/#/dm/popout/characters/${char.id}`, '_blank', 'width=600,height=800,resizable=yes')} isPopout={true} />} />
-        <Route path="/dm/popout/characters/:id" element={<CharacterSheetWrapper user={user} basePath="/dm/popout/characters" isPopout={true} />} />
+        <Route path="/dm/popout/characters/:id" element={<ErrorBoundary critical={false}><CharacterSheetWrapper user={user} basePath="/dm/popout/characters" isPopout={true} /></ErrorBoundary>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -818,14 +825,14 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
       {/* Main Workspace content */}
       <main style={styles.mainContent}>
         <Routes>
-          <Route path="map" element={<MapPanel user={user} />} />
+          <Route path="map" element={<ErrorBoundary critical={false}><MapPanel user={user} /></ErrorBoundary>} />
           <Route path="sheet" element={<PlayerSheetRedirect user={user} />} />
-          <Route path="sheet/:id" element={<CharacterSheetWrapper user={user} basePath="/player/sheet" />} />
+          <Route path="sheet/:id" element={<ErrorBoundary critical={false}><CharacterSheetWrapper user={user} basePath="/player/sheet" /></ErrorBoundary>} />
           <Route path="dice" element={<DiceRollerPanel user={user} />} />
           <Route path="messages" element={<MessageHub user={user} />} />
           <Route path="chat" element={<Navigate to="/player/messages" replace />} />
-          <Route path="chat/:subtab" element={<Navigate to="/player/messages" replace />} />
-          <Route path="wiki" element={<WikiPanel user={user} isPopout={false} />} />
+            <Route path="chat/:subtab" element={<Navigate to="/player/messages" replace />} />
+          <Route path="wiki" element={<ErrorBoundary critical={false}><WikiPanel user={user} isPopout={false} /></ErrorBoundary>} />
           <Route path="sessions" element={<SessionsPanel user={user} readOnly basePath="/player/sessions" />} />
           <Route path="sessions/:id" element={<SessionsPanel user={user} readOnly basePath="/player/sessions" />} />
           <Route path="encounters" element={<EncountersPanel user={user} readOnly basePath="/player/encounters" />} />
@@ -848,6 +855,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
             color: currentTab === "map" ? "var(--color-accent)" : "var(--color-muted)",
           }}
           className="touch-target"
+          aria-current={currentTab === "map" ? "page" : undefined}
         >
           <span style={styles.navIcon}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -867,6 +875,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
             color: currentTab === "sheet" ? "var(--color-accent)" : "var(--color-muted)",
           }}
           className="touch-target"
+          aria-current={currentTab === "sheet" ? "page" : undefined}
         >
           <span style={styles.navIcon}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -884,6 +893,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
             color: currentTab === "dice" ? "var(--color-accent)" : "var(--color-muted)",
           }}
           className="touch-target"
+          aria-current={currentTab === "dice" ? "page" : undefined}
         >
           <span style={styles.navIcon}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -903,6 +913,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
             color: currentTab === "messages" ? "var(--color-accent)" : "var(--color-muted)",
           }}
           className="touch-target"
+          aria-current={currentTab === "messages" ? "page" : undefined}
         >
           <span style={styles.navIcon}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -920,8 +931,10 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
             color: currentTab === "wiki" ? "var(--color-accent)" : "var(--color-muted)",
           }}
           className="touch-target"
+          aria-current={currentTab === "wiki" ? "page" : undefined}
         >
           <span style={styles.navIcon}>
+
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
@@ -938,6 +951,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
             color: currentTab === "sessions" ? "var(--color-accent)" : "var(--color-muted)",
           }}
           className="touch-target"
+          aria-current={currentTab === "sessions" ? "page" : undefined}
         >
           <span style={styles.navIcon}>
             <CalendarDays size={20} strokeWidth={2} />
@@ -953,6 +967,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
             color: currentTab === "encounters" ? "var(--color-accent)" : "var(--color-muted)",
           }}
           className="touch-target"
+          aria-current={currentTab === "encounters" ? "page" : undefined}
         >
           <span style={styles.navIcon}>
             <Swords size={20} strokeWidth={2} />
@@ -1058,7 +1073,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
         {/* Main Workspace content */}
         <main style={styles.mainContent}>
           <Routes>
-            <Route path="map" element={<MapPanel user={user} />} />
+            <Route path="map" element={<ErrorBoundary critical={false}><MapPanel user={user} /></ErrorBoundary>} />
             <Route
               path="characters"
               element={
@@ -1068,14 +1083,14 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
                 />
               }
             />
-            <Route path="characters/:id" element={<CharacterSheetWrapper user={user} basePath="/dm/characters" />} />
+            <Route path="characters/:id" element={<ErrorBoundary critical={false}><CharacterSheetWrapper user={user} basePath="/dm/characters" /></ErrorBoundary>} />
             <Route path="dice" element={<DiceRollerPanel user={user} />} />
             <Route path="messages" element={<MessageHub user={user} />} />
             {/* Legacy redirects */}
             <Route path="chat" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat/ai" element={<Navigate to="/dm/messages" replace />} />
             <Route path="ai" element={<Navigate to="/dm/messages" replace />} />
-            <Route path="wiki" element={<WikiPanel user={user} isPopout={false} />} />
+            <Route path="wiki" element={<ErrorBoundary critical={false}><WikiPanel user={user} isPopout={false} /></ErrorBoundary>} />
             <Route path="sessions" element={<SessionsPanel user={user} basePath="/dm/sessions" />} />
             <Route path="sessions/:id" element={<SessionsPanel user={user} basePath="/dm/sessions" />} />
             <Route path="encounters" element={<EncountersPanel user={user} basePath="/dm/encounters" />} />

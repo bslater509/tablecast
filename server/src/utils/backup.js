@@ -9,6 +9,7 @@ const path = require("path");
 const { execFile } = require("child_process");
 const archiver = require("archiver");
 const prisma = require("../prisma");
+const logger = require("./logger");
 
 const serverRoot = path.join(__dirname, "../..");
 const backupsDir = path.join(serverRoot, "backups");
@@ -44,7 +45,9 @@ function createBackupZip() {
       });
 
       output.on("close", () => {
-        console.log(`[Backup] Archive created successfully: ${zipName} (${archive.pointer()} bytes)`);
+        logger.info("backup", "Archive created successfully", { zipName, size: archive.pointer() });
+        // Apply retention policy: delete backups older than 30 days
+        try { applyRetentionPolicy(); } catch (e) { logger.warn("backup", "Retention policy cleanup failed", { error: e.message }); }
         resolve({
           zipPath,
           zipName,
@@ -53,13 +56,18 @@ function createBackupZip() {
       });
 
       archive.on("error", (err) => {
-        console.error("[Backup] Archiver error:", err);
+        logger.error("backup", "Archiver error", { error: err.message });
         reject(err);
       });
 
       archive.pipe(output);
 
-      // 1. Add SQLite Database file
+      // 0. WAL checkpoint to ensure consistent state before copy
+      prisma.$executeRawUnsafe("PRAGMA wal_checkpoint(FULL)").catch((err) => {
+        logger.warn("backup", "WAL checkpoint failed (non-fatal)", { error: err.message });
+      });
+
+      // 1. Add SQLite Database file + WAL + SHM (if they exist)
       const dbUrl = process.env.DATABASE_URL || "file:./data/tablecast.db";
       let dbPath = "";
       
@@ -76,19 +84,28 @@ function createBackupZip() {
       }
 
       if (fs.existsSync(dbPath)) {
-        console.log(`[Backup] Adding SQLite database to archive from: ${dbPath}`);
+        logger.info("backup", "Adding SQLite database to archive", { dbPath });
         archive.file(dbPath, { name: "tablecast.db" });
+        // Also include WAL and SHM files if they exist
+        const walPath = dbPath + "-wal";
+        const shmPath = dbPath + "-shm";
+        if (fs.existsSync(walPath)) {
+          archive.file(walPath, { name: "tablecast.db-wal" });
+        }
+        if (fs.existsSync(shmPath)) {
+          archive.file(shmPath, { name: "tablecast.db-shm" });
+        }
       } else {
-        console.warn(`[Backup] SQLite database not found at ${dbPath}`);
+        logger.warn("backup", "SQLite database not found", { dbPath });
       }
 
       // 2. Add Uploads Directory
       const uploadsDir = path.join(serverRoot, "uploads");
       if (fs.existsSync(uploadsDir)) {
-        console.log(`[Backup] Adding uploads directory to archive from: ${uploadsDir}`);
+        logger.info("backup", "Adding uploads directory to archive", { uploadsDir });
         archive.directory(uploadsDir, "uploads");
       } else {
-        console.warn(`[Backup] Uploads directory not found at ${uploadsDir}`);
+        logger.warn("backup", "Uploads directory not found", { uploadsDir });
       }
 
       archive.finalize();
@@ -105,7 +122,7 @@ function execRclone(args) {
       fs.mkdirSync(dir, { recursive: true });
     }
     const finalArgs = ["--config", CONFIG_PATH, ...args];
-    execFile("rclone", finalArgs, { timeout: 120_000 }, (error, stdout = "", stderr = "") => {
+    execFile("rclone", finalArgs, { timeout: 300_000 }, (error, stdout = "", stderr = "") => {
       if (error) {
         error.stdout = stdout;
         error.stderr = stderr;
@@ -171,7 +188,7 @@ async function saveRcloneRemote(remoteName, type, options) {
     });
     currentConfigContent = setting?.value || "";
   } catch (err) {
-    console.warn("[Backup] Could not read existing rclone config from DB:", err.message);
+    logger.warn("backup", "Could not read existing rclone config from DB", { error: err.message });
   }
 
   // Parse existing config
@@ -216,7 +233,7 @@ async function initRcloneConfig() {
       }
     }
   } catch (err) {
-    console.error("[Backup] Error loading rclone config from DB:", err.message);
+    logger.error("backup", "Error loading rclone config from DB", { error: err.message });
   }
 }
 
@@ -294,6 +311,37 @@ function listLocalBackups(limit = 8) {
     .slice(0, limit);
 }
 
+function deleteOldBackups(maxAgeDays = 30) {
+  ensureBackupsDir();
+  const now = Date.now();
+  const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+  let deleted = 0;
+  for (const entry of fs.readdirSync(backupsDir, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.toLowerCase().endsWith(".zip")) {
+      const filePath = path.join(backupsDir, entry.name);
+      try {
+        const stat = fs.statSync(filePath);
+        if (now - stat.mtimeMs > maxAgeMs) {
+          fs.unlinkSync(filePath);
+          deleted++;
+          logger.info("backup", "Deleted old backup", { name: entry.name, ageDays: Math.round((now - stat.mtimeMs) / 86400000) });
+        }
+      } catch (err) {
+        logger.warn("backup", "Failed to delete old backup", { name: entry.name, error: err.message });
+      }
+    }
+  }
+  if (deleted > 0) {
+    logger.info("backup", "Cleanup complete", { deleted });
+  }
+  return deleted;
+}
+
+// Retention: delete backups older than 30 days after each new backup
+function applyRetentionPolicy() {
+  return deleteOldBackups(30);
+}
+
 module.exports = {
   copyBackupToRemote,
   createBackupZip,
@@ -302,4 +350,6 @@ module.exports = {
   initRcloneConfig,
   writeRcloneConfigFile,
   saveRcloneRemote,
+  deleteOldBackups,
+  applyRetentionPolicy,
 };

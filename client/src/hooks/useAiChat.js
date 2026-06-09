@@ -39,6 +39,23 @@ export function useAiChat({
   const cancelRef = useRef(null);
   // Ref to track if streaming was intentionally cancelled
   const cancelledRef = useRef(false);
+  // Ref to track if component is mounted
+  const mountedRef = useRef(true);
+  // Ref to the current AbortController
+  const controllerRef = useRef(null);
+
+  // Cleanup on unmount — abort in-flight request and prevent state updates
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      cancelledRef.current = true;
+      if (controllerRef.current) {
+        controllerRef.current.abort();
+        controllerRef.current = null;
+      }
+    };
+  }, []);
 
   // Load conversation messages when initialConversationId is provided
   useEffect(() => {
@@ -83,10 +100,11 @@ export function useAiChat({
       let accumulated = "";
 
       const controller = new AbortController();
+      controllerRef.current = controller;
       cancelRef.current = () => controller.abort();
 
       try {
-        const fullText = await streamAiChat({
+        const result = await streamAiChat({
           userId: user?.id,
           message: query,
           history: [], // we send fresh history via the server-side accumulation
@@ -96,7 +114,7 @@ export function useAiChat({
           stream: true,
           signal: controller.signal,
           onToken: (token) => {
-            if (cancelledRef.current) return;
+            if (!mountedRef.current || cancelledRef.current) return;
             accumulated += token;
             setMessages((prev) => {
               if (!assistantStarted) {
@@ -110,33 +128,41 @@ export function useAiChat({
           },
         });
 
+        if (!mountedRef.current) return;
+
         // If server returned a conversationId from auto-save, track it
-        if (fullText && typeof fullText === "object" && fullText.conversationId) {
-          setConversationId(fullText.conversationId);
+        if (result?.conversationId) {
+          setConversationId(result.conversationId);
         }
       } catch (err) {
-        if (err.name === "AbortError" || cancelledRef.current) return;
+        if (err.name === "AbortError" || !mountedRef.current || cancelledRef.current) return;
 
         const errorText = err.message || "Connection lost.";
+        if (!mountedRef.current) return;
         setError(errorText);
 
-        setMessages((prev) => {
-          if (!assistantStarted) {
-            return [...prev, { role: "assistant", text: `Error: ${errorText}` }];
-          }
-          const copy = [...prev];
-          const last = copy[copy.length - 1];
-          copy[copy.length - 1] = {
-            role: "assistant",
-            text: accumulated
-              ? `${accumulated}\n\n*Error: ${errorText}*`
-              : `Error: ${errorText}`,
-          };
-          return copy;
-        });
+        if (mountedRef.current) {
+          setMessages((prev) => {
+            if (!assistantStarted) {
+              return [...prev, { role: "assistant", text: `Error: ${errorText}` }];
+            }
+            const copy = [...prev];
+            const last = copy[copy.length - 1];
+            copy[copy.length - 1] = {
+              role: "assistant",
+              text: accumulated
+                ? `${accumulated}\n\n*Error: ${errorText}*`
+                : `Error: ${errorText}`,
+            };
+            return copy;
+          });
+        }
       } finally {
-        setStreaming(false);
+        if (mountedRef.current) {
+          setStreaming(false);
+        }
         cancelRef.current = null;
+        controllerRef.current = null;
       }
     },
     [user, streaming, npcId, characterId, conversationId]

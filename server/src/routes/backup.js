@@ -21,7 +21,15 @@ const prisma = require("../prisma");
 const logger = require("../utils/logger");
 
 const router = Router();
+
+// TODO (#19): Consider persisting OAuth state to DB app_settings table instead of in-memory Map
+// for resilience across container restarts. Would require a simple helper:
+//   async function getOAuthState(state) { ... lookup from app_settings ... }
+//   async function setOAuthState(state, data) { ... upsert to app_settings ... }
 const oauthStates = new Map();
+
+// TODO (#20): Consider scheduled/automatic backups using node-cron or setInterval in index.js
+// For now backups are triggered manually via POST /api/backup.
 let backupInProgress = false;
 
 async function resolveRemote(req) {
@@ -376,7 +384,7 @@ router.post("/", requireDm, async (req, res) => {
     const rclone = await getRcloneStatus(remoteDest);
 
     if (!rclone.installed || !rclone.configured) {
-      return res.status(200).json({
+      return res.status(500).json({
         success: false,
         localOnly: true,
         message: `Local backup zip created, but cloud sync was skipped. ${rclone.message}`,
@@ -394,6 +402,13 @@ router.post("/", requireDm, async (req, res) => {
     const { stdout, stderr } = await copyBackupToRemote(zipInfo.zipPath, remoteDest);
 
     logger.info("api:backup", "rclone upload complete", { zipName: zipInfo.zipName, remote: remoteDest });
+    // Apply retention policy after remote backup
+    try {
+      const { applyRetentionPolicy } = require("../utils/backup");
+      applyRetentionPolicy();
+    } catch (e) {
+      logger.warn("api:backup", "Retention policy cleanup failed", { error: e.message });
+    }
     res.json({
       success: true,
       message: "Backup zip created and uploaded to cloud successfully.",

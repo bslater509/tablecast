@@ -17,7 +17,7 @@ function compileMarkdown(text) {
     return DOMPurify.sanitize(marked.parse(text));
   } catch (e) {
     console.error("[AiPanel] Markdown parsing failed:", e);
-    return text;
+    return DOMPurify.sanitize(text);
   }
 }
 
@@ -142,64 +142,73 @@ export default function AiPanel({ user }) {
       setCurrentRulesConvId(rulesChat.conversationId);
       loadConversationList();
     }
-  }, [rulesChat.conversationId]);
+  }, [rulesChat.conversationId, currentRulesConvId, loadConversationList]);
 
   useEffect(() => {
     if (npcChat.conversationId && npcChat.conversationId !== currentNpcConvId) {
       setCurrentNpcConvId(npcChat.conversationId);
       loadConversationList();
     }
-  }, [npcChat.conversationId]);
+  }, [npcChat.conversationId, currentNpcConvId, loadConversationList]);
 
   // --------------- Data Fetching ---------------
 
   // Fetch NPCs
   useEffect(() => {
+    let cancelled = false;
     async function loadNpcs() {
       try {
         const res = await fetch("/api/npcs");
+        if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
+          if (cancelled) return;
           setNpcs(data);
           if (data.length > 0 && !selectedNpcId) {
             setSelectedNpcId(data[0].id.toString());
           }
         }
       } catch (err) {
-        console.error("[AiPanel] Failed to load NPCs:", err);
+        if (!cancelled) console.error("[AiPanel] Failed to load NPCs:", err);
       }
     }
     loadNpcs();
+    return () => { cancelled = true; };
   }, []);
 
   // Fetch AI settings for model badge
   useEffect(() => {
+    let cancelled = false;
     async function loadSettings() {
       try {
         const res = await fetch("/api/ai/settings");
+        if (cancelled) return;
         if (res.ok) {
           setAiSettings(await res.json());
         }
       } catch (err) {
-        console.error("[AiPanel] Failed to load AI settings:", err);
+        if (!cancelled) console.error("[AiPanel] Failed to load AI settings:", err);
       }
     }
     loadSettings();
+    return () => { cancelled = true; };
   }, []);
 
   // Fetch user characters for context
   useEffect(() => {
-    if (user?.id) {
-      fetch(`/api/characters?userId=${user.id}`)
-        .then((r) => r.ok ? r.json() : [])
-        .then((chars) => {
-          setCharacters(chars || []);
-          if (chars?.length > 0 && !selectedCharId) {
-            setSelectedCharId(chars[0].id.toString());
-          }
-        })
-        .catch(() => {});
-    }
+    if (!user?.id) return;
+    let cancelled = false;
+    fetch(`/api/characters?userId=${user.id}`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((chars) => {
+        if (cancelled) return;
+        setCharacters(chars || []);
+        if (chars?.length > 0 && !selectedCharId) {
+          setSelectedCharId(chars[0].id.toString());
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [user?.id]);
 
   // Fetch conversations list
@@ -226,11 +235,13 @@ export default function AiPanel({ user }) {
     }
   }, [user?.id, loadConversationList]);
 
-  // Update NPC chat npcId when selected
+  // Update NPC chat when selected NPC changes
   useEffect(() => {
     if (selectedNpcId) {
       npcChat.setConversationId(undefined);
-      // We don't need to re-initialize the whole hook; the send function accepts overrides
+      npcChat.clearMessages("");
+      setCurrentNpcConvId(null);
+      loadConversationList();
     }
   }, [selectedNpcId]);
 

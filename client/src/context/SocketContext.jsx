@@ -22,6 +22,7 @@ export function SocketProvider({ children }) {
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [userId, setUserIdState] = useState(null);
   const [reconnectCount, setReconnectCount] = useState(0);
+  const [connectionFailed, setConnectionFailed] = useState(false);
 
   // Connect only when auth userId is set; disconnect on logout
   useEffect(() => {
@@ -44,6 +45,7 @@ export function SocketProvider({ children }) {
       debug("[Socket] Connected:", socket.id);
       setIsConnected(true);
       setConnectionStatus("connected");
+      setConnectionFailed(false);
     }
 
     function onDisconnect(reason) {
@@ -65,17 +67,26 @@ export function SocketProvider({ children }) {
       setReconnectCount(prev => prev + 1);
     }
 
+    function onReconnectFailed() {
+      debug("[Socket] Reconnection failed");
+      setConnectionFailed(true);
+      setConnectionStatus("disconnected");
+    }
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.io.on("reconnect_attempt", onReconnectAttempt);
     socket.io.on("reconnect_error", onReconnectError);
     socket.io.on("reconnect", onReconnect);
+    socket.io.on("reconnect_failed", onReconnectFailed);
 
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.io.off("reconnect_attempt", onReconnectAttempt);
       socket.io.off("reconnect_error", onReconnectError);
+      socket.io.off("reconnect", onReconnect);
+      socket.io.off("reconnect_failed", onReconnectFailed);
       socket.disconnect();
     };
   }, [socket]);
@@ -84,7 +95,7 @@ export function SocketProvider({ children }) {
   const clearAuth = useCallback(() => setUserIdState(null), []);
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, connectionStatus, setUserId, clearAuth, userId, reconnectCount }}>
+    <SocketContext.Provider value={{ socket, isConnected, connectionStatus, setUserId, clearAuth, userId, reconnectCount, connectionFailed }}>
       {children}
     </SocketContext.Provider>
   );

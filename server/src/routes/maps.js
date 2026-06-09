@@ -206,13 +206,24 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
       return res.status(400).json({ error: "Token coordinates must be valid numbers between 0 and 10000." });
     }
 
+    // Validate stats is valid JSON if provided
+    let parsedStats = stats || null;
+    if (stats !== undefined && stats !== null) {
+      try {
+        JSON.parse(stats);
+        parsedStats = typeof stats === "string" ? stats : JSON.stringify(stats);
+      } catch {
+        return res.status(400).json({ error: "stats must be a valid JSON string." });
+      }
+    }
+
     const data = {
       mapId,
       label: label || "",
       imageUrl: imageUrl || "",
       x: tokenX,
       y: tokenY,
-      stats: stats || null,
+      stats: parsedStats,
     };
 
     if (characterId) {
@@ -271,7 +282,14 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
     if (characterId !== undefined) data.characterId = characterId ? Number(characterId) : null;
     if (npcId !== undefined) data.npcId = npcId ? Number(npcId) : null;
     if (monsterId !== undefined) data.monsterId = monsterId ? Number(monsterId) : null;
-    if (stats !== undefined) data.stats = stats;
+    if (stats !== undefined) {
+      try {
+        JSON.parse(typeof stats === "string" ? stats : JSON.stringify(stats));
+        data.stats = typeof stats === "string" ? stats : JSON.stringify(stats);
+      } catch {
+        return res.status(400).json({ error: "stats must be a valid JSON string." });
+      }
+    }
 
     // Direct HP sync: if this token is linked to an NPC or Monster and stats are updated with a currentHp,
     // update the NPC's or Monster's HP in the database too.

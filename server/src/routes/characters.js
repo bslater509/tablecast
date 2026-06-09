@@ -51,6 +51,24 @@ function isValidJson(value) {
   }
 }
 
+const ALLOWED_LEVEL_RANGE = { min: 1, max: 20 };
+const ALLOWED_ABILITY_RANGE = { min: 3, max: 30 };
+const ALLOWED_HP_RANGE = { min: 1, max: 100000 };
+
+function clampInt(value, fallback, min = 0, max = 100000) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(Math.round(parsed), max));
+}
+
+function validateNumericField(value, label, range) {
+  const num = Number(value);
+  if (value !== undefined && (!Number.isFinite(num) || num < range.min || num > range.max)) {
+    return `${label} must be between ${range.min} and ${range.max}.`;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/characters  list all characters, optionally filter by userId
 // ---------------------------------------------------------------------------
@@ -183,6 +201,19 @@ router.post("/", async (req, res) => {
     // Build data object from allowed fields
     const data = { userId: parsedUserId, name: name.trim() };
 
+    // Numeric range validation
+    const levelErr = validateNumericField(req.body.level, "level", ALLOWED_LEVEL_RANGE);
+    if (levelErr) return res.status(400).json({ error: levelErr });
+    const hpErr = validateNumericField(req.body.hp, "hp", ALLOWED_HP_RANGE);
+    if (hpErr) return res.status(400).json({ error: hpErr });
+    const maxHpErr = req.body.maxHp !== undefined ? validateNumericField(req.body.maxHp, "maxHp", ALLOWED_HP_RANGE) : null;
+    if (maxHpErr) return res.status(400).json({ error: maxHpErr });
+
+    for (const abil of ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]) {
+      const abilErr = validateNumericField(req.body[abil], abil, ALLOWED_ABILITY_RANGE);
+      if (abilErr) return res.status(400).json({ error: abilErr });
+    }
+
     for (const field of ALLOWED_FIELDS) {
       if (field === "name") continue; // already set
       if (req.body[field] !== undefined) {
@@ -238,6 +269,19 @@ router.put("/:id", async (req, res) => {
     }
 
     const data = {};
+
+    // Numeric range validation
+    const levelErr = validateNumericField(req.body.level, "level", ALLOWED_LEVEL_RANGE);
+    if (levelErr) return res.status(400).json({ error: levelErr });
+    const hpErr = validateNumericField(req.body.hp, "hp", ALLOWED_HP_RANGE);
+    if (hpErr) return res.status(400).json({ error: hpErr });
+    const maxHpErr = req.body.maxHp !== undefined ? validateNumericField(req.body.maxHp, "maxHp", ALLOWED_HP_RANGE) : null;
+    if (maxHpErr) return res.status(400).json({ error: maxHpErr });
+
+    for (const abil of ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]) {
+      const abilErr = validateNumericField(req.body[abil], abil, ALLOWED_ABILITY_RANGE);
+      if (abilErr) return res.status(400).json({ error: abilErr });
+    }
 
     for (const field of ALLOWED_FIELDS) {
       if (req.body[field] !== undefined) {

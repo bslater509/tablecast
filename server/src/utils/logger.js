@@ -15,6 +15,10 @@
 "use strict";
 
 const LEVELS = { silent: -1, error: 0, warn: 1, info: 2, debug: 3 };
+const VALID_LOG_LEVELS = Object.keys(LEVELS);
+if (process.env.LOG_LEVEL !== undefined && !VALID_LOG_LEVELS.includes(process.env.LOG_LEVEL)) {
+  console.error(`[logger] Invalid LOG_LEVEL "${process.env.LOG_LEVEL}". Must be one of: ${VALID_LOG_LEVELS.join(", ")}. Falling back to "info".`);
+}
 const currentLevel = LEVELS[process.env.LOG_LEVEL] ?? LEVELS.info;
 
 function log(level, ns, msg, meta = {}) {

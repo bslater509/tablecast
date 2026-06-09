@@ -117,6 +117,8 @@ export default function MapPanel({ user, isPopout = false }) {
   const selectedTokenIdRef = useRef(selectedTokenId);
   const currentFetchIdRef = useRef(0);
   const drawRafIdRef = useRef(null);
+  const pendingMovesRef = useRef([]);
+  const triggerRedrawRef = useRef(() => {});
 
   useEffect(() => { selectedTokenIdRef.current = selectedTokenId; }, [selectedTokenId]);
 
@@ -130,18 +132,30 @@ export default function MapPanel({ user, isPopout = false }) {
   // Load data & initial socket listeners
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    loadMaps();
-    loadCharacters();
-    loadNpcs();
-    loadMonsters();
+    const id = ++currentFetchIdRef.current;
+    loadMaps(null, id);
+    loadCharacters(id);
+    loadNpcs(id);
+    loadMonsters(id);
+
+    return () => {
+      // Mark any in-flight fetches as stale by incrementing the fetch ID
+      currentFetchIdRef.current = currentFetchIdRef.current + 1;
+    };
   }, []);
 
-  async function loadMaps(autoSelectId = null) {
+  function isStale(fetchId) {
+    return fetchId !== currentFetchIdRef.current;
+  }
+
+  async function loadMaps(autoSelectId = null, fetchId) {
     try {
       setLoadError(null);
       const res = await fetch("/api/maps", { headers: authHeaders });
+      if (fetchId !== undefined && isStale(fetchId)) return;
       if (res.ok) {
         const data = await res.json();
+        if (fetchId !== undefined && isStale(fetchId)) return;
         setMapsList(data);
         
         // Auto-select map if requested, or select the first map as a starting point
@@ -156,50 +170,64 @@ export default function MapPanel({ user, isPopout = false }) {
         }
       }
     } catch (err) {
-      console.error("Failed to load maps list:", err);
-      setLoadError("Failed to load maps. Check server connection.");
+      if (fetchId === undefined || !isStale(fetchId)) {
+        console.error("Failed to load maps list:", err);
+        setLoadError("Failed to load maps. Check server connection.");
+      }
     }
   }
 
-  async function loadCharacters() {
+  async function loadCharacters(fetchId) {
     try {
       setLoadError(null);
       const res = await fetch("/api/characters");
+      if (fetchId !== undefined && isStale(fetchId)) return;
       if (res.ok) {
         const data = await res.json();
+        if (fetchId !== undefined && isStale(fetchId)) return;
         setAvailableCharacters(data);
       }
     } catch (err) {
-      console.error("Failed to load characters list:", err);
-      setLoadError("Failed to load characters. Check server connection.");
+      if (fetchId === undefined || !isStale(fetchId)) {
+        console.error("Failed to load characters list:", err);
+        setLoadError("Failed to load characters. Check server connection.");
+      }
     }
   }
 
-  async function loadNpcs() {
+  async function loadNpcs(fetchId) {
     try {
       setLoadError(null);
       const res = await fetch("/api/npcs");
+      if (fetchId !== undefined && isStale(fetchId)) return;
       if (res.ok) {
         const data = await res.json();
+        if (fetchId !== undefined && isStale(fetchId)) return;
         setAvailableNpcs(data);
       }
     } catch (err) {
-      console.error("Failed to load NPCs list:", err);
-      setLoadError("Failed to load NPCs. Check server connection.");
+      if (fetchId === undefined || !isStale(fetchId)) {
+        console.error("Failed to load NPCs list:", err);
+        setLoadError("Failed to load NPCs. Check server connection.");
+      }
     }
   }
 
-  async function loadMonsters() {
+  async function loadMonsters(fetchId) {
     try {
       setLoadError(null);
       const res = await fetch("/api/monsters");
+      if (fetchId !== undefined && isStale(fetchId)) return;
       if (res.ok) {
         const data = await res.json();
+        if (fetchId !== undefined && isStale(fetchId)) return;
         setAvailableMonsters(data);
       }
     } catch (err) {
-      console.error("Failed to load Monsters list:", err);
-      setLoadError("Failed to load monsters. Check server connection.");
+      if (fetchId === undefined || !isStale(fetchId)) {
+        console.error("Failed to load Monsters list:", err);
+        setLoadError("Failed to load monsters. Check server connection.");
+      }
     }
   }
 
@@ -212,6 +240,7 @@ export default function MapPanel({ user, isPopout = false }) {
         const data = await res.json();
         if (fetchId !== currentFetchIdRef.current) return;
         setActiveMap(data);
+        tokenImagesRef.current = {};
         setTokens(data.tokens || []);
         setMapImageLoaded(false);
 
@@ -282,11 +311,24 @@ export default function MapPanel({ user, isPopout = false }) {
     }
   }, [activeMap?.id, user?.id]);
 
-  // Socket reconnect resync — refetch map details and encounter
+  // Socket reconnect resync — refetch map details and encounter, replay pending moves
   useEffect(() => {
     if (reconnectCount > 0 && activeMapRef.current?.id) {
       fetchMapDetails(activeMapRef.current.id);
       loadActiveEncounter(activeMapRef.current.id);
+      // Replay any pending moves that were made while offline
+      const pending = pendingMovesRef.current.slice();
+      pendingMovesRef.current = [];
+      if (pending.length > 0 && socket) {
+        for (const move of pending) {
+          socket.emit("token:move", {
+            userId: user?.id,
+            id: move.tokenId,
+            x: move.x,
+            y: move.y,
+          });
+        }
+      }
     }
   }, [reconnectCount]);
 
@@ -340,6 +382,7 @@ export default function MapPanel({ user, isPopout = false }) {
     // A token was deleted
     const handleTokenDeleted = (payload) => {
       setTokens(prev => prev.filter(t => t.id !== payload.id));
+      delete tokenImagesRef.current[payload.id];
       if (selectedTokenIdRef.current === payload.id) {
         setSelectedTokenId(null);
       }
@@ -363,6 +406,7 @@ export default function MapPanel({ user, isPopout = false }) {
         // Instead, fetchMapDetails will handle this via the mapsList state
         setActiveMap(null);
         setTokens([]);
+        tokenImagesRef.current = {};
         imageRef.current = null;
         setMapImageLoaded(false);
       }
@@ -594,17 +638,7 @@ export default function MapPanel({ user, isPopout = false }) {
 
         // Image rendering with cropping
         const imgUrl = token.imageUrl || token.character?.imageUrl || token.npc?.imageUrl || token.monster?.imageUrl;
-        let tokenImg = tokenImagesRef.current[token.id];
-
-        if (imgUrl && !tokenImg) {
-          const tImg = new Image();
-          tImg.src = imgUrl;
-          tImg.onload = () => {
-            tokenImagesRef.current[token.id] = tImg;
-            // Force redraw when image loads
-            draw();
-          };
-        }
+        const tokenImg = tokenImagesRef.current[token.id];
 
         if (tokenImg && tokenImg.complete) {
           ctx.save();
@@ -647,6 +681,11 @@ export default function MapPanel({ user, isPopout = false }) {
     if (drawRafIdRef.current) cancelAnimationFrame(drawRafIdRef.current);
     drawRafIdRef.current = requestAnimationFrame(draw);
 
+    triggerRedrawRef.current = () => {
+      if (drawRafIdRef.current) cancelAnimationFrame(drawRafIdRef.current);
+      drawRafIdRef.current = requestAnimationFrame(draw);
+    };
+
     return () => {
       if (drawRafIdRef.current) {
         cancelAnimationFrame(drawRafIdRef.current);
@@ -666,6 +705,32 @@ export default function MapPanel({ user, isPopout = false }) {
     mapImageLoaded,
     user
   ]);
+
+  // Preload token images outside draw loop — cache them for quick rendering
+  useEffect(() => {
+    let cancelled = false;
+    const toLoad = [];
+    tokens.forEach(token => {
+      const imgUrl = token.imageUrl || token.character?.imageUrl || token.npc?.imageUrl || token.monster?.imageUrl;
+      if (imgUrl && !tokenImagesRef.current[token.id]) {
+        toLoad.push({ id: token.id, url: imgUrl });
+      }
+    });
+    toLoad.forEach(({ id, url }) => {
+      const img = new Image();
+      img.onload = () => {
+        if (cancelled) return;
+        tokenImagesRef.current[id] = img;
+        if (triggerRedrawRef.current) triggerRedrawRef.current();
+      };
+      img.onerror = () => {
+        if (cancelled) return;
+        tokenImagesRef.current[id] = img;
+      };
+      img.src = url;
+    });
+    return () => { cancelled = true; };
+  }, [tokens]);
 
   // Handle auto resizing of canvas
   useEffect(() => {
@@ -848,6 +913,11 @@ export default function MapPanel({ user, isPopout = false }) {
       } else {
         // Fallback update state locally if offline
         setTokens(prev => prev.map(t => t.id === dragState.tokenId ? { ...t, x: clampedCol, y: clampedRow } : t));
+        pendingMovesRef.current.push({
+          tokenId: dragState.tokenId,
+          x: clampedCol,
+          y: clampedRow,
+        });
       }
 
       setDragState(null);
@@ -990,6 +1060,7 @@ export default function MapPanel({ user, isPopout = false }) {
     if (user?.role === "DM" && socket && isConnected) {
       socket.emit("map:select", withUser({ mapId }));
     }
+    tokenImagesRef.current = {};
     fetchMapDetails(mapId);
   };
 
@@ -1749,6 +1820,7 @@ export default function MapPanel({ user, isPopout = false }) {
               onChange={(e) => handleSelectMap(Number(e.target.value))}
               style={styles.select}
               className="form-input touch-target"
+              aria-label="Select map"
             >
               {mapsList.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -1804,6 +1876,9 @@ export default function MapPanel({ user, isPopout = false }) {
       >
         <canvas
           ref={canvasRef}
+          role="application"
+          aria-label="Battle map"
+          tabIndex={0}
           style={styles.canvas}
           onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
           onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
@@ -1812,6 +1887,17 @@ export default function MapPanel({ user, isPopout = false }) {
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onKeyDown={(e) => {
+            const step = 50;
+            switch (e.key) {
+              case "ArrowUp": setPanOffset(p => ({ ...p, y: p.y + step })); break;
+              case "ArrowDown": setPanOffset(p => ({ ...p, y: p.y - step })); break;
+              case "ArrowLeft": setPanOffset(p => ({ ...p, x: p.x + step })); break;
+              case "ArrowRight": setPanOffset(p => ({ ...p, x: p.x - step })); break;
+              case "=": case "+": setZoom(z => Math.min(z + 0.1, MAX_ZOOM)); break;
+              case "-": setZoom(z => Math.max(z - 0.1, MIN_ZOOM)); break;
+            }
+          }}
           onTouchCancel={handleTouchEnd}
         />
 

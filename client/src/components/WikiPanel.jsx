@@ -3,7 +3,7 @@
 // Allows players and DMs to view unlocked campaign logs, location info, and NPCs.
 // Categorizes entries into Locations, NPCs, Lore, and Session Logs.
 // =============================================================================
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ExternalLink, Menu } from "lucide-react";
 import { marked } from "marked";
@@ -204,6 +204,7 @@ function NpcStatblock({ npc, socket, isDM, onHpChange }) {
 export default function WikiPanel({ user, isPopout = false }) {
   const navigate = useNavigate();
   const { socket } = useSocket();
+  const npcTimerRef = useRef(null);
   const [articles, setArticles] = useState([]);
   const [linkedSession, setLinkedSession] = useState(null);
   const [npcs, setNpcs] = useState([]);
@@ -318,6 +319,13 @@ export default function WikiPanel({ user, isPopout = false }) {
       return () => clearTimeout(timer);
     }
   }, [showNpcGenModal]);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (npcTimerRef.current) clearTimeout(npcTimerRef.current);
+    };
+  }, []);
 
   // SSE reader for NPC generation endpoints (emits status, result, error, done events)
   async function streamNpcGeneration(url, body, { onStatus, onResult, onError }) {
@@ -834,7 +842,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       const prompt = buildImagePrompt(npc, styleSuffix);
       await navigator.clipboard.writeText(prompt);
       setNpcCopiedPrompt(true);
-      setTimeout(() => setNpcCopiedPrompt(false), 2000);
+      npcTimerRef.current = setTimeout(() => setNpcCopiedPrompt(false), 2000);
     } catch (err) {
       console.error("[Image Prompt] Clipboard copy failed:", err);
       // Fallback: select text in a temp input
@@ -854,7 +862,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       document.execCommand("copy");
       document.body.removeChild(textarea);
       setNpcCopiedPrompt(true);
-      setTimeout(() => setNpcCopiedPrompt(false), 2000);
+      npcTimerRef.current = setTimeout(() => setNpcCopiedPrompt(false), 2000);
     }
   }
 

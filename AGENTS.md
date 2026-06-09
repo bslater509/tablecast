@@ -19,7 +19,7 @@ This document is a **living reference** describing the project's standards, arch
 - **Git Version Control & Deployment Trigger:** Always push all changes to the repository. When finished with a task, there should be no uncommitted or unpushed changes left.
 - **No 5etools Repository Modifications:** The `5etoolsimg/` and `5etoolssrc/` git submodules have been removed. 5etools reference data (JSON) is fetched from a GitHub raw mirror (`raw.githubusercontent.com/5etools-mirror-3/5etools-src/master/data`) and cached to `server/uploads/5etools-cache/` via `curl`. Monster token images point directly to `https://5e.tools/img/...` (CDN, not behind Cloudflare). Do not create or modify files in the cache directory directly.
 - **Auth Pattern:** The server uses header-based auth: `x-tablecast-user-id: <id>`. DM-only endpoints use the `requireDm` middleware (checks `req.get("x-tablecast-user-id")` and verifies role in DB).
-- **AI Tool Config:** The `opencode.json` at repo root configures MCP servers (puppeteer) and agent behavior. Do not break the MCP server configuration when making changes.
+- **AI Tool Config:** The `opencode.json` at repo root configures MCP servers (puppeteer) and agent behavior. Do not break the MCP server configuration when making changes. The puppeteer MCP uses `ALLOW_DANGEROUS: "true"` and `--no-sandbox`/`--disable-setuid-sandbox` flags — these are required in the container environment where Chrome runs as root inside Docker and lack sandbox capabilities. These are not security concerns on the trusted LAN.
 
 ---
 
@@ -30,7 +30,7 @@ Tablecast is designed to run **only on a trusted Local Area Network (LAN)** — 
 **This has important security implications:**
 - **No TLS/HTTPS:** The server serves plain HTTP. All traffic including auth headers is unencrypted on the wire. This is acceptable only because the LAN is trusted.
 - **No CSRF protection:** State-changing endpoints rely on header-based auth. Cross-origin attacks are not a realistic threat on a trusted LAN.
-- **No rate limiting:** API abuse (e.g., flooding the LLM provider with requests) is mitigated by physical LAN access control rather than rate limiters. The application-level validations (message length limits, payload size limits) still apply.
+- **Rate limiting:** API has a 200 requests per minute per IP limit configured via `express-rate-limit`. This is acceptable because the LAN is trusted; adjust rate limits via the server config if needed.
 - **User-ID-based auth is not cryptographic:** The `x-tablecast-user-id` header is not signed or verified beyond checking the user exists. Any client on the LAN can impersonate any user including the DM. Treat this as a convenience for local gaming, not a security boundary.
 - **Debug endpoints are unprotected:** Debug, MCP log, and AI response log endpoints are open. This allows anyone on the LAN to inspect server state, LLM prompts, and responses. This is by design for local debugging convenience.
 
@@ -128,7 +128,7 @@ The server has a structured logging and debugging system designed to help AI age
 | `client/src/hooks/` | `useAiChat.js` |
 | `client/src/utils/` | `aiStream.js` |
 | `client/src/lib/` | `diceThemes.js` |
-| `Dockerfile` | Multi-stage: Vite build → node:20-slim runtime with rclone |
+| `Dockerfile` | Multi-stage: Vite build → node:22-slim runtime with rclone |
 | `docker-compose.yml` | Single service with persistent volumes (db, uploads, 5etools-cache) |
 | `opencode.json` | AI assistant MCP/tool configuration |
 
@@ -228,7 +228,7 @@ The server has a structured logging and debugging system designed to help AI age
 **Focus:** Docker, server initialization, Prisma schema, SQLite, system dependencies.
 **Prompt Prefix:** *"Act as the DevOps and DB Architect. Your task is to..."*
 **Directives:**
-- **Maintain** the `Dockerfile` (multi-stage: Vite build → node:20-slim runtime with rclone, openssl, curl).
+- **Maintain** the `Dockerfile` (multi-stage: Vite build → node:22-slim runtime with rclone, openssl, curl).
 - **Maintain** `docker-compose.yml` with persistent volumes for SQLite (`tablecast-db`), uploads (`tablecast-uploads`), and 5etools cache (`tablecast-5etools-cache`).
 - **Manage** Prisma schema — add/modify models in `server/prisma/schema.prisma`, run `npx prisma migrate dev` to generate migrations, update `server/prisma/seed.js` as needed.
 - **Keep** `server/prisma/data/rclone.conf` generated from DB `app_settings` — do not hardcode cloud credentials.
@@ -286,10 +286,10 @@ The server has a structured logging and debugging system designed to help AI age
 | **Frontend** | React 18, Vite 5, React Router 6, Lucide React, DOMPurify, marked |
 | **3D Dice** | `@3d-dice/dice-box` (BabylonJS-based) |
 | **VTT Canvas** | Raw HTML5 Canvas API (custom useEffect render loop) |
-| **Backend** | Node.js 20, Express 4, Socket.io 4 |
+| **Backend** | Node.js 22, Express 4, Socket.io 4 |
 | **ORM** | Prisma 5 (SQLite provider) |
 | **MCP** | `@modelcontextprotocol/sdk` v1.29 — stdio transport |
 | **AI Providers** | OpenAI-compatible API + Ollama (configurable via settings UI) |
 | **Backup** | `archiver` (zip) + `rclone` (Google Drive upload) |
-| **Container** | Docker multi-stage build (node:20-alpine → node:20-slim) |
+| **Container** | Docker multi-stage build (node:22-alpine → node:22-slim) |
 | **Dice Textures** | Custom PNG generation (`client/generate-dice-textures.js`, `client/patch-dice-box.js`) |

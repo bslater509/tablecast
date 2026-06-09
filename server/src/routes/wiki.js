@@ -160,6 +160,12 @@ router.put("/:id", requireDm, async (req, res) => {
     }
 
     if (content !== undefined) {
+      if (typeof content !== "string") {
+        return res.status(400).json({ error: "content must be a string." });
+      }
+      if (content.length > 100000) {
+        return res.status(400).json({ error: "content exceeds maximum length of 100,000 characters." });
+      }
       data.content = content;
     }
 

@@ -15,6 +15,12 @@ const { Server: SocketServer } = require("socket.io");
 const { registerSocketHandlers } = require("./socket");
 const logger = require("./utils/logger");
 
+// Validate critical environment variable
+if (!process.env.DATABASE_URL) {
+  logger.error("server", "FATAL: DATABASE_URL environment variable is not set.");
+  process.exit(1);
+}
+
 // ---------------------------------------------------------------------------
 // Express app
 // ---------------------------------------------------------------------------

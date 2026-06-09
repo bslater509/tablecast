@@ -5,10 +5,15 @@ services:
       dockerfile: Dockerfile
     container_name: tablecast
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1g
 
     logging:
       driver: "json-file"
@@ -28,6 +33,10 @@ services:
       - LOG_LEVEL=info
       # Uncomment to enable DEBUG namespace logging (legacy): tablecast:*, tablecast:socket, tablecast:auth, etc.
       # - DEBUG=tablecast:*
+      # Optional: REFERENCE_SYNC_ON_STARTUP=true — refresh 5etools cache on boot
+      # Optional: FIVE_E_TOOLS_SRC_URL — override 5etools mirror URL for reference data
+      # Optional: FIVE_E_TOOLS_IMG_URL — override 5etools image CDN URL
+      # Optional: RCLONE_REMOTE — default rclone remote destination (e.g. gdrive:tablecast-backups)
 
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -42,6 +51,12 @@ services:
       # D&D 5e cache directory for HTTP-fetched reference data
       - tablecast-5etools-cache:/app/server/uploads/5etools-cache
 
+      # Local backup archives (zip files)
+      - tablecast-backups:/app/server/backups
+
+      # Writable tmp directory needed for read_only container
+      - tablecast-tmp:/tmp
+
 # Named volumes — Docker manages the storage location on the host
 volumes:
   tablecast-db:
@@ -49,4 +64,8 @@ volumes:
   tablecast-uploads:
     driver: local
   tablecast-5etools-cache:
+    driver: local
+  tablecast-backups:
+    driver: local
+  tablecast-tmp:
     driver: local

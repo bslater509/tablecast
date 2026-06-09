@@ -278,8 +278,12 @@ router.patch("/participants/:id", requireDm, async (req, res) => {
 
 router.delete("/participants/:id", requireDm, async (req, res) => {
   try {
+    const participantId = Number(req.params.id);
+    if (!Number.isFinite(participantId) || participantId <= 0 || !Number.isInteger(participantId)) {
+      return res.status(400).json({ error: "Participant id must be a valid positive integer." });
+    }
     const participant = await prisma.encounterParticipant.delete({
-      where: { id: Number(req.params.id) },
+      where: { id: participantId },
     });
     await respondEncounter(req, res, participant.encounterId);
   } catch (err) {
@@ -302,7 +306,20 @@ router.patch("/:id", requireDm, async (req, res) => {
   try {
     const data = {};
     if (req.body.name !== undefined) data.name = String(req.body.name || "").trim().slice(0, 120) || "Encounter";
-    if (req.body.status !== undefined && VALID_STATUSES.has(req.body.status)) data.status = req.body.status;
+    if (req.body.status !== undefined) {
+      if (!VALID_STATUSES.has(req.body.status)) {
+        return res.status(400).json({ error: `Invalid status "${req.body.status}". Must be one of: ${Array.from(VALID_STATUSES).join(", ")}.` });
+      }
+      // State machine rules: DRAFT→ACTIVE→COMPLETE only
+      const current = await prisma.encounter.findUnique({ where: { id: Number(req.params.id) }, select: { status: true } });
+      if (current) {
+        const VALID_TRANSITIONS = { DRAFT: new Set(["ACTIVE"]), ACTIVE: new Set(["COMPLETE"]), COMPLETE: new Set([]) };
+        if (!VALID_TRANSITIONS[current.status]?.has(req.body.status)) {
+          return res.status(400).json({ error: `Invalid status transition from "${current.status}" to "${req.body.status}". Valid transitions: DRAFT→ACTIVE, ACTIVE→COMPLETE.` });
+        }
+      }
+      data.status = req.body.status;
+    }
     if (req.body.round !== undefined) data.round = clampInt(req.body.round, 1, 1, 10000);
     if (req.body.turnIndex !== undefined) data.turnIndex = clampInt(req.body.turnIndex, 0, 0, 10000);
 
