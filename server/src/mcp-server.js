@@ -11,6 +11,12 @@ const prisma = require("./prisma");
 const referenceSearch = require("./utils/referenceSearch");
 const logger = require("./utils/logger");
 
+// Lazy import — avoids circular dependency (routes/ai → mcp-server → index)
+// because getIo() is called at runtime, not module load time.
+function getIo() {
+  return require("../index").io;
+}
+
 // IMPORTANT: Do NOT use console.log for standard outputs as stdout is reserved
 // for JSON-RPC communication. All logging/debugging MUST go to console.error.
 const logError = (...args) => {
@@ -2120,6 +2126,9 @@ function registerHandlers(srv) {
           },
         });
 
+        // Broadcast to all connected clients
+        try { getIo().emit("wiki:article:created", { article }); } catch (_) {}
+
         const parsed = {
           ...article,
           tags: JSON.parse(article.tags),
@@ -2146,6 +2155,9 @@ function registerHandlers(srv) {
           data: dataUpdate,
         });
 
+        // Broadcast to all connected clients
+        try { getIo().emit("wiki:article:updated", { article: updated }); } catch (_) {}
+
         const parsed = {
           ...updated,
           tags: JSON.parse(updated.tags),
@@ -2161,6 +2173,10 @@ function registerHandlers(srv) {
       case "delete_wiki_article": {
         const { id } = args;
         await prisma.wikiArticle.delete({ where: { id } });
+
+        // Broadcast to all connected clients
+        try { getIo().emit("wiki:article:deleted", { id }); } catch (_) {}
+
         return {
           content: [{ type: "text", text: `Wiki article with ID ${id} deleted successfully.` }],
         };

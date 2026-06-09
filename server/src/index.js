@@ -123,6 +123,9 @@ const io = new SocketServer(server, {
 // Register all real-time event handlers
 registerSocketHandlers(io);
 
+// Share the socket server with routes and MCP tools via app.locals
+app.set("io", io);
+
 // ---------------------------------------------------------------------------
 // API routes
 // ---------------------------------------------------------------------------

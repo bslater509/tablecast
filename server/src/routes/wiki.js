@@ -128,6 +128,9 @@ router.post("/", requireDm, async (req, res) => {
       },
     });
 
+    // Broadcast the new article to all connected clients
+    try { req.app.get("io").emit("wiki:article:created", { article }); } catch (_) {}
+
     res.status(201).json(article);
   } catch (err) {
     logger.error("api:route", "Error in POST /api/wiki", { error: err.message });
@@ -193,6 +196,9 @@ router.put("/:id", requireDm, async (req, res) => {
       data,
     });
 
+    // Broadcast the updated article to all connected clients
+    try { req.app.get("io").emit("wiki:article:updated", { article }); } catch (_) {}
+
     res.json(article);
   } catch (err) {
     if (err.code === "P2025") {
@@ -216,6 +222,9 @@ router.delete("/:id", requireDm, async (req, res) => {
     await prisma.wikiArticle.delete({
       where: { id },
     });
+
+    // Broadcast the deletion to all connected clients
+    try { req.app.get("io").emit("wiki:article:deleted", { id }); } catch (_) {}
 
     res.json({ message: "Wiki article deleted." });
   } catch (err) {

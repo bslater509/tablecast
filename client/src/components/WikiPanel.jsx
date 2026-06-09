@@ -919,6 +919,40 @@ export default function WikiPanel({ user, isPopout = false }) {
     loadLinkedSession();
   }, [selectedArticle, isDM, authHeaders]);
 
+  // ── Real-time wiki sync via Socket.io ──────────────────────────────
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleCreated = (data) => {
+      if (data?.article) {
+        setArticles((prev) => [data.article, ...prev]);
+      }
+    };
+    const handleUpdated = (data) => {
+      if (data?.article) {
+        const updated = data.article;
+        setArticles((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+        setSelectedArticle((prev) => (prev?.id === updated.id ? updated : prev));
+      }
+    };
+    const handleDeleted = (data) => {
+      if (data?.id != null) {
+        setArticles((prev) => prev.filter((a) => a.id !== data.id));
+        setSelectedArticle((prev) => (prev?.id === data.id ? null : prev));
+      }
+    };
+
+    socket.on("wiki:article:created", handleCreated);
+    socket.on("wiki:article:updated", handleUpdated);
+    socket.on("wiki:article:deleted", handleDeleted);
+
+    return () => {
+      socket.off("wiki:article:created", handleCreated);
+      socket.off("wiki:article:updated", handleUpdated);
+      socket.off("wiki:article:deleted", handleDeleted);
+    };
+  }, [socket]);
+
   if (loading) {
     return <WikiPanelSkeleton />;
   }
