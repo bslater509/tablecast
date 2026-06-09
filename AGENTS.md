@@ -105,6 +105,26 @@ The server has a structured logging and debugging system designed to help AI age
 - Active MCP SSE transport sessions log a `debug`-level heartbeat every 60s via namespace `"mcp:sse:heartbeat"`.
 - Includes `sessionId`, `ageMs`, and `ageSeconds` to detect stale connections.
 
+### Pushover Notifications
+The AI agent's OpenCode environment sends mobile push notifications via the [Pushover](https://pushover.net/) API to alert the DM when the agent needs attention.
+
+**Configuration:**
+- Credentials stored in `~/.config/opencode/pushover.json`: `token` (app token) and `user` (user key).
+- Can also be set via env vars `PUSHOVER_APP_TOKEN` and `PUSHOVER_USER_KEY`.
+- Disable entirely by setting `OPENCODE_NOTIFY=0`.
+
+**Trigger events:**
+
+| Event | Notification Title | Message Content |
+|---|---|---|
+| `session.idle` | `Tablecast ✅/⚠️/❌` | Session summary: tool counts by type, last action, error count |
+| `permission.asked` | `🔐 Permission needed` | The permission title, pattern, or type being requested |
+| `question.asked` | `❓ Question` | The question text the agent is asking |
+
+**Session summary format:** `"5 done, 0 errors — bash×3, read×2\nLast: initialized npm"` — accumulates all tool calls in a session, groups by tool name, and appends the last action.
+
+**Plugin location:** `~/.config/opencode/plugins/opencode-notify.mjs` — registered via `opencode.json` at the repo root.
+
 ---
 
 ## Project Architecture

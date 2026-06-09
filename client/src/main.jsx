@@ -4,6 +4,7 @@ import { HashRouter } from "react-router-dom";
 import { SocketProvider } from "./context/SocketContext";
 import { DiceBoxProvider } from "./context/DiceBoxContext";
 import { ToastProvider } from "./context/ToastContext";
+import { ConfirmProvider } from "./context/ConfirmContext";
 import App from "./App.jsx";
 import "./index.css";
 
@@ -13,7 +14,9 @@ createRoot(document.getElementById("root")).render(
       <SocketProvider>
         <DiceBoxProvider>
           <ToastProvider>
-            <App />
+            <ConfirmProvider>
+              <App />
+            </ConfirmProvider>
           </ToastProvider>
         </DiceBoxProvider>
       </SocketProvider>

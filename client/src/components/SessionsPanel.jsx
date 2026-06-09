@@ -7,6 +7,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
+import { useConfirm } from "../context/ConfirmContext";
 import {
   ArrowLeft,
   CalendarDays,
@@ -68,6 +69,7 @@ function SessionsPanel({ user, readOnly = false, isPopout = false, basePath = "/
   const navigate = useNavigate();
   const { id: routeId } = useParams();
   const isDm = user?.role === "DM" && !readOnly;
+  const { showConfirm } = useConfirm();
 
   const [sessions, setSessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
@@ -240,7 +242,7 @@ function SessionsPanel({ user, readOnly = false, isPopout = false, basePath = "/
 
   async function handleDeleteSession() {
     if (!selectedSession) return;
-    if (!window.confirm(`Delete "${selectedSession.title}"?`)) return;
+    if (!(await showConfirm(`Delete "${selectedSession.title}"?`, `Are you sure you want to delete the session "${selectedSession.title}"?`))) return;
     try {
       setSaving(true);
       const res = await fetch(`/api/sessions/${selectedSession.id}`, {

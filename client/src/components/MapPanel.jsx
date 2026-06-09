@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
 import { useToast } from "../context/ToastContext";
+import { useConfirm } from "../context/ConfirmContext";
 import Autocomplete from "./Autocomplete";
 import TokenPresetIcon from "./TokenPresetIcon";
 import { NPC_TOKEN_PRESETS, generateTokenSvgUrl } from "../data/npcTokenPresets";
@@ -38,6 +39,7 @@ const MAP_IMPORT_PRESETS = [
 export default function MapPanel({ user, isPopout = false }) {
   const { socket, isConnected, reconnectCount } = useSocket();
   const { addToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   // Map & token state
   const [mapsList, setMapsList] = useState([]);
@@ -1673,7 +1675,7 @@ export default function MapPanel({ user, isPopout = false }) {
   };
 
   const handleDeleteToken = async (tokenId) => {
-    if (!confirm("Are you sure you want to delete this token?")) return;
+    if (!(await showConfirm("Delete Token?", "Are you sure you want to delete this token?"))) return;
 
     try {
       const res = await fetch(`/api/maps/tokens/${tokenId}`, {
@@ -1696,7 +1698,7 @@ export default function MapPanel({ user, isPopout = false }) {
 
   const handleDeleteMap = async () => {
     if (!activeMap) return;
-    if (!confirm(`Are you sure you want to delete the map "${activeMap.name}"? This will also delete all tokens on this map.`)) return;
+    if (!(await showConfirm(`Delete Map "${activeMap.name}"?`, `Are you sure you want to delete the map "${activeMap.name}"? This will also delete all tokens on this map.`))) return;
 
     try {
       const res = await fetch(`/api/maps/${activeMap.id}`, {

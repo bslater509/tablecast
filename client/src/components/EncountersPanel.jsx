@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { useSocket } from "../context/SocketContext";
+import { useConfirm } from "../context/ConfirmContext";
 
 /* ------------------------------------------------------------------ */
 /*  Colour helpers                                                     */
@@ -47,6 +48,7 @@ export default function EncountersPanel({
   basePath = "/dm/encounters",
 }) {
   const { addToast } = useToast();
+  const { showConfirm } = useConfirm();
   const navigate = useNavigate();
   const { socket, isConnected } = useSocket();
   const isDm = user?.role === "DM" && !readOnly;
@@ -279,7 +281,7 @@ export default function EncountersPanel({
   };
 
   const handleDeleteEncounter = async (id) => {
-    if (!isDm || busy || !confirm("Delete this encounter?")) return;
+    if (!isDm || busy || !(await showConfirm("Delete Encounter?", "Delete this encounter?"))) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/encounters/${id}`, {
