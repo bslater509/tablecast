@@ -18,8 +18,10 @@ fi
 # which is owned by tablecast (from the chown above). Running as root won't work
 # because cap_drop: [ALL] strips DAC_OVERRIDE from the root user, so root
 # without that capability can't write to files owned by tablecast.
-su -s /bin/sh tablecast -c "npx prisma migrate deploy"
-su -s /bin/sh tablecast -c "npx prisma db seed" || true
+# Note: HOME=/tmp because the tablecast user's home dir (/app) is read-only
+# in a read_only: true container, and npx needs a writable cache dir.
+su -s /bin/sh tablecast -c "HOME=/tmp npx prisma migrate deploy"
+su -s /bin/sh tablecast -c "HOME=/tmp npx prisma db seed" || true
 
 # Run the Node.js app as the tablecast user.
 # The tablecast user has /sbin/nologin as shell (security), so we must
