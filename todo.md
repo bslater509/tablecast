@@ -213,45 +213,53 @@ Mark items complete by changing `[ ]` to `[x]`.
 
 ### 2.1 High priority (user-visible)
 
-- [ ] **🔴 Saved AI conversations don't load**
+- [x] **🔴 Saved AI conversations don't load**
   - **Files:** `client/src/components/AiChatView.jsx` (lines 168–175), `client/src/hooks/useAiChat.js` (lines 27–34)
   - **Problem:** `conversationId` is passed to `useAiChat` but the hook never fetches `GET /api/ai/conversations/:id`. Opening a saved Rules/NPC thread shows only the default greeting or empty state.
   - **Fix:** Add `useEffect` in `useAiChat` to load messages when `initialConversationId` is set.
+  - **Fixed:** Jun 9 2026 — Added useEffect with fetch + cancelled flag to load conversation messages on mount.
 
-- [ ] **🔴 MapPanel fetch race condition**
+- [x] **🔴 MapPanel fetch race condition**
   - **File:** `client/src/components/MapPanel.jsx` (approx. lines 201–226)
   - **Problem:** `fetchMapDetails(mapId)` has no request sequencing. Rapid map switches let a slower older response overwrite the currently selected map, tokens, and image.
   - **Fix:** AbortController or monotonic request ID; ignore stale responses.
+  - **Fixed:** Jun 9 2026 — Added `currentFetchIdRef` (monotonic counter), guard all setState + image callbacks with `fetchId !== currentFetchIdRef.current` checks.
 
-- [ ] **🔴 MapPanel image load race condition**
+- [x] **🔴 MapPanel image load race condition**
   - **File:** `client/src/components/MapPanel.jsx` (approx. lines 211–217)
   - **Problem:** Map `Image.onload` has no map-ID guard. Stale image load can set `imageRef.current`, call `resetViewport`, and show wrong map.
   - **Fix:** Capture `mapId` at load start; ignore `onload` if `mapId` changed.
+  - **Fixed:** Jun 9 2026 — `Image.onload`/`onerror` captured `loadedMapId` from fetchId; guards compare vs `currentFetchIdRef.current`.
 
-- [ ] **🔴 No socket state resync after reconnect**
+- [x] **🔴 No socket state resync after reconnect**
   - **File:** `client/src/context/SocketContext.jsx`
   - **Problem:** No `reconnect` / post-connect state resync. After disconnect, missed `chat:message`, `token:moved`, `fog:updated`, etc. are never replayed.
   - **Fix:** On reconnect, refetch active map, tokens, fog, chat tail, and active encounter.
+  - **Fixed:** Jun 9 2026 — Added `reconnectCount` state in SocketContext (increments on `socket.io.on("reconnect")`). MapPanel + ChatPanel both watch it and refetch state on reconnect.
 
-- [ ] **🔴 Chat messages stuck at "sending" when offline**
+- [x] **🔴 Chat messages stuck at "sending" when offline**
   - **File:** `client/src/components/ChatPanel.jsx` (approx. lines 774–870, 862–870)
   - **Problem:** `sendMessage` checks `socket` but not `isConnected`. Optimistic messages added; if offline, socket ack never arrives and status stays `"sending"`. No error/timeout handling.
   - **Fix:** Check `isConnected`; set failed status on timeout or `connect_error`.
+  - **Fixed:** Jun 9 2026 — Added `isConnected` guard on send. 10s ack timeout marks message as `"failed"`. Failed status renders ⚠️ in bubble.
 
-- [ ] **🔴 Stale `selectedTokenId` on token delete via socket**
+- [x] **🔴 Stale `selectedTokenId` on token delete via socket**
   - **File:** `client/src/components/MapPanel.jsx` (approx. lines 302–377, 323–325)
   - **Problem:** `handleTokenDeleted` reads `selectedTokenId` from stale closure (`useEffect` deps only `[socket]`). Deleting selected token via socket may leave selection UI stuck.
   - **Fix:** Use ref for `selectedTokenId` or add to effect dependencies.
+  - **Fixed:** Jun 9 2026 — Added `selectedTokenIdRef` synced via useEffect; socket handler now reads `selectedTokenIdRef.current`.
 
-- [ ] **🔴 MapPanel pointer-move triggers full canvas redraw**
+- [x] **🔴 MapPanel pointer-move triggers full canvas redraw**
   - **File:** `client/src/components/MapPanel.jsx` (approx. lines 757–759, 627–639)
   - **Problem:** `handleMove` always calls `setMousePosWorld` on every pointer move. That state is in canvas `useEffect` dependency array → full redraw on every mouse/touch move, even when not drawing fog.
   - **Fix:** Store mouse position in ref; only `setState` when needed for fog drawing.
+  - **Fixed:** Jun 9 2026 — `setMousePosWorld` only called when `isDrawing` is active (fog polygon preview). Pan/drag moves no longer trigger React re-render.
 
-- [ ] **🔴 Canvas render loop not throttled**
+- [x] **🔴 Canvas render loop not throttled**
   - **File:** `client/src/components/MapPanel.jsx` (approx. lines 382–627)
   - **Problem:** Canvas render runs synchronously inside `useEffect` with no `requestAnimationFrame` throttling. Pan/zoom/drag causes expensive full redraws per frame.
   - **Fix:** Use `requestAnimationFrame` batching for draw calls.
+  - **Fixed:** Jun 9 2026 — Canvas effect now schedules draw via `requestAnimationFrame` with `drawRafIdRef`; previous rAF canceled before scheduling new one; cleanup on unmount.
 
 ### 2.2 Medium priority
 
@@ -569,10 +577,10 @@ Use this order if tackling the list without a specific priority request:
 
 | Section | Total items | Done |
 |---------|-------------|------|
-| 1. Backend security & auth | 26 | 0 |
-| 2. Frontend bugs & reliability | 35 | 0 |
+| 1. Backend security & auth | 26 | 23 |
+| 2. Frontend bugs & reliability | 35 | 8 |
 | 3. Infrastructure & operations | 28 | 0 |
-| 4. Documentation drift | 3 | 0 |
-| **Total actionable** | **92** | **0** |
+| 4. Documentation drift | 3 | 1 |
+| **Total actionable** | **92** | **32** |
 
 _Update the Progress summary table as items are completed._

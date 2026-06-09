@@ -35,7 +35,7 @@ const MAP_IMPORT_PRESETS = [
 
 
 export default function MapPanel({ user, isPopout = false }) {
-  const { socket, isConnected } = useSocket();
+  const { socket, isConnected, reconnectCount } = useSocket();
 
   // Map & token state
   const [mapsList, setMapsList] = useState([]);
@@ -114,6 +114,11 @@ export default function MapPanel({ user, isPopout = false }) {
   const gestureRef = useRef(null);
   const activeMapRef = useRef(activeMap);
   activeMapRef.current = activeMap;
+  const selectedTokenIdRef = useRef(selectedTokenId);
+  const currentFetchIdRef = useRef(0);
+  const drawRafIdRef = useRef(null);
+
+  useEffect(() => { selectedTokenIdRef.current = selectedTokenId; }, [selectedTokenId]);
 
   const gridSize = activeMap?.gridSize || 50;
   const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
@@ -199,10 +204,13 @@ export default function MapPanel({ user, isPopout = false }) {
   }
 
   async function fetchMapDetails(mapId) {
+    const fetchId = ++currentFetchIdRef.current;
     try {
       const res = await fetch(`/api/maps/${mapId}`, { headers: authHeaders });
+      if (fetchId !== currentFetchIdRef.current) return; // stale response
       if (res.ok) {
         const data = await res.json();
+        if (fetchId !== currentFetchIdRef.current) return;
         setActiveMap(data);
         setTokens(data.tokens || []);
         setMapImageLoaded(false);
@@ -210,17 +218,21 @@ export default function MapPanel({ user, isPopout = false }) {
         // Preload map background image
         const img = new Image();
         img.src = data.imageUrl;
+        const loadedMapId = fetchId;
         img.onload = () => {
+          if (loadedMapId !== currentFetchIdRef.current) return; // stale image load
           imageRef.current = img;
           setMapImageLoaded(true);
           resetViewport(img.width, img.height);
         };
         img.onerror = () => {
+          if (loadedMapId !== currentFetchIdRef.current) return;
           imageRef.current = null;
           setMapImageLoaded(false);
         };
       }
     } catch (err) {
+      if (fetchId !== currentFetchIdRef.current) return;
       console.error(`Failed to fetch map details for ID ${mapId}:`, err);
     }
   }
@@ -269,6 +281,14 @@ export default function MapPanel({ user, isPopout = false }) {
       setActiveEncounter(null);
     }
   }, [activeMap?.id, user?.id]);
+
+  // Socket reconnect resync — refetch map details and encounter
+  useEffect(() => {
+    if (reconnectCount > 0 && activeMapRef.current?.id) {
+      fetchMapDetails(activeMapRef.current.id);
+      loadActiveEncounter(activeMapRef.current.id);
+    }
+  }, [reconnectCount]);
 
   // Helper to reset viewport zoom/pan to fit the map background centered
   const resetViewport = (imgW, imgH) => {
@@ -320,7 +340,7 @@ export default function MapPanel({ user, isPopout = false }) {
     // A token was deleted
     const handleTokenDeleted = (payload) => {
       setTokens(prev => prev.filter(t => t.id !== payload.id));
-      if (selectedTokenId === payload.id) {
+      if (selectedTokenIdRef.current === payload.id) {
         setSelectedTokenId(null);
       }
     };
@@ -623,7 +643,16 @@ export default function MapPanel({ user, isPopout = false }) {
       ctx.restore();
     };
 
-    draw();
+    // Schedule draw via rAF to batch multiple state changes within a frame
+    if (drawRafIdRef.current) cancelAnimationFrame(drawRafIdRef.current);
+    drawRafIdRef.current = requestAnimationFrame(draw);
+
+    return () => {
+      if (drawRafIdRef.current) {
+        cancelAnimationFrame(drawRafIdRef.current);
+        drawRafIdRef.current = null;
+      }
+    };
   }, [
     activeMap,
     tokens,
@@ -756,7 +785,11 @@ export default function MapPanel({ user, isPopout = false }) {
 
   const handleMove = (clientX, clientY) => {
     const { x, y, screenX, screenY } = getWorldCoordinates(clientX, clientY);
-    setMousePosWorld({ x, y });
+
+    // Only trigger React re-render when actively drawing fog (for polygon preview)
+    if (isDrawing) {
+      setMousePosWorld({ x, y });
+    }
 
     if (dragState) {
       if (dragState.pending) {

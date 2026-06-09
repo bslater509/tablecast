@@ -352,10 +352,10 @@ function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, status, npcs }) 
               style={{
                 fontSize: "0.6rem",
                 lineHeight: 1,
-                color: status === "sent" ? (isMine ? "rgba(15,14,23,0.5)" : "var(--color-muted)") : "var(--color-muted)",
+                color: status === "failed" ? "var(--color-danger)" : status === "sent" ? (isMine ? "rgba(15,14,23,0.5)" : "var(--color-muted)") : "var(--color-muted)",
               }}
             >
-              {status === "sent" ? "✓✓" : "✓"}
+              {status === "failed" ? "⚠️" : status === "sent" ? "✓✓" : "✓"}
             </span>
           )}
         </div>
@@ -602,7 +602,7 @@ function ScrollToBottomFAB({ onClick, count }) {
 // MAIN CHATPANEL COMPONENT
 // ===========================================================================
 export default function ChatPanel({ user, isPopout = false }) {
-  const { socket, isConnected } = useSocket();
+  const { socket, isConnected, reconnectCount } = useSocket();
   const { rollDice } = useDiceBox();
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
@@ -731,6 +731,26 @@ export default function ChatPanel({ user, isPopout = false }) {
     };
   }, [socket]);
 
+  // Socket reconnect resync — refetch recent chat messages
+  useEffect(() => {
+    if (!reconnectCount) return;
+    let cancelled = false;
+    async function resync() {
+      try {
+        const res = await fetch("/api/chat?limit=50");
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setMessages((prev) => mergeMessages(data, prev));
+        }
+      } catch (err) {
+        console.error("[ChatPanel] Resync failed:", err);
+      }
+    }
+    resync();
+    return () => { cancelled = true; };
+  }, [reconnectCount]);
+
   // Auto-scroll + unread counting
   useEffect(() => {
     const el = scrollRef.current;
@@ -773,7 +793,7 @@ export default function ChatPanel({ user, isPopout = false }) {
   // Send message
   async function sendMessage(e) {
     e.preventDefault();
-    if (!draft.trim() || !socket) return;
+    if (!draft.trim() || !socket || !isConnected) return;
 
     const text = draft.trim();
 
@@ -825,6 +845,10 @@ export default function ChatPanel({ user, isPopout = false }) {
         setMessageStatus((prev) => ({ ...prev, [tempId]: "sending" }));
         setDraft("");
 
+        const ackTimeout = setTimeout(() => {
+          setMessageStatus(prev => prev[tempId] === "sending" ? { ...prev, [tempId]: "failed" } : prev);
+        }, 10000);
+
         socket.emit("chat:send", {
           userId: user?.id,
           sender: username || "Anonymous",
@@ -832,6 +856,7 @@ export default function ChatPanel({ user, isPopout = false }) {
           type: "roll",
           rollDetails: optimisticMsg.rollDetails,
         }, (ack) => {
+          clearTimeout(ackTimeout);
           setMessageStatus((prev) => {
             const next = { ...prev };
             delete next[tempId];
@@ -859,7 +884,12 @@ export default function ChatPanel({ user, isPopout = false }) {
     setDraft("");
     setShowEmoji(false);
 
+    const ackTimeout = setTimeout(() => {
+      setMessageStatus(prev => prev[tempId] === "sending" ? { ...prev, [tempId]: "failed" } : prev);
+    }, 10000);
+
     socket.emit("chat:send", { userId: user?.id, sender: username || "Anonymous", text }, (ack) => {
+      clearTimeout(ackTimeout);
       setMessageStatus((prev) => {
         const next = { ...prev };
         delete next[tempId];

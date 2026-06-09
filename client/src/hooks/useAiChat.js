@@ -5,7 +5,7 @@
 // Used by AiPanel, and can be adopted by ChatPanel for AI interactions.
 // =============================================================================
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { streamAiChat } from "../utils/aiStream";
 
 /**
@@ -39,6 +39,30 @@ export function useAiChat({
   const cancelRef = useRef(null);
   // Ref to track if streaming was intentionally cancelled
   const cancelledRef = useRef(false);
+
+  // Load conversation messages when initialConversationId is provided
+  useEffect(() => {
+    if (!initialConversationId) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/ai/conversations/${initialConversationId}`, {
+          headers: { "x-tablecast-user-id": String(user?.id || "") }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.messages) {
+          setMessages(data.messages.map(m => ({ role: m.role, text: m.text, createdAt: m.createdAt, timestamp: m.createdAt })));
+        }
+      } catch (err) {
+        console.error("[useAiChat] Failed to load conversation:", err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [initialConversationId, user?.id]);
 
   const send = useCallback(
     async (text, overrides = {}) => {

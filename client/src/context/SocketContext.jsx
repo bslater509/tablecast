@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { io } from "socket.io-client";
 
 const debug = import.meta.env.DEV ? console.log : () => {};
@@ -21,6 +21,7 @@ export function SocketProvider({ children }) {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [userId, setUserIdState] = useState(null);
+  const [reconnectCount, setReconnectCount] = useState(0);
 
   // Connect only when auth userId is set; disconnect on logout
   useEffect(() => {
@@ -59,10 +60,16 @@ export function SocketProvider({ children }) {
       setConnectionStatus("reconnecting");
     }
 
+    function onReconnect() {
+      debug("[Socket] Reconnected");
+      setReconnectCount(prev => prev + 1);
+    }
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.io.on("reconnect_attempt", onReconnectAttempt);
     socket.io.on("reconnect_error", onReconnectError);
+    socket.io.on("reconnect", onReconnect);
 
     return () => {
       socket.off("connect", onConnect);
@@ -77,7 +84,7 @@ export function SocketProvider({ children }) {
   const clearAuth = useCallback(() => setUserIdState(null), []);
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, connectionStatus, setUserId, clearAuth, userId }}>
+    <SocketContext.Provider value={{ socket, isConnected, connectionStatus, setUserId, clearAuth, userId, reconnectCount }}>
       {children}
     </SocketContext.Provider>
   );
