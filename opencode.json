@@ -8,7 +8,7 @@
     "@tarquinen/opencode-dcp",
     "opencode-skills-collection",
     "opencode-snip",
-    "opencode-notify"
+    "file:///root/.config/opencode/plugins/opencode-notify.mjs"
   ],
   "agent": {
     "explore": {
