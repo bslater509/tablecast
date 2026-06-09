@@ -13,6 +13,9 @@ services:
     cap_add:
       # Needed by docker-entrypoint.sh to chown volume directories to tablecast user
       - CHOWN
+      # Needed by su to switch to the tablecast user for the Node.js process
+      - SETUID
+      - SETGID
     deploy:
       resources:
         limits:

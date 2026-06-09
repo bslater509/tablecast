@@ -14,6 +14,13 @@ if [ -z "$DATABASE_URL" ]; then
   exit 1
 fi
 
+# Run migrations as root (file operations only) — these need write access to the
+# SQLite DB file but don't need to run as tablecast.
+npx prisma migrate deploy
+npx prisma db seed || true
+
+# Drop privileges to the tablecast user before running the Node.js app.
 # The tablecast user has /sbin/nologin as shell (security), so we must
 # explicitly use /bin/sh via -s flag for su to execute commands.
-exec su -s /bin/sh tablecast -c "npx prisma migrate deploy && npx prisma db seed || true && exec node src/index.js"
+# Requires SETUID + SETGID capabilities (added via cap_add in docker-compose).
+exec su -s /bin/sh tablecast -c "exec node src/index.js"
