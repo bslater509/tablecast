@@ -3,6 +3,7 @@
 const prisma = require("./prisma");
 const { performAiCall, performAiStream, performAiStreamTokens, findRelevantRules, buildNpcRoleplaySystemPrompt, loadAiSettings } = require("./routes/ai");
 const { sanitizeText, sanitizeShortText } = require("./utils/sanitize");
+
 const debug = require("./utils/debug");
 const logger = require("./utils/logger");
 const log = debug("tablecast:socket");
@@ -13,19 +14,55 @@ const MAX_FOG_POINTS = 500;
 
 function registerSocketHandlers(io) {
   // Auth middleware: authenticate via socket handshake
+  // Supports two modes:
+  //   1) characterId (players) — looks up Character; sets socket.data.characterId + socket.data.identity
+  //   2) userId (DM)          — looks up User; sets socket.data.user + socket.data.identity
   io.use(async (socket, next) => {
     try {
+      // 1) Try character auth (players)
+      const rawCharId = socket.handshake.auth?.characterId || socket.handshake.query?.characterId;
+      if (rawCharId) {
+        const charId = Number(rawCharId);
+        if (Number.isInteger(charId) && charId > 0) {
+          const character = await prisma.character.findUnique({ where: { id: charId } });
+          if (character) {
+            socket.data.characterId = charId;
+            socket.data.identity = {
+              id: character.id,
+              username: character.name,
+              role: "PLAYER",
+              diceTheme: character.diceTheme,
+              diceColor: character.diceColor,
+              isCharacter: true,
+              type: "character",
+            };
+            logger.info("socket:auth", "Socket authenticated as character", { characterId: charId });
+          }
+        }
+        return next();
+      }
+
+      // 2) Try user auth (DM)
       const rawUserId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
       if (rawUserId) {
         const userId = Number(rawUserId);
         if (Number.isInteger(userId) && userId > 0) {
           const user = await prisma.user.findUnique({
             where: { id: userId },
-            select: { id: true, username: true, role: true },
+            select: { id: true, username: true, role: true, diceTheme: true, diceColor: true },
           });
           if (user) {
             socket.data.user = user;
-            logger.info("socket:auth", "Socket authenticated", { userId: user.id, role: user.role });
+            socket.data.identity = {
+              id: user.id,
+              username: user.username,
+              role: user.role,
+              diceTheme: user.diceTheme,
+              diceColor: user.diceColor,
+              isCharacter: false,
+              type: "user",
+            };
+            logger.info("socket:auth", "Socket authenticated as user", { userId: user.id, role: user.role });
           }
         }
       }
@@ -60,6 +97,7 @@ function registerSocketHandlers(io) {
       let message = {
         id: generateId(),
         userId: socket.data.user?.id ?? sanitizeUserId(payload.userId),
+        characterId: socket.data.characterId || null,
         sender: sanitizeShortText(payload.sender, "Anonymous"),
         text: rawText.slice(0, 2000),
         timestamp: Date.now(),
@@ -76,6 +114,7 @@ function registerSocketHandlers(io) {
           await prisma.roll.create({
             data: {
               sender: message.sender,
+              characterId: socket.data.characterId || null,
               rollName: rd.rollName || "Dice Roll",
               formula: rd.formula || "",
               rolls: JSON.stringify(rd.rolls || []),
@@ -333,7 +372,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
         if (!token) return emitSocketError(socket, "token:move", "Token not found.");
 
         const isDm = socket.data.user?.role === "DM";
-        const isOwner = token.character?.userId === socket.data.user?.id;
+        const isOwner = token.characterId === socket.data.characterId;
         if (!isDm && !isOwner) {
           return emitSocketError(socket, "token:move", "You do not have permission to move this token.");
         }
@@ -588,6 +627,7 @@ async function emitPersistedChatMessage(io, partial) {
   const message = await persistChatMessage({
     id: generateId(),
     userId: sanitizeUserId(partial.userId),
+    characterId: partial.characterId || null,
     sender: sanitizeShortText(partial.sender, "System"),
     text: typeof partial.text === "string" ? partial.text.slice(0, 2000) : "",
     timestamp: Date.now(),
@@ -605,6 +645,7 @@ async function persistChatMessage(message) {
       data: {
         id: message.id,
         userId: message.userId,
+        characterId: message.characterId || null,
         sender: message.sender,
         text: message.text,
         type: message.type,

@@ -174,7 +174,7 @@ const TOOLS = [
           description: "Optional custom modifiers object. Auto-calculated if omitted.",
         },
       },
-      required: ["userId", "name"],
+      required: ["name"],
     },
   },
   {
@@ -835,10 +835,12 @@ function registerHandlers(srv) {
       case "create_character": {
         const { userId, name: charName, race, class: cls, level, hp, maxHp, ...rest } = args;
 
-        // Verify owner user exists
-        const owner = await prisma.user.findUnique({ where: { id: userId } });
-        if (!owner) {
-          throw new Error(`User with ID ${userId} does not exist. Create the user first.`);
+        // userId is optional - if provided, verify the user exists
+        if (userId) {
+          const owner = await prisma.user.findUnique({ where: { id: userId } });
+          if (!owner) {
+            throw new Error(`User with ID ${userId} does not exist.`);
+          }
         }
 
         // Extract base stats
@@ -862,24 +864,26 @@ function registerHandlers(srv) {
         const inventoryStr = JSON.stringify(args.inventory || []);
         const modifiersStr = JSON.stringify(computedMods);
 
+        const characterData = {
+          name: charName,
+          race: race || "",
+          class: cls || "",
+          level: level || 1,
+          hp: hp ?? 10,
+          maxHp: maxHp ?? 10,
+          strength,
+          dexterity,
+          constitution,
+          intelligence,
+          wisdom,
+          charisma,
+          inventory: inventoryStr,
+          modifiers: modifiersStr,
+        };
+        if (userId) characterData.userId = userId;
+
         const character = await prisma.character.create({
-          data: {
-            userId,
-            name: charName,
-            race: race || "",
-            class: cls || "",
-            level: level || 1,
-            hp: hp ?? 10,
-            maxHp: maxHp ?? 10,
-            strength,
-            dexterity,
-            constitution,
-            intelligence,
-            wisdom,
-            charisma,
-            inventory: inventoryStr,
-            modifiers: modifiersStr,
-          },
+          data: characterData,
         });
 
         const parsed = {

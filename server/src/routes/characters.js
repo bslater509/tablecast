@@ -36,6 +36,8 @@ const ALLOWED_FIELDS = [
   "spellcastingAbility",
   "spellSaveDc",
   "spellAttackBonus",
+  "diceTheme",
+  "diceColor",
 ];
 
 /**
@@ -68,6 +70,31 @@ function validateNumericField(value, label, range) {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// GET /api/heroes  public listing for login screen (no auth required)
+// ---------------------------------------------------------------------------
+router.get("/heroes", async (_req, res) => {
+  try {
+    const characters = await prisma.character.findMany({
+      where: { userId: null },
+      select: {
+        id: true,
+        name: true,
+        race: true,
+        class: true,
+        level: true,
+        diceTheme: true,
+        diceColor: true,
+      },
+      orderBy: { name: "asc" },
+    });
+    res.json(characters);
+  } catch (err) {
+    logger.error("api:route", "Error in GET /api/heroes", { error: err.message });
+    res.status(500).json({ error: "Failed to fetch heroes." });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // GET /api/characters  list all characters, optionally filter by userId
@@ -170,14 +197,14 @@ router.post("/", async (req, res) => {
   try {
     const { userId, name } = req.body;
 
-    if (!userId || !name || typeof name !== "string" || !name.trim()) {
+    if (!name || typeof name !== "string" || !name.trim()) {
       return res
         .status(400)
-        .json({ error: "userId (number) and name (string) are required." });
+        .json({ error: "name (string) is required." });
     }
 
-    const parsedUserId = Number(userId);
-    if (isNaN(parsedUserId)) {
+    let parsedUserId = userId ? Number(userId) : null;
+    if (userId && isNaN(parsedUserId)) {
       return res.status(400).json({ error: "userId must be a valid number." });
     }
 
@@ -186,20 +213,25 @@ router.post("/", async (req, res) => {
     if (!reqUser) {
       return res.status(401).json({ error: "A valid user session is required." });
     }
-    if (reqUser.id !== parsedUserId && reqUser.role !== "DM") {
+
+    // Only check ownership if userId is explicitly provided
+    if (parsedUserId && reqUser.id !== parsedUserId && reqUser.role !== "DM") {
       return res.status(403).json({ error: "You are not authorized to create a character for this user." });
     }
 
-    // Verify the owning user exists
-    const userExists = await prisma.user.findUnique({
-      where: { id: parsedUserId },
-    });
-    if (!userExists) {
-      return res.status(404).json({ error: "Owning user not found." });
+    // Verify the owning user exists (if userId provided)
+    if (parsedUserId) {
+      const userExists = await prisma.user.findUnique({
+        where: { id: parsedUserId },
+      });
+      if (!userExists) {
+        return res.status(404).json({ error: "Owning user not found." });
+      }
     }
 
     // Build data object from allowed fields
-    const data = { userId: parsedUserId, name: name.trim() };
+    const data = { name: name.trim() };
+    if (parsedUserId) data.userId = parsedUserId;
 
     // Numeric range validation
     const levelErr = validateNumericField(req.body.level, "level", ALLOWED_LEVEL_RANGE);
@@ -229,7 +261,6 @@ router.post("/", async (req, res) => {
 
     const character = await prisma.character.create({
       data,
-      include: { user: { select: { id: true, username: true, role: true } } },
     });
 
     res.status(201).json(character);

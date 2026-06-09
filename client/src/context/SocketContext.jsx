@@ -20,14 +20,18 @@ export function SocketProvider({ children }) {
   const [socket] = useState(() => createSocket());
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
-  const [userId, setUserIdState] = useState(null);
+  const [authInfo, setAuthInfo] = useState(null); // { id, isCharacter }
   const [reconnectCount, setReconnectCount] = useState(0);
   const [connectionFailed, setConnectionFailed] = useState(false);
 
-  // Connect only when auth userId is set; disconnect on logout
+  // Connect only when auth is set; disconnect on logout
   useEffect(() => {
-    if (userId) {
-      socket.auth = { userId };
+    if (authInfo) {
+      if (authInfo.isCharacter) {
+        socket.auth = { characterId: authInfo.id };
+      } else {
+        socket.auth = { userId: authInfo.id };
+      }
       socket.connect();
     } else {
       socket.disconnect();
@@ -38,7 +42,7 @@ export function SocketProvider({ children }) {
     return () => {
       // cleanup handled by the lifecycle effect below
     };
-  }, [userId, socket]);
+  }, [authInfo, socket]);
 
   useEffect(() => {
     function onConnect() {
@@ -91,11 +95,32 @@ export function SocketProvider({ children }) {
     };
   }, [socket]);
 
-  const setUserId = useCallback((id) => setUserIdState(id), []);
-  const clearAuth = useCallback(() => setUserIdState(null), []);
+  // Backward-compatible setUserId (DM users)
+  const setUserId = useCallback((id) => setAuthInfo({ id, isCharacter: false }), []);
+
+  // New: set character auth for players
+  const setCharacterId = useCallback((id) => setAuthInfo({ id, isCharacter: true }), []);
+
+  // Unified setAuth
+  const setAuth = useCallback((info) => setAuthInfo(info), []);
+
+  const clearAuth = useCallback(() => setAuthInfo(null), []);
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, connectionStatus, setUserId, clearAuth, userId, reconnectCount, connectionFailed }}>
+    <SocketContext.Provider value={{
+      socket,
+      isConnected,
+      connectionStatus,
+      setUserId,
+      setCharacterId,
+      setAuth,
+      clearAuth,
+      userId: authInfo?.id ?? null,
+      characterId: authInfo?.isCharacter ? authInfo.id : null,
+      authInfo,
+      reconnectCount,
+      connectionFailed,
+    }}>
       {children}
     </SocketContext.Provider>
   );

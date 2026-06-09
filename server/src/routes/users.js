@@ -1,8 +1,7 @@
 // =============================================================================
 // Tablecast  User CRUD Routes
-// Endpoints:  GET /api/users
+// Endpoints:  GET /api/users          (DM users only)
 //             GET /api/users/:id
-//             POST /api/users
 //             PUT /api/users/:id
 //             DELETE /api/users/:id
 // =============================================================================
@@ -10,7 +9,7 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
-const { getRequestUser, requireDm } = require("../auth");
+const { getRequestUser } = require("../auth");
 const logger = require("../utils/logger");
 
 const router = Router();
@@ -18,37 +17,15 @@ const router = Router();
 const VALID_ROLES = ["DM", "PLAYER"];
 
 // ---------------------------------------------------------------------------
-// GET /api/users  list all users
+// GET /api/users  list all DM users
 // ---------------------------------------------------------------------------
 router.get("/", async (_req, res) => {
   try {
-    const reqUser = await getRequestUser(_req);
-    const isAuthenticated = !!reqUser;
-    const isDM = reqUser?.role === "DM";
-
     const users = await prisma.user.findMany({
+      where: { role: "DM" },
       orderBy: { createdAt: "asc" },
-      include: isAuthenticated ? { characters: { select: { id: true, name: true, userId: true } } } : undefined,
     });
-
-    let result = users;
-    if (!isDM) {
-      result = users.map((u) => {
-        const user = {
-          id: u.id,
-          username: u.username,
-          role: u.role,
-        };
-
-        if (isAuthenticated && reqUser && u.id === reqUser.id) {
-          user.characters = u.characters;
-        }
-
-        return user;
-      });
-    }
-
-    res.json(result);
+    res.json(users);
   } catch (err) {
     logger.error("api:route", "Error in GET /api/users", { error: err.message });
     res.status(500).json({ error: "Failed to fetch users." });
@@ -77,7 +54,6 @@ router.get("/:id", async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id },
-      include: { characters: true },
     });
 
     if (!user) {
@@ -88,40 +64,6 @@ router.get("/:id", async (req, res) => {
   } catch (err) {
     logger.error("api:route", "Error in GET /api/users/:id", { error: err.message });
     res.status(500).json({ error: "Failed to fetch user." });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// POST /api/users  create a new user
-// Body: { username: string, role?: "DM" | "PLAYER" }
-// ---------------------------------------------------------------------------
-router.post("/", requireDm, async (req, res) => {
-  try {
-    const { username, role } = req.body;
-
-    if (!username || typeof username !== "string" || !username.trim()) {
-      return res.status(400).json({ error: "username is required." });
-    }
-
-    if (role && role !== "PLAYER") {
-      return res.status(400).json({ error: "Only PLAYER role can be created via registration. DM users must be promoted by another DM." });
-    }
-
-    const user = await prisma.user.create({
-      data: {
-        username: username.trim(),
-        role: "PLAYER",
-      },
-    });
-
-    res.status(201).json(user);
-  } catch (err) {
-    // Prisma unique constraint violation
-    if (err.code === "P2002") {
-      return res.status(409).json({ error: "Username already taken." });
-    }
-    logger.error("api:route", "Error in POST /api/users", { error: err.message });
-    res.status(500).json({ error: "Failed to create user." });
   }
 });
 
@@ -179,7 +121,6 @@ router.put("/:id", async (req, res) => {
     const user = await prisma.user.update({
       where: { id },
       data,
-      include: { characters: { select: { id: true, name: true } } },
     });
 
     res.json(user);

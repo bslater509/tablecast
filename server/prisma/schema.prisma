@@ -34,13 +34,9 @@ model User {
   /// "DM" or "PLAYER"
   role String @default("PLAYER")
 
-  // Custom 3D Dice styling preferences
-  diceTheme String @default("default")
-  diceColor String @default("#7c3aed")
-
   // Relations
-  characters     Character[]
-  chatMessages   ChatMessage[]
+  characters      Character[]
+  chatMessages    ChatMessage[]
   aiConversations AiConversation[]
 
   createdAt DateTime @default(now())
@@ -57,6 +53,9 @@ model ChatMessage {
   userId Int?
   user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  characterId Int?
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
   sender String
   text   String
   type   String @default("user")
@@ -68,19 +67,21 @@ model ChatMessage {
 
   @@index([createdAt])
   @@index([userId])
+  @@index([characterId])
   @@index([type])
   @@map("chat_messages")
 }
 
-/// A D&D 5e character sheet linked to a player User.
+/// A D&D 5e character sheet — the primary identity for players.
+/// Can optionally be owned by a DM user for management purposes.
 /// Core ability scores are stored as individual integer columns for easy querying.
 /// Inventory and computed modifiers are stored as JSON strings (SQLite TEXT).
 model Character {
   id Int @id @default(autoincrement())
 
-  // Owner
-  userId Int
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Optional owner (DM user only — PLAYER users no longer exist)
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   // Identity
   name  String
@@ -100,6 +101,10 @@ model Character {
   wisdom       Int @default(10)
   charisma     Int @default(10)
 
+  // Custom 3D Dice styling preferences (per-hero)
+  diceTheme String @default("default")
+  diceColor String @default("#7c3aed")
+
   // JSON blobs — calculated by the frontend; stored for persistence
   // inventory: serialized array of item objects
   // modifiers: serialized map of ability modifier values
@@ -118,6 +123,9 @@ model Character {
   // Relations
   tokens                Token[]
   encounterParticipants EncounterParticipant[]
+  chatMessages          ChatMessage[]
+  rolls                 Roll[]
+  aiConversations       AiConversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -348,10 +356,14 @@ model EncounterParticipant {
 // Consider implementing a retention policy: delete records older than N days,
 // either via a scheduled job or a capped table approach.
 
-/// A history record of a dice roll made by a player or DM.
+/// A history record of a dice roll made by a hero or DM.
 model Roll {
   id        Int      @id @default(autoincrement())
   sender    String
+
+  characterId Int?
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
   rollName  String   @default("Dice Roll")
   formula   String
   rolls     String   // Store as JSON string: e.g. "[18]" or "[10, 5]"
@@ -362,6 +374,7 @@ model Roll {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+  @@index([characterId])
   @@map("rolls")
 }
 
@@ -407,6 +420,9 @@ model AiConversation {
   userId    Int?
   user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  characterId Int?
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
   /// "rules" or "npc"
   type      String      @default("rules")
 
@@ -423,6 +439,7 @@ model AiConversation {
   updatedAt DateTime    @updatedAt
 
   @@index([userId])
+  @@index([characterId])
   @@index([npcId])
   @@map("ai_conversations")
 }

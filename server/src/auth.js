@@ -5,45 +5,170 @@ const debug = require("./utils/debug");
 const logger = require("./utils/logger");
 const log = debug("tablecast:auth");
 
+// ---------------------------------------------------------------------------
+// Header Parsers
+// ---------------------------------------------------------------------------
+
 function getUserId(req) {
   const raw = req.get("x-tablecast-user-id");
   const id = Number(raw);
-  const result = Number.isInteger(id) && id > 0 ? id : null;
-  log("getUserId — raw=%s resolved=%s", raw, result);
-  return result;
+  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+function getCharacterId(req) {
+  const raw = req.get("x-tablecast-character-id");
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+// ---------------------------------------------------------------------------
+// Identity Resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the caller's identity from either:
+ *  - x-tablecast-character-id (player / hero)
+ *  - x-tablecast-user-id      (DM user)
+ *
+ * Returns a unified identity object:
+ *   { id, username, role, diceTheme, diceColor, characters, isCharacter, type }
+ * or null if neither header is valid.
+ */
+async function getRequestIdentity(req) {
+  // 1) Try character header first
+  const charId = getCharacterId(req);
+  if (charId) {
+    const character = await prisma.character.findUnique({
+      where: { id: charId },
+    });
+    if (character) {
+      log("getRequestIdentity — character id=%d name=%s", charId, character.name);
+      return {
+        id: character.id,
+        username: character.name,
+        role: "PLAYER",
+        diceTheme: character.diceTheme || "default",
+        diceColor: character.diceColor || "#7c3aed",
+        characters: [character],
+        isCharacter: true,
+        type: "character",
+        characterId: character.id,
+      };
+    }
+  }
+
+  // 2) Fall back to user header (DM)
+  const userId = getUserId(req);
+  if (userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (user) {
+      log("getRequestIdentity — user id=%d username=%s role=%s", userId, user.username, user.role);
+      return {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        diceTheme: user.diceTheme || "default",
+        diceColor: user.diceColor || "#7c3aed",
+        characters: [],
+        isCharacter: false,
+        type: "user",
+        userId: user.id,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Backward-compatible: returns a User-like object or null.
+ * Used by routes that need a basic identity (most player endpoints).
+ *
+ * For character auth, returns a pseudo-user with character data shaped
+ * so that existing frontend code like `user.role`, `user.username`,
+ * `user.diceTheme`, `user.id` continues to work.
+ */
 async function getRequestUser(req) {
-  const id = getUserId(req);
-  if (!id) return null;
-
-  return prisma.user.findUnique({
-    where: { id },
-    select: { id: true, username: true, role: true },
-  });
+  return getRequestIdentity(req);
 }
 
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
+
+/**
+ * Require a valid user identity (either character or DM user).
+ */
+async function requireUser(req, res, next) {
+  try {
+    const identity = await getRequestIdentity(req);
+    if (!identity) {
+      log("requireUser — no valid identity (401)");
+      return res.status(401).json({ error: "A valid user or character session is required." });
+    }
+    req.tablecastUser = identity;
+    next();
+  } catch (err) {
+    logger.error("auth", "requireUser error", { error: err.message });
+    res.status(500).json({ error: "Failed to verify identity." });
+  }
+}
+
+/**
+ * Require a DM user (via x-tablecast-user-id with role "DM").
+ */
 async function requireDm(req, res, next) {
   try {
-    const user = await getRequestUser(req);
-    if (!user) {
-      log("requireDm — no valid user (401)");
+    const identity = await getRequestIdentity(req);
+    if (!identity) {
+      log("requireDm — no valid identity (401)");
       return res.status(401).json({ error: "A valid user is required." });
     }
 
-    if (user.role !== "DM") {
-      log("requireDm — user=%d role=%s (403)", user.id, user.role);
+    if (identity.type !== "user" || identity.role !== "DM") {
+      log("requireDm — identity=%s role=%s (403)", identity.type, identity.role);
       return res.status(403).json({ error: "DM privileges are required." });
     }
 
-    req.tablecastUser = user;
-    log("requireDm — user=%d authorized as DM", user.id);
+    req.tablecastUser = identity;
+    log("requireDm — user=%d authorized as DM", identity.id);
     next();
   } catch (err) {
-    logger.error("auth", "Failed to verify user", { error: err.message });
+    logger.error("auth", "requireDm error", { error: err.message });
     res.status(500).json({ error: "Failed to verify permissions." });
   }
 }
+
+/**
+ * Require a player character (via x-tablecast-character-id).
+ */
+async function requirePlayer(req, res, next) {
+  try {
+    const identity = await getRequestIdentity(req);
+    if (!identity) {
+      log("requirePlayer — no valid identity (401)");
+      return res.status(401).json({ error: "A valid character session is required." });
+    }
+
+    if (identity.type !== "character") {
+      log("requirePlayer — type=%s (403)", identity.type);
+      return res.status(403).json({ error: "Player character required." });
+    }
+
+    req.tablecastUser = identity;
+    req.character = identity.characters?.[0] || null;
+    next();
+  } catch (err) {
+    logger.error("auth", "requirePlayer error", { error: err.message });
+    res.status(500).json({ error: "Failed to verify character identity." });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Utility
+// ---------------------------------------------------------------------------
 
 async function isDmUser(userId) {
   try {
@@ -66,4 +191,13 @@ async function isDmUser(userId) {
   }
 }
 
-module.exports = { getUserId, getRequestUser, requireDm, isDmUser };
+module.exports = {
+  getUserId,
+  getCharacterId,
+  getRequestIdentity,
+  getRequestUser,
+  requireUser,
+  requireDm,
+  requirePlayer,
+  isDmUser,
+};

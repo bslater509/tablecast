@@ -38,8 +38,9 @@ import EncountersPanel from "./components/EncountersPanel";
 import { useSocket } from "./context/SocketContext";
 import { useToast } from "./context/ToastContext";
 import { AiProvider } from "./context/AiContext";
+import { getJsonAuthHeaders } from "./utils/authHeaders";
 
-const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
+const SELECTED_CHARACTER_STORAGE_KEY = "tablecast.selectedCharacterId";
 
 const DM_NAV_ITEMS = [
   {
@@ -130,22 +131,23 @@ const DM_NAV_ITEMS = [
 
 function App() {
   const { addToast } = useToast();
-  const { connectionStatus, connectionFailed, setUserId, clearAuth } = useSocket();
+  const { connectionStatus, connectionFailed, setUserId, setCharacterId, clearAuth } = useSocket();
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(null);
-  const [usersList, setUsersList] = useState([]);
+  const [heroes, setHeroes] = useState([]);
+  const [dmUsers, setDmUsers] = useState([]);
   
-  // Custom user entry state
-  const [customName, setCustomName] = useState("");
-  const [customRole, setCustomRole] = useState("PLAYER");
-  const [loadingUsers, setLoadingUsers] = useState(true);
+  // Secret DM tap state
+  const [dmTaps, setDmTaps] = useState(0);
+  const [showDmSection, setShowDmSection] = useState(false);
+  const [loadingHeroes, setLoadingHeroes] = useState(true);
 
   // Handle log out
   const handleLogout = () => {
     setUser(null);
     clearAuth();
-    localStorage.removeItem(SELECTED_USER_STORAGE_KEY);
+    localStorage.removeItem(SELECTED_CHARACTER_STORAGE_KEY);
     navigate("/", { replace: true });
   };
 
@@ -153,32 +155,39 @@ function App() {
 
   const handleUpdateDiceSettings = async (diceTheme, diceColor) => {
     try {
-      const res = await fetch(`/api/users/${user.id}`, {
+      // Determine endpoint: character for heroes, user for DM
+      const isCharacter = user.isCharacter;
+      const endpoint = isCharacter ? `/api/characters/${user.characterId}` : `/api/users/${user.id}`;
+      const headers = {
+        "Content-Type": "application/json",
+        ...getJsonAuthHeaders(user),
+      };
+      const res = await fetch(endpoint, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tablecast-user-id": String(user.id),
-        },
+        headers,
         body: JSON.stringify({ diceTheme, diceColor }),
       });
       if (res.ok) {
-        const updatedUser = await res.json();
-        setUser(updatedUser);
-        setUsersList((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+        const updated = await res.json();
+        setUser((prev) => ({
+          ...prev,
+          diceTheme: updated.diceTheme || diceTheme,
+          diceColor: updated.diceColor || diceColor,
+        }));
         return true;
       } else {
         const err = await res.json().catch(() => ({}));
-        console.error("Failed to update user settings:", err.error || res.statusText);
+        console.error("Failed to update dice settings:", err.error || res.statusText);
       }
     } catch (err) {
-      console.error("Error updating user settings:", err);
+      console.error("Error updating dice settings:", err);
     }
     return false;
   };
 
   // Route authorization & redirect logic
   useEffect(() => {
-    if (loadingUsers) return;
+    if (loadingHeroes) return;
 
     if (!user) {
       if (location.pathname !== "/" && !location.pathname.startsWith("/api")) {
@@ -193,188 +202,186 @@ function App() {
       }
     } else {
       if (!location.pathname.startsWith("/player")) {
-        const firstChar = user.characters && user.characters[0];
-        if (firstChar) {
-          navigate(`/player/sheet/${firstChar.id}`, { replace: true });
-        } else {
-          navigate("/player/map", { replace: true });
-        }
+        navigate("/player/map", { replace: true });
       }
     }
-  }, [user, location.pathname, navigate, loadingUsers]);
+  }, [user, location.pathname, navigate, loadingHeroes]);
 
   const pathParts = location.pathname.split("/");
   const currentTab = ["map", "characters", "chat-journal", "settings"].includes(pathParts[1])
     ? pathParts[1]
     : "chat-journal";
 
-  // Fetch users list and restore persisted session when it is still valid.
+  // Fetch heroes list and restore persisted session
   useEffect(() => {
     let cancelled = false;
 
-    async function loadUsers() {
+    async function loadData() {
       try {
-        const res = await fetch("/api/users");
+        // Fetch heroes (public, no auth needed)
+        const heroRes = await fetch("/api/heroes");
         if (cancelled) return;
-        if (res.ok) {
-          const data = await res.json();
+        if (heroRes.ok) {
+          const heroData = await heroRes.json();
           if (cancelled) return;
-          setUsersList(data);
+          setHeroes(heroData);
+        }
 
-          if (!user) {
-            const storedUserId = Number(localStorage.getItem(SELECTED_USER_STORAGE_KEY));
-            const storedUser = data.find((u) => u.id === storedUserId);
-            if (storedUser) {
-              handleSelectUser(storedUser);
-            } else if (storedUserId) {
-              localStorage.removeItem(SELECTED_USER_STORAGE_KEY);
+        // Check for stored character session
+        if (!user) {
+          const storedCharId = Number(localStorage.getItem(SELECTED_CHARACTER_STORAGE_KEY));
+          if (storedCharId && heroRes.ok) {
+            const heroData = await heroRes.json().catch(() => null);
+            if (heroData) {
+              const storedHero = heroData.find((h) => h.id === storedCharId);
+              if (storedHero) {
+                handleSelectHero(storedHero);
+              } else {
+                localStorage.removeItem(SELECTED_CHARACTER_STORAGE_KEY);
+              }
             }
           }
         }
       } catch (err) {
         if (cancelled) return;
-        console.error("Failed to load users:", err);
+        console.error("Failed to load heroes:", err);
       } finally {
-        if (!cancelled) setLoadingUsers(false);
+        if (!cancelled) setLoadingHeroes(false);
       }
     }
-    loadUsers();
+    loadData();
     return () => {
       cancelled = true;
     };
   }, [user]);
 
-  // Handle joining as an existing user
-  function handleSelectUser(selectedUser) {
-    setUser(selectedUser);
-    setUserId(selectedUser.id);
-    localStorage.setItem(SELECTED_USER_STORAGE_KEY, String(selectedUser.id));
+  // Handle selecting a hero (player login)
+  function handleSelectHero(hero) {
+    // Build user-like identity object from hero
+    const heroUser = {
+      id: hero.id,              // used as character's identity
+      username: hero.name,      // components display this as sender
+      role: "PLAYER",
+      characters: [hero],       // backward compat
+      diceTheme: hero.diceTheme,
+      diceColor: hero.diceColor,
+      isCharacter: true,
+      characterId: hero.id,
+      userId: null,
+    };
+    setUser(heroUser);
+    setCharacterId(hero.id);
+    localStorage.setItem(SELECTED_CHARACTER_STORAGE_KEY, String(hero.id));
     if (location.pathname === "/") {
-      if (selectedUser.role === "DM") {
-        navigate("/dm/map");
-      } else {
-        const firstChar = selectedUser.characters && selectedUser.characters[0];
-        if (firstChar) {
-          navigate(`/player/sheet/${firstChar.id}`);
-        } else {
-          navigate("/player/map");
-        }
-      }
+      navigate("/player/map");
     }
   }
 
-  // Handle creating a new user profile
-  async function handleCreateUser(e) {
-    e.preventDefault();
-    if (!customName.trim()) return;
-
-    try {
-      const res = await fetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: customName.trim(),
-          role: customRole,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create user");
-      }
-
-      const newUser = await res.json();
-      handleSelectUser(newUser);
-    } catch (err) {
-      addToast(err.message, "error");
+  // Handle selecting a DM user
+  function handleSelectDm(dmUser) {
+    const dmIdentity = {
+      id: dmUser.id,
+      username: dmUser.username,
+      role: "DM",
+      characters: [],
+      diceTheme: dmUser.diceTheme,
+      diceColor: dmUser.diceColor,
+      isCharacter: false,
+      characterId: null,
+      userId: dmUser.id,
+    };
+    setUser(dmIdentity);
+    setUserId(dmUser.id);
+    localStorage.removeItem(SELECTED_CHARACTER_STORAGE_KEY);
+    if (location.pathname === "/") {
+      navigate("/dm/map");
     }
   }
 
-  // If no user profile selected, show Entry screen
+  // Handle tapping the title (secret DM unlock)
+  function handleTitleTap() {
+    const newCount = dmTaps + 1;
+    setDmTaps(newCount);
+    if (newCount >= 5 && !showDmSection) {
+      // Fetch DM users on unlock
+      fetch("/api/users")
+        .then((r) => r.json())
+        .then((data) => setDmUsers(data))
+        .catch(() => {});
+      setShowDmSection(true);
+      addToast("DM access unlocked", "info");
+    }
+  }
+
+  // If no user selected, show Entry screen with hero grid
   if (!user) {
     return (
       <ErrorBoundary critical={true}>
       <div style={styles.overlay} className="fade-in">
         <div style={styles.loginCard} className="glass-panel gold-border-glow">
-          <h1 style={styles.loginTitle}>Tablecast Tavern</h1>
-          <p style={styles.loginSub}>Choose your character or DM profile to enter</p>
+          <h1
+            style={styles.loginTitle}
+            onClick={handleTitleTap}
+            className="touch-target"
+            title="Tap to unlock DM access"
+          >
+            Tablecast Tavern
+          </h1>
+          <p style={styles.loginSub}>Choose your hero to enter</p>
 
-          {/* Seeded/Existing Users List */}
-          <div style={styles.usersList}>
-            <h3 style={styles.sectionHeader}>Join Session as:</h3>
-            {loadingUsers ? (
-              <p style={styles.loadingText}>Opening tavern doors</p>
+          {/* Hero Grid */}
+          <div style={styles.heroesSection}>
+            <h3 style={styles.sectionHeader}>Select Your Hero</h3>
+            {loadingHeroes ? (
+              <p style={styles.loadingText}>Opening tavern doors...</p>
+            ) : heroes.length === 0 ? (
+              <p style={styles.emptyText}>No heroes yet. Ask your DM to create one.</p>
             ) : (
-              <div style={styles.usersGrid}>
-                {usersList.map((u) => (
+              <div style={styles.heroesGrid}>
+                {heroes.map((hero) => (
                   <button
-                    key={u.id}
-                    id={`join-user-${u.username.toLowerCase()}`}
-                    onClick={() => handleSelectUser(u)}
-                    style={styles.userButton}
+                    key={hero.id}
+                    id={`join-hero-${hero.name.toLowerCase().replace(/\s+/g, '-')}`}
+                    onClick={() => handleSelectHero(hero)}
+                    style={styles.heroButton}
                     className="touch-target btn-hover-scale glass-panel"
                   >
-                    <span style={styles.userIcon}>{u.role === "DM" ? "DM" : "PC"}</span>
-                    <span style={styles.userName}>{u.username}</span>
-                    <span style={styles.userRoleBadge}>{u.role}</span>
+                    <span style={styles.heroIcon}>PC</span>
+                    <span style={styles.heroName}>{hero.name}</span>
+                    <span style={styles.heroDetails}>
+                      {hero.race} {hero.class}
+                    </span>
+                    <span style={styles.heroLevel}>Level {hero.level}</span>
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Create custom profile */}
-          <form onSubmit={handleCreateUser} style={styles.createForm}>
-            <h3 style={styles.sectionHeader}>...or Create a New Profile</h3>
-            <input
-              id="new-username-input"
-              type="text"
-              placeholder="Enter username"
-              value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-              style={styles.input}
-              className="form-input"
-              maxLength={20}
-              required
-            />
-            <div style={styles.roleSelection}>
-              <button
-                type="button"
-                onClick={() => setCustomRole("PLAYER")}
-                style={{
-                  ...styles.roleBtn,
-                  border: customRole === "PLAYER" ? "1px solid var(--color-accent)" : "1px solid rgba(255,255,255,0.08)",
-                  background: customRole === "PLAYER" ? "var(--color-accent-dim)" : "transparent",
-                  color: customRole === "PLAYER" ? "var(--color-accent)" : "var(--color-text)",
-                }}
-                className="touch-target"
-              >
-                Player
-              </button>
-              <button
-                type="button"
-                onClick={() => setCustomRole("DM")}
-                style={{
-                  ...styles.roleBtn,
-                  border: customRole === "DM" ? "1px solid var(--color-accent)" : "1px solid rgba(255,255,255,0.08)",
-                  background: customRole === "DM" ? "var(--color-accent-dim)" : "transparent",
-                  color: customRole === "DM" ? "var(--color-accent)" : "var(--color-text)",
-                }}
-                className="touch-target"
-              >
-                DM
-              </button>
+          {/* Secret DM Section (unlocked after 5 taps on title) */}
+          {showDmSection && (
+            <div style={styles.dmSection}>
+              <h3 style={styles.sectionHeader}>DM Login</h3>
+              {dmUsers.length === 0 ? (
+                <p style={styles.emptyText}>No DM accounts found</p>
+              ) : (
+                <div style={styles.dmList}>
+                  {dmUsers.map((dm) => (
+                    <button
+                      key={dm.id}
+                      id={`join-dm-${dm.username.toLowerCase()}`}
+                      onClick={() => handleSelectDm(dm)}
+                      style={styles.dmButton}
+                      className="touch-target btn-hover-scale glass-panel"
+                    >
+                      <span style={styles.dmIcon}>DM</span>
+                      <span style={styles.userName}>{dm.username}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <button
-              id="join-tavern-btn"
-              type="submit"
-              style={styles.submitBtn}
-              className="touch-target btn-hover-scale"
-              disabled={!customName.trim()}
-            >
-              Enter Tavern
-            </button>
-          </form>
+          )}
         </div>
       </div>
       </ErrorBoundary>
@@ -484,7 +491,7 @@ const styles = {
     textAlign: "center",
     marginTop: "-0.75rem",
   },
-  usersList: {
+  heroesSection: {
     display: "flex",
     flexDirection: "column",
     gap: "0.65rem",
@@ -504,14 +511,21 @@ const styles = {
     fontSize: "0.85rem",
     padding: "1rem",
   },
-  usersGrid: {
+  emptyText: {
+    textAlign: "center",
+    color: "var(--color-muted)",
+    fontSize: "0.85rem",
+    padding: "1rem",
+    fontStyle: "italic",
+  },
+  heroesGrid: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
     gap: "0.5rem",
     marginTop: "0.25rem",
   },
-  userButton: {
-    padding: "0.75rem",
+  heroButton: {
+    padding: "0.75rem 0.5rem",
     borderRadius: "8px",
     background: "rgba(255, 255, 255, 0.02)",
     border: "1px solid rgba(255, 255, 255, 0.05)",
@@ -519,57 +533,67 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: "0.35rem",
+    gap: "0.2rem",
+    minHeight: "80px",
+    justifyContent: "center",
   },
-  userIcon: {
-    fontSize: "1.5rem",
+  heroIcon: {
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    color: "var(--color-accent)",
+    background: "rgba(200, 151, 58, 0.12)",
+    padding: "0.1rem 0.4rem",
+    borderRadius: "3px",
+    marginBottom: "0.15rem",
+  },
+  heroName: {
+    fontSize: "0.9rem",
+    color: "var(--color-text)",
+    fontWeight: 600,
+  },
+  heroDetails: {
+    fontSize: "0.75rem",
+    color: "var(--color-muted)",
+  },
+  heroLevel: {
+    fontSize: "0.7rem",
+    color: "var(--color-accent)",
+    fontWeight: 600,
   },
   userName: {
     fontSize: "0.9rem",
     color: "var(--color-text)",
     fontWeight: 600,
   },
-  userRoleBadge: {
-    fontSize: "0.65rem",
-    color: "var(--color-accent)",
-    background: "rgba(200, 151, 58, 0.1)",
-    padding: "0.1rem 0.35rem",
-    borderRadius: "3px",
-  },
-  createForm: {
+  dmSection: {
     display: "flex",
     flexDirection: "column",
-    gap: "0.75rem",
+    gap: "0.65rem",
+    borderTop: "1px solid rgba(200, 151, 58, 0.15)",
+    paddingTop: "1rem",
   },
-  input: {
-    width: "100%",
-    padding: "0.75rem 1rem",
-    fontSize: "0.95rem",
-  },
-  roleSelection: {
+  dmList: {
     display: "flex",
-    gap: "0.5rem",
+    flexDirection: "column",
+    gap: "0.4rem",
   },
-  roleBtn: {
-    flex: 1,
-    borderRadius: "6px",
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "transparent",
-    color: "var(--color-text)",
+  dmButton: {
+    padding: "0.6rem 0.75rem",
+    borderRadius: "8px",
+    background: "rgba(200, 151, 58, 0.05)",
+    border: "1px solid rgba(200, 151, 58, 0.15)",
     cursor: "pointer",
-    fontSize: "0.8rem",
-    fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    gap: "0.6rem",
   },
-  submitBtn: {
-    padding: "0.75rem",
-    borderRadius: "6px",
-    background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
-    border: "none",
-    color: "var(--color-bg)",
-    fontWeight: "bold",
-    fontSize: "0.95rem",
-    cursor: "pointer",
-    marginTop: "0.25rem",
+  dmIcon: {
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    color: "var(--color-danger)",
+    background: "rgba(235, 87, 87, 0.12)",
+    padding: "0.1rem 0.4rem",
+    borderRadius: "3px",
   },
 
   // Main UI Shell
@@ -766,20 +790,23 @@ function CharacterSheetWrapper({ user, basePath, isPopout = false }) {
 function PlayerSheetRedirect({ user }) {
   const navigate = useNavigate();
   useEffect(() => {
-    if (user?.characters && user.characters.length > 0) {
+    // For character-based login, redirect to their sheet
+    if (user?.characterId) {
+      navigate(`/player/sheet/${user.characterId}`, { replace: true });
+    } else if (user?.characters && user.characters.length > 0) {
       navigate(`/player/sheet/${user.characters[0].id}`, { replace: true });
     }
   }, [user, navigate]);
 
-  if (user?.characters && user.characters.length > 0) {
+  if (user?.characterId || (user?.characters && user.characters.length > 0)) {
     return null;
   }
 
   return (
     <div style={styles.noCharacterContainer} className="glass-panel">
-      <h3 style={{ color: "var(--color-accent)" }}>No Character Assigned</h3>
+      <h3 style={{ color: "var(--color-accent)" }}>No Character Found</h3>
       <p style={{ color: "var(--color-muted)", fontSize: "0.9rem", textAlign: "center", marginTop: "0.5rem" }}>
-        Ask your DM to create and assign a character to your profile.
+        Select a hero from the login screen to view your character sheet.
       </p>
     </div>
   );

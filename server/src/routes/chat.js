@@ -60,6 +60,7 @@ function formatChatMessage(message) {
   return {
     id: message.id,
     userId: message.userId,
+    characterId: message.characterId,
     sender: message.sender,
     text: sanitizeText(message.text, { maxLength: 2000 }),
     type: message.type,

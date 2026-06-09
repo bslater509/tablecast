@@ -23,28 +23,15 @@ async function main() {
   });
   console.log(`  ✅ DM user:     ${dm.username} (id=${dm.id})`);
 
-  // ── Player User ───────────────────────────────────────────────────────────
-  const player = await prisma.user.upsert({
-    where: { username: "Thorin" },
-    update: {},
-    create: {
-      username: "Thorin",
-      role: "PLAYER",
-    },
-  });
-  console.log(`  ✅ Player user: ${player.username} (id=${player.id})`);
-
-  // ── Player Character ──────────────────────────────────────────────────────
-  // Check if the character already exists for idempotency
+  // ── Standalone Hero (no user account) ─────────────────────────────────────
   const existingChar = await prisma.character.findFirst({
-    where: { userId: player.id, name: "Thorin Ironforge" },
+    where: { name: "Thorin Ironforge" },
   });
 
   const character = existingChar
     ? existingChar
     : await prisma.character.create({
         data: {
-          userId: player.id,
           name: "Thorin Ironforge",
           race: "Mountain Dwarf",
           class: "Fighter",
@@ -74,7 +61,7 @@ async function main() {
           }),
         },
       });
-  console.log(`  ✅ Character:   ${character.name} (id=${character.id}, owner=${player.username})`);
+  console.log(`  ✅ Hero:        ${character.name} (id=${character.id})`);
 
   // ── DM Character (NPC template) ──────────────────────────────────────────
   const existingNpc = await prisma.character.findFirst({
@@ -112,7 +99,7 @@ async function main() {
           }),
         },
       });
-  console.log(`  ✅ NPC:         ${npc.name} (id=${npc.id}, owner=${dm.username})`);
+  console.log(`  ✅ NPC:         ${npc.name} (id=${npc.id})`);
 
   // ── Wiki Articles ─────────────────────────────────────────────────────────
   const articles = [
