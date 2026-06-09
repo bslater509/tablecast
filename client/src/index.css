@@ -811,6 +811,135 @@ textarea:focus-visible {
   color: var(--color-bg) !important;
 }
 
+/* ============================================================
+   Wiki Panel — Mobile Responsive Improvements
+   ============================================================ */
+
+/* Category tabs — horizontal scroll with snap */
+.wiki-category-tabs {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.wiki-category-tabs > button {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* Reader scroll — tighter padding on mobile */
+@media (max-width: 600px) {
+  .wiki-reader-scroll {
+    padding: 0.75rem !important;
+  }
+}
+
+/* NPC Statblock ability grid — 3 columns on mobile */
+@media (max-width: 600px) {
+  .wiki-statblock-ability-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+/* Reader header — wrap gracefully on small screens */
+@media (max-width: 600px) {
+  .wiki-reader-header {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .wiki-reader-header .wiki-reader-header-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.35rem;
+  }
+}
+
+/* Editor header actions — tighter on mobile */
+@media (max-width: 600px) {
+  .wiki-editor-header-actions {
+    gap: 0.3rem !important;
+  }
+  .wiki-editor-header-actions button,
+  .wiki-editor-header-actions > * {
+    font-size: 0.7rem !important;
+    padding: 0.35rem 0.5rem !important;
+    min-height: 36px !important;
+  }
+}
+
+/* Actions editor fields — stack on narrow screens */
+@media (max-width: 480px) {
+  .wiki-actions-fields-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Override the search icon clear button positioning */
+.wiki-search-bar-container {
+  position: relative;
+}
+
+/* NPC preview card — full width on mobile */
+@media (max-width: 600px) {
+  .wiki-article-card {
+    padding: 0.65rem 0.75rem !important;
+  }
+}
+
+/* Tighter DM top bar on mobile */
+@media (max-width: 600px) {
+  .wiki-top-bar {
+    padding: 0.4rem 0.5rem !important;
+    gap: 0.35rem !important;
+  }
+  .wiki-top-bar input {
+    font-size: 0.85rem !important;
+    padding: 0.5rem 0.75rem !important;
+    min-width: 100px !important;
+  }
+  .wiki-top-bar button {
+    font-size: 0.75rem !important;
+    padding: 0.4rem 0.65rem !important;
+    min-height: 36px !important;
+  }
+}
+
+/* Reader header overflow dropdown */
+.wiki-reader-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 100;
+  min-width: 150px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.wiki-reader-menu-dropdown button {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-radius: 4px;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.wiki-reader-menu-dropdown button:hover {
+  background: rgba(255,255,255,0.05);
+}
+.wiki-reader-menu-dropdown button.danger {
+  color: var(--color-danger);
+}
+
 /* Missing CSS classes for various UI components */
 .spinner {
   width: 20px;

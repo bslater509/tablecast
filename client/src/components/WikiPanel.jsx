@@ -149,7 +149,7 @@ function NpcStatblock({ npc, socket, isDM, onHpChange }) {
         </div>
       </div>
 
-      <div style={statblockStyles.abilityGrid}>
+      <div style={statblockStyles.abilityGrid} className="wiki-statblock-ability-grid">
         {["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"].map((stat) => {
           const score = npc[stat] || 10;
           return (
@@ -265,6 +265,9 @@ export default function WikiPanel({ user, isPopout = false }) {
 
   // Sidebar drawer state (mobile)
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Reader header overflow menu (mobile)
+  const [showReaderMenu, setShowReaderMenu] = useState(false);
 
   // Determine if user has DM privileges
   const isDM = user?.role === "DM";
@@ -1634,7 +1637,7 @@ export default function WikiPanel({ user, isPopout = false }) {
     return (
       <div style={styles.reader} className="glass-panel gold-border-glow">
         {/* Reader Header */}
-        <div style={styles.readerHeader}>
+        <div style={styles.readerHeader} className="wiki-reader-header">
           <button
             id="wiki-back-btn"
             onClick={handleBack}
@@ -1643,23 +1646,48 @@ export default function WikiPanel({ user, isPopout = false }) {
           >
             Back
           </button>
-          <div style={styles.headerRight}>
+          <div style={styles.headerRight} className="wiki-reader-header-right">
             {isDM && (
-              <div style={styles.dmControlsRow}>
+              <div style={{ ...styles.dmControlsRow, position: "relative" }}>
                 <button
                   onClick={() => handleStartEdit(selectedArticle)}
                   style={styles.editBtn}
                   className="touch-target btn-hover-scale"
                 >
-                  Edit {activeCategoryTab === "NPC" ? "NPC" : "Article"}
+                  Edit
                 </button>
                 <button
-                  onClick={() => triggerDelete(selectedArticle)}
-                  style={styles.deleteBtn}
+                  onClick={() => setShowReaderMenu((v) => !v)}
+                  style={styles.readerMenuBtn}
                   className="touch-target btn-hover-scale"
+                  aria-label="More actions"
+                  title="More actions"
                 >
-                  Delete
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <circle cx="8" cy="3" r="1.5" />
+                    <circle cx="8" cy="8" r="1.5" />
+                    <circle cx="8" cy="13" r="1.5" />
+                  </svg>
                 </button>
+                {showReaderMenu && (
+                  <>
+                    <div
+                      style={{ position: "fixed", inset: 0, zIndex: 99 }}
+                      onClick={() => setShowReaderMenu(false)}
+                    />
+                    <div className="wiki-reader-menu-dropdown">
+                      <button
+                        onClick={() => { triggerDelete(selectedArticle); setShowReaderMenu(false); }}
+                        className="danger"
+                      >
+                        🗑️ Delete
+                      </button>
+                      <span style={{ fontSize: "0.65rem", color: "var(--color-muted)", padding: "0.25rem 0.75rem" }}>
+                        Updated: {new Date(selectedArticle.updatedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
             {activeCategoryTab === "NPC" ? (
@@ -1671,14 +1699,14 @@ export default function WikiPanel({ user, isPopout = false }) {
                 <span style={styles.secretBadge}>DM Secret</span>
               )
             )}
-            <span style={styles.timeBadge}>
-              Updated: {new Date(selectedArticle.updatedAt).toLocaleDateString()}
+            <span style={styles.timeBadge} className="wiki-updated-badge">
+              {new Date(selectedArticle.updatedAt).toLocaleDateString()}
             </span>
           </div>
         </div>
 
         {/* Reader Body */}
-        <div style={styles.readerScroll}>
+        <div style={styles.readerScroll} className="wiki-reader-scroll">
           {(activeCategoryTab === "NPC" || activeCategoryTab === "MONSTER") ? (
             <>
               <NpcStatblock
@@ -1827,7 +1855,7 @@ export default function WikiPanel({ user, isPopout = false }) {
               id={`wiki-npc-${npc.id}`}
               onClick={() => setSelectedArticle(npc)}
               style={styles.articleCard}
-              className="glass-panel btn-hover-scale"
+              className="glass-panel btn-hover-scale wiki-article-card"
             >
               <div style={styles.cardHeader}>
                 <h3 style={styles.cardTitle}>{npc.name}</h3>
@@ -1904,7 +1932,7 @@ export default function WikiPanel({ user, isPopout = false }) {
               <h2 style={styles.editorTitle}>
                 {editId ? `Edit ${activeCategoryTab === "MONSTER" ? "Monster" : "NPC"}: ${editingNpc.name}` : `Create ${activeCategoryTab === "MONSTER" ? "Monster" : "NPC"} Statblock`}
               </h2>
-              <div style={styles.editorHeaderActions}>
+              <div style={styles.editorHeaderActions} className="wiki-editor-header-actions">
                 {!editId && (
                   <button
                     type="button"
@@ -2227,7 +2255,7 @@ export default function WikiPanel({ user, isPopout = false }) {
                               Remove
                             </button>
                           </div>
-                          <div style={styles.actionFieldsGrid}>
+                          <div style={styles.actionFieldsGrid} className="wiki-actions-fields-grid">
                             <div style={styles.formGroup}>
                               <label style={styles.label}>Action Name</label>
                               <input
@@ -2514,7 +2542,7 @@ export default function WikiPanel({ user, isPopout = false }) {
               <h2 style={styles.editorTitle}>
                 {editId ? "Edit Campaign Article" : "Write Campaign Article"}
               </h2>
-              <div style={styles.editorHeaderActions}>
+              <div style={styles.editorHeaderActions} className="wiki-editor-header-actions">
                 <button
                   type="button"
                   onClick={handleCancelEdit}
@@ -2697,7 +2725,7 @@ export default function WikiPanel({ user, isPopout = false }) {
           <div style={styles.splitContent}>
             {selectedArticle ? renderReaderContent() : (
               <div style={styles.listView}>
-                <div style={styles.wikiTopBar}>
+                <div style={styles.wikiTopBar} className="wiki-top-bar">
                   <button
                     onClick={() => setSidebarOpen(true)}
                     style={styles.menuBtn}
@@ -2749,7 +2777,7 @@ export default function WikiPanel({ user, isPopout = false }) {
         /*  PLAYER/POPOUT: SEARCH LIST VIEW  */
         <div style={styles.listView}>
           {/* Top Section Category Tabs */}
-          <div style={styles.sectionTabsContainer} className="glass-panel">
+          <div style={styles.sectionTabsContainer} className="glass-panel wiki-category-tabs">
             <button
               onClick={() => setActiveCategoryTab("LOCATION")}
               style={{
@@ -2894,7 +2922,7 @@ export default function WikiPanel({ user, isPopout = false }) {
             )}
           </div>
 
-          <div style={styles.searchBarContainer}>
+          <div style={styles.searchBarContainer} className="wiki-search-bar-container">
             <input
               id="wiki-search-input"
               type="text"
@@ -3714,6 +3742,18 @@ const styles = {
     cursor: "pointer",
     fontSize: "0.75rem",
     fontWeight: 600,
+    minHeight: "44px",
+  },
+  readerMenuBtn: {
+    background: "transparent",
+    border: "1px solid var(--color-border-light)",
+    borderRadius: "4px",
+    color: "var(--color-muted)",
+    cursor: "pointer",
+    padding: "0.35rem 0.5rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     minHeight: "44px",
   },
   secretBadge: {
