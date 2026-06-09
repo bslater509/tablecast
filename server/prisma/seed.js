@@ -24,44 +24,56 @@ async function main() {
   console.log(`  ✅ DM user:     ${dm.username} (id=${dm.id})`);
 
   // ── Standalone Hero (no user account) ─────────────────────────────────────
-  const existingChar = await prisma.character.findFirst({
+  let character = await prisma.character.findFirst({
     where: { name: "Thorin Ironforge" },
   });
 
-  const character = existingChar
-    ? existingChar
-    : await prisma.character.create({
-        data: {
-          name: "Thorin Ironforge",
-          race: "Mountain Dwarf",
-          class: "Fighter",
-          level: 5,
-          hp: 52,
-          maxHp: 52,
-          strength: 18,
-          dexterity: 12,
-          constitution: 16,
-          intelligence: 10,
-          wisdom: 13,
-          charisma: 8,
-          inventory: JSON.stringify([
-            { name: "Battleaxe", quantity: 1, weight: 4 },
-            { name: "Shield", quantity: 1, weight: 6 },
-            { name: "Chain Mail", quantity: 1, weight: 55 },
-            { name: "Healing Potion", quantity: 3, weight: 0.5 },
-            { name: "Rope (50 ft)", quantity: 1, weight: 10 },
-          ]),
-          modifiers: JSON.stringify({
-            strength: 4,
-            dexterity: 1,
-            constitution: 3,
-            intelligence: 0,
-            wisdom: 1,
-            charisma: -1,
-          }),
-        },
+  if (character) {
+    // If the existing hero is still linked to a user (migration from old schema),
+    // unlink it so it becomes a standalone hero visible on the login screen.
+    if (character.userId !== null) {
+      await prisma.character.update({
+        where: { id: character.id },
+        data: { userId: null },
       });
-  console.log(`  ✅ Hero:        ${character.name} (id=${character.id})`);
+      console.log(`  ✅ Hero:        ${character.name} unlinked from user (id=${character.id})`);
+    } else {
+      console.log(`  ✅ Hero:        ${character.name} already standalone (id=${character.id})`);
+    }
+  } else {
+    character = await prisma.character.create({
+      data: {
+        name: "Thorin Ironforge",
+        race: "Mountain Dwarf",
+        class: "Fighter",
+        level: 5,
+        hp: 52,
+        maxHp: 52,
+        strength: 18,
+        dexterity: 12,
+        constitution: 16,
+        intelligence: 10,
+        wisdom: 13,
+        charisma: 8,
+        inventory: JSON.stringify([
+          { name: "Battleaxe", quantity: 1, weight: 4 },
+          { name: "Shield", quantity: 1, weight: 6 },
+          { name: "Chain Mail", quantity: 1, weight: 55 },
+          { name: "Healing Potion", quantity: 3, weight: 0.5 },
+          { name: "Rope (50 ft)", quantity: 1, weight: 10 },
+        ]),
+        modifiers: JSON.stringify({
+          strength: 4,
+          dexterity: 1,
+          constitution: 3,
+          intelligence: 0,
+          wisdom: 1,
+          charisma: -1,
+        }),
+      },
+    });
+    console.log(`  ✅ Hero:        ${character.name} (id=${character.id})`);
+  }
 
   // ── DM Character (NPC template) ──────────────────────────────────────────
   const existingNpc = await prisma.character.findFirst({
