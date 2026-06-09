@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "node patch-dice-box.js && node generate-dice-textures.js && vite",
-    "build": "node patch-dice-box.js && node generate-dice-textures.js && vite build",
+    "build": "node patch-dice-box.js && node generate-dice-textures.js && node generate-pwa-icons.js && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
+    "vite-plugin-pwa": "^0.21.1",
     "@vitejs/plugin-react": "^4.3.1",
     "vite": "^5.3.1"
   }

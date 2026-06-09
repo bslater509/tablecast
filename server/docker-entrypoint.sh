@@ -6,7 +6,42 @@ set -e
 # fail with "attempt to write a readonly database" when the DB file is
 # owned by root but the app runs as tablecast (read_only: true container).
 # Note: requires CAP_CHOWN (added via cap_add in docker-compose).
-chown -R tablecast:tablecast /app/server/prisma/data /app/server/uploads /app/server/backups || true
+chown -R tablecast:tablecast /app/server/prisma/data /app/server/uploads /app/server/backups /tmp || true
+
+# Generate self-signed SSL certificate for PWA HTTPS support
+# The cert is stored in /tmp (writable in read_only: true container) and
+# persists across container restarts but not rebuilds (tmpfs is ephemeral).
+if [ ! -f /tmp/server.crt ] || [ ! -f /tmp/server.key ]; then
+  echo "[Entrypoint] Generating self-signed SSL certificate for PWA HTTPS..."
+  # Write OpenSSL config with SAN for localhost — covers both DM machine and LAN
+  cat > /tmp/openssl-pwa.cnf << 'EOF'
+[req]
+distinguished_name = req_dn
+x509_extensions = v3_ext
+prompt = no
+
+[req_dn]
+CN = Tablecast
+O  = Tablecast
+C  = US
+
+[v3_ext]
+subjectAltName = DNS:localhost,IP:127.0.0.1
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+EOF
+
+  openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+    -keyout /tmp/server.key -out /tmp/server.crt \
+    -config /tmp/openssl-pwa.cnf 2>/dev/null
+
+  rm -f /tmp/openssl-pwa.cnf
+  chown tablecast:tablecast /tmp/server.key /tmp/server.crt || true
+  echo "[Entrypoint] SSL certificate generated: /tmp/server.crt"
+else
+  echo "[Entrypoint] SSL certificate already exists, reusing"
+fi
 
 # Validate critical env vars
 if [ -z "$DATABASE_URL" ]; then

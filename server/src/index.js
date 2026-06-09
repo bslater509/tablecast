@@ -6,6 +6,8 @@
 
 require("dotenv").config();
 const http = require("http");
+const https = require("https");
+const fs = require("fs");
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
@@ -133,6 +135,38 @@ registerSocketHandlers(io);
 app.set("io", io);
 
 // ---------------------------------------------------------------------------
+// HTTPS server (optional) — provides a secure context for PWA Service Workers
+// Uses a self-signed cert generated at container startup (docker-entrypoint.sh)
+// ---------------------------------------------------------------------------
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || "/tmp/server.key";
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || "/tmp/server.crt";
+const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
+
+if (fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH)) {
+  try {
+    const httpsOptions = {
+      key: fs.readFileSync(SSL_KEY_PATH),
+      cert: fs.readFileSync(SSL_CERT_PATH),
+    };
+    const httpsServer = https.createServer(httpsOptions, app);
+    // Attach Socket.io to the HTTPS server too so WebSocket works over TLS
+    io.attach(httpsServer);
+    httpsServer.listen(HTTPS_PORT, HOST, () => {
+      logger.info("server", "HTTPS server started (PWA support)", {
+        port: HTTPS_PORT,
+        host: HOST,
+      });
+    });
+  } catch (err) {
+    logger.warn("server", "Failed to start HTTPS server", {
+      error: err.message,
+    });
+  }
+} else {
+  logger.info("server", "SSL cert not found — HTTPS server disabled (PWA will only work on localhost)");
+}
+
+// ---------------------------------------------------------------------------
 // API routes
 // ---------------------------------------------------------------------------
 
@@ -197,7 +231,6 @@ app.use("/api/debug", debugRouter);
 // ---------------------------------------------------------------------------
 // Serve map and token image uploads
 // ---------------------------------------------------------------------------
-const fs = require("fs");
 const uploadsPath = path.join(__dirname, "../uploads");
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
@@ -322,13 +355,16 @@ server.listen(PORT, HOST, () => {
   console.log(`[Tablecast]  Health check:    http://${HOST}:${PORT}/api/health`);
   console.log(`[Tablecast]  Socket.io ready  awaiting connections`);
 
+  const hasHttps = fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH);
   logger.info("server", "Server started", {
     port: PORT,
     host: HOST,
+    httpsPort: hasHttps ? HTTPS_PORT : undefined,
     env: process.env.NODE_ENV || "development",
     debug: process.env.DEBUG || "(none)",
     logLevel: process.env.LOG_LEVEL || "info",
     healthEndpoint: `http://${HOST}:${PORT}/api/health`,
+    pwaEndpoint: hasHttps ? `https://${HOST}:${HTTPS_PORT}` : "(HTTPS disabled — PWA works on localhost only)",
   });
 
   // Initialize rclone config file from DB

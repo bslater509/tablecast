@@ -30,6 +30,8 @@ services:
     ports:
       # Bind to 0.0.0.0 so LAN devices (phones) can connect — required per AGENTS.md
       - "0.0.0.0:3001:3001"
+      # HTTPS port for PWA (Progressive Web App) support — self-signed cert generated at startup
+      - "0.0.0.0:3443:3443"
 
     environment:
       - NODE_ENV=production
