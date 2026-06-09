@@ -4,22 +4,12 @@
 // badge, timestamps, copy button, character context indicator.
 // =============================================================================
 import { useState, useEffect, useRef, useCallback } from "react";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
 import { Copy, Check, Trash2, Plus, RotateCcw, X, Sparkles, User } from "lucide-react";
 import { useAiChat } from "../hooks/useAiChat";
-
-marked.setOptions({ gfm: true, breaks: true });
-
-function compileMarkdown(text) {
-  if (!text) return "";
-  try {
-    return DOMPurify.sanitize(marked.parse(text));
-  } catch (e) {
-    console.error("[AiPanel] Markdown parsing failed:", e);
-    return DOMPurify.sanitize(text);
-  }
-}
+import { useAi } from "../context/AiContext";
+import { useConversations } from "../hooks/useConversations";
+import { compileMarkdown } from "../utils/markdown";
+import AiStreamingIndicator from "./AiStreamingIndicator";
 
 // ---------------------------------------------------------------------------
 // Copy Button Component
@@ -91,20 +81,18 @@ function formatTime(ts) {
 export default function AiPanel({ user }) {
   const [activeTab, setActiveTab] = useState("rules"); // "rules" or "npc"
 
-  // NPC list state
-  const [npcs, setNpcs] = useState([]);
-  const [selectedNpcId, setSelectedNpcId] = useState("");
+  // ---- Shared AI Context (settings, NPCs, characters) ----
+  const {
+    aiSettings,
+    npcs, selectedNpcId, selectNpc,
+    characters, selectedCharId, selectChar,
+  } = useAi();
 
-  // AI settings (for model badge)
-  const [aiSettings, setAiSettings] = useState(null);
-
-  // Conversations list
-  const [conversations, setConversations] = useState([]);
-  const [loadingConvs, setLoadingConvs] = useState(false);
-
-  // Character context
-  const [characters, setCharacters] = useState([]);
-  const [selectedCharId, setSelectedCharId] = useState("");
+  // ---- Conversations hook ----
+  const {
+    conversations, loadingConvs,
+    loadConversationList, createConversation, deleteConversation, loadConversation,
+  } = useConversations({ user });
 
   // Refs
   const scrollRef = useRef(null);
@@ -153,84 +141,7 @@ export default function AiPanel({ user }) {
 
   // --------------- Data Fetching ---------------
 
-  // Fetch NPCs
-  useEffect(() => {
-    let cancelled = false;
-    async function loadNpcs() {
-      try {
-        const res = await fetch("/api/npcs");
-        if (cancelled) return;
-        if (res.ok) {
-          const data = await res.json();
-          if (cancelled) return;
-          setNpcs(data);
-          if (data.length > 0 && !selectedNpcId) {
-            setSelectedNpcId(data[0].id.toString());
-          }
-        }
-      } catch (err) {
-        if (!cancelled) console.error("[AiPanel] Failed to load NPCs:", err);
-      }
-    }
-    loadNpcs();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Fetch AI settings for model badge
-  useEffect(() => {
-    let cancelled = false;
-    async function loadSettings() {
-      try {
-        const res = await fetch("/api/ai/settings");
-        if (cancelled) return;
-        if (res.ok) {
-          setAiSettings(await res.json());
-        }
-      } catch (err) {
-        if (!cancelled) console.error("[AiPanel] Failed to load AI settings:", err);
-      }
-    }
-    loadSettings();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Fetch user characters for context
-  useEffect(() => {
-    if (!user?.id) return;
-    let cancelled = false;
-    fetch(`/api/characters?userId=${user.id}`, {
-        headers: { "x-tablecast-user-id": String(user?.id || "") },
-      })
-      .then((r) => r.ok ? r.json() : [])
-      .then((chars) => {
-        if (cancelled) return;
-        setCharacters(chars || []);
-        if (chars?.length > 0 && !selectedCharId) {
-          setSelectedCharId(chars[0].id.toString());
-        }
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [user?.id]);
-
-  // Fetch conversations list
-  const loadConversationList = useCallback(async () => {
-    setLoadingConvs(true);
-    try {
-      const res = await fetch("/api/ai/conversations", {
-        headers: { "x-tablecast-user-id": user?.id || "" },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setConversations(data);
-      }
-    } catch (err) {
-      console.error("[AiPanel] Failed to load conversations:", err);
-    } finally {
-      setLoadingConvs(false);
-    }
-  }, [user?.id]);
-
+  // Load conversations on mount
   useEffect(() => {
     if (user?.id) {
       loadConversationList();
@@ -279,79 +190,46 @@ export default function AiPanel({ user }) {
   // --------------- Conversation Management ---------------
 
   const createNewConversation = useCallback(async (type) => {
-    try {
-      const res = await fetch("/api/ai/conversations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tablecast-user-id": user?.id || "",
-        },
-        body: JSON.stringify({
-          type,
-          npcId: type === "npc" ? (selectedNpcId ? Number(selectedNpcId) : null) : null,
-        }),
-      });
-      if (res.ok) {
-        const conv = await res.json();
-        if (type === "rules") {
-          rulesChat.clearMessages("Hail! I am your D&D Rules Scholar. Ask me any question about spells, combat, actions, items, or general D&D rules, and I will search the library to help you.");
-          rulesChat.setConversationId(conv.id);
-          setCurrentRulesConvId(conv.id);
-        } else {
-          const npc = npcs.find((n) => n.id.toString() === selectedNpcId);
-          npcChat.clearMessages(npc ? `You are now talking to ${npc.name}. Ask your questions, adventurer.` : "Select an NPC to start roleplaying.");
-          npcChat.setConversationId(conv.id);
-          setCurrentNpcConvId(conv.id);
-        }
-        loadConversationList();
+    const npcId = type === "npc" ? (selectedNpcId ? Number(selectedNpcId) : null) : null;
+    const conv = await createConversation(type, npcId);
+    if (conv) {
+      if (type === "rules") {
+        rulesChat.clearMessages("Hail! I am your D&D Rules Scholar. Ask me any question about spells, combat, actions, items, or general D&D rules, and I will search the library to help you.");
+        rulesChat.setConversationId(conv.id);
+        setCurrentRulesConvId(conv.id);
+      } else {
+        const npc = npcs.find((n) => n.id.toString() === selectedNpcId);
+        npcChat.clearMessages(npc ? `You are now talking to ${npc.name}. Ask your questions, adventurer.` : "Select an NPC to start roleplaying.");
+        npcChat.setConversationId(conv.id);
+        setCurrentNpcConvId(conv.id);
       }
-    } catch (err) {
-      console.error("[AiPanel] Failed to create conversation:", err);
     }
-  }, [user, selectedNpcId, npcs, rulesChat, npcChat, loadConversationList]);
+  }, [user, selectedNpcId, npcs, rulesChat, npcChat, createConversation]);
 
-  const deleteConversation = useCallback(async (convId, type) => {
-    try {
-      const res = await fetch(`/api/ai/conversations/${convId}`, {
-        method: "DELETE",
-        headers: { "x-tablecast-user-id": user?.id || "" },
-      });
-      if (res.ok) {
-        loadConversationList();
-        if (type === "rules" && currentRulesConvId === convId) {
-          rulesChat.clearMessages("Hail! I am your D&D Rules Scholar. Ask me any question about spells, combat, actions, items, or general D&D rules, and I will search the library to help you.");
-          setCurrentRulesConvId(null);
-        } else if (type === "npc" && currentNpcConvId === convId) {
-          const npc = npcs.find((n) => n.id.toString() === selectedNpcId);
-          npcChat.clearMessages(npc ? `You are now talking to ${npc.name}.` : "Select an NPC to start roleplaying.");
-          setCurrentNpcConvId(null);
-        }
-      }
-    } catch (err) {
-      console.error("[AiPanel] Failed to delete conversation:", err);
+  const handleDeleteConv = useCallback(async (convId, type) => {
+    await deleteConversation(convId);
+    if (type === "rules" && currentRulesConvId === convId) {
+      rulesChat.clearMessages("Hail! I am your D&D Rules Scholar. Ask me any question about spells, combat, actions, items, or general D&D rules, and I will search the library to help you.");
+      setCurrentRulesConvId(null);
+    } else if (type === "npc" && currentNpcConvId === convId) {
+      const npc = npcs.find((n) => n.id.toString() === selectedNpcId);
+      npcChat.clearMessages(npc ? `You are now talking to ${npc.name}.` : "Select an NPC to start roleplaying.");
+      setCurrentNpcConvId(null);
     }
-  }, [user, npcs, selectedNpcId, rulesChat, npcChat, currentRulesConvId, currentNpcConvId, loadConversationList]);
+  }, [npcs, selectedNpcId, rulesChat, npcChat, currentRulesConvId, currentNpcConvId, deleteConversation]);
 
-  const loadConversation = useCallback(async (conv) => {
-    try {
-      const res = await fetch(`/api/ai/conversations/${conv.id}`, {
-        headers: { "x-tablecast-user-id": user?.id || "" },
-      });
-      if (res.ok) {
-        const full = await res.json();
-        if (conv.type === "rules") {
-          rulesChat.loadConversation(full);
-          setCurrentRulesConvId(full.id);
-        } else {
-          npcChat.loadConversation(full);
-          setCurrentNpcConvId(full.id);
-          if (full.npcId) setSelectedNpcId(full.npcId.toString());
-        }
-      }
-    } catch (err) {
-      console.error("[AiPanel] Failed to load conversation:", err);
+  const handleLoadConversation = useCallback(async (conv) => {
+    const full = await loadConversation(conv.id);
+    if (!full) return;
+    if (conv.type === "rules") {
+      rulesChat.loadConversation(full);
+      setCurrentRulesConvId(full.id);
+    } else {
+      npcChat.loadConversation(full);
+      setCurrentNpcConvId(full.id);
+      if (full.npcId) selectNpc(full.npcId.toString());
     }
-  }, [user, rulesChat, npcChat]);
+  }, [rulesChat, npcChat, loadConversation, selectNpc]);
 
   const currentConvId = activeTab === "rules" ? currentRulesConvId : currentNpcConvId;
 
@@ -471,7 +349,7 @@ export default function AiPanel({ user }) {
                   const val = e.target.value;
                   if (!val) return;
                   const conv = conversations.find((c) => c.id.toString() === val);
-                  if (conv) loadConversation(conv);
+                  if (conv) handleLoadConversation(conv);
                 }}
                 style={styles.convSelect}
               >
@@ -484,7 +362,7 @@ export default function AiPanel({ user }) {
               </select>
               {currentConvId && (
                 <button
-                  onClick={() => deleteConversation(currentConvId, "rules")}
+                  onClick={() => handleDeleteConv(currentConvId, "rules")}
                   style={styles.deleteConvBtn}
                   className="btn-hover-scale"
                   title="Delete this conversation"
@@ -513,12 +391,7 @@ export default function AiPanel({ user }) {
             {isStreaming && activeMessages[activeMessages.length - 1]?.role !== "assistant" && (
               <div style={{ ...styles.bubble, alignSelf: "flex-start" }}>
                 <div style={styles.bubbleHeader}>Rules Scholar</div>
-                <div style={styles.loadingPlaceholder}>
-                  Searching archives
-                  <span className="dotAnim">.</span>
-                  <span className="dotAnim" style={{ animationDelay: "0.2s" }}>.</span>
-                  <span className="dotAnim" style={{ animationDelay: "0.4s" }}>.</span>
-                </div>
+                <AiStreamingIndicator text="Searching archives" />
               </div>
             )}
           </div>
@@ -596,7 +469,7 @@ export default function AiPanel({ user }) {
               <select
                 value={selectedNpcId}
                 onChange={(e) => {
-                  setSelectedNpcId(e.target.value);
+                  selectNpc(e.target.value);
                   const selected = npcs.find((n) => n.id.toString() === e.target.value);
                   if (selected) {
                     npcChat.clearMessages(`You are now talking to ${selected.name}. Ask your questions, adventurer.`);
@@ -625,7 +498,7 @@ export default function AiPanel({ user }) {
               </button>
               {currentNpcConvId && (
                 <button
-                  onClick={() => deleteConversation(currentNpcConvId, "npc")}
+                  onClick={() => handleDeleteConv(currentNpcConvId, "npc")}
                   style={{ ...styles.iconBtn, color: "var(--color-danger)" }}
                   className="btn-hover-scale"
                   title="Delete conversation"
@@ -681,12 +554,7 @@ export default function AiPanel({ user }) {
                 <div style={styles.bubbleHeader}>
                   {npcs.find((n) => n.id.toString() === selectedNpcId)?.name || "NPC"}
                 </div>
-                <div style={styles.loadingPlaceholder}>
-                  NPC is thinking
-                  <span className="dotAnim">.</span>
-                  <span className="dotAnim" style={{ animationDelay: "0.2s" }}>.</span>
-                  <span className="dotAnim" style={{ animationDelay: "0.4s" }}>.</span>
-                </div>
+                <AiStreamingIndicator text="NPC is thinking" />
               </div>
             )}
           </div>

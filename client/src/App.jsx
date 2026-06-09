@@ -37,6 +37,7 @@ import SessionsPanel from "./components/SessionsPanel";
 import EncountersPanel from "./components/EncountersPanel";
 import { useSocket } from "./context/SocketContext";
 import { useToast } from "./context/ToastContext";
+import { AiProvider } from "./context/AiContext";
 
 const SELECTED_USER_STORAGE_KEY = "tablecast.selectedUserId";
 
@@ -383,6 +384,7 @@ function App() {
 
 
   return (
+    <AiProvider user={user}>
     <ErrorBoundary critical={true}>
     <div 
       style={styles.appContainer} 
@@ -443,6 +445,7 @@ function App() {
       )}
     </div>
     </ErrorBoundary>
+    </AiProvider>
   );
 }
 

@@ -7,21 +7,9 @@ import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Send, User, Sparkles } from "lucide-react";
 import { useAiChat } from "../hooks/useAiChat";
 import { useSocket } from "../context/SocketContext";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
 import { Copy, Check } from "lucide-react";
-
-marked.setOptions({ gfm: true, breaks: true });
-
-function compileMarkdown(text) {
-  if (!text) return "";
-  try {
-    return DOMPurify.sanitize(marked.parse(text));
-  } catch (e) {
-    console.error("[AiChatView] Markdown failed:", e);
-    return DOMPurify.sanitize(text);
-  }
-}
+import { compileMarkdown } from "../utils/markdown";
+import AiStreamingIndicator from "./AiStreamingIndicator";
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
@@ -246,10 +234,8 @@ export default function AiChatView({
 
         {/* Loading / streaming indicator */}
         {chat.streaming && !chat.messages[chat.messages.length - 1]?.text && (
-          <div style={{ display: "flex", gap: "0.3rem", padding: "0.5rem 0.75rem", alignSelf: "flex-start", background: "rgba(255,255,255,0.06)", borderRadius: "1rem" }}>
-            <span className="typing-dot" />
-            <span className="typing-dot" style={{ animationDelay: "0.2s" }} />
-            <span className="typing-dot" style={{ animationDelay: "0.4s" }} />
+          <div style={{ display: "flex", padding: "0.5rem 0.75rem", alignSelf: "flex-start", background: "rgba(255,255,255,0.06)", borderRadius: "1rem" }}>
+            <AiStreamingIndicator text="Thinking" />
           </div>
         )}
 

@@ -43,6 +43,9 @@ export function useAiChat({
   const mountedRef = useRef(true);
   // Ref to the current AbortController
   const controllerRef = useRef(null);
+  // Ref to keep messages in sync for multi-turn context (used in send callback)
+  const messagesRef = useRef(messages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   // Cleanup on unmount — abort in-flight request and prevent state updates
   useEffect(() => {
@@ -104,10 +107,15 @@ export function useAiChat({
       cancelRef.current = () => controller.abort();
 
       try {
+        // Build multi-turn context from current messages (excluding the system message)
+        const history = messagesRef.current
+          .filter((m) => m.role !== "system")
+          .map((m) => ({ role: m.role, text: m.text }));
+
         const result = await streamAiChat({
           userId: user?.id,
           message: query,
-          history: [], // we send fresh history via the server-side accumulation
+          history,
           npcId: overrides.npcId ?? npcId,
           characterId: overrides.characterId ?? characterId,
           conversationId: overrides.conversationId ?? conversationId,

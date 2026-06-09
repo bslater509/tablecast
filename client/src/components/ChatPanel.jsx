@@ -8,24 +8,12 @@ import { Sparkles, Copy, Check, Send, Plus, Smile, ChevronDown } from "lucide-re
 import { useSocket } from "../context/SocketContext";
 import { useDiceBox } from "../context/DiceBoxContext";
 import { ChatPanelSkeleton } from "./PanelSkeleton";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
-
-marked.setOptions({ gfm: true, breaks: true });
+import { compileMarkdown } from "../utils/markdown";
+import AiStreamingIndicator from "./AiStreamingIndicator";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function compileMarkdown(text) {
-  if (!text) return "";
-  try {
-    return DOMPurify.sanitize(marked.parse(text));
-  } catch (e) {
-    console.error("[ChatPanel] Markdown parsing failed:", e);
-    return DOMPurify.sanitize(text);
-  }
-}
 
 function groupMessages(messages, userId) {
   const groups = [];
@@ -493,11 +481,7 @@ function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, status, npcs }) 
           dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
         />
         {msg.text === "_Thinking…" && (
-          <div style={{ display: "flex", gap: "0.15rem", padding: "0.25rem 0", fontSize: "1.1rem", color: "var(--color-accent)" }}>
-            <span className="dotAnim">.</span>
-            <span className="dotAnim" style={{ animationDelay: "0.2s" }}>.</span>
-            <span className="dotAnim" style={{ animationDelay: "0.4s" }}>.</span>
-          </div>
+          <AiStreamingIndicator text="Thinking" />
         )}
         <div className="bubble-tail" />
       </div>
