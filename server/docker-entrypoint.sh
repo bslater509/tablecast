@@ -5,7 +5,8 @@ set -e
 # the build-time chown set them to tablecast. Without this, Prisma migrations
 # fail with "attempt to write a readonly database" when the DB file is
 # owned by root but the app runs as tablecast (read_only: true container).
-chown -R tablecast:tablecast /app/server/prisma/data /app/server/uploads /app/server/backups /tmp
+# Note: requires CAP_CHOWN (added via cap_add in docker-compose).
+chown -R tablecast:tablecast /app/server/prisma/data /app/server/uploads /app/server/backups 2>/dev/null || true
 
 # Validate critical env vars
 if [ -z "$DATABASE_URL" ]; then

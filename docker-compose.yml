@@ -10,6 +10,9 @@ services:
       - "no-new-privileges:true"
     cap_drop:
       - ALL
+    cap_add:
+      # Needed by docker-entrypoint.sh to chown volume directories to tablecast user
+      - CHOWN
     deploy:
       resources:
         limits:
