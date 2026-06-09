@@ -54,7 +54,9 @@ RUN chmod +x /app/server/docker-entrypoint.sh
 
 RUN chown -R tablecast:tablecast /app/server/backups /app/server/uploads /app/server/prisma/data /app/server/node_modules/.prisma /tmp
 
-USER tablecast
+# Entrypoint runs as root so it can fix volume permissions at startup (chown).
+# It then drops privileges to the tablecast user before running the app.
+USER root
 
 # Run Prisma migrations then start the server
 WORKDIR /app/server

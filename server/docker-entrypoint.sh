@@ -1,12 +1,18 @@
 #!/bin/sh
 set -e
 
+# Fix volume permissions at runtime — volumes are mounted as root even though
+# the build-time chown set them to tablecast. Without this, Prisma migrations
+# fail with "attempt to write a readonly database" when the DB file is
+# owned by root but the app runs as tablecast (read_only: true container).
+chown -R tablecast:tablecast /app/server/prisma/data /app/server/uploads /app/server/backups /tmp
+
 # Validate critical env vars
 if [ -z "$DATABASE_URL" ]; then
   echo "FATAL: DATABASE_URL environment variable is not set."
   exit 1
 fi
 
-npx prisma migrate deploy
-npx prisma db seed || true
-exec node src/index.js
+# The tablecast user has /sbin/nologin as shell (security), so we must
+# explicitly use /bin/sh via -s flag for su to execute commands.
+exec su -s /bin/sh tablecast -c "npx prisma migrate deploy && npx prisma db seed || true && exec node src/index.js"
