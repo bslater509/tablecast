@@ -71,10 +71,13 @@ function validateNumericField(value, label, range) {
   return null;
 }
 
+// Separate router for public heroes endpoint (mounted at /api/heroes)
+const heroesRouter = Router();
+
 // ---------------------------------------------------------------------------
 // GET /api/heroes  public listing for login screen (no auth required)
 // ---------------------------------------------------------------------------
-router.get("/heroes", async (_req, res) => {
+heroesRouter.get("/", async (_req, res) => {
   try {
     const characters = await prisma.character.findMany({
       where: { userId: null },
@@ -387,3 +390,4 @@ router.delete("/:id", async (req, res) => {
 });
 
 module.exports = router;
+module.exports.heroesRouter = heroesRouter;

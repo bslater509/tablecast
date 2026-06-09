@@ -215,6 +215,10 @@ const debugRouter = require("./routes/debug");
 
 app.use("/api/users", usersRouter);
 app.use("/api/characters", charactersRouter);
+
+// Heroes public listing (for login screen) — separate mount at /api/heroes
+const { heroesRouter } = require("./routes/characters");
+if (heroesRouter) app.use("/api/heroes", heroesRouter);
 app.use("/api/npcs", npcsRouter);
 app.use("/api/monsters", monstersRouter);
 app.use("/api/wiki", wikiRouter);
