@@ -2,8 +2,8 @@
 // Tablecast  DM Settings & Cloud Backups Panel (Phase 6)
 // Provides controls for zip compression & rclone Google Drive synchronization.
 // =============================================================================
-import { useState, useEffect, useRef } from "react";
-import { Bot, Cloud, KeyRound } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Bot, Cloud, Plus } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";
 
@@ -22,16 +22,21 @@ function SettingsPanel({ user }) {
   const [configMessage, setConfigMessage] = useState(null);
   const [configError, setConfigError] = useState(null);
 
-  // Google Drive OAuth wizard states
-  const [showOAuthWizard, setShowOAuthWizard] = useState(false);
-  const [oauthClientId, setOauthClientId] = useState("");
-  const [oauthClientSecret, setOauthClientSecret] = useState("");
-  const [oauthRemoteName, setOauthRemoteName] = useState("gdrive");
-  const [oauthRemotePath, setOauthRemotePath] = useState("tablecast-backups");
-  const [oauthLoading, setOauthLoading] = useState(false);
-  const [oauthMessage, setOauthMessage] = useState("");
-  const [oauthError, setOauthError] = useState("");
-  const oauthTimeoutRef = useRef(null);
+  // Universal rclone remote management states
+  const [showAddRemoteModal, setShowAddRemoteModal] = useState(false);
+  const [providers, setProviders] = useState([]);
+  const [loadingProviders, setLoadingProviders] = useState(false);
+  const [remoteStep, setRemoteStep] = useState(1);
+  const [selectedProvider, setSelectedProvider] = useState(null);
+  const [providerOptions, setProviderOptions] = useState({});
+  const [newRemoteName, setNewRemoteName] = useState("");
+  const [savingRemote, setSavingRemote] = useState(false);
+  const [remoteError, setRemoteError] = useState("");
+  const [remoteSuccess, setRemoteSuccess] = useState("");
+  const [showManageRemotes, setShowManageRemotes] = useState(false);
+  const [configuredRemotes, setConfiguredRemotes] = useState([]);
+  const [deletingRemote, setDeletingRemote] = useState(null);
+  const [providerSearch, setProviderSearch] = useState("");
   
   // Reference cache status states
   const [refStatus, setRefStatus] = useState(null);
@@ -94,6 +99,33 @@ function SettingsPanel({ user }) {
     }
   };
 
+  const fetchProviders = async () => {
+    setLoadingProviders(true);
+    try {
+      const res = await fetch("/api/backup/providers", { headers: authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        setProviders(data.providers || []);
+      }
+    } catch (err) {
+      console.error("Failed to load rclone providers:", err);
+    } finally {
+      setLoadingProviders(false);
+    }
+  };
+
+  const fetchConfiguredRemotes = async () => {
+    try {
+      const res = await fetch("/api/backup/remotes", { headers: authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        setConfiguredRemotes(data.remotes || []);
+      }
+    } catch (err) {
+      console.error("Failed to load configured remotes:", err);
+    }
+  };
+
   const fetchBackupStatus = async () => {
     if (!user?.id) return;
     try {
@@ -149,6 +181,7 @@ function SettingsPanel({ user }) {
 
   useEffect(() => {
     fetchBackupStatus();
+    fetchConfiguredRemotes();
   }, [user?.id, remoteName, remotePath]);
 
   // Poll backend sync logs if in-progress
@@ -164,77 +197,126 @@ function SettingsPanel({ user }) {
     };
   }, [syncingRef]);
 
-  // Google Drive OAuth callback message handler
-  useEffect(() => {
-    const handleOAuthMessage = (event) => {
-      if (event.data && event.data.type === "RCLONE_AUTH_SUCCESS") {
-        setOauthMessage("Authentication successful! Saving configuration and refreshing backup status...");
-        setOauthError("");
-        oauthTimeoutRef.current = setTimeout(() => {
-          setShowOAuthWizard(false);
-          setOauthMessage("");
-          fetchBackupConfig();
-          setRemoteName(oauthRemoteName);
-          setRemotePath(oauthRemotePath);
-          fetchBackupStatus();
-        }, 2500);
-      }
-    };
-    window.addEventListener("message", handleOAuthMessage);
-    return () => {
-      if (oauthTimeoutRef.current) clearTimeout(oauthTimeoutRef.current);
-      window.removeEventListener("message", handleOAuthMessage);
-    };
-  }, [oauthRemoteName, oauthRemotePath]);
+  const handleOpenAddRemote = () => {
+    setShowAddRemoteModal(true);
+    setRemoteStep(1);
+    setSelectedProvider(null);
+    setProviderOptions({});
+    setNewRemoteName("");
+    setRemoteError("");
+    setRemoteSuccess("");
+    setProviderSearch("");
+    fetchProviders();
+  };
 
-  const handleStartOAuth = async () => {
-    if (!oauthClientId.trim() || !oauthClientSecret.trim() || !oauthRemoteName.trim()) {
-      setOauthError("Please fill in all required fields (Client ID, Client Secret, and Remote Name).");
+  const handleSelectProvider = (provider) => {
+    setSelectedProvider(provider);
+    const defaults = {};
+    if (provider.Options) {
+      provider.Options.forEach(opt => {
+        if (opt.Default !== null && opt.Default !== undefined && opt.Default !== "") {
+          defaults[opt.Name] = opt.Default;
+        } else {
+          defaults[opt.Name] = "";
+        }
+      });
+    }
+    setProviderOptions(defaults);
+    setNewRemoteName("");
+    setRemoteError("");
+    setRemoteStep(2);
+  };
+
+  const handleProviderOptionChange = (name, value) => {
+    setProviderOptions(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveRemote = async () => {
+    if (!newRemoteName.trim()) {
+      setRemoteError("Please enter a remote name.");
       return;
     }
-
-    setOauthLoading(true);
-    setOauthError("");
-    setOauthMessage("Contacting server to start Google authorization flow...");
-
+    if (!selectedProvider) {
+      setRemoteError("No provider selected.");
+      return;
+    }
+    
+    setSavingRemote(true);
+    setRemoteError("");
+    setRemoteSuccess("");
+    
     try {
-      const redirectUri = `${window.location.origin}/api/backup/oauth-callback`;
-      const res = await fetch("/api/backup/oauth-init", {
+      const options = {};
+      Object.entries(providerOptions).forEach(([key, val]) => {
+        if (val !== "" && val !== null && val !== undefined) {
+          options[key] = val;
+        }
+      });
+      
+      const res = await fetch("/api/backup/remotes", {
         method: "POST",
         headers: jsonAuthHeaders,
         body: JSON.stringify({
-          client_id: oauthClientId.trim(),
-          client_secret: oauthClientSecret.trim(),
-          remote_name: oauthRemoteName.trim(),
-          remote_path: oauthRemotePath.trim(),
-          redirect_uri: redirectUri,
+          name: newRemoteName.trim(),
+          type: selectedProvider.Name,
+          options,
         }),
       });
-
+      
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to initialize Google Drive link flow.");
+        throw new Error(data.error || "Failed to configure remote.");
       }
-
-      setOauthMessage("Popup opened. Complete authorization in the Google accounts page.");
       
-      const width = 600;
-      const height = 700;
-      const left = window.screen.width / 2 - width / 2;
-      const top = window.screen.height / 2 - height / 2;
-      
-      window.open(
-        data.authUrl,
-        "tablecast_rclone_auth",
-        `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,status=yes`
-      );
+      setRemoteSuccess(`Remote "${newRemoteName.trim()}" (${selectedProvider.Description || selectedProvider.Name}) configured successfully!`);
+      setRemoteStep(3);
+      fetchBackupConfig();
+      fetchBackupStatus();
+      fetchConfiguredRemotes();
     } catch (err) {
-      setOauthError(err.message);
-      setOauthMessage("");
+      setRemoteError(err.message);
     } finally {
-      setOauthLoading(false);
+      setSavingRemote(false);
     }
   };
+
+  const handleDeleteRemote = async (name) => {
+    if (!window.confirm(`Delete remote "${name}"? This cannot be undone.`)) return;
+    setDeletingRemote(name);
+    try {
+      const res = await fetch(`/api/backup/remotes/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+        headers: authHeaders,
+      });
+      if (res.ok) {
+        fetchConfiguredRemotes();
+        fetchBackupStatus();
+        fetchBackupConfig();
+      } else {
+        const data = await res.json();
+        alert(`Failed to delete remote: ${data.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      alert(`Network error: ${err.message}`);
+    } finally {
+      setDeletingRemote(null);
+    }
+  };
+
+  const handleBackToProviders = () => {
+    setRemoteStep(1);
+    setSelectedProvider(null);
+    setProviderOptions({});
+    setNewRemoteName("");
+    setRemoteError("");
+    setRemoteSuccess("");
+  };
+
+  // Filtered provider list for search
+  const filteredProviders = providers.filter(p => {
+    const q = providerSearch.toLowerCase();
+    return p.Name.toLowerCase().includes(q) || (p.Description && p.Description.toLowerCase().includes(q));
+  });
 
   const handleSyncReferences = async () => {
     if (syncingRef) return;
@@ -537,151 +619,262 @@ function SettingsPanel({ user }) {
 
   return (
     <div style={styles.container} className="fade-in">
-      {showOAuthWizard && (
-        <div style={styles.modalOverlay} onClick={() => { if (!oauthLoading) setShowOAuthWizard(false); }}>
+      {showAddRemoteModal && (
+        <div style={styles.modalOverlay} onClick={() => { if (!savingRemote) setShowAddRemoteModal(false); }}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <header style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>Google Drive Cloud Backup Setup</h3>
+              <h3 style={styles.modalTitle}>
+                {remoteStep === 1 ? "Select Storage Provider" :
+                 remoteStep === 2 ? `Configure ${selectedProvider?.Description || selectedProvider?.Name || ""}` :
+                 "Remote Configured"}
+              </h3>
               <button
                 type="button"
-                onClick={() => setShowOAuthWizard(false)}
-                disabled={oauthLoading}
+                onClick={() => setShowAddRemoteModal(false)}
+                disabled={savingRemote}
                 style={styles.modalCloseBtn}
                 className="touch-target"
               >
                 &times;
               </button>
             </header>
-            
-            <div style={styles.tutorialContainer}>
-              <strong style={{ color: "var(--color-accent)", display: "block", marginBottom: "0.25rem" }}>
-                Step-by-step Setup Guide:
-              </strong>
-              <ol style={{ margin: "0", paddingLeft: "1.2rem", fontSize: "0.82rem", display: "flex", flexDirection: "column", gap: "0.45rem" }}>
-                <li>Go to the <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-accent)", textDecoration: "underline" }}>Google Cloud Console</a>.</li>
-                <li>Create a new Project (or select an existing one).</li>
-                <li>In the <strong>API Library</strong>, search for <strong>Google Drive API</strong> and click <strong>Enable</strong>.</li>
-                <li>Configure the <strong>OAuth Consent Screen</strong>: set type to <strong>External</strong>, input an App Name (e.g. <code>Tablecast</code>), and add your Google email address as a <strong>Test User</strong>.</li>
-                <li>Create credentials: click <strong>Create Credentials</strong> &rarr; <strong>OAuth client ID</strong>. Set type to <strong>Web application</strong>.</li>
-                <li>Add the following URL under <strong>Authorized redirect URIs</strong>:
-                  <div style={styles.copyGroup}>
+
+            {remoteStep === 1 && (
+              <>
+                <p style={{ fontSize: "0.85rem", color: "var(--color-muted)", margin: 0 }}>
+                  Select a cloud storage provider. You'll configure the connection details in the next step.
+                </p>
+
+                <div style={styles.inputGroup}>
+                  <input
+                    type="text"
+                    placeholder="Search providers..."
+                    value={providerSearch}
+                    onChange={(e) => setProviderSearch(e.target.value)}
+                    style={styles.input}
+                    className="form-input"
+                  />
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", maxHeight: "300px", overflowY: "auto" }}>
+                  {loadingProviders ? (
+                    <div style={{ textAlign: "center", color: "var(--color-muted)", padding: "2rem" }}>
+                      Loading providers...
+                    </div>
+                  ) : filteredProviders.length === 0 ? (
+                    <div style={{ textAlign: "center", color: "var(--color-muted)", padding: "2rem" }}>
+                      {providerSearch ? "No providers match your search." : "No providers available."}
+                    </div>
+                  ) : (
+                    filteredProviders.map((provider) => (
+                      <button
+                        key={provider.Name}
+                        type="button"
+                        onClick={() => handleSelectProvider(provider)}
+                        style={{
+                          textAlign: "left",
+                          padding: "0.75rem",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          borderRadius: "6px",
+                          background: "rgba(255,255,255,0.03)",
+                          color: "var(--color-text)",
+                          cursor: "pointer",
+                          fontSize: "0.85rem",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.2rem",
+                          minHeight: "44px",
+                        }}
+                        className="touch-target btn-hover-scale"
+                      >
+                        <span style={{ fontWeight: "bold", color: "var(--color-accent)" }}>
+                          {provider.Description || provider.Name}
+                        </span>
+                        <span style={{ fontSize: "0.75rem", color: "var(--color-muted)", fontFamily: "monospace" }}>
+                          {provider.Name}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+
+            {remoteStep === 2 && selectedProvider && (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <button
+                    type="button"
+                    onClick={handleBackToProviders}
+                    disabled={savingRemote}
+                    style={{ background: "transparent", border: "none", color: "var(--color-accent)", cursor: "pointer", fontSize: "0.85rem", padding: "0.25rem" }}
+                    className="touch-target"
+                  >
+                    &larr; Back
+                  </button>
+                  <span style={{ fontSize: "0.8rem", color: "var(--color-muted)" }}>
+                    Provider: <strong style={{ color: "var(--color-text)" }}>{selectedProvider.Description || selectedProvider.Name}</strong>
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxHeight: "400px", overflowY: "auto" }}>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Remote Name *</label>
                     <input
                       type="text"
-                      readOnly
-                      value={`${window.location.origin}/api/backup/oauth-callback`}
-                      style={styles.copyInput}
+                      placeholder="e.g. mydrive, backups, nas"
+                      value={newRemoteName}
+                      onChange={(e) => setNewRemoteName(e.target.value)}
+                      style={styles.input}
+                      className="form-input"
+                      disabled={savingRemote}
                     />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/api/backup/oauth-callback`);
-                        addToast("Redirect URI copied to clipboard!", "info");
-                      }}
-                      style={styles.copyBtn}
-                      className="touch-target"
-                    >
-                      Copy
-                    </button>
+                    <small style={styles.helpText}>
+                      A short name to identify this remote (letters, numbers, underscores only).
+                    </small>
                   </div>
-                </li>
-                <li>Copy the generated <strong>Client ID</strong> and <strong>Client Secret</strong>, and enter them below.</li>
-              </ol>
-            </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Google OAuth Client ID *</label>
-                <input
-                  type="text"
-                  placeholder="Paste your Google OAuth Client ID"
-                  value={oauthClientId}
-                  onChange={(e) => setOauthClientId(e.target.value)}
-                  style={styles.input}
-                  className="form-input"
-                  disabled={oauthLoading}
-                />
-              </div>
-
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Google OAuth Client Secret *</label>
-                <input
-                  type="password"
-                  placeholder="Paste your Google OAuth Client Secret"
-                  value={oauthClientSecret}
-                  onChange={(e) => setOauthClientSecret(e.target.value)}
-                  style={styles.input}
-                  className="form-input"
-                  disabled={oauthLoading}
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: "0.75rem" }}>
-                <div style={{ ...styles.inputGroup, flex: 1 }}>
-                  <label style={styles.label}>Remote Profile Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. gdrive"
-                    value={oauthRemoteName}
-                    onChange={(e) => setOauthRemoteName(e.target.value)}
-                    style={styles.input}
-                    className="form-input"
-                    disabled={oauthLoading}
-                  />
+                  {selectedProvider.Options && selectedProvider.Options
+                    .filter(opt => !opt.Advanced)
+                    .map((opt) => (
+                      <div key={opt.Name} style={styles.inputGroup}>
+                        <label style={styles.label}>
+                          {opt.Name.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                          {opt.Required ? " *" : ""}
+                          {opt.IsPassword ? " (Password/Secret)" : ""}
+                        </label>
+                        {opt.IsPassword ? (
+                          <input
+                            type="password"
+                            placeholder={opt.Help ? opt.Help.substring(0, 80) : `Enter ${opt.Name}`}
+                            value={providerOptions[opt.Name] || ""}
+                            onChange={(e) => handleProviderOptionChange(opt.Name, e.target.value)}
+                            style={styles.input}
+                            className="form-input"
+                            disabled={savingRemote}
+                          />
+                        ) : opt.Type === "bool" || opt.Type === "boolean" ? (
+                          <select
+                            value={providerOptions[opt.Name] || "false"}
+                            onChange={(e) => handleProviderOptionChange(opt.Name, e.target.value)}
+                            style={{ ...styles.input, background: "var(--color-bg)", color: "var(--color-text)", border: "1px solid var(--color-border)" }}
+                            disabled={savingRemote}
+                          >
+                            <option value="false">False</option>
+                            <option value="true">True</option>
+                          </select>
+                        ) : opt.Examples && opt.Examples.length > 0 ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                            <select
+                              value={providerOptions[opt.Name] || ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === "__custom__") {
+                                  handleProviderOptionChange(opt.Name, "");
+                                } else {
+                                  handleProviderOptionChange(opt.Name, val);
+                                }
+                              }}
+                              style={{ ...styles.input, background: "var(--color-bg)", color: "var(--color-text)", border: "1px solid var(--color-border)" }}
+                              disabled={savingRemote}
+                            >
+                              <option value="">-- Select value --</option>
+                              {opt.Examples.map((ex, i) => (
+                                <option key={i} value={ex.Value !== undefined ? ex.Value : ex.Help}>
+                                  {ex.Help}
+                                </option>
+                              ))}
+                              <option value="__custom__">Custom value...</option>
+                            </select>
+                            {providerOptions[opt.Name] === "" && (
+                              <input
+                                type="text"
+                                placeholder="Enter custom value"
+                                value={providerOptions[opt.Name] || ""}
+                                onChange={(e) => handleProviderOptionChange(opt.Name, e.target.value)}
+                                style={styles.input}
+                                className="form-input"
+                                disabled={savingRemote}
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder={opt.Help ? opt.Help.substring(0, 80) : `Enter ${opt.Name}`}
+                            value={providerOptions[opt.Name] || ""}
+                            onChange={(e) => handleProviderOptionChange(opt.Name, e.target.value)}
+                            style={styles.input}
+                            className="form-input"
+                            disabled={savingRemote}
+                          />
+                        )}
+                        <small style={styles.helpText}>
+                          {opt.Help ? opt.Help.substring(0, 200) : ""}
+                          {opt.Default !== null && opt.Default !== undefined && opt.Default !== "" ? ` (Default: ${opt.Default})` : ""}
+                        </small>
+                      </div>
+                    ))}
                 </div>
 
-                <div style={{ ...styles.inputGroup, flex: 2 }}>
-                  <label style={styles.label}>Backup Folder Path</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. tablecast-backups"
-                    value={oauthRemotePath}
-                    onChange={(e) => setOauthRemotePath(e.target.value)}
-                    style={styles.input}
-                    className="form-input"
-                    disabled={oauthLoading}
-                  />
+                {remoteError && (
+                  <div style={{ ...styles.statusBanner, backgroundColor: "rgba(235, 87, 87, 0.15)", borderColor: "var(--color-danger)", color: "var(--color-danger)", fontSize: "0.85rem", padding: "0.5rem" }}>
+                    {remoteError}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "0.75rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddRemoteModal(false)}
+                    disabled={savingRemote}
+                    style={{ ...styles.secondaryBtn, width: "auto", padding: "0.6rem 1.25rem" }}
+                    className="touch-target"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveRemote}
+                    disabled={savingRemote || !newRemoteName.trim()}
+                    style={{
+                      ...styles.backupBtn,
+                      width: "auto",
+                      padding: "0.6rem 1.5rem",
+                      background: savingRemote ? "var(--color-accent-dim)" : "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
+                      color: savingRemote ? "var(--color-muted)" : "var(--color-bg)"
+                    }}
+                    className="touch-target btn-hover-scale"
+                  >
+                    {savingRemote ? "Configuring..." : "Save Remote"}
+                  </button>
                 </div>
-              </div>
-            </div>
-
-            {oauthError && (
-              <div style={{ ...styles.statusBanner, backgroundColor: "rgba(235, 87, 87, 0.15)", borderColor: "var(--color-danger)", color: "var(--color-danger)", fontSize: "0.85rem", padding: "0.5rem" }}>
-                {oauthError}
-              </div>
+              </>
             )}
 
-            {oauthMessage && (
-              <div style={{ ...styles.statusBanner, backgroundColor: "rgba(111, 207, 151, 0.15)", borderColor: "var(--color-success)", color: "var(--color-success)", fontSize: "0.85rem", padding: "0.5rem" }}>
-                {oauthMessage}
-              </div>
+            {remoteStep === 3 && (
+              <>
+                <div style={{ textAlign: "center", padding: "1.5rem" }}>
+                  <div style={{ fontSize: "3rem", marginBottom: "1rem", color: "var(--color-success)" }}>&#10003;</div>
+                  <p style={{ color: "var(--color-success)", fontWeight: "bold", fontSize: "1.1rem", margin: 0 }}>
+                    {remoteSuccess}
+                  </p>
+                  <p style={{ color: "var(--color-muted)", fontSize: "0.85rem", marginTop: "0.5rem" }}>
+                    You can now select this remote as the backup destination.
+                  </p>
+                </div>
+                <div style={{ display: "flex", justifyContent: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddRemoteModal(false)}
+                    style={{ ...styles.backupBtn, width: "auto", padding: "0.6rem 2rem", background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)", color: "var(--color-bg)" }}
+                    className="touch-target btn-hover-scale"
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
             )}
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "0.75rem" }}>
-              <button
-                type="button"
-                onClick={() => setShowOAuthWizard(false)}
-                disabled={oauthLoading}
-                style={{ ...styles.secondaryBtn, width: "auto", padding: "0.6rem 1.25rem" }}
-                className="touch-target"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleStartOAuth}
-                disabled={oauthLoading}
-                style={{
-                  ...styles.backupBtn,
-                  width: "auto",
-                  padding: "0.6rem 1.5rem",
-                  background: oauthLoading ? "var(--color-accent-dim)" : "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
-                  color: oauthLoading ? "var(--color-muted)" : "var(--color-bg)"
-                }}
-                className="touch-target btn-hover-scale"
-              >
-                {oauthLoading ? "Connecting..." : "Authenticate & Save"}
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -740,16 +933,8 @@ function SettingsPanel({ user }) {
               <div style={{ display: "flex", gap: "0.5rem", width: "100%", flexWrap: "wrap" }}>
                 <button
                   type="button"
-                  id="link-google-drive-btn"
-                  onClick={() => {
-                    setOauthClientId("");
-                    setOauthClientSecret("");
-                    setOauthRemoteName("gdrive");
-                    setOauthRemotePath("tablecast-backups");
-                    setOauthError("");
-                    setOauthMessage("");
-                    setShowOAuthWizard(true);
-                  }}
+                  id="add-remote-btn"
+                  onClick={handleOpenAddRemote}
                   style={{
                     ...styles.backupBtn,
                     flex: "1 1 200px",
@@ -759,8 +944,8 @@ function SettingsPanel({ user }) {
                   }}
                   className="touch-target btn-hover-scale"
                 >
-                  <KeyRound size={16} />
-                  <span>Link Google Drive Backup</span>
+                  <Plus size={16} />
+                  <span>Add Cloud Storage Remote</span>
                 </button>
                 <button
                   type="button"
@@ -774,6 +959,18 @@ function SettingsPanel({ user }) {
                   className="touch-target btn-hover-scale"
                 >
                   {showConfigEditor ? "Hide Configuration Editor" : "Show/Edit rclone.conf"}
+                </button>
+                <button
+                  type="button"
+                  id="manage-remotes-btn"
+                  onClick={() => {
+                    setShowManageRemotes(!showManageRemotes);
+                    if (!showManageRemotes) fetchConfiguredRemotes();
+                  }}
+                  style={{ ...styles.secondaryBtn, flex: "1 1 200px", minHeight: "44px" }}
+                  className="touch-target btn-hover-scale"
+                >
+                  {showManageRemotes ? "Hide Remote Manager" : "Manage Remotes"}
                 </button>
               </div>
 
@@ -821,6 +1018,59 @@ function SettingsPanel({ user }) {
                 </div>
               )}
             </div>
+
+            {showManageRemotes && (
+              <div style={styles.configEditorContainer}>
+                <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "var(--color-text)" }}>
+                  Configured Remotes
+                </h4>
+                {configuredRemotes.length === 0 ? (
+                  <p style={{ fontSize: "0.8rem", color: "var(--color-muted)", margin: 0 }}>
+                    No remotes configured. Click "Add Cloud Storage Remote" to set one up.
+                  </p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                    {configuredRemotes.map((name) => (
+                      <div
+                        key={name}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "0.5rem 0.75rem",
+                          background: "rgba(0,0,0,0.2)",
+                          borderRadius: "6px",
+                          border: "1px solid rgba(255,255,255,0.05)",
+                        }}
+                      >
+                        <span style={{ fontFamily: "monospace", fontSize: "0.85rem", color: "var(--color-text)" }}>
+                          {name}:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteRemote(name)}
+                          disabled={deletingRemote === name}
+                          style={{
+                            padding: "0.3rem 0.75rem",
+                            border: "1px solid rgba(235, 87, 87, 0.35)",
+                            borderRadius: "4px",
+                            background: "rgba(235, 87, 87, 0.1)",
+                            color: "var(--color-danger)",
+                            fontSize: "0.75rem",
+                            fontWeight: "bold",
+                            cursor: "pointer",
+                            minHeight: "36px",
+                          }}
+                          className="touch-target"
+                        >
+                          {deletingRemote === name ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={styles.inputGroup}>
               <label style={styles.label}>rclone Remote Destination</label>

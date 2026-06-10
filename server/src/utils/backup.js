@@ -342,6 +342,66 @@ function applyRetentionPolicy() {
   return deleteOldBackups(30);
 }
 
+async function listProviders() {
+  try {
+    const { stdout } = await execRclone(["config", "providers", "--quiet"]);
+    const providers = JSON.parse(stdout);
+    return providers.filter((item) => item.Hide !== true);
+  } catch (err) {
+    logger.error("backup", "Failed to list rclone providers", { error: err.message });
+    throw err;
+  }
+}
+
+async function listRemoteNames() {
+  if (!fs.existsSync(CONFIG_PATH)) {
+    return [];
+  }
+  try {
+    const content = await fs.promises.readFile(CONFIG_PATH, "utf8");
+    const config = parseIni(content);
+    return Object.keys(config);
+  } catch (err) {
+    logger.error("backup", "Failed to list remote names", { error: err.message });
+    return [];
+  }
+}
+
+async function deleteRemote(name) {
+  try {
+    const setting = await prisma.appSetting.findUnique({
+      where: { key: "rclone.config" },
+    });
+    const currentConfigContent = setting?.value || "";
+    const config = parseIni(currentConfigContent);
+
+    if (!config[name] && !currentConfigContent.includes(`[${name}]`)) {
+      return false;
+    }
+
+    const deleted = delete config[name];
+
+    const configContent = stringifyIni(config);
+
+    const dir = path.dirname(CONFIG_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    await fs.promises.writeFile(CONFIG_PATH, configContent, "utf8");
+
+    await prisma.appSetting.upsert({
+      where: { key: "rclone.config" },
+      update: { value: configContent },
+      create: { key: "rclone.config", value: configContent },
+    });
+
+    return !!deleted;
+  } catch (err) {
+    logger.error("backup", "Failed to delete remote", { name, error: err.message });
+    throw err;
+  }
+}
+
 module.exports = {
   copyBackupToRemote,
   createBackupZip,
@@ -352,4 +412,7 @@ module.exports = {
   saveRcloneRemote,
   deleteOldBackups,
   applyRetentionPolicy,
+  listProviders,
+  listRemoteNames,
+  deleteRemote,
 };

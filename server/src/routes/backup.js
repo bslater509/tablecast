@@ -13,6 +13,9 @@ const {
   listLocalBackups,
   saveRcloneRemote,
   writeRcloneConfigFile,
+  listProviders,
+  listRemoteNames,
+  deleteRemote,
 } = require("../utils/backup");
 const {
   requireDm,
@@ -427,6 +430,61 @@ router.post("/", requireDm, async (req, res) => {
     });
   } finally {
     backupInProgress = false;
+  }
+});
+
+router.get("/providers", requireDm, async (req, res) => {
+  try {
+    const providers = await listProviders();
+    res.json({ providers, count: providers.length });
+  } catch (err) {
+    logger.error("api:backup", "Failed to list rclone providers", { error: err.message });
+    res.status(500).json({ error: "Failed to list rclone providers." });
+  }
+});
+
+router.get("/remotes", requireDm, async (req, res) => {
+  try {
+    const remotes = await listRemoteNames();
+    res.json({ remotes });
+  } catch (err) {
+    logger.error("api:backup", "Failed to list rclone remotes", { error: err.message });
+    res.status(500).json({ error: "Failed to list rclone remotes." });
+  }
+});
+
+router.post("/remotes", requireDm, async (req, res) => {
+  try {
+    const { name, type, options } = req.body;
+    if (!name || !type) {
+      return res.status(400).json({ error: "Missing required fields: name and type." });
+    }
+
+    await saveRcloneRemote(name, type, options || {});
+
+    if (options && options.path) {
+      const fullRemote = `${name}:${options.path}`;
+      await prisma.appSetting.upsert({
+        where: { key: "rclone.remote" },
+        update: { value: fullRemote },
+        create: { key: "rclone.remote", value: fullRemote },
+      });
+    }
+
+    res.json({ success: true, message: "Remote configured successfully." });
+  } catch (err) {
+    logger.error("api:backup", "Failed to create rclone remote", { error: err.message });
+    res.status(500).json({ error: "Failed to configure rclone remote." });
+  }
+});
+
+router.delete("/remotes/:name", requireDm, async (req, res) => {
+  try {
+    await deleteRemote(req.params.name);
+    res.json({ success: true, message: "Remote deleted successfully." });
+  } catch (err) {
+    logger.error("api:backup", "Failed to delete rclone remote", { error: err.message });
+    res.status(500).json({ error: "Failed to delete rclone remote." });
   }
 });
 
