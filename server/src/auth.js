@@ -77,6 +77,27 @@ async function getRequestIdentity(req) {
         userId: user.id,
       };
     }
+
+    // Fallback: if user wasn't found in users table, try characters table.
+    // This handles cases where the frontend sends a character ID via
+    // x-tablecast-user-id (backward compat with older components).
+    const fallbackChar = await prisma.character.findUnique({
+      where: { id: userId },
+    });
+    if (fallbackChar) {
+      log("getRequestIdentity — fallback character id=%d name=%s", userId, fallbackChar.name);
+      return {
+        id: fallbackChar.id,
+        username: fallbackChar.name,
+        role: "PLAYER",
+        diceTheme: fallbackChar.diceTheme || "default",
+        diceColor: fallbackChar.diceColor || "#7c3aed",
+        characters: [fallbackChar],
+        isCharacter: true,
+        type: "character",
+        characterId: fallbackChar.id,
+      };
+    }
   }
 
   return null;

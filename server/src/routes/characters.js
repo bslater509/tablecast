@@ -122,8 +122,13 @@ router.get("/", async (req, res) => {
       }
       where.userId = uId;
     } else if (!isDM) {
-      // Non-DM sees only their own characters by default
-      where.userId = reqUser.id;
+      if (reqUser.type === "character") {
+        // Character identity — filter by character ID (heroes have userId: null)
+        where.id = reqUser.id;
+      } else {
+        // User identity — filter by user ID
+        where.userId = reqUser.id;
+      }
     }
 
     const characters = await prisma.character.findMany({
@@ -134,7 +139,7 @@ router.get("/", async (req, res) => {
 
     // Strip sensitive fields for non-owners
     const result = characters.map((c) => {
-      const isOwner = c.userId === reqUser.id;
+      const isOwner = c.userId === reqUser.id || (reqUser.type === "character" && c.id === reqUser.id);
       if (isOwner || isDM) return c;
       const { inventory, modifiers, spells, spellSlots, ...safe } = c;
       return safe;
@@ -173,7 +178,8 @@ router.get("/:id", async (req, res) => {
 
     const isDM = reqUser.role === "DM";
     const isOwner = character.userId === reqUser.id;
-    if (!isDM && !isOwner) {
+    const isSelf = reqUser.type === "character" && character.id === reqUser.id;
+    if (!isDM && !isOwner && !isSelf) {
       return res.status(403).json({ error: "You are not authorized to view this character." });
     }
 
@@ -298,7 +304,7 @@ router.put("/:id", async (req, res) => {
     if (!reqUser) {
       return res.status(401).json({ error: "A valid user session is required." });
     }
-    if (existingChar.userId !== reqUser.id && reqUser.role !== "DM") {
+    if (existingChar.userId !== reqUser.id && reqUser.role !== "DM" && !(reqUser.type === "character" && existingChar.id === reqUser.id)) {
       return res.status(403).json({ error: "You are not authorized to update this character." });
     }
 
@@ -389,7 +395,7 @@ router.delete("/:id", async (req, res) => {
     if (!reqUser) {
       return res.status(401).json({ error: "A valid user session is required." });
     }
-    if (existingChar.userId !== reqUser.id && reqUser.role !== "DM") {
+    if (existingChar.userId !== reqUser.id && reqUser.role !== "DM" && !(reqUser.type === "character" && existingChar.id === reqUser.id)) {
       return res.status(403).json({ error: "You are not authorized to delete this character." });
     }
 
