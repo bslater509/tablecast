@@ -328,6 +328,24 @@ router.put("/:id", async (req, res) => {
       }
     }
 
+    // Validate userId if provided (only DM can reassign characters)
+    if (req.body.userId !== undefined) {
+      if (reqUser.role !== "DM") {
+        return res.status(403).json({ error: "Only a DM can change character ownership." });
+      }
+      const parsedUserId = req.body.userId ? Number(req.body.userId) : null;
+      if (req.body.userId && isNaN(parsedUserId)) {
+        return res.status(400).json({ error: "userId must be a valid number or null." });
+      }
+      if (parsedUserId) {
+        const userExists = await prisma.user.findUnique({ where: { id: parsedUserId } });
+        if (!userExists) {
+          return res.status(404).json({ error: "Target user not found." });
+        }
+      }
+      data.userId = parsedUserId;
+    }
+
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: "No valid fields to update." });
     }

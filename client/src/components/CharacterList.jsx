@@ -59,7 +59,6 @@ export default function CharacterList({ user, onSelectCharacter }) {
     setCreating(true);
     try {
       const payload = {
-        userId: user.id,
         name: name.trim(),
         race: race.trim() || "Unknown",
         class: charClass.trim() || "Commoner",
