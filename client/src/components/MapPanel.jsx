@@ -34,6 +34,7 @@ export default function MapPanel({ user, isPopout = false }) {
     panOffset: D.panOffset,
     isDrawing: D.isDrawing,
     isPanning: D.isPanning,
+    panStart: D.panStart,
     dragState: D.dragState,
     currentPolygon: D.currentPolygon,
     tokens: D.tokens,
