@@ -55,19 +55,39 @@ export function SocketProvider({ children }) {
     function onDisconnect(reason) {
       debug("[Socket] Disconnected:", reason);
       setIsConnected(false);
-      setConnectionStatus("disconnected");
+      // Don't set to "disconnected" if we were intentionally reconnecting —
+      // let the reconnect events handle the display. But for transport-level
+      // disconnects (server restart, network flap), show reconnecting.
+      if (reason === "io client disconnect" || reason === "io server disconnect") {
+        setConnectionStatus("disconnected");
+      } else {
+        setConnectionStatus("reconnecting");
+      }
     }
 
-    function onReconnectAttempt() {
+    function onConnectError(err) {
+      debug("[Socket] Connection error:", err.message);
+      // Log connection errors so we can diagnose connection issues
+      console.warn("[Socket] Connection error:", err.message, err.description || "");
+      setConnectionStatus("reconnecting");
+      setConnectionFailed(false);
+    }
+
+    function onReconnectAttempt(attempt) {
+      debug("[Socket] Reconnect attempt:", attempt);
       setConnectionStatus("reconnecting");
     }
 
-    function onReconnectError() {
+    function onReconnectError(err) {
+      debug("[Socket] Reconnect error:", err.message);
       setConnectionStatus("reconnecting");
     }
 
     function onReconnect() {
       debug("[Socket] Reconnected");
+      setIsConnected(true);
+      setConnectionStatus("connected");
+      setConnectionFailed(false);
       setReconnectCount(prev => prev + 1);
     }
 
@@ -79,6 +99,7 @@ export function SocketProvider({ children }) {
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
     socket.io.on("reconnect_attempt", onReconnectAttempt);
     socket.io.on("reconnect_error", onReconnectError);
     socket.io.on("reconnect", onReconnect);
@@ -87,11 +108,15 @@ export function SocketProvider({ children }) {
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
       socket.io.off("reconnect_attempt", onReconnectAttempt);
       socket.io.off("reconnect_error", onReconnectError);
       socket.io.off("reconnect", onReconnect);
       socket.io.off("reconnect_failed", onReconnectFailed);
-      socket.disconnect();
+      // Do NOT call socket.disconnect() in cleanup — this causes issues with
+      // StrictMode double-mounting (the cleanup fires between mounts and
+      // disconnects the socket, breaking the connection lifecycle).
+      // The socket lifecycle is managed by the authInfo effect below.
     };
   }, [socket]);
 

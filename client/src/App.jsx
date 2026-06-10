@@ -409,6 +409,8 @@ function App() {
             ? styles.connectionOnline
             : connectionStatus === "reconnecting"
             ? styles.connectionReconnecting
+            : user
+            ? styles.connectionConnecting
             : styles.connectionOffline),
         }}
       >
@@ -418,6 +420,8 @@ function App() {
           ? "Live"
           : connectionStatus === "reconnecting"
           ? "Reconnecting"
+          : user
+          ? "Connecting…"
           : "Offline"}
       </div>
 
@@ -632,6 +636,10 @@ const styles = {
     borderColor: "rgba(111, 207, 151, 0.35)",
   },
   connectionReconnecting: {
+    color: "var(--color-accent)",
+    borderColor: "rgba(200, 151, 58, 0.4)",
+  },
+  connectionConnecting: {
     color: "var(--color-accent)",
     borderColor: "rgba(200, 151, 58, 0.4)",
   },
