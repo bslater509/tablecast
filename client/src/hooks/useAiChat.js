@@ -7,6 +7,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { streamAiChat } from "../utils/aiStream";
+import { getJsonAuthHeaders } from "../utils/authHeaders";
 
 /**
  * @param {Object} opts
@@ -69,7 +70,7 @@ export function useAiChat({
     (async () => {
       try {
         const res = await fetch(`/api/ai/conversations/${initialConversationId}`, {
-          headers: { "x-tablecast-user-id": String(user?.id || "") }
+          headers: getJsonAuthHeaders(user),
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -113,7 +114,7 @@ export function useAiChat({
           .map((m) => ({ role: m.role, text: m.text }));
 
         const result = await streamAiChat({
-          userId: user?.id,
+          user,
           message: query,
           history,
           npcId: overrides.npcId ?? npcId,

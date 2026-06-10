@@ -15,6 +15,7 @@ import WikiTreeSidebar from "./WikiTreeSidebar";
 import { useSocket } from "../context/SocketContext";
 import { useToast } from "../context/ToastContext";
 import { WikiPanelSkeleton } from "./PanelSkeleton";
+import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";
 
 marked.setOptions({
   gfm: true,
@@ -272,8 +273,8 @@ export default function WikiPanel({ user, isPopout = false }) {
   // Determine if user has DM privileges
   const isDM = user?.role === "DM";
 
-  const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
-  const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
+  const authHeaders = getAuthHeaders(user);
+  const jsonAuthHeaders = getJsonAuthHeaders(user);
 
   const buildAssistContext = (fieldId) => {
     if (fieldId === "markdown") {

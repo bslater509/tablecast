@@ -5,6 +5,7 @@
 // AiPanel, AiChatView, MessageHub, and AiAssistButton.
 // =============================================================================
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { getAuthHeaders } from "../utils/authHeaders";
 
 const AiContext = createContext(null);
 
@@ -105,7 +106,7 @@ export function AiProvider({ children, user }) {
     setCharsLoading(true);
     try {
       const res = await fetch(`/api/characters?userId=${userId}`, {
-        headers: { "x-tablecast-user-id": String(userId) },
+        headers: getAuthHeaders({ id: userId }),
       });
       if (res.ok) {
         const data = await res.json();

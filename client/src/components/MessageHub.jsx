@@ -10,6 +10,7 @@ import ConversationList from "./ConversationList";
 import AiChatView from "./AiChatView";
 import ChatPanel from "./ChatPanel";
 import { CharacterListSkeleton } from "./PanelSkeleton";
+import { getJsonAuthHeaders } from "../utils/authHeaders";
 
 function truncate(text, max = 80) {
   if (!text) return "";
@@ -115,7 +116,7 @@ export default function MessageHub({ user }) {
 
         // Load AI conversations
         const convRes = await fetch("/api/ai/conversations", {
-          headers: { "x-tablecast-user-id": user?.id || "" },
+          headers: getJsonAuthHeaders(user),
         });
         const convData = convRes.ok ? await convRes.json() : [];
         if (cancelled) return;

@@ -8,6 +8,7 @@ import { useSocket } from "../context/SocketContext";
 import { useDiceBox } from "../context/DiceBoxContext";
 import Autocomplete from "./Autocomplete";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
+import { getJsonAuthHeaders } from "../utils/authHeaders";
 
 // Define the 18 standard 5e skills and their associated abilities
 const SKILL_DEFINITIONS = [
@@ -87,7 +88,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       setError(null);
       try {
         const res = await fetch(`/api/characters/${characterId}`, {
-          headers: { "x-tablecast-user-id": String(user?.id || "") },
+          headers: getJsonAuthHeaders(user),
         });
         if (!res.ok) {
           throw new Error("Failed to load character sheet.");
@@ -197,10 +198,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
       const res = await fetch(`/api/characters/${updatedChar.id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tablecast-user-id": String(user?.id || ""),
-        },
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify(payload),
       });
 
@@ -234,10 +232,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     try {
       const res = await fetch("/api/ai/generate-character-options", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tablecast-user-id": String(user?.id || ""),
-        },
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify({ prompt: charGenPrompt.trim() }),
       });
 
@@ -303,10 +298,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     try {
       const res = await fetch("/api/ai/generate-character", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tablecast-user-id": String(user?.id || ""),
-        },
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify({
           prompt: charGenPrompt.trim(),
           selectedOption: charGenSelected,

@@ -19,6 +19,7 @@ import {
 import { useToast } from "../context/ToastContext";
 import { useSocket } from "../context/SocketContext";
 import { useConfirm } from "../context/ConfirmContext";
+import { getJsonAuthHeaders } from "../utils/authHeaders";
 
 /* ------------------------------------------------------------------ */
 /*  Colour helpers                                                     */
@@ -54,13 +55,7 @@ export default function EncountersPanel({
   const isDm = user?.role === "DM" && !readOnly;
 
   /* ---- auth headers ---- */
-  const authHeaders = useMemo(
-    () => ({
-      "Content-Type": "application/json",
-      "x-tablecast-user-id": String(user?.id || ""),
-    }),
-    [user?.id]
-  );
+  const authHeaders = useMemo(() => getJsonAuthHeaders(user), [user?.id]);
 
   /* ---- state ---- */
   const [maps, setMaps] = useState([]);

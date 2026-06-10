@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { ChevronRight, Plus, UserRound } from "lucide-react";
 import Autocomplete from "./Autocomplete";
 import { useToast } from "../context/ToastContext";
+import { getJsonAuthHeaders } from "../utils/authHeaders";
 
 export default function CharacterList({ user, onSelectCharacter }) {
   const { addToast } = useToast();
@@ -31,7 +32,7 @@ export default function CharacterList({ user, onSelectCharacter }) {
         // DM lists all characters. Players list only their own characters.
         const url = isDM ? "/api/characters" : `/api/characters?userId=${user.id}`;
         const res = await fetch(url, {
-          headers: { "x-tablecast-user-id": String(user?.id || "") },
+          headers: getJsonAuthHeaders(user),
         });
         if (!res.ok) {
           throw new Error("Failed to load characters.");
@@ -83,7 +84,7 @@ export default function CharacterList({ user, onSelectCharacter }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-tablecast-user-id": String(user?.id || ""),
+          ...getJsonAuthHeaders(user),
         },
         body: JSON.stringify(payload),
       });

@@ -4,6 +4,7 @@
 // Provides conversation list CRUD: loading, create, delete, load.
 // =============================================================================
 import { useState, useCallback } from "react";
+import { getJsonAuthHeaders } from "../utils/authHeaders";
 
 /**
  * @param {Object} opts
@@ -18,7 +19,7 @@ export function useConversations({ user } = {}) {
     setLoadingConvs(true);
     try {
       const res = await fetch("/api/ai/conversations", {
-        headers: { "x-tablecast-user-id": user?.id || "" },
+        headers: getJsonAuthHeaders(user),
       });
       if (res.ok) {
         const data = await res.json();
@@ -41,10 +42,7 @@ export function useConversations({ user } = {}) {
     try {
       const res = await fetch("/api/ai/conversations", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tablecast-user-id": user?.id || "",
-        },
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify({
           type,
           npcId: type === "npc" ? npcId || null : null,
@@ -69,7 +67,7 @@ export function useConversations({ user } = {}) {
     try {
       const res = await fetch(`/api/ai/conversations/${convId}`, {
         method: "DELETE",
-        headers: { "x-tablecast-user-id": user?.id || "" },
+        headers: getJsonAuthHeaders(user),
       });
       if (res.ok) {
         await loadConversationList();
@@ -87,7 +85,7 @@ export function useConversations({ user } = {}) {
   const loadConversation = useCallback(async (convId) => {
     try {
       const res = await fetch(`/api/ai/conversations/${convId}`, {
-        headers: { "x-tablecast-user-id": user?.id || "" },
+        headers: getJsonAuthHeaders(user),
       });
       if (res.ok) {
         return await res.json();

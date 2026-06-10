@@ -8,6 +8,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
 import { useConfirm } from "../context/ConfirmContext";
+import { getJsonAuthHeaders } from "../utils/authHeaders";
 import {
   ArrowLeft,
   CalendarDays,
@@ -88,13 +89,7 @@ function SessionsPanel({ user, readOnly = false, isPopout = false, basePath = "/
   const [maps, setMaps] = useState([]);
   const [encounters, setEncounters] = useState([]);
 
-  const authHeaders = useMemo(
-    () => ({
-      "Content-Type": "application/json",
-      "x-tablecast-user-id": String(user?.id || ""),
-    }),
-    [user?.id]
-  );
+  const authHeaders = useMemo(() => getJsonAuthHeaders(user), [user?.id]);
 
   const fetchSessions = useCallback(async () => {
     try {

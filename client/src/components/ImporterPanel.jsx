@@ -4,6 +4,7 @@
 // =============================================================================
 import { useState, useEffect } from "react";
 import { BookOpen, Box, Database, Download, Shield, Sparkles, Users } from "lucide-react";
+import { getJsonAuthHeaders } from "../utils/authHeaders";
 
 const CATEGORIES = [
   { id: "spells", label: "Spells", icon: Sparkles },
@@ -113,7 +114,7 @@ function ImporterPanel({ user }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-tablecast-user-id": String(user?.id || ""),
+          ...getJsonAuthHeaders(user),
         },
         body: JSON.stringify({
           category,

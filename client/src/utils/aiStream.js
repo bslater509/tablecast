@@ -4,11 +4,13 @@
 // other components. Provides cancel/retry support via AbortController.
 // =============================================================================
 
+import { getAuthHeaders } from "./authHeaders";
+
 /**
  * Stream an AI chat response from the server.
  *
  * @param {Object} opts
- * @param {string} opts.userId      - User ID for auth header
+ * @param {Object} opts.user        - User object (with .id, .isCharacter) for auth headers
  * @param {string} opts.message     - The user's message
  * @param {Array}  opts.history     - Previous messages [{ role, text }]
  * @param {number} [opts.npcId]     - NPC ID for roleplay
@@ -20,7 +22,7 @@
  * @returns {Promise<string>} The full accumulated response text
  */
 export async function streamAiChat({
-  userId,
+  user,
   message,
   history = [],
   npcId,
@@ -32,10 +34,7 @@ export async function streamAiChat({
 }) {
   const res = await fetch("/api/ai/chat", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-tablecast-user-id": userId || "",
-    },
+    headers: getAuthHeaders(user, "application/json"),
     body: JSON.stringify({
       message,
       npcId,

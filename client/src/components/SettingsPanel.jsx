@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Bot, Cloud, KeyRound } from "lucide-react";
 import { useToast } from "../context/ToastContext";
+import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";
 
 function SettingsPanel({ user }) {
   const { addToast } = useToast();
@@ -56,8 +57,8 @@ function SettingsPanel({ user }) {
   const [availableZenModels, setAvailableZenModels] = useState([]);
   const [fetchingZenModels, setFetchingZenModels] = useState(false);
 
-  const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
-  const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
+  const authHeaders = getAuthHeaders(user);
+  const jsonAuthHeaders = getJsonAuthHeaders(user);
 
   const fetchRefStatus = async () => {
     try {

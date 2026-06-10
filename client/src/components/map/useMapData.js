@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from "react";
 import { MIN_ZOOM, MAX_ZOOM, MAP_IMPORT_PRESETS, parseFogState, cleanText } from "./MapConstants";
 import { NPC_TOKEN_PRESETS, generateTokenSvgUrl } from "../../data/npcTokenPresets";
+import { getAuthHeaders } from "../../utils/authHeaders";
 
 export default function useMapData({ user, isPopout, socket, isConnected, addToast, showConfirm }) {
   // ---------------------------------------------------------------------------
@@ -94,7 +95,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
 
   // Derived values
   const gridSize = activeMap?.gridSize || 50;
-  const authHeaders = { "x-tablecast-user-id": String(user?.id || "") };
+  const authHeaders = getAuthHeaders(user);
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
   const withUser = (payload = {}) => ({ ...payload, userId: user?.id });
   const isDM = user?.role === "DM";
@@ -134,7 +135,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
   async function loadCharacters(fetchId) {
     try {
       setLoadError(null);
-      const res = await fetch("/api/characters", { headers: { "x-tablecast-user-id": String(user?.id || "") } });
+      const res = await fetch("/api/characters", { headers: authHeaders });
       if (fetchId !== undefined && isStale(fetchId)) return;
       if (res.ok) {
         const data = await res.json();

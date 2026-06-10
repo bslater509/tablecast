@@ -4,6 +4,7 @@
 // all campaign content types (Wiki, NPCs, Monsters, Characters, Sessions).
 // =============================================================================
 import { useState, useEffect } from "react";
+import { getJsonAuthHeaders } from "../utils/authHeaders";
 
 // Actions that require existing text in the field
 const ACTIONS_REQUIRING_TEXT = new Set([
@@ -137,10 +138,7 @@ export default function AiAssistButton({
     setUndoState({ previousText: currentText || "" });
 
     try {
-      const authHeaders = {
-        "Content-Type": "application/json",
-        "x-tablecast-user-id": String(user?.id || ""),
-      };
+      const authHeaders = getJsonAuthHeaders(user);
 
       const res = await fetch("/api/ai/expand-text", {
         method: "POST",
