@@ -6,7 +6,7 @@ import { MIN_ZOOM, MAX_ZOOM, DRAG_THRESHOLD_PX } from "./MapConstants";
 
 export default function useMapInteraction({
   // State values
-  tool, zoom, panOffset, isPanning, dragState, currentPolygon,
+  tool, zoom, panOffset, isDrawing, isPanning, dragState, currentPolygon,
   tokens, gridSize, user, isDM, activeMap,
   // Setters
   setZoom, setPanOffset, setSelectedTokenId, setDragState,
