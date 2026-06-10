@@ -34,6 +34,10 @@ model User {
   /// "DM" or "PLAYER"
   role String @default("PLAYER")
 
+  // Dice preferences for 3D dice theming
+  diceTheme String @default("default")
+  diceColor String @default("#7c3aed")
+
   // Relations
   characters      Character[]
   chatMessages    ChatMessage[]
