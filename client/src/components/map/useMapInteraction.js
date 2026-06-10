@@ -3,6 +3,7 @@
 // =============================================================================
 import { useRef, useCallback } from "react";
 import { MIN_ZOOM, MAX_ZOOM, DRAG_THRESHOLD_PX } from "./MapConstants";
+import { canMoveToken } from "../../utils/authHeaders";
 
 export default function useMapInteraction({
   // State values
@@ -74,7 +75,7 @@ export default function useMapInteraction({
       });
 
       if (hitToken) {
-        const isOwner = hitToken.character && hitToken.character.userId === user?.id;
+        const isOwner = canMoveToken(hitToken, user, false);
         if (isDM || isOwner) {
           setSelectedTokenId(hitToken.id);
           setDragState({

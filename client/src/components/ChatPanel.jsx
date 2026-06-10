@@ -10,18 +10,19 @@ import { useDiceBox } from "../context/DiceBoxContext";
 import { ChatPanelSkeleton } from "./PanelSkeleton";
 import { compileMarkdown } from "../utils/markdown";
 import AiStreamingIndicator from "./AiStreamingIndicator";
+import { isOwnMessage } from "../utils/authHeaders";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function groupMessages(messages, userId) {
+function groupMessages(messages, user) {
   const groups = [];
   let currentGroup = null;
 
   for (const msg of messages) {
     const isSystem = msg.type === "system" && msg.sender === "System";
-    const isMine = !isSystem && msg.userId != null && msg.userId === userId;
+    const isMine = !isSystem && isOwnMessage(msg, user);
     const sender = msg.sender || "Unknown";
     const msgTime = Number(msg.timestamp) || 0;
 
@@ -777,7 +778,7 @@ export default function ChatPanel({ user, isPopout = false }) {
   }, []);
 
   // Group messages
-  const groupedMessages = useMemo(() => groupMessages(messages, user?.id), [messages, user?.id]);
+  const groupedMessages = useMemo(() => groupMessages(messages, user), [messages, user]);
 
   // Send message
   async function sendMessage(e) {

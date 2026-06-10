@@ -6,6 +6,7 @@ import Autocomplete from "../Autocomplete";
 import TokenPresetIcon from "../TokenPresetIcon";
 import { MAP_IMPORT_PRESETS } from "../map/MapConstants";
 import { NPC_TOKEN_PRESETS, generateTokenSvgUrl } from "../../data/npcTokenPresets";
+import { canAccessCharacter } from "../../utils/authHeaders";
 
 export default function MapModals({
   showAddMapModal,
@@ -232,7 +233,7 @@ export default function MapModals({
                   <label style={styles.label}>Quick character tokens</label>
                   <div style={styles.quickPresetGrid}>
                     {availableCharacters
-                      .filter(c => isDM || c.userId === user?.id)
+                      .filter(c => canAccessCharacter(c, user))
                       .slice(0, 6)
                       .map((character) => (
                         <button
@@ -261,7 +262,7 @@ export default function MapModals({
                   >
                     <option value="">-- Choose Character --</option>
                     {availableCharacters
-                      .filter(c => isDM || c.userId === user?.id)
+                      .filter(c => canAccessCharacter(c, user))
                       .map(c => (
                         <option key={c.id} value={c.id}>
                           {c.name} (Lvl {c.level} {c.class})
