@@ -373,7 +373,7 @@ management in React, socket events (`sound:state`, `sound:sync`)
 
 ### 3.2 In-Game Calendar & Weather
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Campaign continuity — tracking in-game dates, seasons, holidays,
 and random weather makes the world feel alive.
@@ -440,7 +440,7 @@ generation module, frontend calendar modal component, socket event
 
 ### 3.3 Quest/Journal Log (Player-Facing)
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Players need a persistent, structured view of active quests,
 completed quests, and personal notes separate from the DM's wiki.
@@ -488,7 +488,7 @@ frontend component, integration with Encounter (kill tracking) and Inventory
 
 ### 3.4 Dialogue Tree Builder for NPCs
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** DMs often prepare NPC dialogue in advance. A simple tree
 structure lets branching conversations play out interactively.
@@ -548,7 +548,7 @@ component (node graph), DialogueRunner component, skill check roll integration
 
 ### 3.5 Player Handouts
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** DMs need to give handouts (images, documents, secret notes) to
 specific players without revealing to the whole table.

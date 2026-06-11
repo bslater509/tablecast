@@ -231,6 +231,7 @@ app.use("/api/characters", levelupRouter);
 const { heroesRouter } = require("./routes/characters");
 if (heroesRouter) app.use("/api/heroes", heroesRouter);
 app.use("/api/npcs", npcsRouter);
+app.use("/api/npcs", require("./routes/dialogue"));
 app.use("/api/monsters", monstersRouter);
 app.use("/api/wiki", wikiRouter);
 app.use("/api/maps", mapsRouter);
@@ -245,6 +246,9 @@ app.use("/api/debug", debugRouter);
 app.use("/api/parties", require("./routes/parties"));
 app.use("/api/shops", shopsRouter);
 app.use("/api/soundtracks", require("./routes/soundtracks"));
+app.use("/api/calendar", require("./routes/calendar"));
+app.use("/api/handouts", require("./routes/handouts"));
+app.use("/api/quests", require("./routes/quests"));
 app.use("/api/features", require("./routes/features"));
 
 // ---------------------------------------------------------------------------

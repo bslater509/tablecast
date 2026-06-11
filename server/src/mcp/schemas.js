@@ -707,6 +707,246 @@ const TOOLS = [
       required: ["id"],
     },
   },
+
+  //  HANDOUT TOOLS
+  {
+    name: "list_handouts",
+    description: "List all player handouts, optionally filtered by characterId.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        characterId: { type: "number", description: "Filter by character ID to see handouts targeted at them." },
+      },
+    },
+  },
+  {
+    name: "create_handout",
+    description: "Create a new player handout (DM only).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Handout title." },
+        content: { type: "string", description: "Handout content (markdown)." },
+        imageUrl: { type: "string", description: "Optional image URL." },
+        targetCharacterIds: {
+          type: "array",
+          items: { type: "number" },
+          description: "Array of character IDs to target. Empty array means all players.",
+        },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "update_handout",
+    description: "Update an existing player handout.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Handout ID to update." },
+        title: { type: "string" },
+        content: { type: "string" },
+        imageUrl: { type: "string" },
+        targetCharacterIds: {
+          type: "array",
+          items: { type: "number" },
+          description: "Array of character IDs to target.",
+        },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "delete_handout",
+    description: "Delete a player handout by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Handout ID to delete." },
+      },
+      required: ["id"],
+    },
+  },
+
+  //  CALENDAR & WEATHER TOOLS
+  {
+    name: "get_calendar",
+    description: "Get the current in-game calendar config and weather.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "update_calendar",
+    description: "Update calendar configuration (month names, day names, day length, date).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        monthNames: { type: "array", items: { type: "string" }, description: "Array of 12 month names." },
+        dayNames: { type: "array", items: { type: "string" }, description: "Array of 7 day names." },
+        dayLength: { type: "string", enum: ["standard", "long", "short"], description: "Day length setting." },
+        timeOfDay: { type: "string", enum: ["dawn", "morning", "afternoon", "dusk", "night"], description: "Current time of day." },
+        currentDate: {
+          type: "object",
+          properties: {
+            year: { type: "number" },
+            month: { type: "number" },
+            day: { type: "number" },
+          },
+          description: "New date to set.",
+        },
+      },
+    },
+  },
+  {
+    name: "advance_calendar",
+    description: "Advance the in-game calendar by a number of days and optionally set time of day.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        days: { type: "number", description: "Number of days to advance (0-365, default: 1)." },
+        timeOfDay: { type: "string", enum: ["dawn", "morning", "afternoon", "dusk", "night"], description: "Time of day after advancement." },
+      },
+    },
+  },
+  {
+    name: "generate_weather",
+    description: "Generate new weather for the current calendar date and a given terrain type.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        terrain: { type: "string", enum: ["desert", "forest", "mountains", "plains", "coastal", "swamp", "arctic", "urban", "underground"], description: "Terrain type (default: current terrain or plains)." },
+      },
+    },
+  },
+  {
+    name: "delete_soundtrack",
+    description: "Delete a soundboard track by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Track ID to delete." },
+      },
+      required: ["id"],
+    },
+  },
+
+  //  QUEST TOOLS
+  {
+    name: "list_quests",
+    description: "List all quests, optionally filtered by status.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", description: "Filter by status: ACTIVE, COMPLETED, or FAILED." },
+      },
+    },
+  },
+  {
+    name: "create_quest",
+    description: "Create a new quest.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Quest title." },
+        description: { type: "string", description: "Quest description (optional)." },
+        status: { type: "string", enum: ["ACTIVE", "COMPLETED", "FAILED"], description: "Quest status (default: ACTIVE)." },
+        objectives: { type: "array", items: { type: "object", properties: { description: { type: "string" }, type: { type: "string", enum: ["KILL", "FETCH", "ESCORT", "EXPLORE", "TALK", "CRAFT"] }, isComplete: { type: "boolean" }, progress: { type: "number" }, target: { type: "number" } } }, description: "Array of objective objects." },
+        rewards: { type: "object", properties: { xp: { type: "number" }, gold: { type: "number" }, items: { type: "array", items: { type: "object", properties: { name: { type: "string" }, quantity: { type: "number" } } } } }, description: "Rewards object (xp, gold, items)." },
+        questGiverNpcId: { type: "number", description: "NPC ID who gives this quest." },
+        parentQuestId: { type: "number", description: "Parent quest ID for quest chains." },
+        isVisibleToPlayers: { type: "boolean", description: "Whether players can see this quest." },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "update_quest",
+    description: "Update an existing quest's fields.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Quest ID to update." },
+        title: { type: "string" },
+        description: { type: "string" },
+        status: { type: "string", enum: ["ACTIVE", "COMPLETED", "FAILED"] },
+        objectives: { type: "array", items: { type: "object", properties: { description: { type: "string" }, type: { type: "string", enum: ["KILL", "FETCH", "ESCORT", "EXPLORE", "TALK", "CRAFT"] }, isComplete: { type: "boolean" }, progress: { type: "number" }, target: { type: "number" } } } },
+        rewards: { type: "object", properties: { xp: { type: "number" }, gold: { type: "number" }, items: { type: "array", items: { type: "object", properties: { name: { type: "string" }, quantity: { type: "number" } } } } } },
+        questGiverNpcId: { type: "number" },
+        parentQuestId: { type: "number" },
+        isVisibleToPlayers: { type: "boolean" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "delete_quest",
+    description: "Delete a quest by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Quest ID to delete." },
+      },
+      required: ["id"],
+    },
+  },
+  //  DIALOGUE TREE TOOLS
+  {
+    name: "get_npc_dialogue",
+    description: "Get the dialogue tree for an NPC by NPC ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        npcId: { type: "number", description: "NPC ID whose dialogue tree to fetch." },
+      },
+      required: ["npcId"],
+    },
+  },
+  {
+    name: "update_npc_dialogue",
+    description: "Update/replace the full dialogue tree for an NPC. The tree must be a JSON object with a startNodeId and nodes array.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        npcId: { type: "number", description: "NPC ID to update." },
+        dialogueTree: {
+          type: "object",
+          description: "Dialogue tree object with startNodeId and nodes array. See documentation for node types.",
+        },
+      },
+      required: ["npcId", "dialogueTree"],
+    },
+  },
+  {
+    name: "start_npc_dialogue",
+    description: "Start a dialogue with an NPC, returning the starting node.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        npcId: { type: "number", description: "NPC ID to start dialogue with." },
+      },
+      required: ["npcId"],
+    },
+  },
+  {
+    name: "advance_npc_dialogue",
+    description: "Advance dialogue to the next node. Provide nodeId and optional choiceIndex (for CHOICE nodes), rollResult (for SKILL_CHECK/CONDITION nodes), and context (for CONDITION evaluation).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        npcId: { type: "number", description: "NPC ID." },
+        nodeId: { type: "string", description: "Current node ID to advance from." },
+        choiceIndex: { type: "number", description: "Index of the selected choice (required for CHOICE nodes)." },
+        rollResult: { type: "number", description: "Dice roll result (for SKILL_CHECK/CONDITION nodes)." },
+        context: {
+          type: "object",
+          description: "Optional evaluation context with party, player, variables, roll.",
+        },
+      },
+      required: ["npcId", "nodeId"],
+    },
+  },
 ];
 
 module.exports = { TOOLS };

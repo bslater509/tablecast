@@ -592,6 +592,52 @@ Keep your answer clear, concise, and formatted in Markdown.`;
       socket.emit("sound:state", currentSoundState);
     });
 
+    // Calendar — client requests current calendar config + weather
+    socket.on("calendar:request", async () => {
+      try {
+        const prisma_local = require("./prisma");
+        const setting = await prisma_local.appSetting.findUnique({
+          where: { key: "calendar.config" },
+        });
+        if (setting) {
+          try {
+            const config = JSON.parse(setting.value);
+            socket.emit("calendar:data", config);
+          } catch {
+            // Parse error — send nothing
+          }
+        }
+      } catch (err) {
+        logger.error("socket:calendar", "Error handling calendar:request", { error: err.message });
+      }
+    });
+
+    // Handout events — client requests handouts for a specific character
+    socket.on("handout:request", async (payload) => {
+      try {
+        const characterId = payload?.characterId
+          ? Number(payload.characterId)
+          : socket.data.characterId;
+        if (!characterId || !Number.isInteger(characterId) || characterId <= 0) return;
+
+        const handouts = await prisma.handout.findMany({
+          orderBy: { createdAt: "desc" },
+        });
+
+        // Filter handouts where targetCharacterIds is empty or contains this character
+        const filtered = handouts.filter((h) => {
+          let targets;
+          try { targets = JSON.parse(h.targetCharacterIds || "[]"); } catch { targets = []; }
+          return targets.length === 0 || targets.includes(characterId);
+        });
+
+        socket.emit("handout:data", { handouts: filtered, characterId });
+        logger.info("socket:handout", "Handouts requested", { characterId, count: filtered.length });
+      } catch (err) {
+        logger.error("socket:handout", "Error fetching handouts", { error: err.message });
+      }
+    });
+
     socket.on("encounter:refresh", async (payload) => {
       try {
         const parsed = validateIdPayload(payload, "encounterId");

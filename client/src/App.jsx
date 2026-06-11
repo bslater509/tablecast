@@ -10,10 +10,12 @@ import {
   CalendarDays,
   Database,
   ExternalLink,
+  FileText,
   Headphones,
   LogOut,
   Map as MapIcon,
   MessageCircle,
+  ScrollText,
   Settings,
   ShoppingCart,
   SlidersHorizontal,
@@ -41,6 +43,10 @@ import EncountersPanel from "./components/EncountersPanel";
 import PartyVaultPanel from "./components/PartyVaultPanel";
 import ShopPanel from "./components/ShopPanel";
 import SoundboardPanel from "./components/SoundboardPanel";
+import CalendarPanel from "./components/CalendarPanel";
+import HandoutPanel from "./components/HandoutPanel";
+import QuestLogPanel from "./components/QuestLogPanel";
+import DialogueTreePanel from "./components/DialogueTreePanel";
 import { useSocket } from "./context/SocketContext";
 import { useToast } from "./context/ToastContext";
 import { AiProvider } from "./context/AiContext";
@@ -112,6 +118,13 @@ const DM_NAV_ITEMS = [
     popoutFeatures: "width=800,height=900,resizable=yes,scrollbars=yes",
   },
   {
+    id: "calendar",
+    label: "Calendar",
+    mobileLabel: "Calendar",
+    path: "/dm/calendar",
+    icon: CalendarDays,
+  },
+  {
     id: "encounters",
     label: "Encounters",
     mobileLabel: "Combat",
@@ -120,6 +133,27 @@ const DM_NAV_ITEMS = [
     popoutUrl: "/#/dm/popout/encounters",
     popoutTitle: "Pop out Encounters",
     popoutFeatures: "width=800,height=900,resizable=yes,scrollbars=yes",
+  },
+  {
+    id: "handouts",
+    label: "Handouts",
+    mobileLabel: "Handouts",
+    path: "/dm/handouts",
+    icon: FileText,
+  },
+  {
+    id: "journal",
+    label: "Journal",
+    mobileLabel: "Journal",
+    path: "/dm/journal",
+    icon: BookOpen,
+  },
+  {
+    id: "dialogue",
+    label: "Dialogue",
+    mobileLabel: "Dialogue",
+    path: "/dm/dialogue",
+    icon: MessageCircle,
   },
   {
     id: "soundboard",
@@ -601,6 +635,7 @@ function App() {
         <Route path="/dm/popout/sessions/:id" element={<SessionsPanel user={user} isPopout={true} basePath="/dm/popout/sessions" />} />
         <Route path="/dm/popout/encounters" element={<ErrorBoundary critical={false}><EncountersPanel user={user} isPopout={true} basePath="/dm/popout/encounters" /></ErrorBoundary>} />
         <Route path="/dm/popout/encounters/:id" element={<ErrorBoundary critical={false}><EncountersPanel user={user} isPopout={true} basePath="/dm/popout/encounters" /></ErrorBoundary>} />
+        <Route path="/dm/popout/handouts" element={<HandoutPanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/connection" element={<ConnectionHelpPanel user={user} />} />
         <Route path="/dm/popout/characters" element={<CharacterList user={user} onSelectCharacter={(char) => window.open(`/#/dm/popout/characters/${char.id}`, '_blank', 'width=600,height=800,resizable=yes')} isPopout={true} />} />
         <Route path="/dm/popout/characters/:id" element={<ErrorBoundary critical={false}><CharacterSheetWrapper user={user} basePath="/dm/popout/characters" isPopout={true} /></ErrorBoundary>} />
@@ -995,7 +1030,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "sheet", "messages", "wiki", "dice", "sessions", "encounters"].includes(pathParts[2])
+  const currentTab = ["map", "sheet", "messages", "wiki", "dice", "sessions", "encounters", "handouts", "journal", "dialogue"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
@@ -1053,6 +1088,9 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
           <Route path="sessions/:id" element={<SessionsPanel user={user} readOnly basePath="/player/sessions" />} />
           <Route path="encounters" element={<ErrorBoundary critical={false}><EncountersPanel user={user} readOnly basePath="/player/encounters" /></ErrorBoundary>} />
           <Route path="encounters/:id" element={<ErrorBoundary critical={false}><EncountersPanel user={user} readOnly basePath="/player/encounters" /></ErrorBoundary>} />
+          <Route path="handouts" element={<HandoutPanel user={user} />} />
+          <Route path="journal" element={<QuestLogPanel user={user} />} />
+          <Route path="dialogue" element={<DialogueTreePanel user={user} readOnly />} />
           <Route path="chat-journal" element={<Navigate to="/player/messages" replace />} />
           <Route path="chat-journal/chat" element={<Navigate to="/player/messages" replace />} />
           <Route path="chat-journal/journal" element={<Navigate to="/player/wiki" replace />} />
@@ -1161,6 +1199,38 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
         </button>
 
         <button
+          id="nav-tab-handouts"
+          onClick={() => navigate("/player/handouts")}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "handouts" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+          aria-current={currentTab === "handouts" ? "page" : undefined}
+        >
+          <span style={styles.navIcon}>
+            <FileText size={20} strokeWidth={2} />
+          </span>
+          <span style={styles.navLabel}>Docs</span>
+        </button>
+
+        <button
+          id="nav-tab-journal"
+          onClick={() => navigate("/player/journal")}
+          style={{
+            ...styles.navBtn,
+            color: currentTab === "journal" ? "var(--color-accent)" : "var(--color-muted)",
+          }}
+          className="touch-target"
+          aria-current={currentTab === "journal" ? "page" : undefined}
+        >
+          <span style={styles.navIcon}>
+            <BookOpen size={20} strokeWidth={2} />
+          </span>
+          <span style={styles.navLabel}>Journal</span>
+        </button>
+
+        <button
           id="nav-tab-sessions"
           onClick={() => navigate("/player/sessions")}
           style={{
@@ -1201,7 +1271,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "encounters", "settings", "dice", "importer", "party", "shop"].includes(pathParts[2])
+  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "handouts", "journal", "settings", "dice", "importer", "party", "shop"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
@@ -1328,6 +1398,11 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="shop" element={<ShopPanel user={user} addToast={addToast} />} />
             <Route path="importer" element={<ImporterPanel user={user} />} />
             <Route path="soundboard" element={<SoundboardPanel user={user} />} />
+            <Route path="calendar" element={<CalendarPanel user={user} />} />
+            <Route path="handouts" element={<HandoutPanel user={user} />} />
+            <Route path="journal" element={<QuestLogPanel user={user} />} />
+            <Route path="dialogue" element={<DialogueTreePanel user={user} />} />
+            <Route path="dialogue/:npcId" element={<DialogueTreePanel user={user} />} />
             <Route path="settings" element={<SettingsPanel user={user} />} />
             <Route path="settings/:tab" element={<SettingsPanel user={user} />} />
             <Route path="*" element={<Navigate to="map" replace />} />

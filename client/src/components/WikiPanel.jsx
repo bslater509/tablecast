@@ -5,7 +5,7 @@
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { ExternalLink, Menu } from "lucide-react";
+import { ExternalLink, Menu, MessageCircle } from "lucide-react";
 import { marked } from "marked";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
 import TokenPresetIcon from "./TokenPresetIcon";
@@ -20,6 +20,7 @@ import { WikiPanelSkeleton } from "./PanelSkeleton";
 import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";
 import NpcGenModal from "./wiki/NpcGenModal";
 import MonsterGenModal from "./wiki/MonsterGenModal";
+// DialogueEditor is available via the /dm/dialogue/:npcId route
 
 marked.setOptions({
   gfm: true,
@@ -82,6 +83,9 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [showNpcGenModal, setShowNpcGenModal] = useState(false);
   const [showMonsterGenModal, setShowMonsterGenModal] = useState(false);
   const [npcCopiedPrompt, setNpcCopiedPrompt] = useState(false); // "Copied!" feedback for image prompt copy
+
+  // Dialogue editor state (NPC reader → run dialogue)
+  const [dialogueNpcId, setDialogueNpcId] = useState(null);
 
   // Sidebar drawer state (mobile)
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -635,6 +639,16 @@ export default function WikiPanel({ user, isPopout = false }) {
     }
   };
 
+  // Dialogue editor handlers
+  const handleStartDialogue = (npc) => {
+    if (!npc || !npc.id) return;
+    setDialogueNpcId(npc.id);
+  };
+
+  const handleEndDialogue = () => {
+    setDialogueNpcId(null);
+  };
+
   // NPC Editor field modifications
   const handleNpcFieldChange = (key, value) => {
     setEditingNpc((prev) => {
@@ -1043,35 +1057,63 @@ export default function WikiPanel({ user, isPopout = false }) {
               />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
                 <h3 style={{ ...styles.npcBioHeader, marginBottom: 0 }}>Narrative & Biography</h3>
-                <button
-                  type="button"
-                  onClick={() => handleCopyImagePrompt(selectedArticle)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.3rem",
-                    padding: "0.3rem 0.6rem",
-                    fontSize: "0.7rem",
-                    fontWeight: "600",
-                    background: npcCopiedPrompt
-                      ? "rgba(22,163,74,0.15)"
-                      : "rgba(200,151,58,0.1)",
-                    color: npcCopiedPrompt ? "var(--color-success)" : "var(--color-accent)",
-                    border: `1px solid ${
-                      npcCopiedPrompt
-                        ? "rgba(22,163,74,0.3)"
-                        : "rgba(200,151,58,0.25)"
-                    }`,
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                    transition: "all 0.2s",
-                  }}
-                  className="touch-target btn-hover-scale"
-                  title="Copy image generation prompt to clipboard"
-                >
-                  {npcCopiedPrompt ? "✅ Copied!" : "🎨 Copy Image Prompt"}
-                </button>
+                <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap", alignItems: "center" }}>
+                  {isDM && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/dm/dialogue/${selectedArticle.id}`)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
+                        padding: "0.3rem 0.6rem",
+                        fontSize: "0.7rem",
+                        fontWeight: "600",
+                        background: "rgba(59,130,246,0.1)",
+                        color: "#60a5fa",
+                        border: "1px solid rgba(59,130,246,0.25)",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                        transition: "all 0.2s",
+                      }}
+                      className="touch-target btn-hover-scale"
+                      title="Open dialogue tree editor for this NPC"
+                    >
+                      <MessageCircle size={12} />
+                      Dialogue
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleCopyImagePrompt(selectedArticle)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.3rem",
+                      padding: "0.3rem 0.6rem",
+                      fontSize: "0.7rem",
+                      fontWeight: "600",
+                      background: npcCopiedPrompt
+                        ? "rgba(22,163,74,0.15)"
+                        : "rgba(200,151,58,0.1)",
+                      color: npcCopiedPrompt ? "var(--color-success)" : "var(--color-accent)",
+                      border: `1px solid ${
+                        npcCopiedPrompt
+                          ? "rgba(22,163,74,0.3)"
+                          : "rgba(200,151,58,0.25)"
+                      }`,
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      transition: "all 0.2s",
+                    }}
+                    className="touch-target btn-hover-scale"
+                    title="Copy image generation prompt to clipboard"
+                  >
+                    {npcCopiedPrompt ? "✅ Copied!" : "🎨 Copy Image Prompt"}
+                  </button>
+                </div>
               </div>
               {selectedArticle.largeImageUrl && (
                 <div

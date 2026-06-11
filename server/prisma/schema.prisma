@@ -45,6 +45,7 @@ model User {
   characters      Character[]
   chatMessages    ChatMessage[]
   aiConversations AiConversation[]
+  handoutsCreated Handout[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -357,16 +358,96 @@ model Npc {
   partyRelationship  String  @default("")
   isVisibleToPlayers Boolean @default(false)
 
+  // Dialogue tree — JSON object { nodes: [...], startNodeId: "..." }
+  // Each node has: { id, type (SPEECH|CHOICE|CONDITION|ACTION|RANDOM|SKILL_CHECK), ...type-specific fields }
+  dialogueTree String @default("{}") // JSON
+
+  // TTS voice settings (for §5.3 TTS feature)
+  voice     String @default("")
+  voicePitch Float  @default(1.0)
+  voiceRate  Float  @default(1.0)
+
   // Relations
   tokens                Token[]
   encounterParticipants EncounterParticipant[]
   aiConversations       AiConversation[]
+  questsGiven           Quest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([name])
   @@map("npcs")
+}
+
+/// A quest or mission tracked by the DM and visible to players in their Journal.
+/// status: "ACTIVE" | "COMPLETED" | "FAILED"
+model Quest {
+  id Int @id @default(autoincrement())
+
+  title       String
+  description String @default("")
+
+  /// "ACTIVE", "COMPLETED", or "FAILED"
+  status String @default("ACTIVE")
+
+  /// JSON array of objective objects: [{ description, type (KILL|FETCH|ESCORT|EXPLORE|TALK|CRAFT), isComplete, progress, target }]
+  objectives String @default("[]") // JSON
+
+  /// JSON object: { xp, gold, items: [{name, quantity}] }
+  rewards String @default("{}") // JSON
+
+  /// Optional link to quest-giver NPC
+  questGiverNpcId Int?
+  questGiverNpc   Npc?  @relation(fields: [questGiverNpcId], references: [id], onDelete: SetNull)
+
+  /// Optional link to parent quest (for quest chains)
+  parentQuestId Int?
+  parentQuest   Quest? @relation("QuestChain", fields: [parentQuestId], references: [id], onDelete: SetNull)
+
+  /// Child quests in the chain
+  childQuests Quest[] @relation("QuestChain")
+
+  /// JSON array of character IDs this quest is assigned to (empty = party-wide)
+  assignedToCharacterIds String @default("[]") // JSON
+
+  /// Whether players can see this quest
+  isVisibleToPlayers Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([questGiverNpcId])
+  @@index([parentQuestId])
+  @@map("quests")
+}
+
+/// A DM-created handout (image, document, secret note) targeted at specific characters.
+model Handout {
+  id Int @id @default(autoincrement())
+
+  title   String
+  content String @default("")
+
+  /// Optional image attachment URL
+  imageUrl String @default("")
+
+  /// JSON array of character IDs this handout is visible to (empty = all players)
+  targetCharacterIds String @default("[]") // JSON
+
+  /// Whether all targeted players have read it
+  isRead Boolean @default(false)
+
+  /// Creator (DM user)
+  createdByDmId Int
+  createdByDm   User   @relation(fields: [createdByDmId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdByDmId])
+  @@map("handouts")
 }
 
 /// A prepared or active combat encounter for a specific map.
