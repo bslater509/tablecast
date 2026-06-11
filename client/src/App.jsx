@@ -533,7 +533,7 @@ function App() {
         <Route path="/dm/popout/dice" element={<DiceRollerPanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/sessions" element={<SessionsPanel user={user} isPopout={true} basePath="/dm/popout/sessions" />} />
         <Route path="/dm/popout/sessions/:id" element={<SessionsPanel user={user} isPopout={true} basePath="/dm/popout/sessions" />} />
-        <Route path="/dm/popout/encounters" element={<EncountersPanel user={user} isPopout={true} basePath="/dm/popout/encounters" />} />
+        <Route path="/dm/popout/encounters" element={<ErrorBoundary critical={false}><EncountersPanel user={user} isPopout={true} basePath="/dm/popout/encounters" /></ErrorBoundary>} />
         <Route path="/dm/popout/connection" element={<ConnectionHelpPanel user={user} />} />
         <Route path="/dm/popout/characters" element={<CharacterList user={user} onSelectCharacter={(char) => window.open(`/#/dm/popout/characters/${char.id}`, '_blank', 'width=600,height=800,resizable=yes')} isPopout={true} />} />
         <Route path="/dm/popout/characters/:id" element={<ErrorBoundary critical={false}><CharacterSheetWrapper user={user} basePath="/dm/popout/characters" isPopout={true} /></ErrorBoundary>} />
@@ -977,7 +977,7 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
           <Route path="wiki" element={<ErrorBoundary critical={false}><WikiPanel user={user} isPopout={false} /></ErrorBoundary>} />
           <Route path="sessions" element={<SessionsPanel user={user} readOnly basePath="/player/sessions" />} />
           <Route path="sessions/:id" element={<SessionsPanel user={user} readOnly basePath="/player/sessions" />} />
-          <Route path="encounters" element={<EncountersPanel user={user} readOnly basePath="/player/encounters" />} />
+          <Route path="encounters" element={<ErrorBoundary critical={false}><EncountersPanel user={user} readOnly basePath="/player/encounters" /></ErrorBoundary>} />
           <Route path="chat-journal" element={<Navigate to="/player/messages" replace />} />
           <Route path="chat-journal/chat" element={<Navigate to="/player/messages" replace />} />
           <Route path="chat-journal/journal" element={<Navigate to="/player/wiki" replace />} />
@@ -1235,7 +1235,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="wiki" element={<ErrorBoundary critical={false}><WikiPanel user={user} isPopout={false} /></ErrorBoundary>} />
             <Route path="sessions" element={<SessionsPanel user={user} basePath="/dm/sessions" />} />
             <Route path="sessions/:id" element={<SessionsPanel user={user} basePath="/dm/sessions" />} />
-            <Route path="encounters" element={<EncountersPanel user={user} basePath="/dm/encounters" />} />
+            <Route path="encounters" element={<ErrorBoundary critical={false}><EncountersPanel user={user} basePath="/dm/encounters" /></ErrorBoundary>} />
             <Route path="chat-journal" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat-journal/chat" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat-journal/journal" element={<Navigate to="/dm/wiki" replace />} />
