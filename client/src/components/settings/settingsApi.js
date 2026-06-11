@@ -10,7 +10,7 @@
  * @returns {Promise<Object|null>} Reference status object or null on failure.
  */
 export async function fetchRefStatus(authHeaders) {
-  const res = await fetch("/api/reference/status");
+  const res = await fetch("/api/reference/status", { headers: authHeaders });
   if (res.ok) {
     return await res.json();
   }
@@ -80,7 +80,7 @@ export async function fetchBackupStatus(authHeaders, remoteName, remotePath) {
  * @returns {Promise<Object|null>} Reference settings object or null on failure.
  */
 export async function fetchReferenceSettings(authHeaders) {
-  const res = await fetch("/api/reference/settings");
+  const res = await fetch("/api/reference/settings", { headers: authHeaders });
   if (res.ok) {
     return await res.json();
   }

@@ -52,6 +52,7 @@ export default function BackupSettings({ user, authHeaders, jsonAuthHeaders, add
   const [allowedSourcesInput, setAllowedSourcesInput] = useState("");
   const [availableSources, setAvailableSources] = useState([]);
   const [savingSources, setSavingSources] = useState(false);
+  const [sourceSearch, setSourceSearch] = useState("");
 
   /** Load all initial data on mount / user change */
   useEffect(() => {
@@ -485,6 +486,17 @@ export default function BackupSettings({ user, authHeaders, jsonAuthHeaders, add
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
+
+  // Derived source filter values
+  const parsedSources = allowedSourcesInput
+    .split(/[,\s]+/)
+    .map((source) => source.trim().toUpperCase())
+    .filter(Boolean);
+  const invalidSources = parsedSources.filter((s) => !/^[A-Z0-9-]{2,24}$/.test(s));
+  const sourceSearchLower = (sourceSearch || "").toLowerCase();
+  const filteredSources = sourceSearchLower
+    ? availableSources.filter((s) => s.toLowerCase().includes(sourceSearchLower))
+    : availableSources;
 
   return (
     <div style={styles.content}>
@@ -1064,13 +1076,65 @@ export default function BackupSettings({ user, authHeaders, jsonAuthHeaders, add
             placeholder="e.g. XDMG, XMM, XPHB"
             value={allowedSourcesInput}
             onChange={(e) => setAllowedSourcesInput(e.target.value)}
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: invalidSources.length > 0 ? "var(--color-danger)" : undefined,
+            }}
             className="form-input"
             disabled={savingSources}
           />
           <small style={styles.helpText}>
             Leave blank to allow every source. Use comma-separated 5etools source codes.
           </small>
+          {invalidSources.length > 0 && (
+            <div style={{ color: "var(--color-danger)", fontSize: "0.8rem", marginTop: "0.25rem" }}>
+              Invalid source codes: {invalidSources.join(", ")} — unrecognized codes will be ignored
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+          <span style={{ color: "var(--color-muted)", fontSize: "0.8rem" }}>
+            {parsedSources.length > 0
+              ? `${parsedSources.length} source${parsedSources.length !== 1 ? "s" : ""} selected`
+              : `All ${availableSources.length} sources allowed`}
+          </span>
+          <div style={{ display: "flex", gap: "0.4rem" }}>
+            {availableSources.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setAllowedSourcesInput(availableSources.join(", "))}
+                  disabled={savingSources}
+                  style={{
+                    ...styles.secondaryBtn,
+                    padding: "0.4rem 0.6rem",
+                    fontSize: "0.75rem",
+                    cursor: savingSources ? "not-allowed" : "pointer",
+                    opacity: savingSources ? 0.7 : 1,
+                  }}
+                  className="touch-target"
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllowedSourcesInput("")}
+                  disabled={savingSources}
+                  style={{
+                    ...styles.secondaryBtn,
+                    padding: "0.4rem 0.6rem",
+                    fontSize: "0.75rem",
+                    cursor: savingSources ? "not-allowed" : "pointer",
+                    opacity: savingSources ? 0.7 : 1,
+                  }}
+                  className="touch-target"
+                >
+                  Clear All
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <button
@@ -1078,9 +1142,12 @@ export default function BackupSettings({ user, authHeaders, jsonAuthHeaders, add
           onClick={handleSaveReferenceSources}
           disabled={savingSources}
           style={{
-            ...styles.secondaryBtn,
+            ...styles.backupBtn,
+            background: savingSources
+              ? "var(--color-accent-dim)"
+              : "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%)",
             cursor: savingSources ? "not-allowed" : "pointer",
-            opacity: savingSources ? 0.7 : 1,
+            color: savingSources ? "var(--color-muted)" : "var(--color-bg)",
           }}
           className="touch-target btn-hover-scale"
         >
@@ -1088,28 +1155,44 @@ export default function BackupSettings({ user, authHeaders, jsonAuthHeaders, add
         </button>
 
         {availableSources.length > 0 && (
-          <div style={styles.sourceCloud}>
-            {availableSources.slice(0, 40).map((source) => (
-              <button
-                key={source}
-                type="button"
-                onClick={() => {
-                  const current = new Set(parseAllowedSources());
-                  if (current.has(source)) current.delete(source);
-                  else current.add(source);
-                  setAllowedSourcesInput(Array.from(current).sort().join(", "));
-                }}
-                style={{
-                  ...styles.sourceChip,
-                  borderColor: parseAllowedSources().includes(source) ? "var(--color-accent)" : "rgba(255,255,255,0.08)",
-                  color: parseAllowedSources().includes(source) ? "var(--color-accent)" : "var(--color-muted)",
-                }}
-                className="touch-target"
-              >
-                {source}
-              </button>
-            ))}
-          </div>
+          <>
+            <input
+              type="text"
+              placeholder="Search sources..."
+              value={sourceSearch}
+              onChange={(e) => setSourceSearch(e.target.value)}
+              style={styles.input}
+              className="form-input"
+            />
+            <div style={styles.sourceCloud}>
+              {filteredSources.map((source) => (
+                <button
+                  key={source}
+                  type="button"
+                  onClick={() => {
+                    const current = new Set(parsedSources);
+                    if (current.has(source)) current.delete(source);
+                    else current.add(source);
+                    setAllowedSourcesInput(Array.from(current).sort().join(", "));
+                  }}
+                  style={{
+                    ...styles.sourceChip,
+                    borderColor: parsedSources.includes(source) ? "var(--color-accent)" : "rgba(255,255,255,0.08)",
+                    color: parsedSources.includes(source) ? "var(--color-accent)" : "var(--color-muted)",
+                    background: parsedSources.includes(source) ? "rgba(200, 151, 58, 0.12)" : "rgba(255,255,255,0.03)",
+                  }}
+                  className="touch-target"
+                >
+                  {source}
+                </button>
+              ))}
+              {filteredSources.length === 0 && sourceSearch && (
+                <div style={{ color: "var(--color-muted)", fontSize: "0.85rem", padding: "0.5rem 0" }}>
+                  No sources match &ldquo;{sourceSearch}&rdquo;
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         <div style={{ display: "flex", gap: "0.5rem" }}>
