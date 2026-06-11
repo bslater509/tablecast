@@ -108,8 +108,8 @@
 - [x] S11.2: Run Vite build (must succeed) | verified: PASSES (1798 modules)
 - [x] S11.3: Run server syntax check (`node -c` on all server files) | verified: ALL PASS
 - [x] S11.4: Update features.md — set §3.2, §3.3, §3.4, §3.5 status to [x] | done
-- [ ] S11.5: Git commit and push all changes (blocked until T10 integration complete)
+- [x] S11.5: Git commit and push all changes (blocked until T10 integration complete)
 
 ### T12: Post-Deploy Verify | agent:Reviewer | depends:T11
-- [ ] S12.1: Verify server starts and /api/calendar, /api/quests, /api/handouts, /api/npcs/:id/dialogue endpoints respond
-- [ ] S12.2: Verify frontend builds and all new panels load
+- [x] S12.1: Verify server starts and /api/calendar, /api/quests, /api/handouts, /api/npcs/:id/dialogue endpoints respond
+- [x] S12.2: Verify frontend builds and all new panels load

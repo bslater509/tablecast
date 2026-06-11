@@ -1,76 +1,68 @@
 # Project Context
 
-## Current Mission: Section 3 - Narrative & Worldbuilding (IN PROGRESS)
+## Environment
+- Language: Node.js 22 (server), React 18 + Vite 5 (client)
+- Runtime: Express 4 + Socket.io 4
+- Build: `npm run build` (server), `npm run build` (client → Vite)
+- Test: No unit test infrastructure (project-wide pattern)
+- Package Manager: npm
+- Database: SQLite via Prisma 5
+- Deploy: git push → webhook → remote docker compose rebuild
 
-Section 3.1 (Soundboard) already implemented. Implementing 3.2-3.5.
+## Project Type
+- [x] Application (VTT Companion for D&D 5e)
+- [ ] Library/Package
+- [ ] Microservice
+- [x] Monorepo (server/ + client/)
 
----
+## Infrastructure
+- Container: Docker (multi-stage: Vite build → node:22-slim)
+- Orchestration: Docker Compose
+- CI/CD: GitHub webhook → remote `docker compose -p tablecast up -d --build`
+- Cloud: LAN-only (192.168.0.77:3001), no TLS, plain HTTP
 
-## Section 3 Features to Implement
+## Structure
+- Source: `/root/tablecast/server/src/`, `/root/tablecast/client/src/`
+- Tests: None
+- Entry: `server/src/index.js`, `client/src/App.jsx`
 
-### 3.2 In-Game Calendar & Weather (Planned → Implement)
-- Calendar stored as JSON in AppSetting with key `calendar`
-- DM configures via Calendar Settings panel
-- Weather generator: per-season weather tables
-- Display in DM header bar, calendar modal
+## Section 3 Implementation Complete ✅
 
-### 3.3 Quest/Journal Log (Planned → Implement)
-- New `Quest` model: title, description, status, objectives, rewards
-- Player Journal UI tab
-- DM creation panel with objective builder
-- Quest chains, assignment to characters/party
+### §3.2 In-Game Calendar & Weather
+- **Model**: Stored in `AppSetting` table as JSON (`calendar.config`)
+- **Backend**: `server/src/routes/calendar.js` — GET/PUT calendar, POST advance/weather
+- **Util**: `server/src/utils/weatherGenerator.js` — seasonal/terrain weather generation
+- **MCP**: `server/src/mcp/handlers/calendar.js` — 4 tools (get, update, advance, generate_weather)
+- **Frontend**: `CalendarPanel.jsx` (DM tab) + `CalendarWidget.jsx` (standalone widget)
+- **Socket**: `game:dateChange` event broadcast
+- **Nav**: calendar item in DM_NAV_ITEMS
+- **Player View**: visible in player layout (read-only)
 
-### 3.4 Dialogue Tree Builder for NPCs (Planned → Implement)
-- Node types: SPEECH, CHOICE, CONDITION, ACTION, RANDOM, SKILL_CHECK
-- Stored as JSON on Npc model
-- Node graph editor (drag-to-connect)
-- Dialogue runner: DM opens dialogue panel, players see chat-like bubble
+### §3.3 Quest/Journal Log
+- **Model**: `Quest` — title, description, status (ACTIVE/COMPLETED/FAILED), objectives (JSON), rewards (JSON), questGiverNpcId, parentQuestId, assignedCharacterIds, isVisibleToPlayers
+- **Backend**: `server/src/routes/quests.js` — full CRUD + status tracking
+- **MCP**: `server/src/mcp/handlers/quests.js` — 4 tools (list, create, update, delete)
+- **Frontend**: `QuestLogPanel.jsx` — DM quest CRUD with objective builder, reward config, progress tracking; player read-only view with notification badges
+- **Nav**: journal item in DM_NAV_ITEMS; player layout includes journal tab
 
-### 3.5 Player Handouts (Planned → Implement)
-- New `Handout` model: title, content, image attachment, target character(s)
-- Handouts tab for players
-- Socket notification for new handouts
+### §3.4 Dialogue Tree Builder
+- **Model**: `dialogueTree` JSON field on `Npc` model
+- **Backend**: `server/src/routes/dialogue.js` — GET/PUT dialogue, POST start/advance/evaluate
+- **Util**: `server/src/utils/dialogueEngine.js` — tree evaluation, condition checks, skill check resolution
+- **MCP**: `server/src/mcp/handlers/dialogue.js` — 4 tools (get, update, start, advance)
+- **Frontend**: `DialogueTreePanel.jsx` — DM builder mode (node CRUD, validation, skill checks) + player chat-bubble read-only mode with socket streaming
+- **Socket**: `dialogue:start`, `dialogue:advance` events
+- **Nav**: dialogue item in DM_NAV_ITEMS; player layout includes dialogue tab
 
----
+### §3.5 Player Handouts
+- **Model**: `Handout` — title, content, imageUrl, targetCharacterIds (JSON), isRead, createdByDmId
+- **Backend**: `server/src/routes/handouts.js` — full CRUD with character targeting
+- **MCP**: `server/src/mcp/handlers/handouts.js` — 4 tools (list, create, update, delete)
+- **Frontend**: `HandoutPanel.jsx` (viewer) + `HandoutsPanel.jsx` (management list)
+- **Socket**: `handout:created`, `handout:updated`, `handout:deleted`, `handout:read` events
+- **Nav**: handouts item in DM_NAV_ITEMS; player nav includes handouts; popout route available
 
-## Architecture Patterns
-
-### Route Pattern
-- DM-only routes use `requireDm` middleware
-- Mixed routes use `getRequestUser` or `requireUser`
-- Standard CRUD with try/catch, logger.error, consistent error responses
-
-### MCP Tool Pattern
-- Schemas in `server/src/mcp/schemas.js` - add to TOOLS array
-- Handlers in `server/src/mcp/handlers/<domain>.js`
-- Wire in `server/src/mcp-server.js` (import + spread into HANDLERS)
-
-### Prisma Pattern
-- SQLite with autoincrement IDs, JSON stored as TEXT
-- All models use `@@map("table_name")` for naming
-- After schema change: `npx prisma migrate dev --name <name>`
-
-### Frontend Pattern
-- Components in `client/src/components/`
-- Sub-directories for extracted modules (wiki/, settings/, chat/, etc.)
-- Auth headers via `getAuthHeaders`/`getJsonAuthHeaders` from `utils/authHeaders.js`
-- Socket via `SocketContext`
-- Nav items in DM_NAV_ITEMS array in App.jsx
-
-### Frontend Styling
-- Inline `styles` objects (CSS-in-JS pattern)
-- `glass-panel`, `gold-border-glow`, `touch-target`, `btn-hover-scale` CSS classes
-- Mobile-first, 44x44px minimum touch targets
-- Dark theme: --color-bg, --color-accent (gold), --color-muted, --color-text
-
-### Server Config
-- Port 3001, binds to 0.0.0.0
-- SQLite via Prisma (DATABASE_URL env)
-- Logger: `logger.info/error/warn/debug(ns, msg, meta)`
-- Error handler: AppError class
-
----
-
-## Git
-- Branch: master
-- Push via webhook to deploy
+## Notes
+- Dead code removed: `DialogueEditor.jsx` (1608 lines, unimported), `QuestJournalPanel.jsx` (never imported — QuestLogPanel used instead)
+- Build verified: 1800+ modules, ~5s build time, no errors
+- Main Section 3 deployed via commit `a4ade56` on origin/master

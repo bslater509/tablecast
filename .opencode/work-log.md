@@ -72,7 +72,18 @@
 - ✅ S11.3: Server syntax check — ALL 10 files PASS
 - ✅ S11.4: features.md — §3.2-3.5 already [x]
 
-## Remaining Items (need Worker before T12)
-- [ ] S10.7: Consume CalendarWidget (orphan, 1094-line widget, never imported anywhere)
-- [ ] S11.5: Git commit + push (blocked on S10.7)
-- T12.x blocked on T11 completion
+## Final Status: MISSION COMPLETE ✅ (2026-06-11T21:56)
+- ✅ S10.7: CalendarWidget consumed in CalendarPanel.jsx line 575 (player view)
+- ✅ S11.5: Git commit + push — `a4ade56` pushed to master, webhook deploy triggered
+- ✅ S12.1: All 4 endpoints verified on live server (calendar, quests, handouts, dialogue)
+- ✅ S12.2: Frontend loads at http://192.168.0.77:3001/
+
+## Post-Deploy Endpoint Verification
+| Endpoint | Status | Response |
+|----------|--------|----------|
+| `/api/health` | ✅ 200 | `{"status":"ok"}` |
+| `/api/calendar` | ✅ 200 | Calendar config with weather data |
+| `/api/quests` | ✅ 200 | `[]` (empty, working) |
+| `/api/handouts` | ✅ 200 | `[]` (empty, working) |
+| `/api/npcs/1/dialogue` | ✅ 200 | `{"dialogueTree":{},"npcName":"Antigravity..."}` |
+| Frontend `/` | ✅ 200 | Full HTML with Vite bundle loaded |
