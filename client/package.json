@@ -1,6 +1,6 @@
 {
   "name": "tablecast-client",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Tablecast D&D local server - React frontend",
   "private": true,
   "scripts": {
