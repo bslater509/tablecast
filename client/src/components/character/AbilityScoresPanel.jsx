@@ -27,15 +27,6 @@ export default function AbilityScoresPanel({
             <span style={styles.statNameLabel}>
               {stat.slice(0, 3).toUpperCase()}
             </span>
-            <button
-              id={`roll-stat-${stat}`}
-              onClick={() => onAbilityRoll(stat, score)}
-              style={styles.statModBtn}
-              className="touch-target btn-hover-scale"
-              title="Click to Roll Check"
-            >
-              {formatMod(mod)}
-            </button>
             <input
               id={`input-stat-${stat}`}
               type="number"
@@ -44,9 +35,26 @@ export default function AbilityScoresPanel({
               max={30}
               onChange={(e) => onStatChange(stat, e.target.value)}
               onBlur={(e) => onStatChange(stat, e.target.value)}
-              style={styles.statInput}
+              style={styles.statScoreInput}
+              onFocus={(e) => {
+                e.target.style.borderColor = "var(--color-accent)";
+                e.target.style.boxShadow = "0 0 0 3px rgba(200,151,58,0.14)";
+              }}
+              onBlurCapture={(e) => {
+                e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                e.target.style.boxShadow = "none";
+              }}
             />
-            {/* Save Prof Checkbox */}
+            <div style={styles.statDivider} />
+            <button
+              id={`roll-stat-${stat}`}
+              onClick={() => onAbilityRoll(stat, score)}
+              style={styles.statModBtn}
+              className="touch-target btn-hover-scale"
+              title="Click to Roll Ability Check"
+            >
+              {formatMod(mod)}
+            </button>
             <div style={styles.saveProfRow}>
               <input
                 id={`chk-saveprof-${stat}`}

@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
 import { useDiceBox } from "../context/DiceBoxContext";
+import { Brain, Swords, Backpack, BookOpen, UserRound, Zap, ChevronLeft } from "lucide-react";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
 import { getJsonAuthHeaders } from "../utils/authHeaders";
 import { styles } from "./character/characterStyles";
@@ -15,6 +16,59 @@ import SkillsPanel from "./character/SkillsPanel";
 import AttacksPanel from "./character/AttacksPanel";
 import InventoryPanel from "./character/InventoryPanel";
 import SpellsPanel from "./character/SpellsPanel";
+
+function BioTabs({ character, onUpdate, onError, user, styles }) {
+  const [bioTab, setBioTab] = useState("backstory");
+  const bioFields = [
+    { key: "backstory", label: "Backstory", actions: AI_FIELD_ACTIONS.backstory },
+    { key: "personality", label: "Personality", actions: AI_FIELD_ACTIONS.personality },
+    { key: "appearance", label: "Appearance", actions: AI_FIELD_ACTIONS.appearance },
+  ];
+  return (
+    <div style={{ ...styles.narrativeCard, gridColumn: "1 / -1" }}>
+      <nav style={{ display: "flex", gap: "0.25rem", marginBottom: "0.25rem" }}>
+        {bioFields.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setBioTab(key)}
+            style={{
+              padding: "0.35rem 0.65rem",
+              fontSize: "0.75rem",
+              fontWeight: bioTab === key ? 700 : 600,
+              borderRadius: "6px",
+              border: "1px solid transparent",
+              background: bioTab === key ? "var(--color-accent-dim)" : "transparent",
+              color: bioTab === key ? "var(--color-accent)" : "var(--color-muted)",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            className="touch-target"
+          >
+            {label}
+          </button>
+        ))}
+        <div style={{ flex: 1 }} />
+        <AiAssistButton
+          fieldName={bioTab}
+          actions={bioFields.find((f) => f.key === bioTab)?.actions || []}
+          currentText={character?.[bioTab] || ""}
+          context={{ entityType: "character", character: { name: character?.name, race: character?.race, class: character?.class, level: character?.level, backstory: character?.backstory, personality: character?.personality, appearance: character?.appearance } }}
+          onApply={(reply) => onUpdate(bioTab, reply)}
+          onError={onError}
+          user={user}
+        />
+      </nav>
+      <textarea
+        value={character?.[bioTab] || ""}
+        onChange={(e) => onUpdate(bioTab, e.target.value)}
+        placeholder={`${bioFields.find((f) => f.key === bioTab)?.label}...`}
+        style={styles.narrativeTextArea}
+        className="form-input"
+        rows={4}
+      />
+    </div>
+  );
+}
 
 export default function CharacterSheet({ characterId, onBack, user }) {
   const { socket } = useSocket();
@@ -851,17 +905,25 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     <div style={styles.sheet} className="fade-in">
       {/* Top Banner Header */}
       <header style={styles.header} className="glass-panel gold-border-glow">
-        {onBack && (
-          <button onClick={onBack} style={styles.backBtn} className="touch-target btn-hover-scale">
-            ◀ List
-          </button>
-        )}
-        
-        <div style={styles.headerStats}>
-          <h2 style={styles.charName}>{character.name}</h2>
-          <span style={styles.charSummary}>
-            Lvl {character.level}  {character.race} {character.class}
-          </span>
+        <div style={styles.headerLeft}>
+          {onBack && (
+            <button onClick={onBack} style={styles.backBtn} className="touch-target btn-hover-scale">
+              <ChevronLeft size={16} />
+            </button>
+          )}
+          <div style={styles.portrait}>
+            {character.tokenImage ? (
+              <img src={character.tokenImage} alt="" style={styles.portraitImg} />
+            ) : (
+              <UserRound size={24} />
+            )}
+          </div>
+          <div style={styles.headerStats}>
+            <h2 style={styles.charName}>{character.name}</h2>
+            <span style={styles.charSummary}>
+              Lvl {character.level}  {character.race} {character.class}
+            </span>
+          </div>
         </div>
 
         <div style={styles.headerActions}>
@@ -968,93 +1030,36 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       </section>
 
       <section style={styles.narrativeSection} className="glass-panel">
-        <div style={styles.narrativeCard}>
-          <div style={styles.narrativeHeader}>
-            <span style={styles.narrativeLabel}>Backstory</span>
-            <AiAssistButton
-              fieldName="backstory"
-              actions={AI_FIELD_ACTIONS.backstory}
-              currentText={character?.backstory || ""}
-              context={{ entityType: "character", character: { name: character?.name, race: character?.race, class: character?.class, level: character?.level, backstory: character?.backstory, personality: character?.personality, appearance: character?.appearance } }}
-              onApply={(reply) => updateCharacterState((prev) => ({ ...prev, backstory: reply }))}
-              onError={(msg) => setError(msg)}
-              user={user}
-            />
-          </div>
-          <textarea
-            value={character.backstory || ""}
-            onChange={(e) => setCharacter((prev) => ({ ...prev, backstory: e.target.value }))}
-            onBlur={(e) => handleFieldChange("backstory", e.target.value)}
-            placeholder="Character backstory..."
-            style={styles.narrativeTextArea}
-            className="form-input"
-            rows={3}
-          />
-        </div>
-        <div style={styles.narrativeCard}>
-          <div style={styles.narrativeHeader}>
-            <span style={styles.narrativeLabel}>Personality</span>
-            <AiAssistButton
-              fieldName="personality"
-              actions={AI_FIELD_ACTIONS.personality}
-              currentText={character?.personality || ""}
-              context={{ entityType: "character", character: { name: character?.name, race: character?.race, class: character?.class, level: character?.level, backstory: character?.backstory, personality: character?.personality, appearance: character?.appearance } }}
-              onApply={(reply) => updateCharacterState((prev) => ({ ...prev, personality: reply }))}
-              onError={(msg) => setError(msg)}
-              user={user}
-            />
-          </div>
-          <textarea
-            value={character.personality || ""}
-            onChange={(e) => setCharacter((prev) => ({ ...prev, personality: e.target.value }))}
-            onBlur={(e) => handleFieldChange("personality", e.target.value)}
-            placeholder="Personality traits..."
-            style={styles.narrativeTextArea}
-            className="form-input"
-            rows={3}
-          />
-        </div>
-        <div style={styles.narrativeCard}>
-          <div style={styles.narrativeHeader}>
-            <span style={styles.narrativeLabel}>Appearance</span>
-            <AiAssistButton
-              fieldName="appearance"
-              actions={AI_FIELD_ACTIONS.appearance}
-              currentText={character?.appearance || ""}
-              context={{ entityType: "character", character: { name: character?.name, race: character?.race, class: character?.class, level: character?.level, backstory: character?.backstory, personality: character?.personality, appearance: character?.appearance } }}
-              onApply={(reply) => updateCharacterState((prev) => ({ ...prev, appearance: reply }))}
-              onError={(msg) => setError(msg)}
-              user={user}
-            />
-          </div>
-          <textarea
-            value={character.appearance || ""}
-            onChange={(e) => setCharacter((prev) => ({ ...prev, appearance: e.target.value }))}
-            onBlur={(e) => handleFieldChange("appearance", e.target.value)}
-            placeholder="Physical appearance..."
-            style={styles.narrativeTextArea}
-            className="form-input"
-            rows={3}
-          />
-        </div>
+        <BioTabs
+          character={character}
+          onUpdate={(field, value) => { setCharacter((prev) => ({ ...prev, [field]: value })); handleFieldChange(field, value); }}
+          onError={setError}
+          user={user}
+          styles={styles}
+        />
       </section>
 
       {/* Internal Tabs (Stats, Skills, Attacks, Inventory) */}
       <nav style={styles.tabNav}>
-        {["stats", "skills", "attacks", "inventory", "spells"].map((tab) => (
+        {[
+          { key: "stats", label: "Stats", Icon: Brain },
+          { key: "skills", label: "Skills", Icon: Zap },
+          { key: "attacks", label: "Attacks", Icon: Swords },
+          { key: "inventory", label: "Items", Icon: Backpack },
+          { key: "spells", label: "Spells", Icon: BookOpen },
+        ].map(({ key, label, Icon }) => (
           <button
-            key={tab}
-            id={`sheet-tab-${tab}`}
-            onClick={() => setSheetTab(tab)}
+            key={key}
+            id={`sheet-tab-${key}`}
+            onClick={() => setSheetTab(key)}
             style={{
               ...styles.tabBtn,
-              borderBottom: sheetTab === tab ? "2px solid var(--color-accent)" : "none",
-              color: sheetTab === tab ? "var(--color-accent)" : "var(--color-muted)",
-              fontWeight: sheetTab === tab ? "bold" : "normal",
+              ...(sheetTab === key ? styles.tabBtnActive : {}),
             }}
             className="touch-target"
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            <Icon size={16} style={styles.tabIcon} />
+            {label}
           </button>
         ))}
       </nav>

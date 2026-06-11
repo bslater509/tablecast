@@ -2,6 +2,8 @@
 // Tablecast — Spells Panel (Extracted from CharacterSheet)
 // Spellcasting ability config, spell slot tracker, and spell library manager
 // =============================================================================
+import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { formatMod } from "./characterUtils";
 import { styles } from "./characterStyles";
 import Autocomplete from "../Autocomplete";
@@ -27,6 +29,9 @@ export default function SpellsPanel({
   onRemoveSpell,
   onToggleExpand,
 }) {
+  const [showPreparedOnly, setShowPreparedOnly] = useState(false);
+  const preparedCount = spells.filter((s) => s.prepared || s.level === 0).length;
+
   return (
     <div style={styles.spellsContainer} className="fade-in">
       {/* Spellcasting Header */}
@@ -108,9 +113,30 @@ export default function SpellsPanel({
         </div>
       )}
 
-      {/* Add Spell Button */}
+      {/* Spell Filter & Add Button */}
       <div style={styles.spellAddRow}>
-        <h3 style={styles.spellSectionTitle}>Spells</h3>
+        <div style={styles.spellFilterRow}>
+          <button
+            onClick={() => setShowPreparedOnly(false)}
+            style={{
+              ...styles.spellFilterBtn,
+              ...(!showPreparedOnly ? styles.spellFilterBtnActive : {}),
+            }}
+            className="touch-target"
+          >
+            All ({spells.length})
+          </button>
+          <button
+            onClick={() => setShowPreparedOnly(true)}
+            style={{
+              ...styles.spellFilterBtn,
+              ...(showPreparedOnly ? styles.spellFilterBtnActive : {}),
+            }}
+            className="touch-target"
+          >
+            Prepared ({preparedCount})
+          </button>
+        </div>
         {!showAddSpell && (
           <button
             id="add-spell-btn"
@@ -162,7 +188,11 @@ export default function SpellsPanel({
       ) : (
         <div style={styles.spellList}>
           {SPELL_LEVELS.map((level) => {
-            const levelSpells = spells.filter((s) => s.level === level);
+              const levelSpells = spells.filter((s) => {
+                if (s.level !== level) return false;
+                if (showPreparedOnly && level > 0 && !s.prepared) return false;
+                return true;
+              });
             if (levelSpells.length === 0) return null;
             return (
               <div key={level} style={styles.spellGroup}>
@@ -211,10 +241,10 @@ export default function SpellsPanel({
                               onRemoveSpell(spellIndex);
                             }}
                             style={styles.deleteBtn}
-                            className="touch-target"
+                            className="touch-target btn-hover-scale"
                             title="Remove spell"
                           >
-                            ✕
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>

@@ -2,6 +2,7 @@
 // Tablecast — Attacks Panel (Extracted from CharacterSheet)
 // Weapons & spells attack list with add/delete and roll-to-hit functionality
 // =============================================================================
+import { Trash2, Swords } from "lucide-react";
 import { getMod, formatMod, getProficiencyBonus } from "./characterUtils";
 import { styles } from "./characterStyles";
 import Autocomplete from "../Autocomplete";
@@ -22,6 +23,8 @@ export default function AttacksPanel({
   onAttackRoll,
   onDeleteAttack,
 }) {
+  const attacks = character.modifiers.attacks || [];
+
   return (
     <div style={styles.attacksContainer} className="fade-in">
       <div style={styles.attackSubHeader}>
@@ -143,43 +146,53 @@ export default function AttacksPanel({
       )}
 
       {/* List of Weapon Attacks */}
-      <div style={styles.attacksList}>
-        {(character.modifiers.attacks || []).map((atk, idx) => {
-          const modifier = getMod(character[atk.ability]);
-          const profBonus = getProficiencyBonus(character.level);
-          const toHit = modifier + (atk.proficient ? profBonus : 0);
+      {attacks.length === 0 && !showAddAttack ? (
+        <div style={styles.emptyState}>
+          <Swords size={28} style={styles.emptyStateIcon} />
+          <span>No attacks configured</span>
+          <span style={{ fontSize: "0.7rem", opacity: 0.7 }}>
+            Add a weapon or spell attack above to roll from your sheet.
+          </span>
+        </div>
+      ) : (
+        <div style={styles.attacksList}>
+          {attacks.map((atk, idx) => {
+            const modifier = getMod(character[atk.ability]);
+            const profBonus = getProficiencyBonus(character.level);
+            const toHit = modifier + (atk.proficient ? profBonus : 0);
 
-          return (
-            <div key={atk.name || idx} style={styles.attackCard} className="glass-panel">
-              <div style={styles.atkInfo}>
-                <span style={styles.atkName}>{atk.name}</span>
-                <span style={styles.atkFormula}>
-                  Hit: {formatMod(toHit)} | Damage: {atk.dice} + {formatMod(modifier)}
-                </span>
+            return (
+              <div key={atk.name || idx} style={styles.attackCard} className="glass-panel">
+                <div style={styles.atkInfo}>
+                  <span style={styles.atkName}>{atk.name}</span>
+                  <span style={styles.atkFormula}>
+                    Hit: {formatMod(toHit)} | Damage: {atk.dice} + {formatMod(modifier)}
+                  </span>
+                </div>
+                <div style={styles.atkActions}>
+                  <button
+                    id={`roll-atk-${atk.name.toLowerCase().replace(/\s/g, "")}`}
+                    onClick={() => onAttackRoll(atk)}
+                    style={styles.atkRollBtn}
+                    className="touch-target btn-hover-scale"
+                  >
+                    Roll Attack
+                  </button>
+                  <button
+                    id={`delete-atk-${atk.name.toLowerCase().replace(/\s/g, "")}`}
+                    onClick={() => onDeleteAttack(idx)}
+                    style={styles.deleteBtn}
+                    className="touch-target btn-hover-scale"
+                    title="Delete attack"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
-              <div style={styles.atkActions}>
-                <button
-                  id={`roll-atk-${atk.name.toLowerCase().replace(/\s/g, "")}`}
-                  onClick={() => onAttackRoll(atk)}
-                  style={styles.atkRollBtn}
-                  className="touch-target btn-hover-scale"
-                >
-                  Roll Attack
-                </button>
-                <button
-                  id={`delete-atk-${atk.name.toLowerCase().replace(/\s/g, "")}`}
-                  onClick={() => onDeleteAttack(idx)}
-                  style={styles.deleteBtn}
-                  className="touch-target"
-                  title="Delete attack"
-                >
-                  🗑️
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -2,8 +2,13 @@
 // Tablecast — Inventory Panel (Extracted from CharacterSheet)
 // Character inventory management with add/delete items and weight tracking
 // =============================================================================
+import { Trash2 } from "lucide-react";
 import { styles } from "./characterStyles";
 import Autocomplete from "../Autocomplete";
+
+function getCarryCapacity(strength) {
+  return (strength || 10) * 15;
+}
 
 export default function InventoryPanel({
   character,
@@ -19,18 +24,38 @@ export default function InventoryPanel({
   onAddItem,
   onDeleteItem,
 }) {
+  const carryCap = getCarryCapacity(character.strength);
+  const weightNum = parseFloat(totalWeight) || 0;
+  const weightPct = carryCap > 0 ? Math.min(100, (weightNum / carryCap) * 100) : 0;
+  const encumbrance = weightPct > 66 ? "heavy" : weightPct > 33 ? "medium" : "light";
+  const encColor = encumbrance === "heavy" ? "var(--color-danger)" : encumbrance === "medium" ? "var(--color-accent)" : "var(--color-success)";
+
   return (
     <div style={styles.inventoryContainer} className="fade-in">
       <div style={styles.inventoryHeader}>
         <div style={styles.weightCard} className="glass-panel">
-          <span style={styles.weightLabel}>Total Weight</span>
-          <span style={styles.weightValue}>{totalWeight} lbs</span>
+          <span style={styles.weightLabel}>Carry Weight</span>
+          <span style={{ ...styles.weightValue, color: encColor }}>
+            {totalWeight} / {carryCap} lbs
+          </span>
+          <div style={styles.weightBarContainer}>
+            <div
+              style={{
+                ...styles.weightBar,
+                width: `${weightPct}%`,
+                background: encColor,
+              }}
+            />
+          </div>
+          <span style={{ fontSize: "0.62rem", color: encColor, fontWeight: 600, textTransform: "uppercase", marginTop: "0.1rem" }}>
+            {encumbrance}
+          </span>
         </div>
         {!showAddItem && (
           <button
             id="add-item-form-btn"
             onClick={() => onToggleForm(true)}
-            style={styles.addBtn}
+            style={{ ...styles.addBtn, alignSelf: "center" }}
             className="touch-target btn-hover-scale"
           >
             + Add Item
@@ -127,10 +152,10 @@ export default function InventoryPanel({
               id={`delete-item-${item.name.toLowerCase().replace(/\s/g, "")}`}
               onClick={() => onDeleteItem(idx)}
               style={styles.deleteBtn}
-              className="touch-target"
+              className="touch-target btn-hover-scale"
               title="Remove item"
             >
-              🗑️
+              <Trash2 size={16} />
             </button>
           </div>
         ))}
