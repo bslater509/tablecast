@@ -295,14 +295,59 @@ Extracted the `styles` object (335 lines) and 7 pure fetch utility functions (10
 
 ---
 
+## UNIT REVIEW: T4.2 BackupSettings & AiSetup Component Extraction
+
+### Result: **FAILED** ❌
+
+### Files Examined
+
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `client/src/components/settings/BackupSettings.jsx` | CREATE | 1269 | ⚠️ EXISTS but NOT WIRED |
+| `client/src/components/settings/AiSetup.jsx` | CREATE | 256 | ❌ BROKEN IMPORT + NOT WIRED |
+| `client/src/components/SettingsPanel.jsx` | MODIFY | 1766 (unchanged) | ❌ NOT UPDATED |
+
+### Defects Found
+
+#### ❌ DEFECT 1 (HIGH): SettingsPanel.jsx not wired — S4.2.3 incomplete
+SettingsPanel.jsx (1766 lines) has **not been updated** to import or render the new sub-components. All backup and AI configuration logic remains duplicated inline. The new components are dead code.
+
+**Impact:** No reduction in SettingsPanel.jsx size. Both new files are unreachable.
+
+#### ❌ DEFECT 2 (HIGH): AiSetup.jsx has broken import path — line 5
+```js
+import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";
+                                                    ^^ SHOULD BE "../.."
+```
+From `client/src/components/settings/AiSetup.jsx`, the correct path to `client/src/utils/authHeaders.js` requires going up TWO levels (`../../utils/authHeaders`), not one. The file at `client/src/components/utils/authHeaders.js` does not exist.
+
+**Impact:** Once SettingsPanel.jsx imports AiSetup, the Vite build will fail with a module resolution error.
+
+#### ❌ DEFECT 3 (CRITICAL): Uneven extraction pattern
+BackupSettings.jsx wraps both backup AND reference cache management into a single component (~1269 lines). For consistency with the refactoring pattern used in CharacterSheet and WikiPanel, these should ideally be separate concerns.
+
+**Impact:** Code quality concern — the BackupSettings component mixes backup, rclone remote management, and reference cache concerns.
+
+### What Works
+- **BackupSettings.jsx**: Well-structured, correct imports, follows project conventions
+- **AiSetup.jsx**: Well-structured despite broken import
+- **LSP diagnostics**: Clean on both files (dead code not analyzed by module graph)
+- **Build**: Passes (1770 modules, 5.13s) — only because files are not imported
+- **No debug logging**: Clean
+
+### Required Fixes
+1. **Fix AiSetup.jsx line 5**: Change `"../utils/authHeaders"` → `"../../utils/authHeaders"`
+2. **Complete S4.2.3**: Replace inline backup/AI JSX in SettingsPanel.jsx with `<BackupSettings>` and `<AiSetup>` component usage, removing now-unused state/handlers
+
+---
+
 ## T4.2: BackupSettings Component Extraction
 
-### Status: IN PROGRESS
+### Status: IN PROGRESS (requires rework)
 
-### Task
-Extract backup/reference/rclone management section from SettingsPanel.jsx into settings/BackupSettings.jsx.
-
-- [ ] ses_3 (Worker): `settings/BackupSettings.jsx` - CREATE pending
+- [ ] ses_3 (Worker): `settings/BackupSettings.jsx` - CREATE (EXISTS but not wired)
+- [ ] ses_3 (Worker): `settings/AiSetup.jsx` - CREATE (EXISTS but broken import + not wired)
+- [ ] ses_3 (Worker): `SettingsPanel.jsx` - MODIFY (NOT DONE)
 
 ---
 
@@ -353,3 +398,50 @@ Extracted all handler logic from the monolithic mcp-server.js (1538 lines) into 
 - **Reduction**: mcp-server.js from 1538 → 162 lines (-89%)
 - **No behavioral changes**: All logic preserved exactly from original switch
 - **No unused imports**: Cleaned `referenceSearch` and unused `startTime` variable
+
+---
+
+## T4.2: SettingsPanel Component Extraction (Rework)
+
+### Result: PASS ✅
+
+### Summary
+Successfully extracted the AI Setup and Backup/Reference logic from SettingsPanel.jsx (1766 lines) into two self-contained components, and rewrote SettingsPanel.jsx as a thin orchestrator.
+
+### Files Changed
+
+| File | Action | Lines |
+|------|--------|-------|
+| `client/src/components/settings/AiSetup.jsx` | **REWRITE** | 256 → 254 (-2) |
+| `client/src/components/settings/BackupSettings.jsx` | **REWRITE** | 1269 → 1265 (-4) |
+| `client/src/components/SettingsPanel.jsx` | **REWRITE** | 1766 → 70 (-1696, ~96%) |
+
+### Changes Made
+
+1. **Rewrote `settings/AiSetup.jsx`**:
+   - Changed prop signature from `{ user, addToast }` to `{ authHeaders, jsonAuthHeaders, addToast }`
+   - Removed internal `getAuthHeaders(user)` / `getJsonAuthHeaders(user)` derivation
+   - Removed unused `getAuthHeaders`, `getJsonAuthHeaders` imports
+   - Changed `useEffect` dependency from `[user?.id]` to `[]`
+
+2. **Rewrote `settings/BackupSettings.jsx`**:
+   - Changed prop signature from `{ user, addToast }` to `{ user, authHeaders, jsonAuthHeaders, addToast }`
+   - Removed internal auth header derivation and imports
+   - Retained `user?.id` for useEffect dependencies
+
+3. **Rewrote `SettingsPanel.jsx`**:
+   - Removed all inline AI state (13 variables), backup state (18 variables), reference state (6 variables)
+   - Removed all AI handlers (4 functions), backup handlers (9 functions), and 3 useEffects
+   - Removed helper functions: `formatBytes`, `parseAllowedSources`, `filteredProviders`
+   - Removed unused imports: `useEffect`, `Plus`, all `apiFetch*` functions
+   - Added imports: `BackupSettings` and `AiSetup` from `./settings/`
+   - Replaced 200+ lines of backup JSX with `<BackupSettings .../>`
+   - Replaced 270+ lines of AI JSX with `<AiSetup .../>`
+   - Kept: tab navigation header, `useState` for `activeSettingsTab`, auth header derivation
+
+### Evidence
+- **LSP diagnostics**: Clean on all 3 files (0 errors, 0 warnings)
+- **Vite build**: Passed (1775 modules transformed, 4.40s)
+- **No debug logging**: Clean
+- **Full reduction**: SettingsPanel.jsx shrunk from 1766 to 70 lines (-96%)
+- **Total domain code**: 1589 lines across 3 focused modules (AiSetup 254, BackupSettings 1265, SettingsPanel 70)
