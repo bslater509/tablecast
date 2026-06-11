@@ -62,16 +62,92 @@
 - [x] S4.1.4: LSP diagnostics clean on all files
 
 ### T4.2: Extract sub-components | agent:Worker
-- [ ] S4.2.1: Create settings/BackupSettings.jsx
-- [ ] S4.2.2: Create settings/AiSetup.jsx
-- [ ] S4.2.3: Update SettingsPanel.jsx to import sub-components
+- [x] S4.2.1: Create settings/BackupSettings.jsx (1265 lines, imports from settingsApi + settingsStyles)
+- [x] S4.2.2: Create settings/AiSetup.jsx (254 lines, accepts authHeaders/jsonAuthHeaders as props)
+- [x] S4.2.3: Update SettingsPanel.jsx to import and render BackupSettings and AiSetup
 
-### T4.3: Review Phase 4 | agent:Reviewer
-- [ ] S4.3.1: Run LSP diagnostics on all settings/ modules
-- [ ] S4.3.2: Run Vite build to verify compilation
+### T4.3: Review Phase 4 (Re-Verified) | agent:Worker
+- [x] S4.3.1: LSP diagnostics clean on all 3 modified files (0 errors, 0 warnings)
+- [x] S4.3.2: Vite build passes (1775 modules, 4.40s) — components now wired and active
 
 ## M5: Final Verification & Push
-### T5.1: Full system check and deploy | agent:Reviewer
-- [ ] S5.1.1: Run LSP diagnostics on all modified files
-- [ ] S5.1.2: Run Vite build and verify zero errors
-- [ ] S5.1.3: Git commit and push all changes
+### T5.1: Full system check and deploy | agent:Worker
+- [x] S5.1.1: Run LSP diagnostics on all modified files — clean (0 errors, 0 warnings)
+- [x] S5.1.2: Run Vite build and verify zero errors — PASS (1775 modules, 4.40s)
+- [x] S5.1.3: Git commit and push all changes — commit a973190 pushed to master
+
+## M6: Phase 6 — EncountersPanel.jsx (1642 lines → encounters/ subdirectory)
+### T6.1: Extract styles and helper functions
+- [x] S6.1.1: Create encounters/encounterStyles.js (389 lines) — styles, hpColor, badgeColor
+- [x] S6.1.2: Update EncountersPanel.jsx to import encounterStyles, hpColor, badgeColor
+- [x] S6.1.3: Run LSP diagnostics — clean
+
+### T6.2: Extract AiBuilderModal component
+- [x] S6.2.1: Create encounters/AiBuilderModal.jsx (248 lines) — self-contained AI encounter builder modal
+- [x] S6.2.2: Update EncountersPanel.jsx to import and render AiBuilderModal
+- [x] S6.2.3: Run LSP diagnostics — clean
+
+### T6.3: Extract AddParticipantPanel component
+- [x] S6.3.1: Create encounters/AddParticipantPanel.jsx (224 lines) — self-contained add-participant form
+- [x] S6.3.2: Update EncountersPanel.jsx to import and render AddParticipantPanel
+- [x] S6.3.3: Run LSP diagnostics — clean
+
+### T6.4: Review Phase 6 | agent:Reviewer
+- [x] S6.4.1: LSP diagnostics clean on all 4 files (0 errors, 0 warnings)
+- [x] S6.4.2: Vite build passes (1775 modules, 4.21s, zero errors)
+- [x] S6.4.3: Verify modularity and code quality
+
+## M7: Phase 7 — ChatPanel.jsx (1332 lines → chat/ subdirectory)
+### T7.1: Extract chatUtils.js — pure helper functions
+- [x] S7.1.1: Create chat/chatUtils.js (157 lines) — 13 helper functions: groupMessages, genGroupId, SENDER_COLORS, getSenderColor, getSenderInitial, parseDiceNotation, formatTime, formatDateLabel, getDateKey, mergeMessages, genTempId, EMOJI_LIST
+- [x] S7.1.2: Update ChatPanel.jsx to import from chatUtils.js
+- [x] S7.1.3: LSP diagnostics — clean
+
+### T7.2: Extract chatStyles.js — styles object
+- [x] S7.2.1: Create chat/chatStyles.js (120 lines) — full `chatStyles` object
+- [x] S7.2.2: Update ChatPanel.jsx to import chatStyles from chat/chatStyles.js
+- [x] S7.2.3: LSP diagnostics — clean
+
+### T7.3: Extract EmojiPicker.jsx, CopyButton.jsx, DateSeparator.jsx
+- [x] S7.3.1: Create chat/EmojiPicker.jsx (24 lines) — emoji grid picker
+- [x] S7.3.2: Create chat/CopyButton.jsx (54 lines) — copy-to-clipboard with feedback
+- [x] S7.3.3: Create chat/DateSeparator.jsx (13 lines) — date label between groups
+- [x] S7.3.4: Update ChatPanel.jsx to import and render all 3 components
+- [x] S7.3.5: LSP diagnostics — clean
+
+### T7.4: Extract MessageBubble.jsx (327 lines)
+- [x] S7.4.1: Create chat/MessageBubble.jsx (327 lines) — 5 message types: system, plain, roll, AI scholar, NPC roleplay
+- [x] S7.4.2: Update ChatPanel.jsx to import and render MessageBubble
+- [x] S7.4.3: LSP diagnostics — clean
+
+### T7.5: Extract TypingIndicator.jsx, ScrollToBottomFAB.jsx
+- [x] S7.5.1: Create chat/TypingIndicator.jsx (37 lines) — animated typing dots
+- [x] S7.5.2: Create chat/ScrollToBottomFAB.jsx (14 lines) — FAB with unread badge
+- [x] S7.5.3: Update ChatPanel.jsx to import and render both
+- [x] S7.5.4: LSP diagnostics — clean
+
+### T7.6: Rewrite ChatPanel.jsx — remaining logic stays in parent
+- [x] S7.6.1: Remove inline styles (all → chatStyles), inline helpers (all → chatUtils), inline sub-components (all → separate files)
+- [x] S7.6.2: Keep core state/handlers + import-based architecture
+- [x] S7.6.3: LSP diagnostics — clean
+
+### T7.7: LSP diagnostics + Vite build verification
+- [x] S7.7.1: LSP diagnostics clean on all 9 chat/ files (0 errors, 0 warnings)
+- [x] S7.7.2: Vite build passes (1787 modules, 4.24s, zero errors)
+
+## M9: Phase 9 — server/src/ai/generation.js (1059 lines → generation/ subdirectory)
+### T9.1: Split generation.js into router + handlers | agent:Worker
+- [x] S9.1.1: Create generation/handlers.js (1069 lines) — all 12 handler functions extracted from generation.js
+- [x] S9.1.2: Rewrite generation/index.js (39 lines) — pure Express Router with 12 POST route definitions
+- [x] S9.1.3: Delete old generation.js after git mv preserves history
+- [x] S9.1.4: Run LSP diagnostics — clean (0 errors, 0 warnings)
+- [x] S9.1.5: Verify node -c syntax check passes on both files
+- [x] S9.1.6: Verify require resolution — consumer routes/ai.js loads correctly
+
+### T9.2: Review Phase 9 | agent:Reviewer
+- [x] S9.2.1: LSP diagnostics clean on both generation/ files (0 errors, 0 warnings)
+- [x] S9.2.2: node -c syntax check passes on both files
+- [x] S9.2.3: All 12 handler functions exported and verified as async functions
+- [x] S9.2.4: All 12 routes match original: npc-options, npc, char-options, char, monster-options, monster, build-encounter, encounter-description, session-recap, session-agenda, expand-text, npc-interview
+- [x] S9.2.5: No console.log/debug statements found
+- [x] S9.2.6: No behavioral changes — all logic, imports, error handling preserved

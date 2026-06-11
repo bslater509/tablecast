@@ -13,14 +13,34 @@ async function main() {
   console.log("🌱 Seeding Tablecast database…\n");
 
   // ── DM User ───────────────────────────────────────────────────────────────
-  const dm = await prisma.user.upsert({
-    where: { username: "DungeonMaster" },
-    update: {},
-    create: {
-      username: "DungeonMaster",
-      role: "DM",
-    },
+  // Enforce exactly one DM user named "DM".
+  // First, remove the older "DungeonMaster" user if it exists (from old seed)
+  // and any other duplicates — keep the lowest-id DM or create fresh.
+  const oldDm = await prisma.user.findUnique({ where: { username: "DungeonMaster" } });
+  if (oldDm) {
+    await prisma.user.delete({ where: { id: oldDm.id } });
+    console.log(`  🗑️  Renamed old DM: deleting ${oldDm.username} (id=${oldDm.id})`);
+  }
+
+  const extraDms = await prisma.user.findMany({
+    where: { role: "DM", username: { not: "DM" } },
   });
+  for (const extra of extraDms) {
+    await prisma.user.delete({ where: { id: extra.id } });
+    console.log(`  🗑️  Removed duplicate DM: ${extra.username} (id=${extra.id})`);
+  }
+
+  // Now upsert the single DM user
+  let dm = await prisma.user.findUnique({ where: { username: "DM" } });
+  if (!dm) {
+    dm = await prisma.user.create({
+      data: {
+        username: "DM",
+        role: "DM",
+        // passwordHash intentionally null → frontend shows setup flow
+      },
+    });
+  }
   console.log(`  ✅ DM user:     ${dm.username} (id=${dm.id})`);
 
   // ── Standalone Hero (no user account) ─────────────────────────────────────

@@ -320,8 +320,16 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
       // Recompute total: only the chosen die contributes (plus modifier)
       total = chosen + modifier;
 
-      // Rebuild allRolls to reflect only the chosen roll for display purposes
-      allRolls = [chosen];
+      // Rebuild allRolls: chosen d20 + preserve any other dice (e.g. 2d6 rolled alongside)
+      const otherGroupRolls = [];
+      for (let i = 2; i < groups.length; i++) {
+        if (groups[i]?.rolls) {
+          for (const die of groups[i].rolls) {
+            otherGroupRolls.push(die.value);
+          }
+        }
+      }
+      allRolls = [chosen, ...otherGroupRolls];
     }
 
     const finalTotal = total;

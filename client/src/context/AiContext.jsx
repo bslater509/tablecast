@@ -87,16 +87,20 @@ export function AiProvider({ children, user }) {
       if (res.ok) {
         const data = await res.json();
         setNpcs(data);
-        if (data.length > 0 && !selectedNpcId) {
-          setSelectedNpcId(data[0].id.toString());
-        }
+        // Use functional updater to avoid self-referencing dependency cycle
+        setSelectedNpcId((prevId) => {
+          if (data.length > 0 && !prevId) {
+            return data[0].id.toString();
+          }
+          return prevId;
+        });
       }
     } catch (err) {
       console.error("[AiContext] Failed to load NPCs:", err);
     } finally {
       setNpcsLoading(false);
     }
-  }, [selectedNpcId]);
+  }, []); // No deps — stable callback; functional updater avoids stale closure issues
 
   // ---------------------------------------------------------------------------
   // Characters
@@ -111,16 +115,20 @@ export function AiProvider({ children, user }) {
       if (res.ok) {
         const data = await res.json();
         setCharacters(data || []);
-        if (data?.length > 0 && !selectedCharId) {
-          setSelectedCharId(data[0].id.toString());
-        }
+        // Use functional updater to avoid self-referencing dependency cycle
+        setSelectedCharId((prevId) => {
+          if (data?.length > 0 && !prevId) {
+            return data[0].id.toString();
+          }
+          return prevId;
+        });
       }
     } catch (err) {
       console.error("[AiContext] Failed to load characters:", err);
     } finally {
       setCharsLoading(false);
     }
-  }, [selectedCharId]);
+  }, []); // No deps — stable callback; functional updater avoids stale closure issues
 
   // ---------------------------------------------------------------------------
   // Initial loads

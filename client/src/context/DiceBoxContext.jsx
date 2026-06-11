@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import DiceBox from "@3d-dice/dice-box";
 
-const debug = typeof process !== "undefined" && process.env.NODE_ENV !== "production" ? console.log : () => {};
+const debug = typeof import.meta !== "undefined" && import.meta.env?.DEV ? console.log : () => {};
 
 const DiceBoxContext = createContext(null);
 

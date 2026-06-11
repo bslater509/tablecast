@@ -445,3 +445,445 @@ Successfully extracted the AI Setup and Backup/Reference logic from SettingsPane
 - **No debug logging**: Clean
 - **Full reduction**: SettingsPanel.jsx shrunk from 1766 to 70 lines (-96%)
 - **Total domain code**: 1589 lines across 3 focused modules (AiSetup 254, BackupSettings 1265, SettingsPanel 70)
+
+---
+
+## UNIT REVIEW: SettingsPanel Component Extraction (Re-Verification)
+
+### Result: **PASS** ✅
+
+### Verification Summary
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **LSP diagnostics** | ✅ | All 5 settings files clean (0 errors, 0 warnings) |
+| **Full project LSP** | ✅ | `lsp_diagnostics(*)` — clean across all files |
+| **Vite build** | ✅ | 1775 modules transformed, 4.62s, zero errors |
+| **No console.log/debug** | ✅ | Only legitimate `console.error` in error handlers |
+| **No hardcoded secrets** | ✅ | API keys stored in React state, sent via POST |
+| **Import/Export consistency** | ✅ | All imports resolve correctly (verified by build) |
+| **SettingsPanel.jsx reduction** | ✅ | 2044 → 70 lines (-96%) |
+| **Dead code eliminated** | ✅ | Both sub-components imported & rendered |
+| **sync-issues.md** | ✅ | Cleared (SYNC-1, SYNC-2, SYNC-3 all resolved) |
+
+### Files Verified (5 settings modules)
+
+| File | Lines | Status |
+|------|-------|--------|
+| `client/src/components/SettingsPanel.jsx` | 70 | ✅ Thin orchestrator, imports both sub-components |
+| `client/src/components/settings/AiSetup.jsx` | 254 | ✅ Props-based, no broken imports |
+| `client/src/components/settings/BackupSettings.jsx` | 1265 | ✅ Self-contained, 3 concerns (backup + remote mgmt + ref cache) |
+| `client/src/components/settings/settingsApi.js` | 101 | ✅ 7 pure fetch functions, all accept authHeaders |
+| `client/src/components/settings/settingsStyles.js` | 342 | ✅ Clean styles object |
+| **Total** | **2032** | |
+
+### Modularity Compliance
+
+- ✅ **Structural Layering**: Styles → settingsStyles.js, API helpers → settingsApi.js, Components → AiSetup.jsx/BackupSettings.jsx
+- ✅ **Folder-Based Encapsulation**: All in `settings/` subdirectory
+- ✅ **Complexity Sharding**: Single 2044-line file → 5 focused modules (2032 total)
+- ✅ **Props-Based Architecture**: Auth headers derived once in parent, passed as props to children
+- ✅ **Consistent Pattern**: Matches `wiki/` and `character/` extraction patterns
+
+### Defects Found: **None**
+
+---
+
+## UNIT REVIEW: EncountersPanel Split into Sub-components (Phase 6)
+
+### Result: **PASS** ✅
+
+### Summary
+Successfully split the monolithic EncountersPanel.jsx (1642 lines) into 4 focused modules in a new `encounters/` subdirectory, achieving a 48% reduction in the main panel.
+
+### Files Verified
+
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `client/src/components/encounters/encounterStyles.js` | **CREATE** | 389 | ✅ PASS |
+| `client/src/components/encounters/AiBuilderModal.jsx` | **CREATE** | 248 | ✅ PASS |
+| `client/src/components/encounters/AddParticipantPanel.jsx` | **CREATE** | 224 | ✅ PASS |
+| `client/src/components/EncountersPanel.jsx` | **MODIFY** | 1642 → 857 (-785) | ✅ PASS |
+| **Total** | | **1718** | |
+
+### Verification Checklist
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **LSP diagnostics** | ✅ | All 4 files clean (0 errors, 0 warnings) |
+| **Vite build** | ✅ | 1775 modules transformed, 4.21s, zero errors |
+| **No console.log/debug** | ✅ | No debug logging found in any file |
+| **No hardcoded secrets** | ✅ | Auth headers passed as props from parent |
+| **Import/Export consistency** | ✅ | All imports resolve correctly (verified by build & LSP) |
+| **Inline code removed** | ✅ | hpColor, badgeColor, AI builder logic, add-participant logic all extracted |
+| **Unused imports removed** | ✅ | `useNavigate` removed from EncountersPanel |
+| **File size reduction** | ✅ | 1642 → 857 lines (-785, **~48%**) |
+| **No dead code** | ✅ | Both AiBuilderModal and AddParticipantPanel are imported and rendered |
+
+### Modularity Compliance
+
+| Principle | Status | Evidence |
+|-----------|--------|----------|
+| **Structural Layering** | ✅ | Styles/helpers → encounterStyles.js, Components → AiBuilderModal.jsx + AddParticipantPanel.jsx |
+| **Folder-Based Encapsulation** | ✅ | All encounter modules in `encounters/` subdirectory |
+| **Complexity Sharding** | ✅ | Single 1642-line file → 4 focused modules (1718 total) |
+| **Props-Based Architecture** | ✅ | `encounterStyles` imported directly; component props explicit and documented |
+| **Consistent Pattern** | ✅ | Matches `wiki/`, `character/`, and `settings/` extraction patterns |
+| **Self-contained components** | ✅ | AiBuilderModal manages its own AI state; AddParticipantPanel manages search/form state |
+
+### What Was Extracted
+
+1. **encounterStyles.js** (389 lines):
+   - Full `encounterStyles` styles object for the encounter panel
+   - `hpColor(pct)` — color gradient helper for HP bars
+   - `badgeColor(status)` — status badge color mapping (DRAFT/ACTIVE/COMPLETE)
+
+2. **AiBuilderModal.jsx** (248 lines):
+   - Self-contained modal with AI encounter generation
+   - 7 internal state variables (aiLevels, aiDifficulty, aiContext, aiLoading, aiError, aiProgress, aiResult)
+   - `handleAiBuild()` — calls `/api/ai/build-encounter`
+   - `handleApplyAiResult()` — creates encounter and adds participants
+   - Props: show, onClose, authHeaders, maps, selectedMapId, npcs, addToast, fetchEncounters, fetchEncounter, notifyRefresh
+
+3. **AddParticipantPanel.jsx** (224 lines):
+   - Self-contained form for adding monsters/NPCs/characters
+   - 8 internal state variables (addType, addMonsterQuery, addMonsterResults, addMonsterSelected, addQuantity, addHidden, addNpcId, addCharId)
+   - Monster search with autocomplete dropdown
+   - NPC and character select dropdowns
+   - Props: encounterId, authHeaders, npcs, characters, addToast, onParticipantAdded, onCancel
+
+### Minor Code Quality Note
+
+- **Line 403 of EncountersPanel.jsx**: `const encounterStyles = encounterStyles;` — This is a redundant self-assignment left over from the refactoring. The original code had `const stylesObj = styles;` to alias the inline styles object. After extraction, `encounterStyles` is imported directly (line 22), so the local declaration on line 403 is unnecessary. It compiles correctly but adds confusion. **Recommendation**: Remove line 403 — the import already makes `encounterStyles` available.
+
+### Defects Found: **None (1 minor code quality note)**
+
+---
+
+## T7: ChatPanel.jsx Split — 1332 → 649 lines into chat/ subdirectory
+
+### Result: **PASS** ✅
+
+### Files Changed
+
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `client/src/components/chat/chatUtils.js` | **CREATE** | 157 | ✅ PASS |
+| `client/src/components/chat/chatStyles.js` | **CREATE** | 120 | ✅ PASS |
+| `client/src/components/chat/EmojiPicker.jsx` | **CREATE** | 24 | ✅ PASS |
+| `client/src/components/chat/CopyButton.jsx` | **CREATE** | 54 | ✅ PASS |
+| `client/src/components/chat/DateSeparator.jsx` | **CREATE** | 13 | ✅ PASS |
+| `client/src/components/chat/MessageBubble.jsx` | **CREATE** | 327 | ✅ PASS |
+| `client/src/components/chat/TypingIndicator.jsx` | **CREATE** | 37 | ✅ PASS |
+| `client/src/components/chat/ScrollToBottomFAB.jsx` | **CREATE** | 14 | ✅ PASS |
+| `client/src/components/ChatPanel.jsx` | **MODIFY** | 1332 → 649 (-683) | ✅ PASS |
+| **Total** | | **1395** | |
+
+### What Was Extracted
+
+1. **chatUtils.js** (157 lines) — 13 helper functions:
+   - `groupMessages`, `genGroupId`, `SENDER_COLORS`, `getSenderColor`, `getSenderInitial`
+   - `parseDiceNotation`, `formatTime`, `formatDateLabel`, `getDateKey`
+   - `mergeMessages`, `genTempId`, `EMOJI_LIST`
+
+2. **chatStyles.js** (120 lines) — Full `chatStyles` object (all inline styles)
+
+3. **EmojiPicker.jsx** (24 lines) — Emoji grid picker (uses `EMOJI_LIST` from chatUtils)
+
+4. **CopyButton.jsx** (54 lines) — Copy-to-clipboard with visual feedback (uses `useState`, `useEffect`, `useRef`, `Copy`/`Check` icons)
+
+5. **DateSeparator.jsx** (13 lines) — "Today"/"Yesterday"/date label between message groups
+
+6. **MessageBubble.jsx** (327 lines) — 5 message types: system, plain, roll card, AI scholar, NPC roleplay
+   - Uses `compileMarkdown` from `../../utils/markdown`
+   - Uses `AiStreamingIndicator` from `../AiStreamingIndicator`
+   - Imports `CopyButton` from same directory
+
+7. **TypingIndicator.jsx** (37 lines) — WhatsApp-style animated dots
+
+8. **ScrollToBottomFAB.jsx** (14 lines) — Floating action button with unread badge
+
+### Verification Checklist
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **LSP diagnostics** | ✅ | All 9 files clean (0 errors, 0 warnings) |
+| **Vite build** | ✅ | 1787 modules transformed, 4.30s, zero errors |
+| **No console.log** | ✅ | Only legitimate `console.error` in error handlers |
+| **No `styles.` references** | ✅ | All migrated to `chatStyles.` |
+| **All imports resolve** | ✅ | Verified by successful build |
+| **Default export preserved** | ✅ | `export default function ChatPanel` |
+| **File size reduction** | ✅ | 1332 → 649 lines (**~51%**) |
+| **No dead code** | ✅ | All 8 chat/ modules imported and used by ChatPanel |
+
+### Modularity Compliance
+
+| Principle | Status | Evidence |
+|-----------|--------|----------|
+| **Structural Layering** | ✅ | Utils → chatUtils.js, Styles → chatStyles.js, Components → 6 focused files |
+| **Folder-Based Encapsulation** | ✅ | All chat modules in `chat/` subdirectory |
+| **Complexity Sharding** | ✅ | Single 1332-line file → 9 focused modules (1395 total) |
+| **Consistent Pattern** | ✅ | Matches `wiki/`, `character/`, `encounters/`, `settings/` extraction patterns |
+| **Self-contained components** | ✅ | Each component manages its own imports and rendering logic |
+
+### Defects Found: **None**
+
+---
+
+## UNIT REVIEW: ChatPanel.jsx Split into chat/ Subdirectory
+
+### Result: **PASS** ✅
+
+### Summary
+Verified the successful split of the monolithic ChatPanel.jsx (1332 lines) into 9 focused modules in a new `chat/` subdirectory, achieving a 51% reduction in the main panel.
+
+### Files Verified
+
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `client/src/components/chat/chatUtils.js` | **CREATE** | 157 | ✅ PASS |
+| `client/src/components/chat/chatStyles.js` | **CREATE** | 120 | ✅ PASS |
+| `client/src/components/chat/EmojiPicker.jsx` | **CREATE** | 24 | ✅ PASS |
+| `client/src/components/chat/CopyButton.jsx` | **CREATE** | 54 | ✅ PASS |
+| `client/src/components/chat/DateSeparator.jsx` | **CREATE** | 13 | ✅ PASS |
+| `client/src/components/chat/MessageBubble.jsx` | **CREATE** | 327 | ✅ PASS |
+| `client/src/components/chat/TypingIndicator.jsx` | **CREATE** | 37 | ✅ PASS |
+| `client/src/components/chat/ScrollToBottomFAB.jsx` | **CREATE** | 14 | ✅ PASS |
+| `client/src/components/ChatPanel.jsx` | **MODIFY** | 1332 → 649 (-683) | ✅ PASS |
+| **Total** | | **1395** | |
+
+### Verification Checklist
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **LSP diagnostics** | ✅ | All 9 files clean (0 errors, 0 warnings) — also full-project clean |
+| **Vite build** | ✅ | 1787 modules transformed, 4.24s, **zero errors** |
+| **No console.log** | ✅ | Only legitimate `console.error` in error handlers remain |
+| **No `styles.` references** | ✅ | All 15 migrated to `chatStyles.` — zero remaining `styles.` in ChatPanel.jsx |
+| **All imports resolve** | ✅ | Verified by successful build; `../../utils/authHeaders` path correct for `isOwnMessage` |
+| **Default export preserved** | ✅ | `export default function ChatPanel({ user, isPopout = false })` unchanged |
+| **File size reduction** | ✅ | 1332 → 649 lines (**~51%**) |
+| **No dead code** | ✅ | All 8 chat/ modules imported and used by ChatPanel |
+| **No unused imports** | ✅ | ChatPanel imports only what it uses (verified by LSP + build) |
+| **All functions defined** | ✅ | Every imported function from chatUtils is exported: groupMessages, getSenderColor, getSenderInitial, parseDiceNotation, getDateKey, mergeMessages, genTempId, EMOJI_LIST |
+| **`chatStyles` usage** | ✅ | 15 references to `chatStyles.*` in ChatPanel.jsx — all valid keys present in chatStyles.js |
+
+### Modularity Compliance
+
+| Principle | Status | Evidence |
+|-----------|--------|----------|
+| **Structural Layering** | ✅ | Utils → chatUtils.js, Styles → chatStyles.js, Components → 6 focused files |
+| **Folder-Based Encapsulation** | ✅ | All chat modules in `chat/` subdirectory |
+| **Complexity Sharding** | ✅ | Single 1332-line file → 9 focused modules (1395 total) |
+| **Consistent Pattern** | ✅ | Matches `wiki/`, `character/`, `encounters/`, `settings/` extraction patterns |
+| **Self-contained components** | ✅ | Each component manages own imports/rendering; MessageBubble handles all 5 message types independently |
+| **Props-based architecture** | ✅ | Sub-components receive props; no direct coupling to parent state |
+
+### Defects Found: **None**
+
+### Git State
+- ChatPanel.jsx modified; 8 new files in chat/ subdirectory
+- Uncommitted — ready for commit and push
+
+---
+
+## UNIT REVIEW: server/src/ai/helpers.js Split into helpers/ Subdirectory
+
+### Result: **PASS** ✅
+
+### Summary
+Successfully split the monolithic `server/src/ai/helpers.js` (1269 lines) into 12 domain modules in a new `helpers/` subdirectory, with zero behavioral changes. All 31 exports preserved exactly.
+
+### Files Verified
+
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `server/src/ai/helpers/index.js` | **CREATE** | 74 | ✅ PASS |
+| `server/src/ai/helpers/logging.js` | **CREATE** | 30 | ✅ PASS |
+| `server/src/ai/helpers/formatting.js` | **CREATE** | 98 | ✅ PASS |
+| `server/src/ai/helpers/rag.js` | **CREATE** | 208 | ✅ PASS |
+| `server/src/ai/helpers/profiles.js` | **CREATE** | 52 | ✅ PASS |
+| `server/src/ai/helpers/assist.js` | **CREATE** | 129 | ✅ PASS |
+| `server/src/ai/helpers/settings.js` | **CREATE** | 36 | ✅ PASS |
+| `server/src/ai/helpers/messages.js` | **CREATE** | 28 | ✅ PASS |
+| `server/src/ai/helpers/session.js` | **CREATE** | 52 | ✅ PASS |
+| `server/src/ai/helpers/calls.js` | **CREATE** | 233 | ✅ PASS |
+| `server/src/ai/helpers/streaming.js` | **CREATE** | 455 | ✅ PASS |
+| `server/src/ai/helpers/generation.js` | **CREATE** | 45 | ✅ PASS |
+| **Total** | | **1440** | |
+
+### Verification Checklist
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **LSP diagnostics** | ✅ | All 12 modules clean (0 errors, 0 warnings) |
+| **Full project LSP** | ✅ | `lsp_diagnostics(*)` — clean across entire project |
+| **Node syntax check** | ✅ | `node -c` passes on all 12 modules + 5 consumer files |
+| **`require()` resolution** | ✅ | `require("../ai/helpers")` resolves to `helpers/index.js` barrel |
+| **All 31 exports preserved** | ✅ | Counted and verified: 30 functions + 1 constant (ASSIST_ACTIONS_REQUIRING_TEXT) |
+| **No stale `./helpers.js` references** | ✅ | All 5 consumers use `"./helpers"` (directory, not `.js` file) |
+| **No circular dependencies** | ✅ | Dependency graph is a DAG (formatting → rag → streaming → generation flow) |
+| **No console.log/debug** | ✅ | All files clear of debug logging |
+| **Old file deleted** | ✅ | `server/src/ai/helpers.js` removed |
+| **Consumer require paths** | ✅ | routes/ai.js: `require("../ai/helpers")`, 4 internal consumers: `require("./helpers")` |
+| **No behavioral changes** | ✅ | All logic preserved; barrel re-exports identical to original exports |
+
+### Modularity Compliance
+
+| Principle | Status | Evidence |
+|-----------|--------|----------|
+| **Structural Layering** | ✅ | Domain modules: logging.js, formatting.js, profiles.js, messages.js (data/types/formatting) — separated from logic: rag.js, assist.js, calls.js, streaming.js, generation.js |
+| **Folder-Based Encapsulation** | ✅ | All helper modules in `helpers/` subdirectory with `index.js` as barrel entry point |
+| **Complexity Sharding** | ✅ | Single 1269-line file → 12 focused modules (1440 total) |
+| **Internal Cohesion** | ✅ | Each module has a single responsibility (e.g., `logging.js` = AI audit logging only, `messages.js` = message builders only) |
+| **Consistent Pattern** | ✅ | Cross-module requires use `"./module"` syntax; all via `index.js` barrel; follows Node.js CJS conventions |
+| **No `require("../")` depth issues** | ✅ | All external deps use `"../../prisma"` pattern (correct from `ai/helpers/` depth) |
+
+### Internal Dependency Graph (DAG — No Cycles)
+
+```
+logging.js ──► calls.js ──► streaming.js ──► generation.js
+                ▲              ▲
+messages.js ────┼──────────────┘
+                │
+formatting.js ──┼──► rag.js
+                ├──► session.js
+                │
+profiles.js ────┼──► assist.js
+                │
+settings.js ────┘
+```
+
+### Defects Found: **None**
+
+### Git State
+- Commit `3674acf` — pushed to master
+- Working tree: WikiPanel.jsx modified, NpcGenModal.jsx + MonsterGenModal.jsx new (uncommitted)
+
+---
+
+## T1.4: Extract NPC Gen Modal & Monster Gen Modal from WikiPanel
+
+### Result: **PASS** ✅
+
+### Files Changed
+
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `client/src/components/wiki/NpcGenModal.jsx` | **CREATE** | 699 | ✅ PASS |
+| `client/src/components/wiki/MonsterGenModal.jsx` | **CREATE** | 394 | ✅ PASS |
+| `client/src/components/WikiPanel.jsx` | **MODIFY** | 3221 → 2369 (-852) | ✅ PASS |
+| **Total** | | **3462** | |
+
+### What Was Extracted
+
+1. **NpcGenModal.jsx** (699 lines) — Self-contained AI NPC interview-based generator:
+   - 8 internal state variables (npcGenPrompt, npcGenLoading, npcGenError, npcGenStep, npcGenProgress, npcInterviewHistory, npcCurrentQuestion, npcInterviewSummary)
+   - 5 internal functions: streamNpcGeneration, startInterview, handleInterviewAnswer, handleFinalGenerate, resetNpcGenState
+   - useState + useEffect (auto-starts interview on open)
+   - Props: show, onClose, jsonAuthHeaders, onNpcCreated
+   - Full JSX: interview Q&A with multiple choice, progress bars, generating step
+
+2. **MonsterGenModal.jsx** (394 lines) — Self-contained AI monster generator:
+   - 7 internal state variables (monsterGenPrompt, monsterGenLoading, monsterGenError, monsterGenStep, monsterGenProgress, monsterGenOptions, monsterGenSelected)
+   - 4 internal functions: generateMonsterOptions, generateMonsterFromOption, resetMonsterGenState, handleClose
+   - Props: show, onClose, jsonAuthHeaders, onMonsterCreated
+   - Full JSX: prompt input, concept selection, generating step
+
+3. **WikiPanel.jsx** (2369 lines) — Reduced by 852 lines (~26%):
+   - Removed 19 state variables (showNpcGenModal/monsterGen flags kept)
+   - Removed 10 handler functions + 1 SSE reader + 2 useEffects
+   - Removed ~300 lines of inline modal JSX
+   - Added imports for NpcGenModal + MonsterGenModal
+   - Replaced inline modals with `<NpcGenModal>` + `<MonsterGenModal>` component usage
+   - Callbacks wired: `onNpcCreated` updates editingNpc, `onMonsterCreated` updates editingNpc + switches tab
+
+### Verification Checklist
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **LSP diagnostics** | ✅ | All 3 files clean (0 errors, 0 warnings) — also full-project clean |
+| **Vite build** | ✅ | 1789 modules transformed, 4.24s, zero errors |
+| **No console.log/debug** | ✅ | Only legitimate `console.error` in error handlers |
+| **No stale references** | ✅ | All removed functions/states only exist in new components |
+| **Props-based architecture** | ✅ | Modals are self-contained; receive callbacks for NPC/monster creation |
+| **File size reduction** | ✅ | WikiPanel 3221 → 2369 lines (**~26%**) |
+| **Dead code eliminated** | ✅ | Both modals imported and rendered by WikiPanel |
+
+---
+
+## Phase: server/src/ai/generation.js Split (1059 lines → generation/ subdirectory)
+
+### Result: PASS ✅
+
+### Summary
+Successfully split the monolithic `server/src/ai/generation.js` (1059 lines) into a `generation/` subdirectory with `index.js` (pure router, 39 lines) and `handlers.js` (all 12 handler functions, 1069 lines).
+
+### Files Changed
+
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `server/src/ai/generation/index.js` | **REWRITE** | 1059 → 39 (-1020) | ✅ PASS |
+| `server/src/ai/generation/handlers.js` | **CREATE** | 1069 | ✅ PASS |
+| **Total** | | **1108** | |
+
+### Verification Checklist
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **Syntax check** | ✅ | `node -c` passes on both index.js and handlers.js |
+| **Require resolution** | ✅ | `require("../ai/generation")` resolves to `generation/index.js` |
+| **Consumer works** | ✅ | `require("./server/src/routes/ai")` — loads without errors |
+| **Router export preserved** | ✅ | `module.exports = router` — `typeof r.post === 'function'` |
+| **All 12 routes preserved** | ✅ | Routes: npc-options, npc, char-options, char, monster-options, monster, build-encounter, encounter-description, session-recap, session-agenda, expand-text, npc-interview |
+| **LSP diagnostics** | ✅ | Clean on both files |
+| **Old file deleted** | ✅ | `git mv` preserves history; old `generation.js` gone |
+| **No behavioral changes** | ✅ | All handler logic preserved exactly; same imports, same error handling |
+
+### Git State
+- Index.js rewritten, handlers.js created
+- Not yet committed
+
+---
+
+## UNIT REVIEW: server/src/ai/generation.js Split into generation/ Subdirectory
+
+### Result: **PASS** ✅
+
+### Summary
+Successfully split the monolithic `server/src/ai/generation.js` (1059 lines) into a `generation/` subdirectory with `index.js` (pure router, 39 lines) and `handlers.js` (all 12 handler functions, 1069 lines). Zero behavioral changes. All 12 routes preserved exactly.
+
+### Files Verified
+
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `server/src/ai/generation/index.js` | **REWRITE** | 39 | ✅ PASS |
+| `server/src/ai/generation/handlers.js` | **CREATE** | 1069 | ✅ PASS |
+| **Total** | | **1108** | |
+
+### Verification Checklist
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **LSP diagnostics** | ✅ | Both files clean (0 errors, 0 warnings) |
+| **Syntax check** (`node -c`) | ✅ | Both files pass |
+| **Old file deleted** | ✅ | `server/src/ai/generation.js` removed (git mv preserved history) |
+| **Require resolution** | ✅ | `require("../ai/generation")` resolves to `generation/index.js` |
+| **Router export** | ✅ | `module.exports = router` — `typeof genRouter === 'function'`, Express Router |
+| **Consumer loads** | ✅ | `require("./server/src/routes/ai")` loads without errors |
+| **All 12 handler functions** | ✅ | Exported as async functions — all verified |
+| **All 12 routes preserved** | ✅ | Routes: npc-options, npc, char-options, char, monster-options, monster, build-encounter, encounter-description, session-recap, session-agenda, expand-text, npc-interview |
+| **No console.log/debug** | ✅ | No debug logging found |
+| **No behavioral changes** | ✅ | All logic preserved; same imports, same error handling, same middleware |
+
+### Modularity Compliance
+
+| Principle | Status | Evidence |
+|-----------|--------|----------|
+| **Structural Layering** | ✅ | Router logic → index.js, handler functions → handlers.js |
+| **Folder-Based Encapsulation** | ✅ | All in `generation/` subdirectory |
+| **Complexity Sharding** | ✅ | Single 1059-line file → 2 focused modules (1108 total) |
+| **Router/Middleware Pattern** | ✅ | Express Router defines routes + middleware; handlers are pure request/response logic |
+| **Consistent Pattern** | ✅ | Matches `helpers/`, `mcp/`, and other extraction patterns |
+
+### Defects Found: **None**

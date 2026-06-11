@@ -317,17 +317,25 @@ router.patch("/:id", requireDm, async (req, res) => {
       return res.status(400).json({ error: "No valid fields to update." });
     }
 
+    let session;
     if (data.status === "ACTIVE") {
-      await prisma.gameSession.updateMany({
-        where: { status: "ACTIVE", id: { not: id } },
-        data: { status: "COMPLETED" },
+      // Transaction ensures other sessions are only marked COMPLETED if this update succeeds
+      session = await prisma.$transaction(async (tx) => {
+        await tx.gameSession.updateMany({
+          where: { status: "ACTIVE", id: { not: id } },
+          data: { status: "COMPLETED" },
+        });
+        return tx.gameSession.update({
+          where: { id },
+          data,
+        });
+      });
+    } else {
+      session = await prisma.gameSession.update({
+        where: { id },
+        data,
       });
     }
-
-    const session = await prisma.gameSession.update({
-      where: { id },
-      data,
-    });
 
     res.json(session);
   } catch (err) {

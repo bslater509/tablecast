@@ -365,10 +365,6 @@ export default function WikiPanel({ user, isPopout = false }) {
   };
 
   // Create article triggers (opens category selector modal first)
-  function handleStartCreatePrompt() {
-    setShowCategoryPrompt(true);
-  }
-
   // Trigger editor mode after selecting category
   function handleSelectCategoryToCreate(category) {
     setShowCategoryPrompt(false);
@@ -424,7 +420,10 @@ export default function WikiPanel({ user, isPopout = false }) {
       handleSelectCategoryToCreate("MONSTER");
     } else if (["SPELL", "ITEM", "RULE", "CLASS", "RACE"].includes(activeCategoryTab)) {
       handleSelectCategoryToCreate(activeCategoryTab);
+    } else if (["NPC", "LOCATION", "LORE", "LOG"].includes(activeCategoryTab)) {
+      setShowCategoryPrompt(true);
     } else {
+      // Fallback for other categories: go to category prompt
       setShowCategoryPrompt(true);
     }
   }
@@ -664,9 +663,6 @@ export default function WikiPanel({ user, isPopout = false }) {
     setIsEditing(false);
     setEditingNpc(null);
     setEditorError(null);
-    setAssistLoadingField(null);
-    setAssistUndo(null);
-    setShowAssistDropdown(null);
   }
 
   // Delete flow confirmation triggers

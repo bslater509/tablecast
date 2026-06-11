@@ -212,7 +212,9 @@ const rollsRouter = require("./routes/rolls");
 const chatRouter = require("./routes/chat");
 const sessionsRouter = require("./routes/sessions");
 const debugRouter = require("./routes/debug");
+const authRouter = require("./routes/auth");
 
+app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/characters", charactersRouter);
 

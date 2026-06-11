@@ -99,7 +99,7 @@ function registerSocketHandlers(io) {
         userId: socket.data.user?.id ?? sanitizeUserId(payload.userId),
         characterId: socket.data.characterId || null,
         sender: sanitizeShortText(payload.sender, "Anonymous"),
-        text: rawText.slice(0, 2000),
+        text: sanitizeText(rawText.slice(0, 2000)),
         timestamp: Date.now(),
         type: sanitizeShortText(payload.type, "user"),
         rollDetails: payload.rollDetails || null,
@@ -217,7 +217,8 @@ Keep your answer clear, concise, and formatted in Markdown.`;
               type: "system",
             };
             await persistChatMessage(finalMsg);
-            io.emit("chat:message", finalMsg);
+            // No second emit needed — placeholder was already emitted as chat:message
+            // and updated via chat:message:update streaming events above
           } catch (streamErr) {
             logger.error("socket:ai", "AI stream error", { error: streamErr.message });
             io.emit("chat:message:update", {
@@ -325,7 +326,8 @@ Keep your answer clear, concise, and formatted in Markdown.`;
               type: "npc",
             };
             await persistChatMessage(finalMsg);
-            io.emit("chat:message", finalMsg);
+            // No second emit needed — placeholder was already emitted as chat:message
+            // and updated via chat:message:update streaming events above
           } catch (streamErr) {
             logger.error("socket:ai", "NPC stream error", { error: streamErr.message });
             io.emit("chat:message:update", {

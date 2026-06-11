@@ -3,7 +3,7 @@
 // An interactive, auto-calculating D&D 5e Character Sheet.
 // Integrates click-to-roll with Socket.io and auto-saves to backend SQLite.
 // =============================================================================
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
 import { useDiceBox } from "../context/DiceBoxContext";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
@@ -33,6 +33,22 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   const [charGenOptions, setCharGenOptions] = useState([]);
   const [charGenSelected, setCharGenSelected] = useState(null);
   
+  // Debounce ref for save-to-server to avoid flood on keystrokes
+  const saveTimerRef = useRef(null);
+  const charRef = useRef(null);
+
+  // Keep charRef synced with the latest character state
+  useEffect(() => {
+    charRef.current = character;
+  }, [character]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
   // Save status indicator
   const [saveStatus, setSaveStatus] = useState("Saved"); // "Saved", "Saving...", "Error"
   
@@ -189,11 +205,15 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     }
   }
 
-  // Trigger state update and initiate save
+  // Trigger state update and debounced save (500ms debounce avoids flood on keystrokes)
   function updateCharacterState(updater) {
     const next = updater(character);
     setCharacter(next);
-    saveToServer(next);
+    // Reset and re-arm debounce timer — only the last change triggers a save
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveToServer(next);
+    }, 500);
   }
 
   // AI Character generation helpers
@@ -800,7 +820,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       const results = await res.json();
       if (!results?.length) return null;
       // Get the detail for the first match
-      const match = results.results[0];
+      const match = results[0];
       const detailRes = await fetch(`/api/reference/detail?category=spells&source=${encodeURIComponent(match.source || "")}&name=${encodeURIComponent(match.name)}`);
       if (!detailRes.ok) return match;
       const detail = await detailRes.json();

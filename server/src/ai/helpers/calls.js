@@ -88,7 +88,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: ollamaModel || "gpt-4o-mini",
           messages
         })
       });
@@ -119,7 +119,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
           "anthropic-version": "2023-06-01"
         },
         body: JSON.stringify({
-          model: "claude-3-5-sonnet-20241022",
+          model: ollamaModel || "claude-3-5-sonnet-20241022",
           max_tokens: 1024,
           system: systemPrompt,
           messages

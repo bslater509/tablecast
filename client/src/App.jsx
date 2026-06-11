@@ -136,12 +136,16 @@ function App() {
   const location = useLocation();
   const [user, setUser] = useState(null);
   const [heroes, setHeroes] = useState([]);
-  const [dmUsers, setDmUsers] = useState([]);
-  
-  // Secret DM tap state
-  const [dmTaps, setDmTaps] = useState(0);
-  const [showDmSection, setShowDmSection] = useState(false);
   const [loadingHeroes, setLoadingHeroes] = useState(true);
+
+  // DM password auth state
+  const [authStatus, setAuthStatus] = useState(null);       // { dmExists, passwordSet } | null
+  const [isDmAuthLoading, setIsDmAuthLoading] = useState(true);
+  const [dmPassword, setDmPassword] = useState("");         // login field
+  const [dmSetupPassword, setDmSetupPassword] = useState("");   // setup field
+  const [dmConfirmPassword, setDmConfirmPassword] = useState(""); // confirm field
+  const [isDmSubmitting, setIsDmSubmitting] = useState(false);
+  const [dmError, setDmError] = useState(null);
 
   // Handle log out
   const handleLogout = () => {
@@ -225,14 +229,11 @@ function App() {
           const heroData = await heroRes.json();
           if (cancelled) return;
           setHeroes(heroData);
-        }
 
-        // Check for stored character session
-        if (!user) {
-          const storedCharId = Number(localStorage.getItem(SELECTED_CHARACTER_STORAGE_KEY));
-          if (storedCharId && heroRes.ok) {
-            const heroData = await heroRes.json().catch(() => null);
-            if (heroData) {
+          // Check for stored character session from the same heroData
+          if (!user) {
+            const storedCharId = Number(localStorage.getItem(SELECTED_CHARACTER_STORAGE_KEY));
+            if (storedCharId) {
               const storedHero = heroData.find((h) => h.id === storedCharId);
               if (storedHero) {
                 handleSelectHero(storedHero);
@@ -277,7 +278,7 @@ function App() {
     }
   }
 
-  // Handle selecting a DM user
+  // Handle selecting a DM user (called after password verification)
   function handleSelectDm(dmUser) {
     const dmIdentity = {
       id: dmUser.id,
@@ -298,18 +299,69 @@ function App() {
     }
   }
 
-  // Handle tapping the title (secret DM unlock)
-  function handleTitleTap() {
-    const newCount = dmTaps + 1;
-    setDmTaps(newCount);
-    if (newCount >= 5 && !showDmSection) {
-      // Fetch DM users on unlock
-      fetch("/api/users")
-        .then((r) => r.json())
-        .then((data) => setDmUsers(data))
-        .catch(() => {});
-      setShowDmSection(true);
-      addToast("DM access unlocked", "info");
+  // Fetch DM auth status on mount
+  useEffect(() => {
+    fetch("/api/auth/status")
+      .then((r) => r.json())
+      .then((data) => setAuthStatus(data))
+      .catch(() => setAuthStatus({ dmExists: false, passwordSet: false }))
+      .finally(() => setIsDmAuthLoading(false));
+  }, []);
+
+  // DM password login
+  async function handleDmLogin() {
+    setIsDmSubmitting(true);
+    setDmError(null);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: dmPassword }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        handleSelectDm(data);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setDmError(err.error || "Login failed");
+        setDmPassword("");
+      }
+    } catch {
+      setDmError("Network error. Is the server running?");
+    } finally {
+      setIsDmSubmitting(false);
+    }
+  }
+
+  // One-time DM password setup
+  async function handleDmSetup() {
+    if (dmSetupPassword !== dmConfirmPassword) {
+      setDmError("Passwords do not match");
+      return;
+    }
+    if (dmSetupPassword.length < 4) {
+      setDmError("Password must be at least 4 characters");
+      return;
+    }
+    setIsDmSubmitting(true);
+    setDmError(null);
+    try {
+      const res = await fetch("/api/auth/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: dmSetupPassword }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        handleSelectDm(data);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setDmError(err.error || "Setup failed");
+      }
+    } catch {
+      setDmError("Network error. Is the server running?");
+    } finally {
+      setIsDmSubmitting(false);
     }
   }
 
@@ -319,12 +371,7 @@ function App() {
       <ErrorBoundary critical={true}>
       <div style={styles.overlay} className="fade-in">
         <div style={styles.loginCard} className="glass-panel gold-border-glow">
-          <h1
-            style={styles.loginTitle}
-            onClick={handleTitleTap}
-            className="touch-target"
-            title="Tap to unlock DM access"
-          >
+          <h1 style={styles.loginTitle}>
             Tablecast Tavern
           </h1>
           <p style={styles.loginSub}>Choose your hero to enter</p>
@@ -358,30 +405,77 @@ function App() {
             )}
           </div>
 
-          {/* Secret DM Section (unlocked after 5 taps on title) */}
-          {showDmSection && (
-            <div style={styles.dmSection}>
-              <h3 style={styles.sectionHeader}>DM Login</h3>
-              {dmUsers.length === 0 ? (
-                <p style={styles.emptyText}>No DM accounts found</p>
-              ) : (
-                <div style={styles.dmList}>
-                  {dmUsers.map((dm) => (
-                    <button
-                      key={dm.id}
-                      id={`join-dm-${dm.username.toLowerCase()}`}
-                      onClick={() => handleSelectDm(dm)}
-                      style={styles.dmButton}
-                      className="touch-target btn-hover-scale glass-panel"
-                    >
-                      <span style={styles.dmIcon}>DM</span>
-                      <span style={styles.userName}>{dm.username}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {/* DM Login Section — password-based */}
+          <div style={styles.dmSection}>
+            <h3 style={styles.sectionHeader}>DM Access</h3>
+
+            {isDmAuthLoading ? (
+              <p style={styles.loadingText}>Checking server…</p>
+            ) : !authStatus?.dmExists ? (
+              <p style={styles.emptyText}>No DM account found. Run the database seed.</p>
+            ) : !authStatus.passwordSet ? (
+              /* First-time setup: create DM password */
+              <div>
+                <p style={{ fontSize: "0.8rem", color: "var(--color-muted)", marginBottom: "0.5rem" }}>
+                  Set your DM password for the first time.
+                </p>
+                <input
+                  type="password"
+                  placeholder="New password"
+                  value={dmSetupPassword}
+                  onChange={(e) => setDmSetupPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleDmSetup()}
+                  style={styles.dmInput}
+                  className="touch-target"
+                  autoComplete="new-password"
+                />
+                <input
+                  type="password"
+                  placeholder="Confirm password"
+                  value={dmConfirmPassword}
+                  onChange={(e) => setDmConfirmPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleDmSetup()}
+                  style={styles.dmInput}
+                  className="touch-target"
+                  autoComplete="new-password"
+                />
+                <button
+                  onClick={handleDmSetup}
+                  disabled={isDmSubmitting}
+                  style={styles.dmSubmitButton}
+                  className="touch-target btn-hover-scale"
+                >
+                  {isDmSubmitting ? "Setting up…" : "Set Password & Enter"}
+                </button>
+              </div>
+            ) : (
+              /* Password login */
+              <div>
+                <input
+                  type="password"
+                  placeholder="DM password"
+                  value={dmPassword}
+                  onChange={(e) => setDmPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleDmLogin()}
+                  style={styles.dmInput}
+                  className="touch-target"
+                  autoComplete="current-password"
+                />
+                <button
+                  onClick={handleDmLogin}
+                  disabled={isDmSubmitting || !dmPassword}
+                  style={styles.dmSubmitButton}
+                  className="touch-target btn-hover-scale"
+                >
+                  {isDmSubmitting ? "Authenticating…" : "Enter as DM"}
+                </button>
+              </div>
+            )}
+
+            {dmError && (
+              <p style={styles.dmErrorText}>{dmError}</p>
+            )}
+          </div>
         </div>
       </div>
       </ErrorBoundary>
@@ -576,28 +670,36 @@ const styles = {
     borderTop: "1px solid rgba(200, 151, 58, 0.15)",
     paddingTop: "1rem",
   },
-  dmList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.4rem",
-  },
-  dmButton: {
-    padding: "0.6rem 0.75rem",
+  dmInput: {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "0.65rem 0.75rem",
     borderRadius: "8px",
-    background: "rgba(200, 151, 58, 0.05)",
-    border: "1px solid rgba(200, 151, 58, 0.15)",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: "0.6rem",
+    background: "rgba(255, 255, 255, 0.04)",
+    border: "1px solid rgba(200, 151, 58, 0.2)",
+    color: "var(--color-text)",
+    fontSize: "0.9rem",
+    outline: "none",
+    marginBottom: "0.4rem",
   },
-  dmIcon: {
-    fontSize: "0.7rem",
-    fontWeight: 700,
-    color: "var(--color-danger)",
-    background: "rgba(235, 87, 87, 0.12)",
-    padding: "0.1rem 0.4rem",
-    borderRadius: "3px",
+  dmSubmitButton: {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "0.65rem 0.75rem",
+    borderRadius: "8px",
+    background: "rgba(200, 151, 58, 0.12)",
+    border: "1px solid rgba(200, 151, 58, 0.3)",
+    color: "var(--color-accent)",
+    fontSize: "0.85rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    marginTop: "0.25rem",
+  },
+  dmErrorText: {
+    fontSize: "0.8rem",
+    color: "var(--color-danger, #eb5757)",
+    textAlign: "center",
+    marginTop: "0.25rem",
   },
 
   // Main UI Shell

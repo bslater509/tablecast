@@ -19,12 +19,17 @@ const VALID_ROLES = ["DM", "PLAYER"];
 // ---------------------------------------------------------------------------
 // GET /api/users  list all DM users
 // ---------------------------------------------------------------------------
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
+    const reqUser = await getRequestUser(req);
     const users = await prisma.user.findMany({
       where: { role: "DM" },
       orderBy: { createdAt: "asc" },
     });
+    // For unauthenticated requests (login screen), only return safe fields
+    if (!reqUser) {
+      return res.json(users.map((u) => ({ id: u.id, username: u.username })));
+    }
     res.json(users);
   } catch (err) {
     logger.error("api:route", "Error in GET /api/users", { error: err.message });
