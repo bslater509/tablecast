@@ -135,6 +135,20 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   // Expanded spell card tracking
   const [expandedSpell, setExpandedSpell] = useState(null);
 
+  // Rest & recovery state
+  const [restLoading, setRestLoading] = useState(false);
+  const [shortRestDice, setShortRestDice] = useState(0); // how many hit dice to spend on short rest
+  const [showShortRestInput, setShowShortRestInput] = useState(false);
+  const [restToast, setRestToast] = useState(null); // { message, type }
+
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (restToast) {
+      const timer = setTimeout(() => setRestToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [restToast]);
+
   // Fetch character details from backend on mount/ID change
   useEffect(() => {
     async function loadCharacter() {
@@ -829,6 +843,45 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
   // Add spell to the character's spell list
   function handleAddSpell(spellData) {
+    // Extract damage info from 5etools format
+    let damageInfo = null;
+    if (spellData.damage && spellData.damage.length > 0) {
+      const dmg = spellData.damage[0];
+      damageInfo = {
+        dice: dmg.base?.dice || "",
+        type: dmg.damageType?.name || "",
+        slotMultiplier: dmg.slots ? true : false,
+        scaling: spellData.scaling?.dice || "",
+      };
+    }
+
+    // Extract save info from 5etools format
+    let saveInfo = null;
+    if (spellData.save) {
+      saveInfo = {
+        ability: spellData.save.ability?.[0] || "",
+        dc: spellData.save.dc || false,
+      };
+    }
+
+    // Extract material component details
+    let materialText = "";
+    if (spellData.components?.material) {
+      materialText = typeof spellData.components.material === "string"
+        ? spellData.components.material
+        : spellData.components.material.text || "";
+    }
+
+    // Extract attack type info
+    let attackType = "";
+    if (spellData.attackType) {
+      attackType = spellData.attackType;
+    } else if (spellData.entries && Array.isArray(spellData.entries)) {
+      const allText = spellData.entries.join(" ").toLowerCase();
+      if (allText.includes("ranged spell attack")) attackType = "ranged";
+      else if (allText.includes("melee spell attack")) attackType = "melee";
+    }
+
     const newSpell = {
       name: spellData.name,
       level: spellData.level !== undefined ? spellData.level : 0,
@@ -843,6 +896,11 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       description: spellData.entries || [],
       higherLevels: spellData.entriesHigherLevel?.[0]?.entries || [],
       source: spellData.source || "",
+      // Enhanced data from 5etools
+      damage: damageInfo,
+      save: saveInfo,
+      materialText: materialText,
+      attackType: attackType,
     };
     const updatedSpells = [...spells, newSpell];
     setSpells(updatedSpells);
@@ -864,6 +922,188 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     );
     setSpells(updated);
     updateCharacterState((prev) => ({ ...prev }));
+  }
+
+  // Enrich a spell with full 5etools detail (fetch-on-expand for S2.2.1)
+  async function handleEnrichSpell(spellIndex) {
+    const spell = spells[spellIndex];
+    if (!spell) return;
+    // Skip if already enriched (has damage or save data)
+    if (spell.damage || spell.save) return;
+
+    const detail = await fetchSpellDetail(spell.name);
+    if (!detail) return;
+
+    // Re-map using handleAddSpell logic but update in place
+    let damageInfo = null;
+    if (detail.damage && detail.damage.length > 0) {
+      const dmg = detail.damage[0];
+      damageInfo = {
+        dice: dmg.base?.dice || "",
+        type: dmg.damageType?.name || "",
+        slotMultiplier: dmg.slots ? true : false,
+        scaling: detail.scaling?.dice || "",
+      };
+    }
+    let saveInfo = null;
+    if (detail.save) {
+      saveInfo = {
+        ability: detail.save.ability?.[0] || "",
+        dc: detail.save.dc || false,
+      };
+    }
+    let materialText = "";
+    if (detail.components?.material) {
+      materialText = typeof detail.components.material === "string"
+        ? detail.components.material
+        : detail.components.material.text || "";
+    }
+
+    const updated = spells.map((s, i) =>
+      i === spellIndex
+        ? {
+            ...s,
+            castingTime: s.castingTime || detail.time?.[0]?.number + " " + detail.time?.[0]?.unit || "",
+            range: s.range || detail.range?.distance?.amount + " " + detail.range?.distance?.type || detail.range?.type || "",
+            components: s.components || detail.components?.required?.join(", ") || "",
+            duration: s.duration || detail.duration?.[0]?.duration?.amount + " " + detail.duration?.[0]?.duration?.type || detail.duration?.[0]?.type || "",
+            description: s.description.length > 0 ? s.description : (detail.entries || []),
+            higherLevels: s.higherLevels.length > 0 ? s.higherLevels : (detail.entriesHigherLevel?.[0]?.entries || []),
+            damage: damageInfo,
+            save: saveInfo,
+            materialText: materialText,
+          }
+        : s
+    );
+    setSpells(updated);
+    updateCharacterState((prev) => ({ ...prev }));
+  }
+
+  // ─── SPELL CASTING HANDLERS ─────────────────────────────────────────────
+
+  // Cast a spell — consumes slot (if non-cantrip), emits to chat
+  async function handleCastSpell(spellIndex, castLevel, isCantrip = false) {
+    const spell = spells[spellIndex];
+    if (!spell) return false;
+
+    if (isCantrip || spell.level === 0) {
+      // Cantrip — no slot consumption, just emit to chat
+      if (socket) {
+        socket.emit("chat:send", {
+          sender: character.name,
+          text: `casts ${spell.name}`,
+          type: "roll",
+          rollDetails: {
+            rollName: `Spell: ${spell.name}`,
+            formula: "Cantrip",
+            status: "cast",
+            diceTheme: user?.diceTheme || "default",
+            diceColor: user?.diceColor || "#7c3aed",
+          },
+        });
+      }
+      return true;
+    }
+
+    // Non-cantrip: consume a spell slot of the chosen level
+    const slotKey = String(castLevel);
+    const current = spellSlots[slotKey];
+    if (!current || current.used >= current.total) {
+      return false; // No available slot
+    }
+
+    const updated = { ...spellSlots };
+    updated[slotKey] = { ...current, used: current.used + 1 };
+    setSpellSlots(updated);
+
+    // Emit to chat
+    if (socket) {
+      socket.emit("chat:send", {
+        sender: character.name,
+        text: `casts ${spell.name}${castLevel > spell.level ? ` (upcast to level ${castLevel})` : ""}`,
+        type: "roll",
+        rollDetails: {
+          rollName: `Spell: ${spell.name}`,
+          formula: `Level ${castLevel}`,
+          isAttack: false,
+          status: "cast",
+          diceTheme: user?.diceTheme || "default",
+          diceColor: user?.diceColor || "#7c3aed",
+        },
+      });
+    }
+
+    updateCharacterState((prev) => ({ ...prev }));
+    return true;
+  }
+
+  // Roll damage dice for a spell
+  async function handleSpellDamage(spell, castLevel) {
+    let results;
+    try {
+      results = await rollDice(["2d10"], {
+        theme: user?.diceTheme || "default",
+        color: user?.diceColor || "#7c3aed",
+      });
+    } catch (err) {
+      console.error("[CharacterSheet] spell damage roll failed:", err);
+      return;
+    }
+
+    const dmgRolls = results.allRolls || [];
+    const dmgTotal = results.total || 0;
+
+    if (socket) {
+      socket.emit("chat:send", {
+        sender: character.name,
+        text: `rolls damage for ${spell.name}${castLevel > spell.level ? ` (upcast Lv ${castLevel})` : ""}: ${dmgTotal}`,
+        type: "roll",
+        rollDetails: {
+          rollName: `Damage: ${spell.name}`,
+          formula: `${castLevel}d10`,
+          rolls: dmgRolls,
+          total: dmgTotal,
+          status: "rolled",
+          diceTheme: user?.diceTheme || "default",
+          diceColor: user?.diceColor || "#7c3aed",
+        },
+      });
+    }
+  }
+
+  // Roll a spell attack (d20 + spell attack bonus)
+  async function handleSpellAttack(spell) {
+    let d20, total;
+    try {
+      const results = await rollDice(["1d20"], {
+        theme: user?.diceTheme || "default",
+        color: user?.diceColor || "#7c3aed",
+      });
+      d20 = await extractD20FromPhysics(results);
+      total = d20 + spellAttackBonus;
+    } catch (err) {
+      console.error("[CharacterSheet] spell attack roll failed:", err);
+      return;
+    }
+
+    if (socket) {
+      socket.emit("chat:send", {
+        sender: character.name,
+        text: `makes a spell attack with ${spell.name}! Total: ${total}`,
+        type: "roll",
+        rollDetails: {
+          rollName: `Spell Attack: ${spell.name}`,
+          formula: `1d20 + ${spellAttackBonus}`,
+          rolls: [d20],
+          modifier: spellAttackBonus,
+          total,
+          isAttack: true,
+          status: "rolled",
+          diceTheme: user?.diceTheme || "default",
+          diceColor: user?.diceColor || "#7c3aed",
+        },
+      });
+    }
   }
 
   // Fetch spell detail from reference API
@@ -893,6 +1133,104 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     } else {
       // Fallback: add what we have from search results
       handleAddSpell(spellItem);
+    }
+  }
+
+  // ─── REST & RECOVERY HANDLERS ────────────────────────────────────────────
+
+  // Determine available hit dice
+  const hitDiceTotal = character?.hitDiceTotal || character?.level || 1;
+  const hitDiceUsed = character?.hitDiceUsed || 0;
+  const hitDiceAvailable = Math.max(0, hitDiceTotal - hitDiceUsed);
+  const hitDiceType = character?.hitDiceType || "d10";
+
+  // Show short rest hit dice input
+  function handleOpenShortRest() {
+    setShortRestDice(Math.min(1, hitDiceAvailable));
+    setShowShortRestInput(true);
+  }
+
+  // Execute rest call
+  async function handleRest(type) {
+    if (restLoading) return;
+    setRestLoading(true);
+    setRestToast(null);
+
+    try {
+      const body = { type };
+
+      if (type === "short") {
+        // For short rest, send the dice to spend (or 0 if just opening modal)
+        if (!showShortRestInput || shortRestDice <= 0) {
+          // If no dice to spend, still try a short rest with 0 dice
+          body.hitDiceToSpend = shortRestDice > 0 ? shortRestDice : 0;
+        } else {
+          body.hitDiceToSpend = shortRestDice;
+        }
+        setShowShortRestInput(false);
+      }
+
+      const res = await fetch(`/api/characters/${character.id}/rest`, {
+        method: "POST",
+        headers: getJsonAuthHeaders(user),
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Rest failed");
+      }
+
+      const result = await res.json();
+      const updated = result.character;
+
+      // Update local character state with server response
+      setCharacter((prev) => ({
+        ...prev,
+        hp: updated.hp,
+        maxHp: updated.maxHp,
+        hitDiceUsed: updated.hitDiceUsed,
+        hitDiceTotal: updated.hitDiceTotal || prev.hitDiceTotal,
+        hitDiceType: updated.hitDiceType || prev.hitDiceType,
+      }));
+
+      // For long rest, also reset spell slots
+      if (type === "long") {
+        handleResetSlots();
+      }
+
+      // Show toast
+      if (type === "long") {
+        const msg = `Long rest complete! Recovered ${result.hpRecovered} HP, recovered ${result.hitDiceRecovered} hit dice.`;
+        setRestToast({ message: msg, type: "success" });
+      } else {
+        const diceMsg = result.hpRecovered > 0
+          ? `Recovered ${result.hpRecovered} HP${shortRestDice > 0 ? ` (spent ${shortRestDice} ${hitDiceType})` : ""}.`
+          : `Short rest taken (no hit dice spent).`;
+        setRestToast({ message: diceMsg, type: "success" });
+      }
+
+      // Log to chat
+      if (socket) {
+        socket.emit("chat:send", {
+          sender: character.name,
+          text: type === "long"
+            ? `takes a long rest! Fully recovered (${result.hpRecovered} HP, ${result.hitDiceRecovered} hit dice).`
+            : `takes a short rest${shortRestDice > 0 ? `, spending ${shortRestDice} ${hitDiceType}` : ""}.`,
+          type: "system",
+          rollDetails: {
+            rollName: type === "long" ? "Long Rest" : "Short Rest",
+            status: "rest",
+            diceTheme: user?.diceTheme || "default",
+            diceColor: user?.diceColor || "#7c3aed",
+          },
+        });
+      }
+    } catch (err) {
+      setRestToast({ message: err.message || "Rest failed", type: "error" });
+      console.error("[CharacterSheet] Rest error:", err);
+    } finally {
+      setRestLoading(false);
     }
   }
 
@@ -991,6 +1329,98 @@ export default function CharacterSheet({ characterId, onBack, user }) {
               +1 HP
             </button>
           </div>
+        </div>
+
+        {/* Rest & Recovery Buttons */}
+        <div style={{ display: "flex", gap: "0.35rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+          {!showShortRestInput ? (
+            <>
+              <button
+                onClick={handleOpenShortRest}
+                disabled={restLoading || character.hp <= 0}
+                style={{
+                  ...styles.restBtn,
+                  opacity: restLoading || character.hp <= 0 ? 0.5 : 1,
+                }}
+                className="touch-target btn-hover-scale"
+              >
+                {restLoading ? "Resting..." : `Short Rest (${hitDiceAvailable} ${hitDiceType} left)`}
+              </button>
+              <button
+                onClick={() => handleRest("long")}
+                disabled={restLoading || character.hp <= 0}
+                style={{
+                  ...styles.restBtn,
+                  background: "rgba(74, 187, 94, 0.15)",
+                  borderColor: "rgba(74, 187, 94, 0.3)",
+                  opacity: restLoading || character.hp <= 0 ? 0.5 : 1,
+                }}
+                className="touch-target btn-hover-scale"
+              >
+                {restLoading ? "Resting..." : "Long Rest"}
+              </button>
+            </>
+          ) : (
+            <div style={{ display: "flex", gap: "0.3rem", alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "0.72rem", color: "var(--color-muted)", fontWeight: 600 }}>
+                Spend {hitDiceType}:
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={hitDiceAvailable}
+                value={shortRestDice}
+                onChange={(e) => setShortRestDice(Math.max(0, Math.min(hitDiceAvailable, parseInt(e.target.value) || 0)))}
+                style={{
+                  width: "44px",
+                  padding: "0.25rem",
+                  fontSize: "0.78rem",
+                  background: "rgba(0,0,0,0.3)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "4px",
+                  color: "var(--color-text)",
+                  textAlign: "center",
+                  outline: "none",
+                }}
+              />
+              <span style={{ fontSize: "0.68rem", color: "var(--color-muted)" }}>
+                (max {hitDiceAvailable})
+              </span>
+              <button
+                onClick={() => handleRest("short")}
+                disabled={restLoading}
+                style={{
+                  padding: "0.3rem 0.65rem",
+                  fontSize: "0.72rem",
+                  background: "rgba(74, 187, 94, 0.15)",
+                  border: "1px solid rgba(74, 187, 94, 0.3)",
+                  borderRadius: "4px",
+                  color: "var(--color-success)",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  opacity: restLoading ? 0.5 : 1,
+                }}
+                className="touch-target btn-hover-scale"
+              >
+                Rest
+              </button>
+              <button
+                onClick={() => setShowShortRestInput(false)}
+                style={{
+                  padding: "0.3rem 0.5rem",
+                  fontSize: "0.72rem",
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "4px",
+                  color: "var(--color-muted)",
+                  cursor: "pointer",
+                }}
+                className="touch-target"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Level / Max HP Settings */}
@@ -1145,10 +1575,24 @@ export default function CharacterSheet({ characterId, onBack, user }) {
             onTogglePrepared={handleTogglePrepared}
             onRemoveSpell={handleRemoveSpell}
             onToggleExpand={setExpandedSpell}
+            onCastSpell={handleCastSpell}
+            onSpellDamage={handleSpellDamage}
+            onSpellAttack={handleSpellAttack}
+            onEnrichSpell={handleEnrichSpell}
           />
         )}
 
       </div>
+
+      {/* Rest Toast Notification */}
+      {restToast && (
+        <div style={{
+          ...styles.toastContainer,
+          ...(restToast.type === "success" ? styles.toastSuccess : styles.toastError),
+        }}>
+          {restToast.message}
+        </div>
+      )}
 
       {showCharGen && (
         <div style={{

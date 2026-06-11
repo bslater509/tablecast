@@ -218,6 +218,10 @@ app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/characters", charactersRouter);
 
+// Short/Long Rest endpoint — mounted on the same prefix to capture /:id/rest
+const restRouter = require("./routes/rest");
+app.use("/api/characters", restRouter);
+
 // Heroes public listing (for login screen) — separate mount at /api/heroes
 const { heroesRouter } = require("./routes/characters");
 if (heroesRouter) app.use("/api/heroes", heroesRouter);

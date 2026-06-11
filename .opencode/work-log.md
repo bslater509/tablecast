@@ -5,6 +5,9 @@
 - [x] ses_N (Worker): `client/src/context/AiContext.jsx` - MODIFY (persist selectedNpcId, selectedCharId) done
 - [x] ses_N (Worker): `client/src/components/SettingsPanel.jsx` - MODIFY (persist activeSettingsTab) done
 - [x] ses_N (Worker): `client/src/components/DiceRollerPanel.jsx` - MODIFY (persist activeSubTab) done
+- [x] ses_M2_T2.1 (Worker): `client/src/components/character/SpellsPanel.jsx` - REWRITE (Spellbook & Spell Cards UI) done ✅
+- [x] ses_M2_T2.1 (Worker): `client/src/components/character/characterStyles.js` - MODIFY (new spellcast styles) done ✅
+- [x] ses_M2_T2.1 (Worker): `client/src/components/CharacterSheet.jsx` - MODIFY (spell cast/damage/attack handlers) done ✅
 
 ## UNIT REVIEW: WikiPanel URL-Driven Navigation
 

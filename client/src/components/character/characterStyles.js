@@ -906,6 +906,164 @@ const styles = {
     color: "var(--color-text)",
     lineHeight: 1.4,
   },
+
+  /* School Badge */
+  schoolBadge: {
+    display: "inline-block",
+    padding: "0.08rem 0.35rem",
+    borderRadius: "4px",
+    fontSize: "0.58rem",
+    fontWeight: 700,
+    color: "#fff",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    lineHeight: 1.3,
+  },
+
+  /* Cast Action Buttons */
+  castBtn: {
+    padding: "0.3rem 0.65rem",
+    background: "var(--color-accent)",
+    border: "none",
+    borderRadius: "4px",
+    color: "var(--color-bg)",
+    fontWeight: 700,
+    fontSize: "0.72rem",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  castBtnDisabled: {
+    opacity: 0.35,
+    cursor: "not-allowed",
+  },
+  damageBtn: {
+    padding: "0.3rem 0.6rem",
+    background: "rgba(235, 87, 87, 0.12)",
+    border: "1px solid rgba(235, 87, 87, 0.25)",
+    borderRadius: "4px",
+    color: "var(--color-danger)",
+    fontSize: "0.72rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  attackBtn: {
+    padding: "0.3rem 0.6rem",
+    background: "rgba(200, 151, 58, 0.12)",
+    border: "1px solid rgba(200, 151, 58, 0.25)",
+    borderRadius: "4px",
+    color: "var(--color-accent)",
+    fontSize: "0.72rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+
+  /* Search, Sort & Filter */
+  spellSearchInput: {
+    flex: 1,
+    minWidth: "80px",
+    padding: "0.35rem 0.55rem",
+    fontSize: "0.78rem",
+    background: "rgba(0,0,0,0.3)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "6px",
+    color: "var(--color-text)",
+    outline: "none",
+    width: "100%",
+    boxSizing: "border-box",
+  },
+  sortDropdown: {
+    padding: "0.3rem 0.4rem",
+    fontSize: "0.72rem",
+    background: "rgba(0,0,0,0.3)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "4px",
+    color: "var(--color-muted)",
+    outline: "none",
+  },
+  filterTabRow: {
+    display: "flex",
+    gap: "0.2rem",
+    flexWrap: "wrap",
+  },
+  filterTab: {
+    padding: "0.2rem 0.5rem",
+    fontSize: "0.68rem",
+    fontWeight: 600,
+    borderRadius: "10px",
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "transparent",
+    color: "var(--color-muted)",
+    cursor: "pointer",
+    transition: "all 0.15s ease",
+    whiteSpace: "nowrap",
+  },
+  filterTabActive: {
+    background: "var(--color-accent-dim)",
+    border: "1px solid var(--color-border)",
+    color: "var(--color-accent)",
+  },
+
+  /* Cast Level Dropdown */
+  castLevelDropdown: {
+    padding: "0.25rem 0.35rem",
+    fontSize: "0.7rem",
+    background: "rgba(0,0,0,0.3)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "4px",
+    color: "var(--color-text)",
+    outline: "none",
+  },
+
+  /* Cast Actions Row */
+  castActionsRow: {
+    display: "flex",
+    gap: "0.35rem",
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginTop: "0.3rem",
+    paddingTop: "0.3rem",
+    borderTop: "1px solid rgba(255,255,255,0.06)",
+  },
+
+  /* Toast Notification */
+  toastContainer: {
+    position: "fixed",
+    bottom: "1.5rem",
+    left: "50%",
+    transform: "translateX(-50%)",
+    zIndex: 9999,
+    padding: "0.5rem 1rem",
+    borderRadius: "8px",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+    pointerEvents: "none",
+    whiteSpace: "nowrap",
+  },
+  toastSuccess: {
+    background: "rgba(74, 187, 94, 0.92)",
+    color: "#fff",
+  },
+  toastError: {
+    background: "rgba(235, 87, 87, 0.92)",
+    color: "#fff",
+  },
+
+  /* Rest & Recovery Buttons */
+  restBtn: {
+    padding: "0.35rem 0.7rem",
+    fontSize: "0.72rem",
+    fontWeight: 600,
+    background: "rgba(74, 187, 94, 0.1)",
+    border: "1px solid rgba(74, 187, 94, 0.2)",
+    borderRadius: "6px",
+    color: "var(--color-success)",
+    cursor: "pointer",
+    transition: "all 0.15s ease",
+    whiteSpace: "nowrap",
+  },
 };
 
 export { styles };

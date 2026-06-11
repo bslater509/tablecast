@@ -1,40 +1,62 @@
-# Mission: Implement Section 1 - VTT & Combat Enhancements
+# Mission: Section 2 - Gameplay Systems
 
-## M1: Prisma Schema & Backend | agent:Worker
-### T1.1: Update Prisma Schema
-- [x] S1.1.1: Add walls to Map, conditions/vision/aura to Token, conditions/deathSaves to EncounterParticipant | size:S
-- [x] S1.1.2: Generate Prisma migration via npx prisma migrate dev | size:S
+## M1: Short/Long Rest with Recovery (§2.1) | agent:Worker
+### T1.1: Backend — Hit Die tracking & rest endpoint
+- [x] S1.1.1: Add hitDiceType, hitDiceTotal, hitDiceUsed to Character model + migration
+- [x] S1.1.2: Add POST /api/characters/:id/rest endpoint (short/long rest logic)
+- [x] S1.1.3: Update ALLOWED_FIELDS in characters.js for new fields
 
-### T1.2: Update Backend Routes | depends:T1.1
-- [x] S1.2.1: Update maps.js to accept new Token fields (conditions, visionRadius, aura) | size:S
-- [x] S1.2.2: Update encounters.js to accept conditions/deathSaves on Participant + turn expiry | size:S
-- [x] S1.2.3: Update socket.js token:create handler for new fields | size:XS
+### T1.2: Frontend — Rest UI in CharacterSheet
+- [x] S1.2.1: Add rest buttons (Short Rest, Long Rest) with hit dice spending UI
+- [x] S1.2.2: Add rest notification/recovery animation
+- [x] S1.2.3: Wire up rest endpoint with socket broadcast
 
-## M2: Client-Side Map Enhancements
-### T2.1: Measurement/Ruler Tool | agent:Worker
-- [x] S2.1.1: Add ruler state + handlers to useMapData.js | size:S
-- [x] S2.1.2: Add ruler rendering to MapCanvas.jsx draw loop | size:S
-- [x] S2.1.3: Add ruler button to MapToolbar.jsx | size:XS
+## M2: Spellbook & Spell Cards UI (§2.4) | agent:Worker
+### T2.1: Enhanced SpellsPanel
+- [ ] S2.1.1: Add spell card layout with full detail view (school, level, components, description)
+- [ ] S2.1.2: Add Cast button with slot consumption, concentration tracking
+- [ ] S2.1.3: Add filtering (All, Cantrips, Prepared, Concentration, Ritual) + search
+- [ ] S2.1.4: Add sorting by level/school/name
+- [ ] S2.1.5: Add upcast support (dropdown for higher level casting)
 
-### T2.2: Token Auras & Condition Rings | agent:Worker | depends:T1.1
-- [x] S2.2.1: Add aura/condition ring rendering to MapCanvas.jsx draw loop | size:M
-- [x] S2.2.2: Add aura controls to token details | size:S
+### T2.2: Spell Detail Integration with 5etools
+- [ ] S2.2.1: Fetch spell details from 5etools cache on expand
+- [ ] S2.2.2: Show save DC, attack roll, damage formula on spell cards
+- [ ] S2.2.3: Add "Roll Damage" and "Roll Attack" buttons on spell cards
 
-### T2.3: Dynamic Lighting / Line-of-Sight | agent:Worker | depends:T1.1
-- [x] S2.3.1: Create raycasting utility (lines intersection, point-in-polygon) | size:S
-- [x] S2.3.2: Add vision polygon rendering to MapCanvas.jsx | size:M
-- [x] S2.3.3: Add light/darkvision buttons to MapToolbar | size:XS
+## M3: Level-Up Wizard (§2.5) | agent:Worker
+### T3.1: Backend — Level-up support
+- [ ] S3.1.1: Add POST /api/characters/:id/level-up endpoint
+- [ ] S3.1.2: Add class features / ASI validation logic
 
-## M3: Encounter Enhancements | depends:M1
-### T3.1: Death Saves Tracker | agent:Worker
-- [x] S3.1.1: Add death save state to encounter turn logic | size:S
-- [x] S3.1.2: Add death save UI to EncountersPanel.jsx | size:M
+### T3.2: Frontend — Level-Up Wizard UI
+- [ ] S3.2.1: Create LevelUpWizard component (multi-step flow: HP, features, ASI/feat, spells)
+- [ ] S3.2.2: Add "Level Up" button to CharacterSheet
+- [ ] S3.2.3: Integration with 5etools class/feat reference data
 
-### T3.2: Condition Tracker with Auto-Expiry | agent:Worker
-- [x] S3.2.1: Add condition management to EncountersPanel.jsx | size:M
-- [x] S3.2.2: Add condition expiry to turn advancement (backend) | size:S
+## M4: Party Inventory & Shared Gold (§2.3) | agent:Worker
+### T4.1: Backend — Party model & routes
+- [ ] S4.1.1: Add Party model + PartyMember model to Prisma schema + migration
+- [ ] S4.1.2: Add CRUD routes for party inventory / shared gold
+- [ ] S4.1.3: Add transfer endpoint (character ↔ party)
 
-## M4: Verification | agent:Reviewer | depends:M2,M3
-- [x] S4.1: Run Vite build | size:S
-- [x] S4.2: Run LSP diagnostics | size:S
-- [x] S4.3: Verify git status and push | size:S
+### T4.2: Frontend — Party Vault Panel
+- [ ] S4.2.1: Create PartyVaultPanel component
+- [ ] S4.2.2: Add transfer UI for items/gold between characters and party
+- [ ] S4.2.3: Add "Party Vault" tab to navigation
+
+## M5: Shopping & Economy System (§2.2) | agent:Worker
+### T5.1: Backend — Shop model & routes
+- [ ] S5.1.1: Add Shop + ShopItem models to Prisma schema + migration
+- [ ] S5.1.2: Add CRUD routes for shops/items
+- [ ] S5.1.3: Add buy/sell endpoint with currency management
+
+### T5.2: Frontend — Shop Panel
+- [ ] S5.2.1: Create ShopPanel component (inventory browsing, buying)
+- [ ] S5.2.2: Add currency display/management on CharacterSheet
+- [ ] S5.2.3: Add haggle mechanic (Persuasion check)
+
+## M6: Verification | agent:Reviewer | depends:M1,M2,M3,M4,M5
+- [ ] S6.1: Run Vite build
+- [ ] S6.2: Run LSP diagnostics
+- [ ] S6.3: Verify git status and push

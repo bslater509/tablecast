@@ -75,6 +75,9 @@ async function main() {
         intelligence: 10,
         wisdom: 13,
         charisma: 8,
+        hitDiceType: "d10",
+        hitDiceTotal: 5,
+        hitDiceUsed: 0,
         inventory: JSON.stringify([
           { name: "Battleaxe", quantity: 1, weight: 4 },
           { name: "Shield", quantity: 1, weight: 6 },
@@ -117,6 +120,9 @@ async function main() {
           intelligence: 20,
           wisdom: 16,
           charisma: 13,
+          hitDiceType: "d6",
+          hitDiceTotal: 12,
+          hitDiceUsed: 0,
           inventory: JSON.stringify([
             { name: "Staff of Power", quantity: 1, weight: 4 },
             { name: "Spellbook", quantity: 1, weight: 3 },

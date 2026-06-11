@@ -38,6 +38,9 @@ const ALLOWED_FIELDS = [
   "spellAttackBonus",
   "diceTheme",
   "diceColor",
+  "hitDiceType",
+  "hitDiceTotal",
+  "hitDiceUsed",
 ];
 
 /**
@@ -266,6 +269,17 @@ router.post("/", async (req, res) => {
         }
         data[field] = req.body[field];
       }
+    }
+
+    // Auto-calculate hit dice defaults from level if not explicitly provided
+    if (data.hitDiceTotal === undefined) {
+      data.hitDiceTotal = data.level || 1;
+    }
+    if (data.hitDiceType === undefined) {
+      data.hitDiceType = "d10";
+    }
+    if (data.hitDiceUsed === undefined) {
+      data.hitDiceUsed = 0;
     }
 
     const character = await prisma.character.create({

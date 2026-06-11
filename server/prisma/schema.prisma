@@ -112,6 +112,14 @@ model Character {
   diceTheme String @default("default")
   diceColor String @default("#7c3aed")
 
+  // Hit Dice — used for short/long rest recovery
+  // hitDiceType: class hit die type (d6, d8, d10, d12)
+  // hitDiceTotal: total hit dice available (normally equal to level)
+  // hitDiceUsed: how many hit dice have been spent since last long rest
+  hitDiceType  String @default("d10")
+  hitDiceTotal Int    @default(1)
+  hitDiceUsed  Int    @default(0)
+
   // JSON blobs — calculated by the frontend; stored for persistence
   // inventory: serialized array of item objects
   // modifiers: serialized map of ability modifier values
