@@ -156,6 +156,9 @@ model Map {
   // Fog of War — JSON array of polygon coordinate arrays drawn by the DM
   fogState String @default("[]") // JSON
 
+  // Dynamic Lighting — JSON array of wall segments [{x1,y1,x2,y2}]
+  walls String @default("[]") // JSON
+
   // Relations
   tokens     Token[]
   encounters Encounter[]
@@ -197,6 +200,17 @@ model Token {
 
   // JSON blob containing bestiary stats if it is a monster token
   stats String?
+
+  // Conditions — JSON array of condition objects [{name, color}]
+  conditions String @default("[]") // JSON
+
+  // Vision & Lighting
+  visionRadius     Float @default(0) // light source radius in grid cells (0=unlimited for DM)
+  darkvisionRadius Float @default(0) // darkvision range in grid cells
+
+  // Aura
+  auraRadius Float @default(0) // aura radius in grid cells
+  auraColor  String @default("") // aura hex color, e.g. "#ff6600"
 
   // Optional combat tracker participant linked to this token
   encounterParticipants EncounterParticipant[]
@@ -347,6 +361,12 @@ model EncounterParticipant {
   source     String  @default("")
   imageUrl   String  @default("")
   stats      String?
+
+  // Conditions — JSON array of {name, color, duration, remainingRounds}
+  conditions String @default("[]") // JSON
+
+  // Death Saves — JSON object {successes, failures, isStable}
+  deathSaves String @default("{\"successes\":0,\"failures\":0,\"isStable\":false}") // JSON
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

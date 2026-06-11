@@ -56,6 +56,13 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
   const [currentPolygon, setCurrentPolygon] = useState([]);
   const [mousePosWorld, setMousePosWorld] = useState(null);
 
+  // Ruler Tool
+  const [rulerPoints, setRulerPoints] = useState([]);
+  const [rulerHoverPos, setRulerHoverPos] = useState(null);
+
+  // Dynamic Lighting
+  const [showLighting, setShowLighting] = useState(false);
+
   // Interaction
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
@@ -823,6 +830,20 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     }
   };
 
+  // -- Ruler handlers --
+  const handleRulerClick = (worldX, worldY) => {
+    setRulerPoints(prev => [...prev, { x: worldX, y: worldY }]);
+  };
+
+  const handleRulerUndo = () => {
+    setRulerPoints(prev => prev.length > 0 ? prev.slice(0, -1) : []);
+  };
+
+  const handleRulerClear = () => {
+    setRulerPoints([]);
+    setRulerHoverPos(null);
+  };
+
   // -- Fog handlers --
   const handleUndoFog = () => {
     if (!activeMap || !isDM) return;
@@ -964,6 +985,8 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     encounterBuilderResult, encounterBuilderProgress, loadError, isCreatingMap,
     tool, showGrid, zoom, panOffset, selectedTokenId,
     isDrawing, currentPolygon, mousePosWorld,
+    rulerPoints, rulerHoverPos,
+    showLighting,
     isPanning, panStart, dragState,
     showAddMapModal, showAddTokenModal,
     newMapName, newMapGridSize, newMapFile, newMapImagePath,
@@ -990,6 +1013,8 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     setEncounterBuilderResult, setEncounterBuilderProgress, setLoadError, setIsCreatingMap,
     setTool, setShowGrid, setZoom, setPanOffset, setSelectedTokenId,
     setIsDrawing, setCurrentPolygon, setMousePosWorld,
+    setRulerPoints, setRulerHoverPos,
+    setShowLighting,
     setIsPanning, setPanStart, setDragState,
     setShowAddMapModal, setShowAddTokenModal,
     setNewMapName, setNewMapGridSize, setNewMapFile, setNewMapImagePath,
@@ -1007,6 +1032,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     handleAddCharacterToEncounter, handleDeployEncounter, handleStartEncounter,
     handleAdvanceEncounterTurn, handleCompleteEncounter, handleParticipantHp,
     handleNpcRoll, handleMonsterRoll,
+    handleRulerClick, handleRulerUndo, handleRulerClear,
     handleUndoFog, handleClearFog, handleFinishFogPolygon,
     handleBuildEncounter, handleApplyEncounterResult, handleGenerateEncounterName,
   };

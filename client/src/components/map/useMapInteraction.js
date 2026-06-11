@@ -64,6 +64,14 @@ export default function useMapInteraction({
     const { x, y, screenX, screenY } = getWorldCoordinates(clientX, clientY);
     setMousePosWorld({ x, y });
 
+    if (tool === "ruler") {
+      // Ruler tool: add a point on each click, pass handler from parent via options
+      if (options.onRulerClick) {
+        options.onRulerClick(x, y);
+      }
+      return;
+    }
+
     if (tool === "select") {
       const hitToken = tokens.find(token => {
         const tx = (token.x + 0.5) * gridSize;

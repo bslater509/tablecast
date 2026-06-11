@@ -379,9 +379,17 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           return emitSocketError(socket, "token:move", "You do not have permission to move this token.");
         }
 
+        const moveData = { x: parsed.value.x, y: parsed.value.y };
+        // If VTT feature fields are provided, update them too
+        if (payload.conditions !== undefined) moveData.conditions = payload.conditions;
+        if (payload.visionRadius !== undefined) moveData.visionRadius = Number(payload.visionRadius) || 0;
+        if (payload.darkvisionRadius !== undefined) moveData.darkvisionRadius = Number(payload.darkvisionRadius) || 0;
+        if (payload.auraRadius !== undefined) moveData.auraRadius = Number(payload.auraRadius) || 0;
+        if (payload.auraColor !== undefined) moveData.auraColor = String(payload.auraColor || "");
+
         const updatedToken = await prisma.token.update({
           where: { id: parsed.value.id },
-          data: { x: parsed.value.x, y: parsed.value.y },
+          data: moveData,
           include: { character: true, npc: true, monster: true },
         });
         io.emit("token:moved", updatedToken);
@@ -431,6 +439,11 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           x: parsed.value.x,
           y: parsed.value.y,
           stats: parsed.value.stats,
+          conditions: payload.conditions || "[]",
+          visionRadius: Number(payload.visionRadius) || 0,
+          darkvisionRadius: Number(payload.darkvisionRadius) || 0,
+          auraRadius: Number(payload.auraRadius) || 0,
+          auraColor: String(payload.auraColor || ""),
         };
         if (parsed.value.characterId) {
           data.characterId = parsed.value.characterId;

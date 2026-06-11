@@ -1,6 +1,7 @@
 // =============================================================================
 // Tablecast  Encounter Initiative Tracker Panel
 // Dedicated combat management: initiative order, HP tracking, turn control.
+// Condition tracker & death saves features.
 // =============================================================================
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -8,11 +9,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Flag,
+  Heart,
   Plus,
   Shield,
+  Skull,
   Swords,
   Trash2,
   UserPlus,
+  X,
   Zap,
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
@@ -22,6 +26,26 @@ import { getJsonAuthHeaders } from "../utils/authHeaders";
 import { encounterStyles, hpColor, badgeColor } from "./encounters/encounterStyles";
 import AiBuilderModal from "./encounters/AiBuilderModal";
 import AddParticipantPanel from "./encounters/AddParticipantPanel";
+
+// ── Helpers ──
+function parseJson(value, fallback) {
+  try { return JSON.parse(value || ""); } catch { return fallback; }
+}
+
+const CONDITION_OPTIONS = [
+  "Blinded", "Charmed", "Deafened", "Frightened", "Grappled",
+  "Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned",
+  "Prone", "Restrained", "Stunned", "Unconscious", "Exhaustion",
+];
+
+const CONDITION_COLORS = {
+  "Blinded": "#94a3b8", "Charmed": "#f472b6", "Deafened": "#64748b",
+  "Frightened": "#a78bfa", "Grappled": "#fb923c", "Incapacitated": "#6b7280",
+  "Invisible": "#c084fc", "Paralyzed": "#fbbf24", "Petrified": "#9ca3af",
+  "Poisoned": "#22c55e", "Prone": "#eab308", "Restrained": "#f97316",
+  "Stunned": "#38bdf8", "Unconscious": "#64748b", "Exhaustion": "#ef4444",
+};
+const DEFAULT_COND_COLOR = "#a855f7";
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
@@ -62,6 +86,10 @@ export default function EncountersPanel({
 
   /* AI builder visibility */
   const [showAiBuilder, setShowAiBuilder] = useState(false);
+
+  /* condition picker */
+  const [conditionPickerParticipant, setConditionPickerParticipant] = useState(null);
+  const [conditionPickerDuration, setConditionPickerDuration] = useState(1);
 
   /* ---- helpers ---- */
   const handleApiError = (err, fallback) => {
@@ -385,6 +413,50 @@ export default function EncountersPanel({
     }
   };
 
+  /* ── Death Save handlers ── */
+  const handleDeathSave = async (participant, type) => {
+    if (!isDm || busy) return;
+    const ds = parseJson(participant.deathSaves, { successes: 0, failures: 0, isStable: false });
+    if (ds.isStable) return;
+    const updated = { ...ds };
+    if (type === "success") {
+      updated.successes = Math.min(updated.successes + 1, 3);
+      if (updated.successes >= 3) updated.isStable = true;
+    } else if (type === "failure") {
+      updated.failures = Math.min(updated.failures + 1, 3);
+    }
+    await handleUpdateParticipant(participant, { deathSaves: JSON.stringify(updated) });
+  };
+
+  const handleResetDeathSaves = async (participant) => {
+    if (!isDm || busy) return;
+    await handleUpdateParticipant(participant, {
+      deathSaves: JSON.stringify({ successes: 0, failures: 0, isStable: false }),
+    });
+  };
+
+  /* ── Condition handlers ── */
+  const handleAddCondition = async (participant, conditionName, duration) => {
+    if (!isDm || busy) return;
+    const conditions = parseJson(participant.conditions, []);
+    // Prevent duplicates (update duration instead)
+    const existing = conditions.findIndex(c => c.name === conditionName);
+    if (existing >= 0) {
+      conditions[existing].duration = duration;
+    } else {
+      conditions.push({ name: conditionName, duration: duration || null });
+    }
+    await handleUpdateParticipant(participant, { conditions: JSON.stringify(conditions) });
+    setConditionPickerParticipant(null);
+    setConditionPickerDuration(1);
+  };
+
+  const handleRemoveCondition = async (participant, conditionName) => {
+    if (!isDm || busy) return;
+    const conditions = parseJson(participant.conditions, []).filter(c => c.name !== conditionName);
+    await handleUpdateParticipant(participant, { conditions: JSON.stringify(conditions) });
+  };
+
   /* ---- derived data ---- */
   const sortedParticipants = useMemo(() => {
     if (!selectedEncounter?.participants) return [];
@@ -626,11 +698,119 @@ export default function EncountersPanel({
                       )}
                     </td>
 
-                    {/* name */}
+                    {/* name + conditions */}
                     <td style={encounterStyles.td}>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
                       {p.isHidden && (
                         <span style={{ fontSize: 10, color: "#64748b" }}>Hidden</span>
+                      )}
+                      {/* Condition pills */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
+                        {parseJson(p.conditions, []).map((cond) => {
+                          const condColor = CONDITION_COLORS[cond.name] || DEFAULT_COND_COLOR;
+                          return (
+                            <span
+                              key={cond.name}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 2,
+                                fontSize: 9,
+                                padding: "1px 5px",
+                                borderRadius: 3,
+                                background: condColor + "22",
+                                border: "1px solid " + condColor + "66",
+                                color: condColor,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {cond.name}
+                              {cond.duration !== undefined && cond.duration !== null && (
+                                <span style={{ opacity: 0.7, marginLeft: 2 }}>
+                                  ({cond.duration})
+                                </span>
+                              )}
+                              {isDm && selectedEncounter.status !== "COMPLETE" && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleRemoveCondition(p, cond.name); }}
+                                  style={{
+                                    background: "none", border: "none", color: condColor,
+                                    cursor: "pointer", padding: 0, marginLeft: 2,
+                                    fontSize: 10, lineHeight: 1,
+                                  }}
+                                  title={`Remove ${cond.name}`}
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </span>
+                          );
+                        })}
+                        {isDm && selectedEncounter.status !== "COMPLETE" && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConditionPickerParticipant(p.id === conditionPickerParticipant ? null : p.id); setConditionPickerDuration(1); }}
+                            style={{
+                              fontSize: 9, padding: "1px 5px", borderRadius: 3,
+                              background: "rgba(255,255,255,0.06)",
+                              border: "1px dashed rgba(255,255,255,0.2)",
+                              color: "#94a3b8", cursor: "pointer", fontWeight: 600,
+                            }}
+                            title="Add condition"
+                          >
+                            +Condition
+                          </button>
+                        )}
+                      </div>
+                      {/* Condition picker dropdown */}
+                      {conditionPickerParticipant === p.id && (
+                        <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 3 }}>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+                            {CONDITION_OPTIONS.map((cName) => {
+                              const cColor = CONDITION_COLORS[cName] || DEFAULT_COND_COLOR;
+                              const hasIt = parseJson(p.conditions, []).some(c => c.name === cName);
+                              return (
+                                <button
+                                  key={cName}
+                                  onClick={(e) => { e.stopPropagation(); if (!hasIt) handleAddCondition(p, cName, conditionPickerDuration); }}
+                                  disabled={hasIt}
+                                  style={{
+                                    fontSize: 9, padding: "2px 5px", borderRadius: 3,
+                                    background: hasIt ? cColor + "44" : "transparent",
+                                    border: "1px solid " + cColor + "66",
+                                    color: hasIt ? cColor : cColor + "aa",
+                                    cursor: hasIt ? "default" : "pointer", fontWeight: 600,
+                                    opacity: hasIt ? 0.5 : 1,
+                                  }}
+                                >
+                                  {cName}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 10 }}>
+                            <span style={{ color: "#94a3b8" }}>Duration (rounds):</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={99}
+                              style={{ width: 44, padding: "1px 3px", fontSize: 10 }}
+                              value={conditionPickerDuration}
+                              onChange={(e) => setConditionPickerDuration(Math.max(1, Number(e.target.value) || 1))}
+                            />
+                            <span style={{ color: "#64748b", fontSize: 9 }}>(leave blank = permanent)</span>
+                            <input
+                              type="checkbox"
+                              style={{ margin: 0 }}
+                              onChange={(e) => setConditionPickerDuration(e.target.checked ? null : 1)}
+                            />
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConditionPickerParticipant(null); }}
+                            style={{ fontSize: 9, color: "#94a3b8", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}
+                          >
+                            Close
+                          </button>
+                        </div>
                       )}
                     </td>
 
@@ -716,6 +896,76 @@ export default function EncountersPanel({
                       <div style={encounterStyles.hpBarOuter}>
                         <div style={encounterStyles.hpBarInner(hpPct)} />
                       </div>
+                      {/* ── Death Saves Widget ── */}
+                      {p.currentHp === 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          {(() => {
+                            const ds = parseJson(p.deathSaves, { successes: 0, failures: 0, isStable: false });
+                            if (ds.isStable) {
+                              return (
+                                <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 700 }}>
+                                  ✓ Stable
+                                </span>
+                              );
+                            }
+                            return (
+                              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 600 }}>DS:</span>
+                                {/* Success boxes */}
+                                {[1, 2, 3].map((i) => (
+                                  <button
+                                    key={`s${i}`}
+                                    onClick={(e) => { e.stopPropagation(); handleDeathSave(p, "success"); }}
+                                    disabled={!isDm}
+                                    style={{
+                                      width: 14, height: 14, borderRadius: 2, padding: 0,
+                                      border: `1px solid ${i <= ds.successes ? "#22c55e" : "#4a5568"}`,
+                                      background: i <= ds.successes ? "#22c55e33" : "transparent",
+                                      cursor: isDm ? "pointer" : "default",
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                    }}
+                                    title={`Death save success ${i <= ds.successes ? "✓" : ""}`}
+                                  >
+                                    {i <= ds.successes && <span style={{ fontSize: 9, color: "#22c55e" }}>✓</span>}
+                                  </button>
+                                ))}
+                                <span style={{ fontSize: 9, color: "#64748b" }}>/</span>
+                                {/* Failure boxes */}
+                                {[1, 2, 3].map((i) => (
+                                  <button
+                                    key={`f${i}`}
+                                    onClick={(e) => { e.stopPropagation(); handleDeathSave(p, "failure"); }}
+                                    disabled={!isDm}
+                                    style={{
+                                      width: 14, height: 14, borderRadius: 2, padding: 0,
+                                      border: `1px solid ${i <= ds.failures ? "#ef4444" : "#4a5568"}`,
+                                      background: i <= ds.failures ? "#ef444433" : "transparent",
+                                      cursor: isDm ? "pointer" : "default",
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                    }}
+                                    title={`Death save failure ${i <= ds.failures ? "✗" : ""}`}
+                                  >
+                                    {i <= ds.failures && <span style={{ fontSize: 9, color: "#ef4444" }}>✗</span>}
+                                  </button>
+                                ))}
+                                {isDm && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleResetDeathSaves(p); }}
+                                    style={{
+                                      background: "none", border: "none", color: "#64748b",
+                                      cursor: "pointer", padding: 0, fontSize: 9,
+                                      marginLeft: 2,
+                                    }}
+                                    title="Reset death saves"
+                                  >
+                                    ↺
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </td>
 
                     {/* AC */}

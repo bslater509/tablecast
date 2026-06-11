@@ -245,6 +245,9 @@ router.patch("/participants/:id", requireDm, async (req, res) => {
     if (req.body.ac !== undefined) data.ac = clampInt(req.body.ac, 10, 0, 1000);
     if (req.body.isHidden !== undefined) data.isHidden = Boolean(req.body.isHidden);
     if (req.body.name !== undefined) data.name = String(req.body.name || "").trim().slice(0, 120) || "Combatant";
+    // VTT feature fields: conditions & death saves
+    if (req.body.conditions !== undefined) data.conditions = req.body.conditions;
+    if (req.body.deathSaves !== undefined) data.deathSaves = req.body.deathSaves;
 
     const participant = await prisma.encounterParticipant.update({
       where: { id: participantId },
@@ -515,6 +518,57 @@ router.post("/:id/turn", requireDm, async (req, res) => {
     } else if (turnIndex < 0) {
       turnIndex = count - 1;
       round = Math.max(1, round - 1);
+    }
+
+    // ── Condition expiry & death saves ──
+    // If advancing forward (not previous), process the previous participant's conditions
+    if (direction === 1) {
+      const previousParticipant = encounter.participants[encounter.turnIndex];
+      if (previousParticipant) {
+        const conditions = parseJson(previousParticipant.conditions, []);
+        let changed = false;
+
+        // Decrement duration on each condition, remove expired ones
+        const updated = conditions
+          .map((c) => {
+            if (c.duration === undefined || c.duration === null) return c; // permanent
+            return { ...c, duration: c.duration - 1 };
+          })
+          .filter((c) => c.duration === undefined || c.duration === null || c.duration > 0);
+
+        if (updated.length !== conditions.length) changed = true;
+        // Check if any durations changed
+        for (let i = 0; i < conditions.length; i++) {
+          if (conditions[i].duration !== undefined && conditions[i].duration !== null &&
+              updated[i] && updated[i].duration !== conditions[i].duration - 1) {
+            changed = true;
+            break;
+          }
+        }
+
+        if (changed) {
+          await prisma.encounterParticipant.update({
+            where: { id: previousParticipant.id },
+            data: { conditions: JSON.stringify(updated) },
+          });
+        }
+      }
+    }
+
+    // ── Auto death save on 0 HP (for the next participant whose turn it becomes) ──
+    if (direction === 1) {
+      const nextParticipant = encounter.participants[turnIndex];
+      if (nextParticipant && nextParticipant.currentHp === 0) {
+        const deathSaves = parseJson(nextParticipant.deathSaves, { successes: 0, failures: 0, isStable: false });
+        if (!deathSaves.isStable) {
+          // Auto-fail: at 0 HP, each turn start = 1 failed death save
+          deathSaves.failures = Math.min(deathSaves.failures + 1, 3);
+          await prisma.encounterParticipant.update({
+            where: { id: nextParticipant.id },
+            data: { deathSaves: JSON.stringify(deathSaves) },
+          });
+        }
+      }
     }
 
     await prisma.encounter.update({

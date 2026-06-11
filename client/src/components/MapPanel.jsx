@@ -60,6 +60,24 @@ export default function MapPanel({ user, isPopout = false }) {
     setTokens: D.setTokens,
   });
 
+  // Wrap handleStart to inject ruler click handler
+  const handleStartWithRuler = (clientX, clientY) => {
+    interaction.handleStart(clientX, clientY, { onRulerClick: D.handleRulerClick });
+  };
+  const handleTouchStartWithRuler = (e) => {
+    // For ruler, we intercept touch start
+    if (D.tool === "ruler" && e.touches.length === 1) {
+      const t = e.touches[0];
+      D.handleRulerClick(
+        (t.clientX - D.panOffset.x) / D.zoom,
+        (t.clientY - D.panOffset.y) / D.zoom
+      );
+      e.preventDefault();
+      return;
+    }
+    interaction.handleTouchStart(e);
+  };
+
   // ---- Derived ----
   const { gridSize, authHeaders, jsonAuthHeaders, withUser, isDM } = D;
 
@@ -158,12 +176,19 @@ export default function MapPanel({ user, isPopout = false }) {
           pendingMovesRef={D.pendingMovesRef}
           drawRafIdRef={D.drawRafIdRef}
           triggerRedrawRef={D.triggerRedrawRef}
-          handleStart={interaction.handleStart}
+          handleStart={handleStartWithRuler}
           handleMove={interaction.handleMove}
           handleEnd={interaction.handleEnd}
-          handleTouchStart={interaction.handleTouchStart}
+          handleTouchStart={handleTouchStartWithRuler}
           handleTouchMove={interaction.handleTouchMove}
           handleTouchEnd={interaction.handleTouchEnd}
+
+          // Ruler tool props
+          rulerPoints={D.rulerPoints}
+          rulerHoverPos={D.mousePosWorld}
+          tool={D.tool}
+          // Dynamic lighting
+          showLighting={D.showLighting}
         />
 
         {/* Encounter combat strip + drawer */}
@@ -221,6 +246,8 @@ export default function MapPanel({ user, isPopout = false }) {
           activeMap={D.activeMap}
           isDM={isDM}
           setCurrentPolygon={D.setCurrentPolygon}
+          showLighting={D.showLighting}
+          setShowLighting={D.setShowLighting}
           styles={styles}
         />
 
@@ -257,6 +284,24 @@ export default function MapPanel({ user, isPopout = false }) {
             )}
           </div>
         </div>
+
+        {/* Ruler Info */}
+        {D.tool === "ruler" && D.rulerPoints.length > 0 && (
+          <div style={{ ...styles.floatingFogActions, ...styles.floatingRulerInfo }} className="glass-panel">
+            <h4 style={styles.smallPanelHeader}>Ruler</h4>
+            <div style={{ fontSize: "0.72rem", color: "var(--color-text)", marginTop: 4 }}>
+              Points: {D.rulerPoints.length}
+            </div>
+            <div style={styles.tokenActionRow}>
+              <button onClick={D.handleRulerUndo} style={styles.btnAction} className="touch-target">
+                Undo Point
+              </button>
+              <button onClick={D.handleRulerClear} style={styles.btnAction} className="touch-target">
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Fog Actions */}
         {isDM && (D.tool === "draw-fog" || D.tool === "reveal-fog") && (
@@ -582,6 +627,11 @@ const styles = {
     flexDirection: "column",
     gap: "0.35rem",
     minWidth: "180px",
+  },
+  floatingRulerInfo: {
+    bottom: "12px",
+    right: "200px",
+    minWidth: "140px",
   },
   smallPanelHeader: {
     fontSize: "0.7rem",

@@ -139,6 +139,7 @@ router.post("/", requireDm, async (req, res) => {
         gridType: gridType || "SQUARE",
         imageUrl: resolvedImageUrl,
         fogState: "[]",
+        walls: req.body.walls || "[]",
       },
     });
 
@@ -224,6 +225,11 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
       x: tokenX,
       y: tokenY,
       stats: parsedStats,
+      conditions: req.body.conditions || "[]",
+      visionRadius: Number(req.body.visionRadius) || 0,
+      darkvisionRadius: Number(req.body.darkvisionRadius) || 0,
+      auraRadius: Number(req.body.auraRadius) || 0,
+      auraColor: String(req.body.auraColor || ""),
     };
 
     if (characterId) {
@@ -282,6 +288,12 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
     if (characterId !== undefined) data.characterId = characterId ? Number(characterId) : null;
     if (npcId !== undefined) data.npcId = npcId ? Number(npcId) : null;
     if (monsterId !== undefined) data.monsterId = monsterId ? Number(monsterId) : null;
+    // VTT feature fields: conditions, vision, aura
+    if (req.body.conditions !== undefined) data.conditions = req.body.conditions;
+    if (req.body.visionRadius !== undefined) data.visionRadius = Number(req.body.visionRadius) || 0;
+    if (req.body.darkvisionRadius !== undefined) data.darkvisionRadius = Number(req.body.darkvisionRadius) || 0;
+    if (req.body.auraRadius !== undefined) data.auraRadius = Number(req.body.auraRadius) || 0;
+    if (req.body.auraColor !== undefined) data.auraColor = String(req.body.auraColor || "");
     if (stats !== undefined) {
       try {
         JSON.parse(typeof stats === "string" ? stats : JSON.stringify(stats));

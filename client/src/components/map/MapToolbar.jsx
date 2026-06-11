@@ -2,7 +2,7 @@
 // MapToolbar — Floating toolbar for zoom, tool selection, fog controls
 // =============================================================================
 import {
-  Hand, Grid3x3, Eye, ZoomIn, ZoomOut, Maximize2,
+  Hand, Grid3x3, Eye, ZoomIn, ZoomOut, Maximize2, Ruler, Sun,
 } from "lucide-react";
 
 export default function MapToolbar({
@@ -16,6 +16,8 @@ export default function MapToolbar({
   activeMap,
   isDM,
   setCurrentPolygon,
+  showLighting,
+  setShowLighting,
   styles,
 }) {
   return (
@@ -77,8 +79,39 @@ export default function MapToolbar({
             <Eye size={17} />
             <span>Reveal</span>
           </button>
+
+          <button
+            onClick={() => setShowLighting(!showLighting)}
+            disabled={!activeMap}
+            style={{
+              ...styles.toolBtn,
+              background: showLighting ? "var(--color-accent-dim)" : "transparent",
+              borderColor: showLighting ? "var(--color-accent)" : "rgba(255,255,255,0.05)",
+              opacity: activeMap ? 1 : 0.5,
+              cursor: activeMap ? "pointer" : "not-allowed"
+            }}
+            title={activeMap ? (showLighting ? "Hide Dynamic Lighting" : "Show Dynamic Lighting") : "Select a map first"}
+            className="touch-target btn-hover-scale"
+          >
+            <Sun size={17} />
+            <span>Light</span>
+          </button>
         </>
       )}
+
+      <button
+        onClick={() => setTool(tool === "ruler" ? "select" : "ruler")}
+        style={{
+          ...styles.toolBtn,
+          background: tool === "ruler" ? "var(--color-accent-dim)" : "transparent",
+          borderColor: tool === "ruler" ? "var(--color-accent)" : "rgba(255,255,255,0.05)"
+        }}
+        title="Measure distance (click to start, click to finish)"
+        className="touch-target btn-hover-scale"
+      >
+        <Ruler size={17} />
+        <span>Ruler</span>
+      </button>
 
       <div style={styles.divider} />
 
