@@ -173,6 +173,9 @@ docker compose -p tablecast up -d --build
 
 The server binds to `0.0.0.0:3001` for LAN access. Players connect via `http://<DM_IP>:3001` on their phones or tablets.
 
+> **🔐 Default DM Password:** `dm1234`  
+> Enter this on the Tavern landing screen to access the DM dashboard.
+
 ---
 
 ## 🔌 API Routes
@@ -203,6 +206,7 @@ Tablecast runs on a **trusted LAN only**. Key design decisions:
 - **No CSRF protection** — header-based auth (`x-tablecast-user-id`)
 - **Rate limiting** — 200 req/min per IP
 - **User-ID auth** is not cryptographic — any LAN client can impersonate any user
+- **Default DM password:** `dm1234` — change it in Settings after first login
 
 ---
 
