@@ -400,8 +400,6 @@ export default function EncountersPanel({
       ? sortedParticipants[selectedEncounter.turnIndex % sortedParticipants.length]?.id
       : null;
 
-  const encounterStyles = encounterStyles;
-
   /* ---- render: list view ---- */
   if (!selectedEncounter) {
     return (
