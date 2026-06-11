@@ -24,7 +24,7 @@
 - [x] S2.2.2: Show save DC, attack roll, damage formula on spell cards
 - [x] S2.2.3: Add "Roll Damage" and "Roll Attack" buttons on spell cards
 
-## M3: Level-Up Wizard (§2.5) | status: in_progress
+## M3: Level-Up Wizard (§2.5) | status: completed
 ### T3.1: Backend — Level-up support
 - [x] S3.1.1: Add POST /api/characters/:id/level-up endpoint
 - [x] S3.1.2: Add class features / ASI validation logic
@@ -34,7 +34,7 @@
 - [x] S3.2.2: Add "Level Up" button to CharacterSheet
 - [x] S3.2.3: Integration with 5etools class/feat reference data
 
-## M4: Party Inventory & Shared Gold (§2.3) | status: in_progress
+## M4: Party Inventory & Shared Gold (§2.3) | status: completed
 ### T4.1: Backend — Party model & routes
 - [x] S4.1.1: Add Party model + PartyMember model to Prisma schema + migration
 - [x] S4.1.2: Add CRUD routes for party inventory / shared gold
@@ -45,18 +45,18 @@
 - [x] S4.2.2: Add transfer UI for items/gold between characters and party
 - [x] S4.2.3: Add "Party Vault" tab to navigation
 
-## M5: Shopping & Economy System (§2.2) | status: in_progress
+## M5: Shopping & Economy System (§2.2) | status: completed
 ### T5.1: Backend — Shop model & routes
-- [ ] S5.1.1: Add Shop + ShopItem models to Prisma schema + migration
-- [ ] S5.1.2: Add CRUD routes for shops/items
-- [ ] S5.1.3: Add buy/sell endpoint with currency management
+- [x] S5.1.1: Add Shop + ShopItem models to Prisma schema + migration
+- [x] S5.1.2: Add CRUD routes for shops/items
+- [x] S5.1.3: Add buy/sell endpoint with currency management
 
 ### T5.2: Frontend — Shop Panel
-- [ ] S5.2.1: Create ShopPanel component (inventory browsing, buying)
-- [ ] S5.2.2: Add currency display/management on CharacterSheet
-- [ ] S5.2.3: Add haggle mechanic (Persuasion check)
+- [x] S5.2.1: Create ShopPanel component (inventory browsing, buying)
+- [x] S5.2.2: Add currency display/management on CharacterSheet
+- [x] S5.2.3: Add haggle mechanic (Persuasion check)
 
-## M6: Verification | agent:Reviewer | depends:M1,M2,M3,M4,M5
-- [ ] S6.1: Run Vite build
-- [ ] S6.2: Run LSP diagnostics
-- [ ] S6.3: Verify git status and push
+## M6: Verification | agent:Reviewer | status: completed
+- [x] S6.1: Run Vite build
+- [x] S6.2: Run LSP diagnostics
+- [x] S6.3: Verify git status and push

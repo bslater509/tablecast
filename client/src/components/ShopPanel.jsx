@@ -389,15 +389,16 @@ const PANEL_STYLES = {
   },
 };
 
-export default function ShopPanel({ user, characters, onRefreshCharacter }) {
+export default function ShopPanel({ user, addToast }) {
   const [shops, setShops] = useState([]);
   const [selectedShopId, setSelectedShopId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [toast, setToast] = useState(null);
   const [showHaggle, setShowHaggle] = useState(null); // itemId being haggled
   const [haggleResult, setHaggleResult] = useState(null);
+  const [characters, setCharacters] = useState([]);
+  const [charLoading, setCharLoading] = useState(true);
 
   // DM state: add item form
   const [showAddItem, setShowAddItem] = useState(false);
@@ -413,18 +414,27 @@ export default function ShopPanel({ user, characters, onRefreshCharacter }) {
   // Buy quantity state
   const [buyQuantities, setBuyQuantities] = useState({});
 
-  // Toast auto-dismiss
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
-
-  // Fetch shops on mount
+  // Fetch shops and characters on mount
   useEffect(() => {
     fetchShops();
+    fetchCharacters();
   }, []);
+
+  async function fetchCharacters() {
+    try {
+      const res = await fetch("/api/characters", {
+        headers: getJsonAuthHeaders(user),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCharacters(data);
+      }
+    } catch (err) {
+      console.error("[ShopPanel] Failed to fetch characters:", err);
+    } finally {
+      setCharLoading(false);
+    }
+  }
 
   async function fetchShops() {
     setLoading(true);
