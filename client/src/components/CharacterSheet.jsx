@@ -1787,7 +1787,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           character={character}
           user={user}
           onClose={() => setShowLevelUp(false)}
-          onLevelUpComplete={handleLevelUpApplied}
+          onApplied={handleLevelUpApplied}
         />
       )}
 
