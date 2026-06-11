@@ -58,3 +58,5 @@ All 5 milestones implemented, verified, and deployed.
 
 ## Git
 - Commit `7594d39`: "Section 2: Gameplay Systems - SpellsPanel enhancement, LevelUp wizard, Party vault, Shopping"
+- Commit `995d956`: "fix: M5 Shopping & Economy SYNC-3 through SYNC-7 fixes"
+- All changes pushed to origin/master ✅

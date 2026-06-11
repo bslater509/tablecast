@@ -51,14 +51,14 @@
 
 ## M5: Shopping & Economy System (§2.2) | status: completed
 ### T5.1: Backend — Shop model & routes
-- [x] S5.1.1: Add Shop + ShopItem models to Prisma schema + migration
-- [x] S5.1.2: Add CRUD routes for shops/items
-- [x] S5.1.3: Add buy/sell endpoint with currency management
+- [x] S5.1.1: Add Shop + ShopItem models to Prisma schema + migration | verified
+- [x] S5.1.2: Add CRUD routes for shops/items | verified | fixes: SYNC-3, SYNC-6 applied
+- [x] S5.1.3: Add buy/sell endpoint with currency management | verified | fixes: SYNC-3, SYNC-4, SYNC-7 applied
 
 ### T5.2: Frontend — Shop Panel
-- [x] S5.2.1: Create ShopPanel component (inventory browsing, buying)
-- [x] S5.2.2: Add currency display/management on CharacterSheet
-- [x] S5.2.3: Add haggle mechanic (Persuasion check)
+- [x] S5.2.1: Create ShopPanel component (inventory browsing, buying) | verified
+- [x] S5.2.2: Add currency display/management on CharacterSheet | verified
+- [x] S5.2.3: Add haggle mechanic (Persuasion check) | verified | fix: SYNC-5 applied (haggle + buy-custom endpoints)
 
 ## M6: Verification | status: completed
 - [x] S6.1: Run Vite build
