@@ -128,7 +128,7 @@ deserves dedicated UI — not just a chat dice roll.
 
 ### 2.1 Short/Long Rest with Recovery
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Core D&D 5e mechanic. Characters need to spend Hit Dice, recover
 spell slots, and reset abilities after rests. Currently all manual.
@@ -149,7 +149,7 @@ new REST log type in chat, optional socket event for party-wide rest
 
 ### 2.2 Shopping & Economy System
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Players accumulate gold and want to buy/sell gear during downtime.
 Currently items have no price or shop context.
@@ -189,7 +189,7 @@ equipment reference
 
 ### 2.3 Party Inventory & Shared Gold
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Parties typically share gold, carry common items (rope, torches),
 and manage group resources.
@@ -209,7 +209,7 @@ entity, frontend Party Vault panel, transfer UI
 
 ### 2.4 Spellbook & Spell Cards UI
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Spellcasters need quick reference to their prepared spells during
 combat — school, level, components, description, damage dice.
@@ -266,7 +266,7 @@ fields), 5etools reference for spell details
 
 ### 2.5 Level-Up Wizard
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Leveling up is complex in D&D 5e (hit points, features, spell
 slots, ability scores). A guided wizard reduces errors and speeds up downtime.
