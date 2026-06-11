@@ -233,6 +233,7 @@ app.use("/api/rolls", rollsRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/debug", debugRouter);
+app.use("/api/features", require("./routes/features"));
 
 // ---------------------------------------------------------------------------
 // Serve map and token image uploads

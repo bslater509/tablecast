@@ -3,12 +3,13 @@
 // Orchestrator for backup, reference, and AI sub-panels.
 // =============================================================================
 import { useState } from "react";
-import { Bot, Cloud } from "lucide-react";
+import { Bot, Cloud, Map } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";
 import { styles } from "./settings/settingsStyles";
 import BackupSettings from "./settings/BackupSettings";
 import AiSetup from "./settings/AiSetup";
+import FeatureRoadmap from "./settings/FeatureRoadmap";
 
 function SettingsPanel({ user }) {
   const { addToast } = useToast();
@@ -53,6 +54,20 @@ function SettingsPanel({ user }) {
             <Bot size={16} />
             AI Setup
           </button>
+          <button
+            id="dm-settings-roadmap-tab"
+            onClick={() => setActiveSettingsTab("roadmap")}
+            style={{
+              ...styles.subTabBtn,
+              background: activeSettingsTab === "roadmap" ? "var(--color-accent-dim)" : "transparent",
+              color: activeSettingsTab === "roadmap" ? "var(--color-accent)" : "var(--color-muted)",
+              border: activeSettingsTab === "roadmap" ? "1px solid var(--color-border)" : "1px solid transparent",
+            }}
+            className="touch-target"
+          >
+            <Map size={16} />
+            Roadmap
+          </button>
         </div>
       </header>
 
@@ -62,6 +77,10 @@ function SettingsPanel({ user }) {
 
       {activeSettingsTab === "ai" && (
         <AiSetup authHeaders={authHeaders} jsonAuthHeaders={jsonAuthHeaders} addToast={addToast} />
+      )}
+
+      {activeSettingsTab === "roadmap" && (
+        <FeatureRoadmap user={user} />
       )}
     </div>
   );

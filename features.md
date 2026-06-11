@@ -927,3 +927,398 @@ should gracefully handle and recover from offline states.
 **Depends on:** Socket event queue wrapper (`safeEmit`), localStorage cache
 strategy, `reconnect:sync`/`reconnect:state` socket events, MapPanel state
 serialization, DiceBoxContext fallback
+
+---
+
+## 6. AI & Intelligence
+
+### 6.1 AI-Triggered Dice Roll Integration
+
+**Motivation:** Bridges the two biggest mechanics — AI chat and dice rolling.
+When the Rules Scholar or NPC roleplay AI recommends a check or save, the user
+should be able to roll directly from the chat message.
+
+**Scope:** Small
+
+**Detection:**
+- AI replies are scanned server-side after generation for D&D check patterns:
+  `{skill|ability|save} check`, `DC N`, `saving throw`, `attack roll`
+- Matched spans are flagged with a `data-dice-roll` attribute in the markdown output
+- Client renders a clickable chip: e.g. `[🎲 Roll Perception DC 15]` inline in the message
+
+**Dice Roll Chips:**
+- Each chip carries: `{ type, skill/ability, dc, advantage? }`
+- Clicking the chip:
+  1. Sends `/roll 1d20+{modifier}` (modifier pulled from active character sheet)
+  2. Dice box animates the roll
+  3. Result posted to chat with DC comparison: "✅ Success (18 vs DC 15)" or "❌ Fail (9 vs DC 15)"
+- DMs get an extra "Roll for monster/NPC" variant using NPC stats if in NPC roleplay
+
+**Refinements:**
+- Advantage/disadvantage detection: AI says "with advantage" or "at disadvantage"
+- Critical success/failure callout for natural 20/1
+- Auto-damage roll for attacks: "make a melee attack (1d8+3 slashing)"
+- Configurable: toggle auto-detection on/off per conversation
+
+**Depends on:** Server-side regex/pattern scanning in chat handler, `data-dice-roll`
+attribute convention, DiceBoxContext integration, CharacterSheet modifier lookup
+
+---
+
+### 6.2 Quest & Story Hook Generator
+
+**Motivation:** DMs spend hours brainstorming adventure hooks. An AI-assisted
+hook generator produces multiple distinct ideas from a brief prompt, saving
+prep time and sparking creativity.
+
+**Scope:** Medium
+
+**Input Format:**
+- DM provides: party level, environment (forest/urban/dungeon/etc.), tone
+  (heroic/dark/horror/mystery/comedy), optional constraints ("must involve a hag")
+- Configuration checkboxes: include combat, include puzzles, include NPCs,
+  include moral dilemma
+
+**Output:**
+- 3-4 distinct hooks, each with:
+  - **Hook title** and **one-line pitch**
+  - **Setup scene** (2-3 sentences setting the stage)
+  - **Conflict** (what's at stake)
+  - **Key NPCs** (2-3 named NPCs with one-line personality/motivation)
+  - **Possible complications** (2-3 twists the DM can deploy)
+  - **Rewards** (suggested XP, gold, and 1-2 magic items)
+- DM picks one → option to "expand" into a full session agenda
+- "Regenerate" button per hook; "Mix & Match" to combine elements from different hooks
+
+**AI Integration:**
+- Uses campaign wiki context for consistency (existing `fetchCampaignWikiSnippet`)
+- Ties into existing party data (character levels, classes)
+- Generated hooks are copyable/editable; optionally saved as new Wiki article
+
+**Depends on:** New `POST /api/ai/generate-hooks` route, `performAiCall`, existing
+wiki context fetching, frontend QuestGeneratorPanel or modal
+
+---
+
+### 6.3 Name Generator
+
+**Motivation:** One of the most common DM tasks — naming NPCs, taverns, towns,
+shops, factions, and landmarks. A simple but high-utility generator.
+
+**Scope:** Small
+
+**Name Categories:**
+| Category | Example Output |
+|---|---|
+| NPC (Dwarf) | Durgan Ironvein, Helga Stonebrow |
+| NPC (Elf) | Caelynn Moonshadow, Tharion Starweaver |
+| NPC (Human) | Aldric Vance, Mira Thornwell |
+| Tavern | The Rusty Flagon, The Wandering Wisp |
+| Town/City | Thornhaven, Silverfall Crossing |
+| Shop | Glimmer & Gear (magic items), The Sharpened Edge (weapons) |
+| Faction | The Iron Concord, Order of the Ashen Hand |
+| Landmark | The Weeping Cairn, Thunderpeak Ridge |
+| Monster Lair | Skullfang Den, The Rotwood Hive |
+
+**Endpoint:** `POST /api/ai/generate-names`
+- Body: `{ category, count (default 5), style/tone prompt (optional) }`
+- Response: `{ names: ["...", "..."] }`
+
+**UI:**
+- Simple card in AI panel: category dropdown + count slider + "Generate" button
+- Results displayed as chips; tap a chip to copy to clipboard
+- "Generate More" appends results; "Replace" clears and regenerates
+
+**Depends on:** New route, `performAiCall`, frontend name generator sub-component
+
+---
+
+### 6.4 Loot & Treasure Generator
+
+**Motivation:** After combat, DMs need to quickly determine what the party finds.
+AI can roll on DMG treasure tables and present formatted loot.
+
+**Scope:** Medium
+
+**Generation Modes:**
+1. **By CR/Monster Type:** "Generate treasure for a CR 5 troll" → individual treasure
+2. **By Encounter:** "Generate hoard for the goblin boss encounter" → hoard treasure
+3. **Custom:** "Generate a mix of gold, gems, and 1-2 uncommon magic items suitable for level 4"
+
+**Output Format:**
+```
+┌─── TREASURE ───────────────┐
+│ Coins: 143 gp, 310 sp       │
+│ Gems: 2 × Jade (100gp each) │
+│ Art: Silver ewer (250gp)    │
+│ ─────────────────────────── │
+│ 🗡️ +1 Shortsword            │
+│ 🧪 Potion of Invisibility   │
+│ 📜 Scroll of Fireball        │
+│ ─────────────────────────── │
+│ Total Value: ~1,200 gp       │
+│ [Assign to Party] [Reroll]   │
+└────────────────────────────┘
+```
+
+**Integration Points:**
+- Items link to 5etools reference for full descriptions
+- "Assign to Party" pushes items to shared party inventory (see §2.2, §2.3)
+- Rolls logged to chat; DM can edit/adjust before assigning
+- Magic item table rolls follow DMG distribution (Tables A-I by CR tier)
+
+**Depends on:** New `POST /api/ai/generate-loot` route, DMG treasure table
+reference data (JSON), chat card rendering, party inventory integration
+
+---
+
+### 6.5 AI-Powered Wiki Article Generation
+
+**Motivation:** DMs can quickly scaffold wiki articles by describing what they
+want. The AI fills in structured, markdown-formatted content in the appropriate
+wiki category.
+
+**Scope:** Small-Medium
+
+**Workflow:**
+1. DM opens Wiki → "Generate Article" button
+2. Prompt: "Write an article about the city of Neverwinter" or "Describe the Thieves' Guild"
+3. DM selects category (LORE, NPC, LOCATION, FACTION, etc.)
+4. AI generates structured markdown with:
+   - **Title** and **short description**
+   - **History** section
+   - **Notable Locations/NPCs** section
+   - **Plot Hooks** section (for DM-eyes-only)
+   - **Tags** auto-suggested from content
+5. Pre-fills the wiki editor — DM reviews, edits, and publishes
+
+**Endpoint:** `POST /api/ai/generate-wiki-article`
+- Body: `{ prompt, category?, includeSections: string[] }`
+- Response: `{ title, content (markdown), suggestedTags: string[] }`
+
+**Campaign Awareness:**
+- Existing wiki articles of the same category are included as context (summary only,
+  not full content) to maintain consistency
+- Example: if generating a location article, existing location wiki articles are
+  sent as reference so the AI doesn't contradict established lore
+
+**Depends on:** New route, `performAiCall`, wiki context fetching, WikiPanel
+integration (pre-fill editor with generated content)
+
+---
+
+### 6.6 Location & Room Description Generator
+
+**Motivation:** DMs need evocative, read-aloud descriptions for rooms,
+buildings, and outdoor locations. AI generates prose ready for the table.
+
+**Scope:** Small
+
+**Description Types:**
+- **Room:** "Describe a dusty alchemist's laboratory with bubbling vats"
+- **Building:** "Describe the exterior of the Temple of Pelor in a small village"
+- **Wilderness:** "Describe the approach to a dragon's lair in volcanic mountains"
+- **Settlement:** "Describe the market square of Waterdeep at noon"
+
+**Endpoint:** `POST /api/ai/generate-description`
+- Body: `{ type ("room"|"building"|"wilderness"|"settlement"), prompt, tone ("ominous"|"peaceful"|"mysterious"|"grand"|"dilapidated") }`
+- Response: `{ description (markdown), sensoryDetails: { sights, sounds, smells } }`
+
+**UI:**
+- "Generate Description" button in MapPanel and Wiki editor
+- Result shown in chat panel with "Read Aloud" voice toggle (see §5.3)
+- DM can copy, edit, or attach to a map marker
+
+**Senses-Based Output:**
+- Each description includes what the characters see, hear, and smell
+- Optional "hidden detail" section (perception-check-gated) the DM can reveal
+
+**Depends on:** New route, `performAiCall`, MapPanel/WikiPanel integration
+
+---
+
+### 6.7 Weather & Travel Montage Generator
+
+**Motivation:** Overland travel is a D&D staple but narrating every day of a
+long journey is tedious. AI generates day-by-day travelogues with weather,
+scenery, and encounter hooks.
+
+**Scope:** Small-Medium
+
+**Input:**
+- Route: "from Phandalin to Neverwinter"
+- Terrain: forest, mountains, plains, swamp, desert
+- Days of travel: 3-7
+- Season: spring/summer/autumn/winter
+- Party level (for encounter scaling)
+- Optional: "dangerous route" / "peaceful route" toggle
+
+**Output:**
+- Day-by-day entries:
+  ```
+  Day 1 — Spring, 14°C / 57°F, Light Rain
+  The road winds through the Neverwinter Wood. The canopy
+  drips with last night's rainfall. Deer tracks are visible
+  in the mud — fresh, perhaps an hour old.
+  🎲 Encounter Hook: A merchant's wagon is stuck in the mud (DC 12 Strength)
+  ```
+- Each day includes: weather, temperature, scenery description, optional encounter hook
+- Encounter hooks are lightweight (not full encounters) — just a prompt for the DM
+- Optional: roll for random encounters using DMG wilderness encounter tables
+- "Add to Session Agenda" button → appends travel log to current session
+
+**Endpoints:**
+- `POST /api/ai/generate-travel` — generate travel montage
+- Body: `{ route, terrain, days, season, partyLevel, dangerous }`
+- Response: `{ legs: [{ day, weather, temperature, description, hook }] }`
+
+**Depends on:** New route, `performAiCall`, session agenda integration, weather
+tables reference data
+
+---
+
+### 6.8 NPC Dialogue Phrase Generator
+
+**Motivation:** In-session, DMs need quick flavorful lines for NPCs — combat
+taunts, bargaining phrases, common sayings. Generating a bank of lines per NPC
+saves improv pressure during live play.
+
+**Scope:** Small
+
+**Endpoint:** `POST /api/ai/generate-npc-phrases`
+- Body: `{ npcId?, name, race, personality, phraseType ("greeting"|"threat"|"bargain"|"combat"|"rumor"|"farewell"), count (default 5) }`
+- Response: `{ phrases: ["...", "..."] }`
+
+**Phrase Types:**
+- **Greeting:** "Welcome to the Lazy Lantern, travelers. Ale or trouble?"
+- **Threat:** "You've got about three seconds to rethink that decision."
+- **Bargain:** "Two hundred gold? Ha! I could buy a *real* adventurer for that."
+- **Combat:** "Should've stayed in whatever hole you crawled out of!"
+- **Rumor:** "Word is the old mill's been haunted since last midsummer."
+- **Farewell:** "Keep your blade sharp and your wits sharper."
+
+**UI Integration:**
+- Button on NPC detail panel: "Generate Phrases"
+- Results displayed as list of chips; tap to copy to clipboard
+- "Insert into roleplay" → pushes a selected phrase into active NPC chat as a
+  DM-sent NPC message
+
+**Depends on:** New route, `performAiCall`, NPC model or profile context,
+NPC detail panel UI
+
+---
+
+### 6.9 Image Generation Integration (NPC Portraits & Scene Art)
+
+**Motivation:** Visuals enhance immersion. AI-generated NPC portraits, monster
+art, and scene illustrations give the VTT tabletop presence.
+
+**Scope:** Large
+
+**Generators:**
+1. **NPC Portraits:** "Generate a portrait of a female tiefling rogue with silver hair"
+2. **Monster Art:** "Generate art for a young green dragon in a swamp"
+3. **Scene Illustrations:** "Generate a moody illustration of a haunted crypt entrance"
+4. **Token Art:** "Generate a top-down token for a dwarf cleric" (circular, suitable for VTT)
+
+**Provider Support:**
+- OpenAI DALL-E 3 (via existing API key)
+- Stability AI / Stable Diffusion (via new provider option)
+- Local Stable Diffusion (via Ollama-style local endpoint, future)
+
+**Image Storage:**
+- Generated images stored in `server/uploads/ai-generated/`
+- Associated with the NPC, monster, map, or wiki article
+- Image URL stored as `imageUrl` on the entity
+- Max resolution: 1024×1024 (configurable)
+
+**UI Flow:**
+1. DM clicks "Generate Image" button on NPC form, monster form, or map detail
+2. Prompt field pre-populated from entity data (race, class, description)
+3. DM edits prompt, selects style (photorealistic, painted, sketch, comic)
+4. Single generation → preview → DM accepts or regenerates
+5. Accepted image becomes the entity's `imageUrl`
+
+**Cost Awareness:**
+- Each generation calls out estimated API cost before confirming
+- DM sets monthly budget cap in AI settings
+- Generation counter + cost tracker in AI settings panel
+
+**Depends on:** Image generation API integration, `server/uploads/ai-generated/`
+directory, entity image URL update, frontend generation UI (modal or panel
+section)
+
+---
+
+### 6.10 AI Combat Tactician
+
+**Motivation:** During combat, DMs manage many creatures simultaneously. An AI
+tactician suggests actions for controlled monsters/NPCs in the encounter,
+reducing cognitive load.
+
+**Scope:** Medium-Large
+
+**Workflow:**
+1. DM is in an active encounter
+2. Clicks "Suggest Action" on an EncounterParticipant (monster/NPC)
+3. AI receives:
+   - Monster/NPC statblock (actions, traits, spells, HP, AC)
+   - Current encounter state (all participants, positions, HP, conditions)
+   - Map context (if available: distances, terrain features)
+4. AI returns a ranked list of 1-3 suggested actions:
+   - **Recommended:** "Multiattack: Bite against the wounded wizard (low HP, low AC)"
+   - **Alternative 1:** "Breath weapon — can hit 3 clustered characters"
+   - **Alternative 2:** "Withdraw to cover behind the pillar and use Ranged attack on the cleric"
+5. DM selects action → AI rolls relevant dice → applies results to encounter
+
+**Tactical Reasoning:**
+- Target prioritization: low HP, low AC, concentrating on a spell, highest threat
+- Positioning: flanking, opportunity attacks, avoiding AoE clusters
+- Resource economy: use limited-use abilities (breath weapons, spells) when impactful
+- Flee/de-escalate: intelligent creatures retreat when bloodied
+
+**Local Fallback:**
+- Without AI, a rule-based fallback uses simple heuristics (attack nearest, flee
+  at 25% HP) for basic auto-pilot
+
+**Depends on:** Encounter context aggregation, `performAiCall`, encounter
+participant action resolution, optional rule-based fallback
+
+---
+
+### 6.11 AI Session Co-Pilot (Live DM Assistant)
+
+**Motivation:** During a live session, the DM juggles many things. An always-on
+AI assistant that listens to the game state (or chat) can proactively offer
+reminders, rules lookups, and suggestions — like a co-DM.
+
+**Scope:** Large
+
+**Triggers (proactive suggestions pushed to DM, not broadcast):**
+- **Rule Reminder:** Chat mentions "grappled" → AI pushes: "Grappled: speed 0,
+  ends if grappler is incapacitated. Escape DC = Athletics vs. Athletics/Acrobatics."
+- **Forgotten Effect:** "3 rounds since Bless was cast on the fighter — expires
+  in 7 rounds" (tie into condition tracker)
+- **NPC Stat Lookup:** DM types "The guard captain..." → AI suggests relevant NPC
+  or monster stats
+- **Encounter Balance Warning:** Party is level 2, but the DM just added a CR 8
+  monster → AI warns "This encounter is Deadly — expected TPK"
+- **Lore Consistency Check:** DM describes a location that contradicts existing
+  wiki → AI suggests "The wiki says the castle was burned down in 1487 DR"
+
+**UI:**
+- Collapsible sidebar panel: "Co-Pilot"
+- Suggestions appear as cards (dismissable, expandable)
+- DM-only — never visible to players
+- Sound/vibration alert for high-priority warnings
+- Rate-limited to avoid spamming (max 1 suggestion per 30 seconds)
+
+**Optional "Auto-Rule" Mode:**
+- When a player in chat asks a rules question (e.g., "How far can I jump?"),
+  the co-pilot auto-replies in the DM's private panel with the relevant rule
+- DM can choose to forward the answer to public chat or ignore
+
+**Depends on:** Chat event listener + debounce, `findRelevantRules` integration,
+encounter/condition state monitoring, wiki consistency checker, CoPilotPanel
+component, websocket events for DM-private messages
+
