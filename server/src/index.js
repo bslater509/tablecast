@@ -211,6 +211,7 @@ const { router: aiRouter } = require("./routes/ai");
 const rollsRouter = require("./routes/rolls");
 const chatRouter = require("./routes/chat");
 const sessionsRouter = require("./routes/sessions");
+const shopsRouter = require("./routes/shops");
 const debugRouter = require("./routes/debug");
 const authRouter = require("./routes/auth");
 
@@ -221,6 +222,10 @@ app.use("/api/characters", charactersRouter);
 // Short/Long Rest endpoint — mounted on the same prefix to capture /:id/rest
 const restRouter = require("./routes/rest");
 app.use("/api/characters", restRouter);
+
+// Level-Up endpoint — mounted on the same prefix to capture /:id/level-up
+const levelupRouter = require("./routes/levelup");
+app.use("/api/characters", levelupRouter);
 
 // Heroes public listing (for login screen) — separate mount at /api/heroes
 const { heroesRouter } = require("./routes/characters");
@@ -237,6 +242,8 @@ app.use("/api/rolls", rollsRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/debug", debugRouter);
+app.use("/api/parties", require("./routes/parties"));
+app.use("/api/shops", shopsRouter);
 app.use("/api/features", require("./routes/features"));
 
 // ---------------------------------------------------------------------------

@@ -14,9 +14,11 @@ import {
   Map as MapIcon,
   MessageCircle,
   Settings,
+  ShoppingCart,
   SlidersHorizontal,
   Swords,
   Users,
+  Wallet,
   Wifi,
 } from "lucide-react";
 import MapPanel from "./components/MapPanel";
@@ -35,6 +37,8 @@ import ConnectionHelpPanel from "./components/ConnectionHelpPanel";
 import ImporterPanel from "./components/ImporterPanel";
 import SessionsPanel from "./components/SessionsPanel";
 import EncountersPanel from "./components/EncountersPanel";
+import PartyVaultPanel from "./components/PartyVaultPanel";
+import ShopPanel from "./components/ShopPanel";
 import { useSocket } from "./context/SocketContext";
 import { useToast } from "./context/ToastContext";
 import { AiProvider } from "./context/AiContext";
@@ -113,6 +117,20 @@ const DM_NAV_ITEMS = [
     popoutUrl: "/#/dm/popout/encounters",
     popoutTitle: "Pop out Encounters",
     popoutFeatures: "width=800,height=900,resizable=yes,scrollbars=yes",
+  },
+  {
+    id: "party",
+    label: "Party Vault",
+    mobileLabel: "Party",
+    path: "/dm/party",
+    icon: Wallet,
+  },
+  {
+    id: "shop",
+    label: "Shops",
+    mobileLabel: "Shop",
+    path: "/dm/shop",
+    icon: ShoppingCart,
   },
   {
     id: "importer",
@@ -1171,7 +1189,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "encounters", "settings", "dice", "importer"].includes(pathParts[2])
+  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "encounters", "settings", "dice", "importer", "party", "shop"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
@@ -1294,6 +1312,8 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="chat-journal/journal" element={<Navigate to="/dm/wiki" replace />} />
             <Route path="chat-journal/ai" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat-journal/:subtab" element={<Navigate to="/dm/messages" replace />} />
+            <Route path="party" element={<PartyVaultPanel user={user} />} />
+            <Route path="shop" element={<ShopPanel user={user} addToast={addToast} />} />
             <Route path="importer" element={<ImporterPanel user={user} />} />
             <Route path="settings" element={<SettingsPanel user={user} />} />
             <Route path="settings/:tab" element={<SettingsPanel user={user} />} />

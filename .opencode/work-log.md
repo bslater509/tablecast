@@ -860,10 +860,44 @@ settings.js ────┘
 ## Active Sessions
 - [x] ses_5 (Worker): `client/src/components/map/useMapData.js` - done (persist tool, showGrid, showLighting, activeMap to localStorage)
 
+## M3: Level-Up Wizard Integration
+### Result: **PASS** ✅
+
+### Files Changed
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `client/src/components/LevelUpWizard.jsx` | **CREATE** | 562 | ✅ PASS - Multi-step wizard: HP, Features, ASI/Feat, Spells, Review |
+| `client/src/components/CharacterSheet.jsx` | **MODIFY** | Fix duplicate imports/states + add socket notification | ✅ PASS |
+| `client/src/components/character/LevelUpWizard.jsx` | **DELETE** | 425 | Removed duplicate file |
+
+### Changes Made
+1. **LevelUpWizard.jsx**: 5-step wizard (HP choice, Features, ASI/Feat, Spells JSON, Review) with API POST + error handling
+2. **CharacterSheet.jsx**: 
+   - Fixed duplicate import (3 → 1 import from `./LevelUpWizard`)
+   - Removed duplicate state declarations (3 → 1 `showLevelUp`)
+   - Removed duplicate modal rendering (2 → 1 rendering)
+   - Added socket notification + toast on level-up completion
+   - Added `ArrowUp` icon import for Level Up button
+3. **Duplicate file deleted**: `client/src/components/character/LevelUpWizard.jsx`
+
+### Verification
+| Check | Status |
+|-------|--------|
+| LSP diagnostics | ✅ Clean on all files |
+| Vite build | ✅ 1794 modules, 5.84s, zero errors |
+| No console.log/debug | ✅ Clean |
+
+### Backend (pre-existing)
+- `server/src/routes/levelup.js` already implements POST /api/characters/:id/level-up
+- Already registered in `server/src/index.js`
+
 ## Completed Units (Ready for Integration)
 | File | Session | Unit Test | Timestamp |
 |------|---------|-----------|-----------|
 | client/src/components/map/useMapData.js | ses_5 | n/a (no test framework) | 2026-06-11T18:59:00Z |
+| client/src/components/character/SpellsPanel.jsx | ses_M2_T2.1 | n/a | 2026-06-11T20:20:00Z |
+| client/src/components/character/characterStyles.js | ses_M2_T2.1 | n/a | 2026-06-11T20:20:00Z |
+| client/src/components/CharacterSheet.jsx | ses_M2_T2.1 | n/a | 2026-06-11T20:20:00Z |
 - [x] ses_6 (Worker): `client/src/App.jsx` - done (added 5 localStorage cleanup keys to handleLogout)
 
 ---
@@ -1093,3 +1127,48 @@ Added localStorage persistence for 4 state items in `useMapData.js`: `activeMap`
 | **Pattern consistency** | ✅ | Follows existing `SELECTED_CHARACTER_STORAGE_KEY` / `DM_IDENTITY_STORAGE_KEY` pattern from App.jsx |
 
 ### Defects Found: **None**
+
+---
+
+## UNIT REVIEW: M1 Full Stack (Rest) + M2 (Spellbook UI)
+
+### Result: **PASS** ✅
+
+### Files Verified
+
+| File | Action | Status |
+|------|--------|--------|
+| `server/prisma/schema.prisma` | MODIFY | ✅ hitDiceType/hitDiceTotal/hitDiceUsed |
+| `server/prisma/migrations/20260611191612_add_hit_dice/` | CREATE | ✅ Migration applied |
+| `server/src/routes/rest.js` | CREATE | ✅ 181 lines rest logic |
+| `server/src/routes/characters.js` | MODIFY | ✅ ALLOWED_FIELDS + defaults |
+| `server/src/index.js` | MODIFY | ✅ Route registered |
+| `server/prisma/seed.js` | MODIFY | ✅ Hit dice seeded |
+| `client/src/components/CharacterSheet.jsx` | MODIFY | ✅ Rest handlers + spell cast/damage/attack + fetchSpellDetail + socket broadcast |
+| `client/src/components/character/SpellsPanel.jsx` | MODIFY | ✅ Full rework with cards, filters, search, sort, upcast, cast/damage/attack buttons, toast |
+| `client/src/components/character/characterStyles.js` | MODIFY | ✅ schoolBadge, castBtn, damageBtn, attackBtn, search, sort, filter tabs, cast level dropdown, toast styles |
+
+### M1 Items Verified (6/6)
+- [x] S1.1.1: Hit dice fields + migration
+- [x] S1.1.2: POST /api/characters/:id/rest endpoint
+- [x] S1.1.3: ALLOWED_FIELDS + defaults
+- [x] S1.2.1: Rest buttons (Short/Long Rest) + hit dice spending UI
+- [x] S1.2.2: Rest notification/recovery toast
+- [x] S1.2.3: Socket broadcast for rest events
+
+### M2 Items Verified (8/8)
+- [x] S2.1.1: Spell card layout with school badges, meta grid, description
+- [x] S2.1.2: Cast button with slot consumption
+- [x] S2.1.3: Filter (All/Cantrips/Prepared/Concentration/Ritual) + search
+- [x] S2.1.4: Sort by level/name/school
+- [x] S2.1.5: Upcast dropdown (selects slot level, auto-scales)
+- [x] S2.2.1: 5etools reference fetch on spell expand
+- [x] S2.2.2: Save DC displayed on spell cards
+- [x] S2.2.3: Roll Damage + Roll Attack buttons
+
+### Verification Evidence
+- **LSP diagnostics**: Clean on all files (0 errors, 0 warnings)
+- **Vite build**: Passed (123 precache entries, SW generated)
+- **Prisma validate**: Schema valid
+- **Module load**: rest.js exports Router, POST route registered
+- **No console.log/debug**: Only `console.error` in error handlers

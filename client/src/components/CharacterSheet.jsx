@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSocket } from "../context/SocketContext";
 import { useDiceBox } from "../context/DiceBoxContext";
-import { Brain, Swords, Backpack, BookOpen, UserRound, Zap, ChevronLeft } from "lucide-react";
+import { Brain, Swords, Backpack, BookOpen, UserRound, Zap, ChevronLeft, ArrowUp } from "lucide-react";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
 import { getJsonAuthHeaders } from "../utils/authHeaders";
 import { styles } from "./character/characterStyles";
@@ -16,6 +16,7 @@ import SkillsPanel from "./character/SkillsPanel";
 import AttacksPanel from "./character/AttacksPanel";
 import InventoryPanel from "./character/InventoryPanel";
 import SpellsPanel from "./character/SpellsPanel";
+import LevelUpWizard from "./character/LevelUpWizard";
 
 function BioTabs({ character, onUpdate, onError, user, styles }) {
   const [bioTab, setBioTab] = useState("backstory");
@@ -79,6 +80,9 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
   // AI Character Generator states
   const [showCharGen, setShowCharGen] = useState(false);
+  
+  // Level-Up Wizard
+  const [showLevelUp, setShowLevelUp] = useState(false);
   const [charGenPrompt, setCharGenPrompt] = useState("");
   const [charGenLoading, setCharGenLoading] = useState(false);
   const [charGenError, setCharGenError] = useState(null);
@@ -87,6 +91,8 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   const [charGenOptions, setCharGenOptions] = useState([]);
   const [charGenSelected, setCharGenSelected] = useState(null);
   
+
+
   // Debounce ref for save-to-server to avoid flood on keystrokes
   const saveTimerRef = useRef(null);
   const charRef = useRef(null);
@@ -149,6 +155,23 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     }
   }, [restToast]);
 
+  // Currency edit state
+  const [showCurrencyEdit, setShowCurrencyEdit] = useState(false);
+  const [currencyValues, setCurrencyValues] = useState({ pp: 0, gp: 0, ep: 0, sp: 0, cp: 0 });
+
+  // Sync local currency denomination state from character.gold when entering edit mode
+  useEffect(() => {
+    if (showCurrencyEdit && character) {
+      const cp = Math.max(0, Number(character.gold) || 0);
+      let remaining = cp;
+      const pp = Math.floor(remaining / 1000); remaining %= 1000;
+      const gp = Math.floor(remaining / 100); remaining %= 100;
+      const ep = Math.floor(remaining / 50); remaining %= 50;
+      const sp = Math.floor(remaining / 10); remaining %= 10;
+      setCurrencyValues({ pp, gp, ep, sp, cp: remaining });
+    }
+  }, [showCurrencyEdit, character?.gold]);
+
   // Fetch character details from backend on mount/ID change
   useEffect(() => {
     async function loadCharacter() {
@@ -202,6 +225,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           backstory: data.backstory || "",
           personality: data.personality || "",
           appearance: data.appearance || "",
+          gold: data.gold || 0,
         });
       } catch (err) {
         console.error("[CharacterSheet] Load error:", err);
@@ -252,6 +276,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
         spellcastingAbility: spellcastingAbility,
         spellSaveDc: Number(spellSaveDc),
         spellAttackBonus: Number(spellAttackBonus),
+        gold: Number(updatedChar.gold) || 0,
         backstory: updatedChar.backstory || "",
         personality: updatedChar.personality || "",
         appearance: updatedChar.appearance || "",
@@ -1234,6 +1259,109 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     }
   }
 
+  // Handle level-up applied from wizard
+  function handleLevelUpApplied(updatedCharacter) {
+    // Parse modifiers JSON if needed
+    let parsedModifiers = character?.modifiers;
+    if (typeof updatedCharacter.modifiers === "string") {
+      try { parsedModifiers = JSON.parse(updatedCharacter.modifiers); } catch (e) {}
+    } else if (updatedCharacter.modifiers) {
+      parsedModifiers = updatedCharacter.modifiers;
+    }
+
+    setCharacter((prev) => ({
+      ...prev,
+      level: updatedCharacter.level,
+      maxHp: updatedCharacter.maxHp,
+      hp: updatedCharacter.hp || prev.hp,
+      hitDiceTotal: updatedCharacter.hitDiceTotal || prev.hitDiceTotal,
+      strength: updatedCharacter.strength,
+      dexterity: updatedCharacter.dexterity,
+      constitution: updatedCharacter.constitution,
+      intelligence: updatedCharacter.intelligence,
+      wisdom: updatedCharacter.wisdom,
+      charisma: updatedCharacter.charisma,
+      modifiers: parsedModifiers,
+    }));
+
+    // Update spell slots if server returned them
+    if (updatedCharacter.spellSlots) {
+      try {
+        setSpellSlots(JSON.parse(updatedCharacter.spellSlots));
+      } catch (e) { /* ignore parse error */ }
+    }
+
+    // Show toast
+    setRestToast({ message: `${updatedCharacter.name || character?.name} reached level ${updatedCharacter.level}!`, type: "success" });
+
+    // Emit socket notification
+    if (socket) {
+      socket.emit("chat:send", {
+        sender: character?.name || updatedCharacter.name,
+        text: `leveled up to level ${updatedCharacter.level}!`,
+        type: "system",
+        rollDetails: {
+          rollName: "Level Up",
+          status: "levelup",
+          diceTheme: user?.diceTheme || "default",
+          diceColor: user?.diceColor || "#7c3aed",
+        },
+      });
+    }
+
+    // Save to server to persist
+    saveToServer(updatedCharacter);
+  }
+
+  // ─── CURRENCY / GOLD HANDLERS ────────────────────────────────────────────
+
+  // Convert a display string like "12 GP, 5 SP, 3 CP" from copper pieces
+  function formatGoldCp(cp) {
+    if (cp === undefined || cp === null || cp < 0) return "—";
+    const val = Math.max(0, Number(cp) || 0);
+    let remaining = val;
+    const pp = Math.floor(remaining / 1000); remaining %= 1000;
+    const gp = Math.floor(remaining / 100); remaining %= 100;
+    const ep = Math.floor(remaining / 50); remaining %= 50;
+    const sp = Math.floor(remaining / 10); remaining %= 10;
+    const cpOut = remaining;
+    const parts = [];
+    if (pp > 0) parts.push(`${pp} PP`);
+    if (gp > 0) parts.push(`${gp} GP`);
+    if (ep > 0) parts.push(`${ep} EP`);
+    if (sp > 0) parts.push(`${sp} SP`);
+    if (cpOut > 0 || parts.length === 0) parts.push(`${cpOut} CP`);
+    return parts.join(", ");
+  }
+
+  // Save edited currency denominations back to character
+  function handleCurrencySave() {
+    const total = (Number(currencyValues.pp || 0) * 1000) +
+                  (Number(currencyValues.gp || 0) * 100) +
+                  (Number(currencyValues.ep || 0) * 50) +
+                  (Number(currencyValues.sp || 0) * 10) +
+                  Number(currencyValues.cp || 0);
+    handleFieldChange("gold", total);
+    setShowCurrencyEdit(false);
+  }
+
+  function handleCurrencyCancel() {
+    setShowCurrencyEdit(false);
+  }
+
+  // Display gold in GP/SP/CP format
+  function displayGold(cp) {
+    const copper = Number(cp) || 0;
+    const gp = Math.floor(copper / 100);
+    const sp = Math.floor((copper % 100) / 10);
+    const cpRem = copper % 10;
+    let parts = [];
+    if (gp > 0) parts.push(`${gp} GP`);
+    if (sp > 0) parts.push(`${sp} SP`);
+    parts.push(`${cpRem} CP`);
+    return parts.join(", ");
+  }
+
   // Check state loading / error
   if (loading) return <div style={styles.stateContainer}><p>Consulting character scrolls</p></div>;
   if (error) return <div style={styles.stateContainer}><p style={{ color: "var(--color-danger)" }}> Error: {error}</p></div>;
@@ -1265,6 +1393,30 @@ export default function CharacterSheet({ characterId, onBack, user }) {
         </div>
 
         <div style={styles.headerActions}>
+          {character.level < 20 && (
+            <button
+              type="button"
+              onClick={() => setShowLevelUp(true)}
+              style={{
+                padding: "0.35rem 0.7rem",
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                background: "rgba(74, 187, 94, 0.12)",
+                border: "1px solid rgba(74, 187, 94, 0.25)",
+                borderRadius: "6px",
+                color: "var(--color-success)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                whiteSpace: "nowrap",
+                minHeight: "44px",
+              }}
+              className="touch-target btn-hover-scale"
+            >
+              <ArrowUp size={16} /> Level Up
+            </button>
+          )}
           {user?.role === "DM" && (
             <button
               type="button"
@@ -1423,6 +1575,24 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           )}
         </div>
 
+        {/* Gold Display & Edit */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.25rem", padding: "0.4rem 0.6rem", background: "rgba(200, 151, 58, 0.06)", borderRadius: "6px", border: "1px solid rgba(200, 151, 58, 0.12)" }}>
+          <span style={{ fontSize: "0.8rem", color: "var(--color-accent)", fontWeight: 700, whiteSpace: "nowrap" }}>💰 Gold</span>
+          {user?.role === "DM" || user?.characterId === character.id ? (
+            <input
+              type="number"
+              min={0}
+              value={character.gold || 0}
+              onChange={(e) => handleFieldChange("gold", Math.max(0, parseInt(e.target.value) || 0))}
+              onBlur={(e) => handleFieldChange("gold", Math.max(0, parseInt(e.target.value) || 0))}
+              style={{ width: "80px", padding: "0.25rem 0.4rem", fontSize: "0.8rem", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(200,151,58,0.2)", borderRadius: "4px", color: "var(--color-accent)", textAlign: "center", outline: "none" }}
+            />
+          ) : (
+            <span style={{ fontSize: "0.85rem", color: "var(--color-accent)", fontWeight: 600 }}>{displayGold(character.gold)}</span>
+          )}
+          <span style={{ fontSize: "0.65rem", color: "var(--color-muted)" }}>(in CP)</span>
+        </div>
+
         {/* Level / Max HP Settings */}
         <div style={styles.levelMaxHp}>
           <div style={styles.miniInputGroup}>
@@ -1454,6 +1624,23 @@ export default function CharacterSheet({ characterId, onBack, user }) {
             <span style={styles.miniLabel}>Prof Bonus</span>
             <div style={styles.profBonusBox}>
               +{getProficiencyBonus(character.level)}
+            </div>
+          </div>
+          {/* Gold / Currency Display */}
+          <div style={{ ...styles.miniInputGroup, minWidth: "120px" }}>
+            <span style={styles.miniLabel}>Gold</span>
+            <div style={{
+              padding: "0.25rem 0.5rem",
+              fontSize: "0.82rem",
+              fontWeight: 700,
+              color: "var(--color-accent)",
+              background: "rgba(200, 151, 58, 0.08)",
+              border: "1px solid rgba(200, 151, 58, 0.15)",
+              borderRadius: "4px",
+              textAlign: "center",
+              whiteSpace: "nowrap",
+            }}>
+              {character.gold >= 0 ? `${Math.floor(character.gold / 100)} GP` : "—"}
             </div>
           </div>
         </div>
@@ -1592,6 +1779,16 @@ export default function CharacterSheet({ characterId, onBack, user }) {
         }}>
           {restToast.message}
         </div>
+      )}
+
+      {/* Level-Up Wizard */}
+      {showLevelUp && (
+        <LevelUpWizard
+          character={character}
+          user={user}
+          onClose={() => setShowLevelUp(false)}
+          onLevelUpComplete={handleLevelUpApplied}
+        />
       )}
 
       {showCharGen && (

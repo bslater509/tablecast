@@ -120,6 +120,12 @@ model Character {
   hitDiceTotal Int    @default(1)
   hitDiceUsed  Int    @default(0)
 
+  // Currency tracking: JSON string { pp, gp, ep, sp, cp }
+  currency String @default("{\"pp\":0,\"gp\":0,\"ep\":0,\"sp\":0,\"cp\":0}")
+
+  // Gold in copper pieces (100 cp = 1 gp) — simplified single-number tracking
+  gold Int @default(0)
+
   // JSON blobs — calculated by the frontend; stored for persistence
   // inventory: serialized array of item objects
   // modifiers: serialized map of ability modifier values
@@ -141,6 +147,7 @@ model Character {
   chatMessages          ChatMessage[]
   rolls                 Roll[]
   aiConversations       AiConversation[]
+  partyMembers          PartyMember[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -254,6 +261,49 @@ model WikiArticle {
   @@index([category])
   @@index([isVisibleToPlayers])
   @@map("wiki_articles")
+}
+
+/// A DM-created shop where player characters can buy and sell items.
+model Shop {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String   @default("")
+  /// Price multiplier (1.0 = normal, 0.5 = half price, 2.0 = premium)
+  markup      Float    @default(1.0)
+  /// Whether the shop is currently open for business
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items ShopItem[]
+
+  @@map("shops")
+}
+
+/// An item available for purchase in a Shop.
+model ShopItem {
+  id          Int      @id @default(autoincrement())
+  shopId      Int
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String   @default("")
+  /// Price in copper pieces
+  price       Int      @default(0)
+  /// Stock quantity (-1 = unlimited)
+  quantity    Int      @default(1)
+  /// "weapon", "armor", "potion", "scroll", "wondrous", "ammunition", "gear", "magic-item", etc.
+  category    String   @default("")
+  isMagical   Boolean  @default(false)
+  attunement  Boolean  @default(false)
+  /// JSON array of tag strings
+  tags        String   @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId])
+  @@map("shop_items")
 }
 
 /// Small key/value store for DM-controlled server settings.
@@ -579,4 +629,34 @@ model Monster {
 
   @@index([name])
   @@map("monsters")
+}
+
+/// A shared party vault for group inventory and gold management
+model Party {
+  id Int @id @default(autoincrement())
+  name String @default("Party")
+  /// Shared inventory: JSON array of item objects [{ name, quantity, weight, description }]
+  inventory String @default("[]")
+  /// Shared gold pool: JSON string for per-currency tracking { pp, gp, ep, sp, cp }
+  currency String @default("{\"pp\":0,\"gp\":0,\"ep\":0,\"sp\":0,\"cp\":0}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members PartyMember[]
+
+  @@map("parties")
+}
+
+/// Links a Character to a Party
+model PartyMember {
+  id Int @id @default(autoincrement())
+  partyId Int
+  characterId Int
+  role String @default("MEMBER") // MEMBER | LEADER | QUARTERMASTER
+
+  party Party @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([partyId, characterId])
+  @@map("party_members")
 }

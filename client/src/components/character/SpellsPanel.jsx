@@ -23,6 +23,17 @@ const SCHOOL_COLORS = {
   Transmutation: "#5ab4b4",
 };
 
+// Map short ability codes to full names for save display
+function formatSaveAbility(ability) {
+  const map = {
+    str: "Strength", dex: "Dexterity", con: "Constitution",
+    int: "Intelligence", wis: "Wisdom", cha: "Charisma",
+    strength: "Strength", dexterity: "Dexterity", constitution: "Constitution",
+    intelligence: "Intelligence", wisdom: "Wisdom", charisma: "Charisma",
+  };
+  return map[ability?.toLowerCase()] || ability || "";
+}
+
 const FILTER_TABS = [
   { key: "all", label: "All" },
   { key: "cantrips", label: "Cantrips" },
@@ -52,6 +63,7 @@ export default function SpellsPanel({
   onCastSpell,
   onSpellDamage,
   onSpellAttack,
+  onEnrichSpell,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("level");
@@ -415,6 +427,10 @@ export default function SpellsPanel({
     function handleToggleExpand() {
       onToggleExpand(isExpanded ? null : spellIndex);
       setCastLevel(null);
+      // Fetch full 5etools detail if spell was added without detailed data
+      if (!isExpanded && onEnrichSpell && !spell.damage && !spell.save) {
+        onEnrichSpell(spellIndex);
+      }
     }
 
     return (
@@ -504,7 +520,37 @@ export default function SpellsPanel({
                   <span style={styles.spellMetaVal}>{spell.duration}</span>
                 </div>
               )}
+              {/* Save Type — from 5etools data */}
+              {spell.save && spell.save.ability && (
+                <div style={styles.spellMetaItem}>
+                  <span style={styles.spellMetaLabel}>Saving Throw</span>
+                  <span style={styles.spellMetaVal}>
+                    {formatSaveAbility(spell.save.ability)}
+                    {spell.save.dc ? " vs DC" : ""}
+                  </span>
+                </div>
+              )}
+              {/* Damage Formula — from 5etools data */}
+              {spell.damage && spell.damage.dice && (
+                <div style={styles.spellMetaItem}>
+                  <span style={styles.spellMetaLabel}>Damage</span>
+                  <span style={styles.spellMetaVal}>
+                    {spell.damage.dice}{spell.damage.type ? ` ${spell.damage.type}` : ""}
+                    {spell.damage.scaling && ` +${spell.damage.scaling}/lvl`}
+                  </span>
+                </div>
+              )}
             </div>
+
+            {/* Material Components Detail */}
+            {spell.materialText && (
+              <div style={styles.spellDescSection}>
+                <span style={styles.spellDescLabel}>Material Component</span>
+                <div style={{ ...styles.spellDescText, fontStyle: "italic" }}>
+                  {spell.materialText}
+                </div>
+              </div>
+            )}
 
             {/* Description */}
             {spell.description && spell.description.length > 0 && (

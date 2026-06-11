@@ -41,6 +41,8 @@ const ALLOWED_FIELDS = [
   "hitDiceType",
   "hitDiceTotal",
   "hitDiceUsed",
+  "xp",
+  "gold",
 ];
 
 /**
