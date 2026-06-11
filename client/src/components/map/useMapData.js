@@ -6,6 +6,11 @@ import { MIN_ZOOM, MAX_ZOOM, MAP_IMPORT_PRESETS, parseFogState, cleanText } from
 import { NPC_TOKEN_PRESETS, generateTokenSvgUrl } from "../../data/npcTokenPresets";
 import { getAuthHeaders } from "../../utils/authHeaders";
 
+const ACTIVE_MAP_STORAGE_KEY = "tablecast.activeMapId";
+const VTT_SHOW_GRID_KEY = "tablecast.vttShowGrid";
+const VTT_SHOW_LIGHTING_KEY = "tablecast.vttShowLighting";
+const VTT_TOOL_KEY = "tablecast.vttTool";
+
 export default function useMapData({ user, isPopout, socket, isConnected, addToast, showConfirm }) {
   // ---------------------------------------------------------------------------
   // Map & token state
@@ -45,8 +50,11 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
   const [isCreatingMap, setIsCreatingMap] = useState(false);
 
   // Toolbar & View
-  const [tool, setTool] = useState("select");
-  const [showGrid, setShowGrid] = useState(true);
+  const [tool, setTool] = useState(() => localStorage.getItem(VTT_TOOL_KEY) || "select");
+  const [showGrid, setShowGrid] = useState(() => {
+    const stored = localStorage.getItem(VTT_SHOW_GRID_KEY);
+    return stored !== null ? stored === "true" : true;
+  });
   const [zoom, setZoom] = useState(1.0);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [selectedTokenId, setSelectedTokenId] = useState(null);
@@ -61,7 +69,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
   const [rulerHoverPos, setRulerHoverPos] = useState(null);
 
   // Dynamic Lighting
-  const [showLighting, setShowLighting] = useState(false);
+  const [showLighting, setShowLighting] = useState(() => localStorage.getItem(VTT_SHOW_LIGHTING_KEY) === "true");
 
   // Interaction
   const [isPanning, setIsPanning] = useState(false);
@@ -197,6 +205,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
       if (res.ok) {
         const map = await res.json();
         setActiveMap(map);
+        localStorage.setItem(ACTIVE_MAP_STORAGE_KEY, String(map.id));
         imageRef.current = null;
         setMapImageLoaded(false);
         setTokens(map.tokens || []);
@@ -283,7 +292,8 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const id = ++currentFetchIdRef.current;
-    loadMaps(null, id);
+    const storedMapId = Number(localStorage.getItem(ACTIVE_MAP_STORAGE_KEY)) || null;
+    loadMaps(storedMapId, id);
     loadCharacters(id);
     loadNpcs(id);
     loadMonsters(id);
@@ -292,6 +302,11 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
       currentFetchIdRef.current = currentFetchIdRef.current + 1;
     };
   }, []);
+
+  // Persist VTT view preferences to localStorage
+  useEffect(() => { localStorage.setItem(VTT_SHOW_GRID_KEY, String(showGrid)); }, [showGrid]);
+  useEffect(() => { localStorage.setItem(VTT_SHOW_LIGHTING_KEY, String(showLighting)); }, [showLighting]);
+  useEffect(() => { localStorage.setItem(VTT_TOOL_KEY, tool); }, [tool]);
 
   // ---------------------------------------------------------------------------
   // Socket listeners
@@ -323,6 +338,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
       const currentMap = activeMapRef.current;
       if (currentMap && currentMap.id === deletedId) {
         setActiveMap(null);
+        localStorage.removeItem(ACTIVE_MAP_STORAGE_KEY);
         setTokens([]);
         tokenImagesRef.current = {};
         imageRef.current = null;

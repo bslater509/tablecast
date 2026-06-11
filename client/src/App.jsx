@@ -154,6 +154,12 @@ function App() {
     clearAuth();
     localStorage.removeItem(DM_IDENTITY_STORAGE_KEY);
     localStorage.removeItem(SELECTED_CHARACTER_STORAGE_KEY);
+    // Clear session-specific UI state (don't clear UX prefs like VTT view settings)
+    localStorage.removeItem("tablecast.activeMapId");
+    localStorage.removeItem("tablecast.selectedEncounterId");
+    localStorage.removeItem("tablecast.selectedArticleId");
+    localStorage.removeItem("tablecast.selectedNpcId");
+    localStorage.removeItem("tablecast.selectedCharId");
     navigate("/", { replace: true });
   };
 

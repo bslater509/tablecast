@@ -46,6 +46,7 @@ const CONDITION_COLORS = {
   "Stunned": "#38bdf8", "Unconscious": "#64748b", "Exhaustion": "#ef4444",
 };
 const DEFAULT_COND_COLOR = "#a855f7";
+const SELECTED_ENCOUNTER_STORAGE_KEY = "tablecast.selectedEncounterId";
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
@@ -137,9 +138,11 @@ export default function EncountersPanel({
         }
         const data = await res.json();
         setSelectedEncounter(data);
+        localStorage.setItem(SELECTED_ENCOUNTER_STORAGE_KEY, String(data.id));
       } catch (err) {
         handleApiError(err, "Could not load encounter.");
         setSelectedEncounter(null);
+        localStorage.removeItem(SELECTED_ENCOUNTER_STORAGE_KEY);
       } finally {
         setLoading(false);
       }
@@ -163,6 +166,11 @@ export default function EncountersPanel({
   useEffect(() => {
     fetchMaps();
     fetchResources();
+    // Restore previously selected encounter
+    const storedEncId = localStorage.getItem(SELECTED_ENCOUNTER_STORAGE_KEY);
+    if (storedEncId) {
+      fetchEncounter(Number(storedEncId));
+    }
   }, [fetchMaps, fetchResources]);
 
   useEffect(() => {
@@ -263,6 +271,7 @@ export default function EncountersPanel({
       });
       if (!res.ok) throw new Error("Failed to delete encounter.");
       setSelectedEncounter(null);
+      localStorage.removeItem(SELECTED_ENCOUNTER_STORAGE_KEY);
       fetchEncounters(selectedMapId || undefined);
     } catch (err) {
       handleApiError(err, "Could not delete encounter.");
@@ -579,7 +588,7 @@ export default function EncountersPanel({
       <div style={encounterStyles.detailHeader}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <button
-            onClick={() => setSelectedEncounter(null)}
+            onClick={() => { setSelectedEncounter(null); localStorage.removeItem(SELECTED_ENCOUNTER_STORAGE_KEY); }}
             style={{
               background: "none",
               border: "none",

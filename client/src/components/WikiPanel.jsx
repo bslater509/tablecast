@@ -26,6 +26,9 @@ marked.setOptions({
   breaks: true,
 });
 
+const SELECTED_ARTICLE_STORAGE_KEY = "tablecast.selectedArticleId";
+const CATEGORY_TAB_STORAGE_KEY = "tablecast.wikiCategoryTab";
+
 // NpcStatblock has been moved to ./wiki/NpcStatblock.jsx
 
 export default function WikiPanel({ user, isPopout = false }) {
@@ -44,7 +47,9 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [error, setError] = useState(null);
 
   // Categorized Section State
-  const [activeCategoryTab, setActiveCategoryTab] = useState("LOCATION"); // "LOCATION" | "NPC" | "LORE" | "LOG" | "MONSTER" | "SPELL" | "ITEM" | "RULE" | "CLASS" | "RACE"
+  const [activeCategoryTab, setActiveCategoryTab] = useState(() => {
+    return localStorage.getItem(CATEGORY_TAB_STORAGE_KEY) || "LOCATION";
+  }); // "LOCATION" | "NPC" | "LORE" | "LOG" | "MONSTER" | "SPELL" | "ITEM" | "RULE" | "CLASS" | "RACE"
 
   // Creation Flow States
   const [showCategoryPrompt, setShowCategoryPrompt] = useState(false);
@@ -190,6 +195,15 @@ export default function WikiPanel({ user, isPopout = false }) {
         const wikiData = await wikiRes.json();
         setArticles(wikiData);
 
+        // Restore previously selected article
+        const storedArticleId = localStorage.getItem(SELECTED_ARTICLE_STORAGE_KEY);
+        if (storedArticleId) {
+          const match = wikiData.find(a => a.id === Number(storedArticleId));
+          if (match) setSelectedArticle(match);
+        } else {
+          localStorage.removeItem(SELECTED_ARTICLE_STORAGE_KEY);
+        }
+
         const npcsRes = await fetch("/api/npcs", { headers: authHeaders });
         if (npcsRes.ok) {
           const npcsData = await npcsRes.json();
@@ -236,6 +250,20 @@ export default function WikiPanel({ user, isPopout = false }) {
 
     loadLinkedSession();
   }, [selectedArticle, isDM, authHeaders]);
+
+  // Persist selected category tab
+  useEffect(() => {
+    localStorage.setItem(CATEGORY_TAB_STORAGE_KEY, activeCategoryTab);
+  }, [activeCategoryTab]);
+
+  // Persist selected article
+  useEffect(() => {
+    if (selectedArticle) {
+      localStorage.setItem(SELECTED_ARTICLE_STORAGE_KEY, String(selectedArticle.id));
+    } else {
+      localStorage.removeItem(SELECTED_ARTICLE_STORAGE_KEY);
+    }
+  }, [selectedArticle]);
 
   // ── Real-time wiki sync via Socket.io ──────────────────────────────
   useEffect(() => {

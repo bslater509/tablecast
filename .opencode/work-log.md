@@ -863,8 +863,14 @@ Successfully split the monolithic `server/src/ai/generation.js` (1059 lines) int
 ---
 
 ## Active Sessions
-- [ ] ses_1482a6525ffe (Worker): `EncountersPanel.jsx` - MODIFY pending
-- [ ] ses_1482a6525ffe (Worker): `WikiPanel.jsx` - MODIFY pending
+- [x] ses_1482a6525ffe (Worker): `EncountersPanel.jsx` - MODIFY done
+- [x] ses_1482a6525ffe (Worker): `WikiPanel.jsx` - MODIFY done
+
+## Completed Units (UI State Persistence)
+| File | Session | Unit Test | Timestamp |
+|------|---------|-----------|-----------|
+| client/src/components/EncountersPanel.jsx | ses_1482a6525ffe | N/A (no test infra) | 2026-06-11T19:02:00Z |
+| client/src/components/WikiPanel.jsx | ses_1482a6525ffe | N/A (no test infra) | 2026-06-11T19:02:00Z |
 
 ## UNIT REVIEW: server/src/ai/generation.js Split into generation/ Subdirectory
 
@@ -905,5 +911,43 @@ Successfully split the monolithic `server/src/ai/generation.js` (1059 lines) int
 | **Complexity Sharding** | ✅ | Single 1059-line file → 2 focused modules (1108 total) |
 | **Router/Middleware Pattern** | ✅ | Express Router defines routes + middleware; handlers are pure request/response logic |
 | **Consistent Pattern** | ✅ | Matches `helpers/`, `mcp/`, and other extraction patterns |
+
+### Defects Found: **None**
+
+---
+
+## T1: useMapData.js localStorage Persistence (4 state items)
+
+### Result: **PASS** ✅
+
+### Summary
+Added localStorage persistence for 4 state items in `useMapData.js`: `activeMap`, `tool`, `showGrid`, `showLighting`. These survive page refresh.
+
+### Files Changed
+
+| File | Action | Lines |
+|------|--------|-------|
+| `client/src/components/map/useMapData.js` | **MODIFY** | 1039 → 1055 (+16) |
+
+### Changes Made
+
+1. **Constants added** (lines 9-12): `ACTIVE_MAP_STORAGE_KEY`, `VTT_SHOW_GRID_KEY`, `VTT_SHOW_LIGHTING_KEY`, `VTT_TOOL_KEY`
+2. **`tool`** (line 53): Changed from `useState("select")` to lazy init from `localStorage.getItem(VTT_TOOL_KEY)`
+3. **`showGrid`** (lines 54-57): Changed from `useState(true)` to lazy init from `localStorage.getItem(VTT_SHOW_GRID_KEY)`, defaulting to `true`
+4. **`showLighting`** (line 72): Changed from `useState(false)` to lazy init from `localStorage.getItem(VTT_SHOW_LIGHTING_KEY) === "true"`
+5. **VTT prefs useEffect hooks** (lines 306-309): Three `useEffect` hooks to persist `showGrid`, `showLighting`, `tool` to localStorage on change
+6. **Initial data load** (line 295): Reads `ACTIVE_MAP_STORAGE_KEY` from localStorage to restore the last-viewed map
+7. **`fetchMapDetails`** (line 208): Saves `activeMap.id` to localStorage on successful map fetch
+8. **`handleMapDeleted`** (line 341): Removes `ACTIVE_MAP_STORAGE_KEY` when the currently active map is deleted
+
+### Verification
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **LSP diagnostics** | ✅ | Clean on `useMapData.js` (0 errors, 0 warnings) |
+| **Full project LSP** | ✅ | `lsp_diagnostics(*)` — clean across all files |
+| **Vite build** | ✅ | 1791 modules transformed, 6.03s, zero errors |
+| **No console.log/debug** | ✅ | Only legitimate `console.error` in error handlers |
+| **Pattern consistency** | ✅ | Follows existing `SELECTED_CHARACTER_STORAGE_KEY` / `DM_IDENTITY_STORAGE_KEY` pattern from App.jsx |
 
 ### Defects Found: **None**
