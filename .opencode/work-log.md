@@ -1,9 +1,96 @@
 # Work Log
 
 ## Active Sessions
+- [x] ses_1483adcd8ffe (Worker): `client/src/components/WikiPanel.jsx` - MODIFY (URL-driven article selection) verified ✅
 - [x] ses_N (Worker): `client/src/context/AiContext.jsx` - MODIFY (persist selectedNpcId, selectedCharId) done
 - [x] ses_N (Worker): `client/src/components/SettingsPanel.jsx` - MODIFY (persist activeSettingsTab) done
 - [x] ses_N (Worker): `client/src/components/DiceRollerPanel.jsx` - MODIFY (persist activeSubTab) done
+
+## UNIT REVIEW: WikiPanel URL-Driven Navigation
+
+### Result: **PASS** ✅
+
+### Summary
+Verified URL-driven article selection for WikiPanel.jsx. Two bidirectional useEffect hooks sync the URL `:id` param with the `selectedArticle` state, enabling shareable deep links to wiki articles. Related panels (Encounters, Map, Settings) also received URL-driven nav routes in App.jsx.
+
+### Files Verified
+
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `client/src/components/WikiPanel.jsx` | MODIFY | +30 (2 useEffects + useParams/useLocation) | ✅ PASS |
+| `client/src/App.jsx` | MODIFY | +20 (13 new routes for wiki/map/encounters/settings/messages `:id`) | ✅ PASS |
+| `client/src/components/EncountersPanel.jsx` | MODIFY | +15 (route-driven encounter selection) | ✅ PASS |
+| `client/src/components/MapPanel.jsx` | MODIFY | +10 (route-driven map selection) | ✅ PASS |
+| `client/src/components/SettingsPanel.jsx` | MODIFY | +10 (URL-driven tab selection) | ✅ PASS |
+| `client/src/components/MessageHub.jsx` | MODIFY | +1 (router hooks import) | ✅ PASS |
+| `client/src/components/map/useMapData.js` | MODIFY | +2 (initialMapId param) | ✅ PASS |
+
+### Verification Checklist
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **LSP diagnostics** | ✅ | Full project `*` — clean (0 errors, 0 warnings) |
+| **Vite build** | ✅ | 1791 modules transformed, 6.51s, zero errors |
+| **No console.log/debug** | ✅ | No debug logging added |
+| **No hardcoded secrets** | ✅ | Clean |
+| **Infinite loop protection** | ✅ | URL sync effect guards: `location.pathname !== expected` prevents loops |
+| **Popout handling** | ✅ | URL sync effect returns early when `isPopout=true` |
+| **Route param → state** | ✅ | `routeArticleId` effect re-runs when `articles` array loads |
+| **State → URL** | ✅ | `selectedArticle?.id` effect writes `replace: true` to URL |
+| **Back/deselect handling** | ✅ | Navigating to base path when `selectedArticle` cleared |
+| **Delete handling** | ✅ | `setSelectedArticle(null)` already clears URL via effect |
+| **Route + localStorage priority** | ✅ | Route param takes precedence; localStorage is fallback |
+| **Pattern consistency** | ✅ | Matches SessionsPanel's `useParams`/`useNavigate` pattern |
+
+### WikiPanel URL Sync Logic
+
+```js
+// Effect 1: URL → selectedArticle (reads route param, finds article)
+useEffect(() => {
+  if (!routeArticleId) return;
+  const article = articles.find(a => a.id === Number(routeArticleId));
+  if (article && article.id !== selectedArticle?.id) {
+    setSelectedArticle(article);
+  }
+}, [routeArticleId, articles, selectedArticle?.id]);
+
+// Effect 2: selectedArticle → URL (writes article ID to URL path)
+useEffect(() => {
+  if (isPopout) return;
+  const base = location.pathname.replace(/\/\d+$/, "");
+  if (selectedArticle) {
+    const expected = `${base}/${selectedArticle.id}`;
+    if (location.pathname !== expected) {
+      navigate(expected, { replace: true });
+    }
+  } else {
+    if (location.pathname !== base && !routeArticleId) {
+      navigate(base, { replace: true });
+    }
+  }
+}, [selectedArticle?.id, isPopout, location.pathname, navigate, routeArticleId]);
+```
+
+### App.jsx Route Coverage
+
+| Route Level | New Routes Added |
+|-------------|-----------------|
+| **DM Layout** | `map/:id`, `wiki/:id`, `encounters/:id`, `settings/:tab` + 5 messages sub-routes |
+| **Player Layout** | `wiki/:id`, `encounters/:id` + 5 messages sub-routes |
+| **Popout** | `map/:id`, `wiki/:id`, `encounters/:id` |
+
+### Defects Found: **None**
+
+---
+
+## Completed Units (URL-Driven Navigation)
+| File | Session | Unit Test | Timestamp |
+|------|---------|-----------|-----------|
+| client/src/components/WikiPanel.jsx | ses_1483adcd8ffe | pass (see unit-tests) | 2026-06-11T19:22:00Z |
+| client/src/App.jsx | ses_1483adcd8ffe | pass | 2026-06-11T19:22:00Z |
+| client/src/components/EncountersPanel.jsx | ses_1483adcd8ffe | pass | 2026-06-11T19:22:00Z |
+| client/src/components/MapPanel.jsx | ses_1483adcd8ffe | pass | 2026-06-11T19:22:00Z |
+| client/src/components/SettingsPanel.jsx | ses_1483adcd8ffe | pass | 2026-06-11T19:22:00Z |
 
 ## VERIFICATION: Auth Headers Refactor
 
@@ -863,14 +950,66 @@ Successfully split the monolithic `server/src/ai/generation.js` (1059 lines) int
 ---
 
 ## Active Sessions
-- [x] ses_1482a6525ffe (Worker): `EncountersPanel.jsx` - MODIFY done
-- [x] ses_1482a6525ffe (Worker): `WikiPanel.jsx` - MODIFY done
+- [x] ses_1483adcd8ffe (Worker): `EncountersPanel.jsx` - MODIFY (URL-driven encounter selection) done ✅
+- [x] ses_1482a6525ffe (Worker): `WikiPanel.jsx` - MODIFY verified ✅
 
 ## Completed Units (UI State Persistence)
 | File | Session | Unit Test | Timestamp |
 |------|---------|-----------|-----------|
-| client/src/components/EncountersPanel.jsx | ses_1482a6525ffe | N/A (no test infra) | 2026-06-11T19:02:00Z |
-| client/src/components/WikiPanel.jsx | ses_1482a6525ffe | N/A (no test infra) | 2026-06-11T19:02:00Z |
+| client/src/components/EncountersPanel.jsx | ses_1482a6525ffe | pass (see unit-tests) | 2026-06-11T19:05:00Z |
+| client/src/components/WikiPanel.jsx | ses_1482a6525ffe | pass (see unit-tests) | 2026-06-11T19:05:00Z |
+
+## UNIT REVIEW: Encounters + Wiki localStorage Persistence
+
+### Result: **PASS** ✅
+
+### Summary
+Verified localStorage persistence for `selectedEncounterId` in EncountersPanel.jsx and `selectedArticleId` + `activeCategoryTab` in WikiPanel.jsx. Logout cleanup in App.jsx correctly clears all 5 session-specific keys.
+
+### Files Verified
+
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `client/src/components/EncountersPanel.jsx` | MODIFY | 5 localStorage ops | ✅ PASS |
+| `client/src/components/WikiPanel.jsx` | MODIFY | 6 localStorage ops | ✅ PASS |
+| `client/src/App.jsx` | MODIFY | 5 logout cleanup keys | ✅ PASS |
+
+### Verification Checklist
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **LSP diagnostics** | ✅ | Full project `*` — clean (0 errors, 0 warnings) |
+| **Vite build** | ✅ | 1791 modules transformed, 4.25s, zero errors |
+| **No console.log** | ✅ | Both files clean |
+| **No hardcoded secrets** | ✅ | Clean |
+| **Logout cleanup** | ✅ | 5 session keys cleared in `handleLogout` |
+| **Pattern consistency** | ✅ | Matches existing localStorage pattern (AiContext, SettingsPanel, DiceRollerPanel, useMapData) |
+| **Restore on load** | ✅ | Both files restore state from localStorage on mount |
+| **Error handling** | ✅ | localStorage cleared on fetch errors |
+| **Back button** | ✅ | localStorage cleared on back navigation / deselect |
+| **Delete handling** | ✅ | localStorage cleared on encounter/article deletion |
+
+### Detailed localStorage Coverage
+
+**EncountersPanel.jsx:**
+- Line 141: `setItem` on successful encounter fetch
+- Line 145: `removeItem` on fetch error
+- Line 170: `getItem` on initial mount to restore
+- Line 274: `removeItem` on encounter deletion
+- Line 591: `removeItem` on back button
+
+**WikiPanel.jsx:**
+- Line 51: `getItem` for lazy init of `activeCategoryTab` (default "LOCATION")
+- Line 199: `getItem` to restore selected article on data load
+- Line 204: `removeItem` if article not found in loaded data
+- Line 256: `setItem` in useEffect on `activeCategoryTab` change
+- Line 262: `setItem` in useEffect when `selectedArticle` is set
+- Line 264: `removeItem` in useEffect when `selectedArticle` is cleared
+
+**App.jsx (logout):**
+- Lines 158-162: 5 keys cleared — `activeMapId`, `selectedEncounterId`, `selectedArticleId`, `selectedNpcId`, `selectedCharId`
+
+### Defects Found: **None**
 
 ## UNIT REVIEW: server/src/ai/generation.js Split into generation/ Subdirectory
 

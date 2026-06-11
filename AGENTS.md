@@ -134,14 +134,16 @@ The AI agent's OpenCode environment sends mobile push notifications via the [Pus
 | Path | Purpose |
 |---|---|
 | `server/src/index.js` | Express + Socket.io entry point, middleware, route mounting, error handler |
-| `server/src/socket.js` | All Socket.io event handlers (~710 lines, 12+ event types) |
-| `server/src/mcp-server.js` | MCP server with 30 tools (~2229 lines) |
+| `server/src/socket.js` | All Socket.io event handlers (~813 lines, 12+ event types) |
+| `server/src/mcp-server.js` | MCP server entry point (~177 lines, tools defined in `server/src/mcp/`) |
 | `server/src/mcp-cli.js` | MCP CLI client for debugging |
 | `server/src/auth.js` | Header-based auth (`x-tablecast-user-id`), `requireDm` middleware |
 | `server/src/prisma.js` | Prisma client singleton |
 | `server/src/routes/` | 14 route modules (see table below) |
 | `server/src/utils/` | Logger, debug, backup, reference search/sync, token image lookup |
-| `server/prisma/schema.prisma` | 14 models: SQLite with Prisma |
+| `client/src/utils/dynamicLighting.js` | Raycasting line-of-sight computation for VTT |
+| `client/src/components/map/` | Modular map rendering: MapCanvas, MapToolbar, useMapData, useMapInteraction |
+| `server/prisma/schema.prisma` | 17 models: SQLite with Prisma |
 | `client/src/App.jsx` | React root component (~36KB) |
 | `client/src/components/` | 20+ React components |
 | `client/src/context/` | `SocketContext.jsx`, `DiceBoxContext.jsx` |
@@ -179,8 +181,8 @@ The AI agent's OpenCode environment sends mobile push notifications via the [Pus
 |---|---|---|
 | `chat:send` | `{ sender, text, type, userId, rollDetails }` | Chat message + dice roll submission |
 | `chat:typing` | `{ sender }` | Typing indicator |
-| `token:move` | `{ id, mapId, x, y }` | Token drag on VTT grid |
-| `token:create` | `{ mapId, label, imageUrl, x, y, characterId? }` | New token placement |
+| `token:move` | `{ id, mapId, x, y, visionRadius?, darkvisionRadius?, auraRadius?, auraColor?, conditions? }` | Token drag on VTT grid |
+| `token:create` | `{ mapId, label, imageUrl, x, y, characterId?, visionRadius?, darkvisionRadius?, auraRadius?, auraColor?, conditions? }` | New token placement |
 | `token:delete` | `{ id }` | Remove token |
 | `map:select` | `{ mapId }` | Switch active map |
 | `map:delete` | `{ mapId }` | Delete a map |
@@ -218,21 +220,21 @@ The AI agent's OpenCode environment sends mobile push notifications via the [Pus
 | `add_item_to_character`, `add_item_to_npc` | Inventory management |
 | `search_reference`, `get_reference_detail` | 5e SRD reference lookup |
 
-### Prisma Models (14 models)
+### Prisma Models (17 models)
 
 | Model | Table | Key Fields |
 |---|---|---|
 | `User` | `users` | `id`, `username`, `role` ("DM"\|"PLAYER"), `diceTheme`, `diceColor` |
 | `ChatMessage` | `chat_messages` | `id`, `userId?`, `sender`, `text`, `type`, `rollDetails?` |
 | `Character` | `characters` | `userId`, `name`, `race`, `class`, `level`, 6 ability scores, `inventory` (JSON), `modifiers` (JSON) |
-| `Map` | `maps` | `name`, `imageUrl`, `gridSize`, `gridType` ("SQUARE"\|"HEX"), `fogState` (JSON) |
-| `Token` | `tokens` | `mapId`, `characterId?`, `npcId?`, `monsterId?`, `label`, `imageUrl`, `x`, `y`, `stats?` |
+| `Map` | `maps` | `name`, `imageUrl`, `gridSize`, `gridType` ("SQUARE"\|"HEX"), `fogState` (JSON), `walls` (JSON) |
+| `Token` | `tokens` | `mapId`, `characterId?`, `npcId?`, `monsterId?`, `label`, `imageUrl`, `x`, `y`, `stats?`, `conditions` (JSON), `visionRadius`, `darkvisionRadius`, `auraRadius`, `auraColor` |
 | `WikiArticle` | `wiki_articles` | `title`, `content`, `isVisibleToPlayers`, `category`, `tags` (JSON) |
 | `AppSetting` | `app_settings` | `key` (PK), `value` |
 | `Npc` | `npcs` | 6 abilities, `hp`, `ac`, `cr`, `actions` (JSON), narrative fields |
 | `Monster` | `monsters` | Same structure as Npc (imported from 5etools SRD) |
 | `Encounter` | `encounters` | `name`, `mapId`, `status`, `round`, `turnIndex` |
-| `EncounterParticipant` | `encounter_participants` | `encounterId`, `tokenId?`, `npcId?`, `characterId?`, `monsterId?`, initiative, HP, AC |
+| `EncounterParticipant` | `encounter_participants` | `encounterId`, `tokenId?`, `npcId?`, `characterId?`, `monsterId?`, initiative, HP, AC, `conditions` (JSON), `deathSaves` (JSON) |
 | `Roll` | `rolls` | `sender`, `formula`, `rolls` (JSON), `modifier`, `total`, `diceTheme`, `diceColor` |
 | `GameSession` | `game_sessions` | `title`, `status`, `agenda`, `prepChecklist` (JSON), `recap`, linked IDs |
 | `AiConversation` | `ai_conversations` | `userId?`, `type` ("rules"\|"npc"), `npcId?`, messages relation |
@@ -285,6 +287,8 @@ The AI agent's OpenCode environment sends mobile push notifications via the [Pus
 - **Token snap** — drag-and-drop must auto-calculate nearest grid intersection and snap on release, then emit `token:move` via Socket.io.
 - **Fog of War** — DM-drawn opaque polygons over the map layer. Emit `fog:update` on changes.
 - **Grid** — render responsive, scalable grid overlay. Support both "SQUARE" and "HEX" grid types.
+- **Dynamic Lighting** — raycasting line-of-sight from `client/src/utils/dynamicLighting.js`. Walls stored as JSON on Map model (`walls`). Token `visionRadius`/`darkvisionRadius` control visible area. Render visible polygon using canvas `clip()`.
+- **Token Auras & Conditions** — `auraRadius`/`auraColor` rendered as colored rings; `conditions` JSON array shown as colored status wedges on token base.
 
 ### 🤖 Agent 5: AI Integration Engineer
 **Focus:** AI subsystem, MCP server, reference data, LLM streaming.

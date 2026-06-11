@@ -10,7 +10,7 @@ implementation notes for each proposal.
 
 ### 1.1 Dynamic Lighting / Line-of-Sight
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Adds tactical depth to combat. Players only see map areas their
 character has line-of-sight to, based on token position, vision radius, and
@@ -50,7 +50,7 @@ Map model update (walls JSON), raycasting math utility
 
 ### 1.2 Measurement & Ruler Tool
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Essential for D&D combat — players and DMs need to quickly
 measure movement ranges, spell radii, and weapon reach on the VTT grid.
@@ -68,7 +68,7 @@ measure movement ranges, spell radii, and weapon reach on the VTT grid.
 
 ### 1.3 Token Auras & Status Effect Rings
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Visual indicators for ongoing spell effects (Bless, Spirit
 Guardians), auras (Paladin aura of protection), and conditions (on fire,
@@ -88,7 +88,7 @@ field `conditions`)
 
 ### 1.4 Condition Tracker with Auto-Expiry
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Combat has many temporary effects (Hold Person lasts 1 minute,
 Bless lasts 1 minute). Manual tracking is error-prone.
@@ -107,7 +107,7 @@ Socket.io turn advancement logic, chat logging
 
 ### 1.5 Death Saves Tracker
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** D&D 5e death saving throws are a critical combat mechanic that
 deserves dedicated UI — not just a chat dice roll.
