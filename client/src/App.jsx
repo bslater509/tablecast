@@ -41,6 +41,7 @@ import { AiProvider } from "./context/AiContext";
 import { getJsonAuthHeaders } from "./utils/authHeaders";
 
 const SELECTED_CHARACTER_STORAGE_KEY = "tablecast.selectedCharacterId";
+const DM_IDENTITY_STORAGE_KEY = "tablecast.dmIdentity";
 
 const DM_NAV_ITEMS = [
   {
@@ -151,6 +152,7 @@ function App() {
   const handleLogout = () => {
     setUser(null);
     clearAuth();
+    localStorage.removeItem(DM_IDENTITY_STORAGE_KEY);
     localStorage.removeItem(SELECTED_CHARACTER_STORAGE_KEY);
     navigate("/", { replace: true });
   };
@@ -230,6 +232,30 @@ function App() {
           if (cancelled) return;
           setHeroes(heroData);
 
+          // Check for stored DM session first
+          if (!user) {
+            const storedDmJson = localStorage.getItem(DM_IDENTITY_STORAGE_KEY);
+            if (storedDmJson) {
+              try {
+                const storedDm = JSON.parse(storedDmJson);
+                if (storedDm && storedDm.role === "DM" && storedDm.id) {
+                  handleSelectDm({
+                    id: storedDm.id,
+                    username: storedDm.username,
+                    role: "DM",
+                    diceTheme: storedDm.diceTheme,
+                    diceColor: storedDm.diceColor,
+                  });
+                  return;
+                } else {
+                  localStorage.removeItem(DM_IDENTITY_STORAGE_KEY);
+                }
+              } catch {
+                localStorage.removeItem(DM_IDENTITY_STORAGE_KEY);
+              }
+            }
+          }
+
           // Check for stored character session from the same heroData
           if (!user) {
             const storedCharId = Number(localStorage.getItem(SELECTED_CHARACTER_STORAGE_KEY));
@@ -293,6 +319,7 @@ function App() {
     };
     setUser(dmIdentity);
     setUserId(dmUser.id);
+    localStorage.setItem(DM_IDENTITY_STORAGE_KEY, JSON.stringify(dmIdentity));
     localStorage.removeItem(SELECTED_CHARACTER_STORAGE_KEY);
     if (location.pathname === "/") {
       navigate("/dm/map");
