@@ -4,7 +4,7 @@
 // Categorizes entries into Locations, NPCs, Lore, and Session Logs.
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { ExternalLink, Menu } from "lucide-react";
 import { marked } from "marked";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
@@ -35,6 +35,8 @@ const SEARCH_QUERY_STORAGE_KEY = "tablecast.wikiSearchQuery";
 export default function WikiPanel({ user, isPopout = false }) {
   const { addToast } = useToast();
   const navigate = useNavigate();
+  const { id: routeArticleId } = useParams();
+  const location = useLocation();
   const { socket } = useSocket();
   const npcTimerRef = useRef(null);
   const [articles, setArticles] = useState([]);
@@ -276,6 +278,32 @@ export default function WikiPanel({ user, isPopout = false }) {
       localStorage.removeItem(SEARCH_QUERY_STORAGE_KEY);
     }
   }, [searchQuery]);
+
+  // ── Sync route articleId → selectedArticle ─────────────────────────
+  useEffect(() => {
+    if (!routeArticleId) return;
+    const article = articles.find(a => a.id === Number(routeArticleId));
+    if (article && article.id !== selectedArticle?.id) {
+      setSelectedArticle(article);
+    }
+  }, [routeArticleId, articles, selectedArticle?.id]);
+
+  // ── Sync selectedArticle → URL for shareable links ─────────────────
+  useEffect(() => {
+    if (isPopout) return;
+    // Derive base path by removing any trailing number segment
+    const base = location.pathname.replace(/\/\d+$/, "");
+    if (selectedArticle) {
+      const expected = `${base}/${selectedArticle.id}`;
+      if (location.pathname !== expected) {
+        navigate(expected, { replace: true });
+      }
+    } else {
+      if (location.pathname !== base && !routeArticleId) {
+        navigate(base, { replace: true });
+      }
+    }
+  }, [selectedArticle?.id, isPopout, location.pathname, navigate, routeArticleId]);
 
   // ── Real-time wiki sync via Socket.io ──────────────────────────────
   useEffect(() => {

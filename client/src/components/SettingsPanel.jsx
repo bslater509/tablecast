@@ -2,7 +2,7 @@
 // Tablecast — DM Settings Panel (Phase 6)
 // Orchestrator for backup, reference, and AI sub-panels.
 // =============================================================================
-import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Bot, Cloud, Map } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";
@@ -15,14 +15,12 @@ const SETTINGS_TAB_STORAGE_KEY = "tablecast.settingsTab";
 
 function SettingsPanel({ user }) {
   const { addToast } = useToast();
-  const [activeSettingsTab, setActiveSettingsTab] = useState(() => localStorage.getItem(SETTINGS_TAB_STORAGE_KEY) || "backups");
+  const params = useParams();
+  const navigate = useNavigate();
+  const activeSettingsTab = params.tab || localStorage.getItem(SETTINGS_TAB_STORAGE_KEY) || "backups";
 
   const authHeaders = getAuthHeaders(user);
   const jsonAuthHeaders = getJsonAuthHeaders(user);
-
-  useEffect(() => {
-    localStorage.setItem(SETTINGS_TAB_STORAGE_KEY, activeSettingsTab);
-  }, [activeSettingsTab]);
 
   return (
     <div style={styles.container} className="fade-in">
@@ -34,7 +32,7 @@ function SettingsPanel({ user }) {
         <div style={styles.subTabNav}>
           <button
             id="dm-settings-backups-tab"
-            onClick={() => setActiveSettingsTab("backups")}
+            onClick={() => navigate("/dm/settings/backups")}
             style={{
               ...styles.subTabBtn,
               background: activeSettingsTab === "backups" ? "var(--color-accent-dim)" : "transparent",
@@ -48,7 +46,7 @@ function SettingsPanel({ user }) {
           </button>
           <button
             id="dm-settings-ai-tab"
-            onClick={() => setActiveSettingsTab("ai")}
+            onClick={() => navigate("/dm/settings/ai")}
             style={{
               ...styles.subTabBtn,
               background: activeSettingsTab === "ai" ? "var(--color-accent-dim)" : "transparent",
@@ -62,7 +60,7 @@ function SettingsPanel({ user }) {
           </button>
           <button
             id="dm-settings-roadmap-tab"
-            onClick={() => setActiveSettingsTab("roadmap")}
+            onClick={() => navigate("/dm/settings/roadmap")}
             style={{
               ...styles.subTabBtn,
               background: activeSettingsTab === "roadmap" ? "var(--color-accent-dim)" : "transparent",

@@ -14,7 +14,7 @@ const VTT_ZOOM_KEY = "tablecast.vttZoom";
 const VTT_PAN_OFFSET_KEY = "tablecast.vttPanOffset";
 const VTT_SELECTED_TOKEN_KEY = "tablecast.vttSelectedToken";
 
-export default function useMapData({ user, isPopout, socket, isConnected, addToast, showConfirm }) {
+export default function useMapData({ user, isPopout, socket, isConnected, addToast, showConfirm, initialMapId = null }) {
   // ---------------------------------------------------------------------------
   // Map & token state
   // ---------------------------------------------------------------------------
@@ -304,7 +304,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const id = ++currentFetchIdRef.current;
-    const storedMapId = Number(localStorage.getItem(ACTIVE_MAP_STORAGE_KEY)) || null;
+    const storedMapId = initialMapId || Number(localStorage.getItem(ACTIVE_MAP_STORAGE_KEY)) || null;
     loadMaps(storedMapId, id);
     loadCharacters(id);
     loadNpcs(id);

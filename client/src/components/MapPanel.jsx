@@ -4,6 +4,7 @@
 // MapCanvas, MapToolbar, MapEncounterControls, MapModals, MapTokenDetails
 // =============================================================================
 import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   AlertCircle, Plus, Trash2, X, UserPlus, Undo2, Grid3x3, Eye,
 } from "lucide-react";
@@ -24,8 +25,12 @@ export default function MapPanel({ user, isPopout = false }) {
   const { addToast } = useToast();
   const { showConfirm } = useConfirm();
 
+  // ---- Route-driven map selection ----
+  const { id: routeMapId } = useParams();
+  const navigate = useNavigate();
+
   // ---- All state, data, and action handlers ----
-  const D = useMapData({ user, isPopout, socket, isConnected, addToast, showConfirm });
+  const D = useMapData({ user, isPopout, socket, isConnected, addToast, showConfirm, initialMapId: routeMapId ? Number(routeMapId) : null });
 
   // ---- Interaction handlers (zoom, pan, drag, touch) ----
   const interaction = useMapInteraction({
@@ -101,7 +106,11 @@ export default function MapPanel({ user, isPopout = false }) {
           <div style={styles.dmMapSelector}>
             <select
               value={D.activeMap?.id || ""}
-              onChange={(e) => D.handleSelectMap(Number(e.target.value))}
+              onChange={(e) => {
+                const mapId = Number(e.target.value);
+                D.handleSelectMap(mapId);
+                if (!isPopout) navigate(`/dm/map/${mapId}`);
+              }}
               style={styles.select}
               className="form-input touch-target"
               aria-label="Select map"

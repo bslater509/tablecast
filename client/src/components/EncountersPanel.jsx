@@ -24,6 +24,7 @@ import { useSocket } from "../context/SocketContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { getJsonAuthHeaders } from "../utils/authHeaders";
 import { encounterStyles, hpColor, badgeColor } from "./encounters/encounterStyles";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import AiBuilderModal from "./encounters/AiBuilderModal";
 import AddParticipantPanel from "./encounters/AddParticipantPanel";
 
@@ -61,6 +62,10 @@ export default function EncountersPanel({
   const { showConfirm } = useConfirm();
   const { socket, isConnected } = useSocket();
   const isDm = user?.role === "DM" && !readOnly;
+  const navigate = useNavigate();
+  const { id: routeEncounterId } = useParams();
+  const location = useLocation();
+  const basePath = location.pathname.replace(/\/\d+$/, "");
 
   /* ---- auth headers ---- */
   const authHeaders = useMemo(() => getJsonAuthHeaders(user), [user?.id]);
@@ -169,12 +174,25 @@ export default function EncountersPanel({
   useEffect(() => {
     fetchMaps();
     fetchResources();
-    // Restore previously selected encounter
-    const storedEncId = localStorage.getItem(SELECTED_ENCOUNTER_STORAGE_KEY);
-    if (storedEncId) {
-      fetchEncounter(Number(storedEncId));
+    // Restore previously selected encounter from URL or localStorage
+    if (routeEncounterId) {
+      fetchEncounter(Number(routeEncounterId));
+    } else {
+      const storedEncId = localStorage.getItem(SELECTED_ENCOUNTER_STORAGE_KEY);
+      if (storedEncId) {
+        fetchEncounter(Number(storedEncId));
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchMaps, fetchResources]);
+
+  // Sync route encounterId → selected encounter
+  useEffect(() => {
+    if (routeEncounterId) {
+      fetchEncounter(Number(routeEncounterId));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeEncounterId]);
 
   useEffect(() => {
     fetchEncounters(selectedMapId || undefined);
@@ -557,7 +575,10 @@ export default function EncountersPanel({
               <div
                 key={enc.id}
                 style={{ ...encounterStyles.card, ...(isActive ? encounterStyles.cardActive : {}) }}
-                onClick={() => fetchEncounter(enc.id)}
+                onClick={() => {
+                  fetchEncounter(enc.id);
+                  if (!isPopout) navigate(`${basePath}/${enc.id}`, { replace: true });
+                }}
               >
                 <div style={{ ...encounterStyles.cardIcon, background: meta.bg }}>
                   <Swords size={20} color={meta.fg} />
@@ -600,7 +621,7 @@ export default function EncountersPanel({
       <div style={encounterStyles.detailHeader}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <button
-            onClick={() => { setSelectedEncounter(null); localStorage.removeItem(SELECTED_ENCOUNTER_STORAGE_KEY); }}
+            onClick={() => { setSelectedEncounter(null); localStorage.removeItem(SELECTED_ENCOUNTER_STORAGE_KEY); if (!isPopout) navigate(basePath, { replace: true }); }}
             style={{
               background: "none",
               border: "none",

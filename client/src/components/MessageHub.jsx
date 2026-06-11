@@ -4,6 +4,7 @@
 // to the appropriate chat view (Session Chat, Rules Scholar, NPC Roleplay).
 // =============================================================================
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
 import ConversationList from "./ConversationList";
@@ -70,7 +71,7 @@ function SessionChatScreen({ user, onBack }) {
 // =============================================================================
 // Main MessageHub Component
 // =============================================================================
-export default function MessageHub({ user }) {
+export default function MessageHub({ user, initialView: propInitialView }) {
   const { socket, isConnected } = useSocket();
   const [npcs, setNpcs] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -91,6 +92,35 @@ export default function MessageHub({ user }) {
   const [sessionUnread, setSessionUnread] = useState(0);
   const viewRef = useRef(activeView);
   viewRef.current = activeView;
+
+  const navigate = useNavigate();
+  const location = useLocation();
+  const params = useParams();
+
+  // ---- URL-driven state sync ----
+  // Syncs component state with URL params when navigating between
+  // message sub-routes (session, rules/:convId, npc/:npcId/:convId).
+  useEffect(() => {
+    if (!propInitialView) return;
+    if (propInitialView === "session") {
+      setActiveView("session");
+      setSessionUnread(0);
+    } else if (propInitialView === "rules") {
+      setActiveView("rules");
+      setActiveConvId(params.convId || null);
+    } else if (propInitialView === "npc") {
+      setActiveView("npc");
+      setActiveNpcId(params.npcId ? Number(params.npcId) : null);
+      setActiveConvId(params.convId || null);
+    }
+  }, [propInitialView, params.npcId, params.convId]); // watch params for in-app navigation
+
+  // Lookup NPC data for URL-driven NPC view when npcs load (or change)
+  useEffect(() => {
+    if (propInitialView !== "npc" || !params.npcId || npcs.length === 0) return;
+    const npcData = npcs.find((n) => n.id === Number(params.npcId));
+    if (npcData) setActiveNpcData(npcData);
+  }, [npcs, propInitialView, params.npcId]);
 
   // ---- Fetch data ----
   useEffect(() => {
@@ -243,7 +273,9 @@ export default function MessageHub({ user }) {
     setActiveNpcId(npc.id);
     setActiveNpcData(npc);
     setActiveConvId(null); // new conversation
-  }, []);
+    const messagesBase = location.pathname.match(/^\/(dm|player)\/messages/)?.[0] || '/dm/messages';
+    navigate(messagesBase + '/npc/' + npc.id, { replace: true });
+  }, [navigate, location.pathname]);
 
   const handleNewNpc = useCallback(() => {
     setShowNpcPicker(true);
@@ -251,12 +283,15 @@ export default function MessageHub({ user }) {
 
   // ---- Conversation select ----
   const handleSelectConversation = useCallback((conv) => {
+    const messagesBase = location.pathname.match(/^\/(dm|player)\/messages/)?.[0] || '/dm/messages';
     if (conv.type === "session") {
       setActiveView("session");
       setSessionUnread(0);
+      navigate(messagesBase + '/session', { replace: true });
     } else if (conv.type === "rules") {
       setActiveView("rules");
       setActiveConvId(conv.conversationId || null);
+      navigate(messagesBase + '/rules/' + (conv.conversationId || ''), { replace: true });
     } else if (conv.type === "npc") {
       setActiveView("npc");
       setActiveNpcId(conv.npcId);
@@ -264,8 +299,9 @@ export default function MessageHub({ user }) {
       // Look up NPC data
       const npcData = npcs.find((n) => n.id === conv.npcId);
       setActiveNpcData(npcData || null);
+      navigate(messagesBase + '/npc/' + conv.npcId + '/' + (conv.conversationId || ''), { replace: true });
     }
-  }, [npcs]);
+  }, [npcs, navigate, location.pathname]);
 
   // ---- Back to list ----
   const handleBack = useCallback(() => {
@@ -273,7 +309,9 @@ export default function MessageHub({ user }) {
     setActiveNpcId(null);
     setActiveNpcData(null);
     setActiveConvId(null);
-  }, []);
+    const messagesBase = location.pathname.match(/^\/(dm|player)\/messages/)?.[0] || '/dm/messages';
+    navigate(messagesBase, { replace: true });
+  }, [navigate, location.pathname]);
 
   // ---- Render ----
   // Session Chat

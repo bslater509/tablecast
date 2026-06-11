@@ -561,14 +561,17 @@ function App() {
         
         {/* Standalone Popout Panel Routes */}
         <Route path="/dm/popout/map" element={<ErrorBoundary critical={false}><MapPanel user={user} isPopout={true} /></ErrorBoundary>} />
+        <Route path="/dm/popout/map/:id" element={<ErrorBoundary critical={false}><MapPanel user={user} isPopout={true} /></ErrorBoundary>} />
         <Route path="/dm/popout/chat" element={<ErrorBoundary critical={false}><ChatPanel user={user} isPopout={true} /></ErrorBoundary>} />
         <Route path="/dm/popout/ai" element={<AiPanel user={user} />} />
         <Route path="/dm/popout/wiki" element={<ErrorBoundary critical={false}><WikiPanel user={user} isPopout={true} /></ErrorBoundary>} />
+        <Route path="/dm/popout/wiki/:id" element={<ErrorBoundary critical={false}><WikiPanel user={user} isPopout={true} /></ErrorBoundary>} />
         <Route path="/dm/popout/reference" element={<ReferencePanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/dice" element={<DiceRollerPanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/sessions" element={<SessionsPanel user={user} isPopout={true} basePath="/dm/popout/sessions" />} />
         <Route path="/dm/popout/sessions/:id" element={<SessionsPanel user={user} isPopout={true} basePath="/dm/popout/sessions" />} />
         <Route path="/dm/popout/encounters" element={<ErrorBoundary critical={false}><EncountersPanel user={user} isPopout={true} basePath="/dm/popout/encounters" /></ErrorBoundary>} />
+        <Route path="/dm/popout/encounters/:id" element={<ErrorBoundary critical={false}><EncountersPanel user={user} isPopout={true} basePath="/dm/popout/encounters" /></ErrorBoundary>} />
         <Route path="/dm/popout/connection" element={<ConnectionHelpPanel user={user} />} />
         <Route path="/dm/popout/characters" element={<CharacterList user={user} onSelectCharacter={(char) => window.open(`/#/dm/popout/characters/${char.id}`, '_blank', 'width=600,height=800,resizable=yes')} isPopout={true} />} />
         <Route path="/dm/popout/characters/:id" element={<ErrorBoundary critical={false}><CharacterSheetWrapper user={user} basePath="/dm/popout/characters" isPopout={true} /></ErrorBoundary>} />
@@ -1007,12 +1010,19 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
           <Route path="sheet/:id" element={<ErrorBoundary critical={false}><CharacterSheetWrapper user={user} basePath="/player/sheet" /></ErrorBoundary>} />
           <Route path="dice" element={<DiceRollerPanel user={user} />} />
           <Route path="messages" element={<MessageHub user={user} />} />
+          <Route path="messages/session" element={<MessageHub user={user} initialView="session" />} />
+          <Route path="messages/rules" element={<MessageHub user={user} initialView="rules" />} />
+          <Route path="messages/rules/:convId" element={<MessageHub user={user} initialView="rules" />} />
+          <Route path="messages/npc/:npcId" element={<MessageHub user={user} initialView="npc" />} />
+          <Route path="messages/npc/:npcId/:convId" element={<MessageHub user={user} initialView="npc" />} />
           <Route path="chat" element={<Navigate to="/player/messages" replace />} />
             <Route path="chat/:subtab" element={<Navigate to="/player/messages" replace />} />
           <Route path="wiki" element={<ErrorBoundary critical={false}><WikiPanel user={user} isPopout={false} /></ErrorBoundary>} />
+          <Route path="wiki/:id" element={<ErrorBoundary critical={false}><WikiPanel user={user} isPopout={false} /></ErrorBoundary>} />
           <Route path="sessions" element={<SessionsPanel user={user} readOnly basePath="/player/sessions" />} />
           <Route path="sessions/:id" element={<SessionsPanel user={user} readOnly basePath="/player/sessions" />} />
           <Route path="encounters" element={<ErrorBoundary critical={false}><EncountersPanel user={user} readOnly basePath="/player/encounters" /></ErrorBoundary>} />
+          <Route path="encounters/:id" element={<ErrorBoundary critical={false}><EncountersPanel user={user} readOnly basePath="/player/encounters" /></ErrorBoundary>} />
           <Route path="chat-journal" element={<Navigate to="/player/messages" replace />} />
           <Route path="chat-journal/chat" element={<Navigate to="/player/messages" replace />} />
           <Route path="chat-journal/journal" element={<Navigate to="/player/wiki" replace />} />
@@ -1251,6 +1261,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
         <main style={styles.mainContent}>
           <Routes>
             <Route path="map" element={<ErrorBoundary critical={false}><MapPanel user={user} /></ErrorBoundary>} />
+            <Route path="map/:id" element={<ErrorBoundary critical={false}><MapPanel user={user} /></ErrorBoundary>} />
             <Route
               path="characters"
               element={
@@ -1263,14 +1274,21 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="characters/:id" element={<ErrorBoundary critical={false}><CharacterSheetWrapper user={user} basePath="/dm/characters" /></ErrorBoundary>} />
             <Route path="dice" element={<DiceRollerPanel user={user} />} />
             <Route path="messages" element={<MessageHub user={user} />} />
+            <Route path="messages/session" element={<MessageHub user={user} initialView="session" />} />
+            <Route path="messages/rules" element={<MessageHub user={user} initialView="rules" />} />
+            <Route path="messages/rules/:convId" element={<MessageHub user={user} initialView="rules" />} />
+            <Route path="messages/npc/:npcId" element={<MessageHub user={user} initialView="npc" />} />
+            <Route path="messages/npc/:npcId/:convId" element={<MessageHub user={user} initialView="npc" />} />
             {/* Legacy redirects */}
             <Route path="chat" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat/ai" element={<Navigate to="/dm/messages" replace />} />
             <Route path="ai" element={<Navigate to="/dm/messages" replace />} />
             <Route path="wiki" element={<ErrorBoundary critical={false}><WikiPanel user={user} isPopout={false} /></ErrorBoundary>} />
+            <Route path="wiki/:id" element={<ErrorBoundary critical={false}><WikiPanel user={user} isPopout={false} /></ErrorBoundary>} />
             <Route path="sessions" element={<SessionsPanel user={user} basePath="/dm/sessions" />} />
             <Route path="sessions/:id" element={<SessionsPanel user={user} basePath="/dm/sessions" />} />
             <Route path="encounters" element={<ErrorBoundary critical={false}><EncountersPanel user={user} basePath="/dm/encounters" /></ErrorBoundary>} />
+            <Route path="encounters/:id" element={<ErrorBoundary critical={false}><EncountersPanel user={user} basePath="/dm/encounters" /></ErrorBoundary>} />
             <Route path="chat-journal" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat-journal/chat" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat-journal/journal" element={<Navigate to="/dm/wiki" replace />} />
@@ -1278,6 +1296,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="chat-journal/:subtab" element={<Navigate to="/dm/messages" replace />} />
             <Route path="importer" element={<ImporterPanel user={user} />} />
             <Route path="settings" element={<SettingsPanel user={user} />} />
+            <Route path="settings/:tab" element={<SettingsPanel user={user} />} />
             <Route path="*" element={<Navigate to="map" replace />} />
           </Routes>
         </main>
