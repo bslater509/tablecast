@@ -38,6 +38,9 @@ RUN cd server && npx prisma generate
 # ── Server source ─────────────────────────────────────────────────────────────
 COPY server/ ./server/
 
+# ── Feature roadmap markdown (served via API) ─────────────────────────────────
+COPY features.md /app/features.md
+
 # ── Copy built React frontend into location Express will serve ─────────────
 COPY --from=client-builder /build/client/dist ./client/dist
 
