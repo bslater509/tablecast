@@ -22,6 +22,7 @@ let cache = {
   classes: null,
   rules: null,
   actions: null,
+  feats: null,
 };
 
 /**
@@ -37,6 +38,8 @@ function clearCache() {
     classes: null,
     rules: null,
     actions: null,
+    feats: null,
+    feats: null,
   };
   console.log("[ReferenceSearch] Memory cache cleared.");
 }
@@ -236,6 +239,26 @@ function getRules() {
   return cache.rules;
 }
 
+function getFeats() {
+  if (cache.feats) return cache.feats;
+  cache.feats = loadSingleFromCache("feats.json", "feat");
+  if (!cache.feats.length) {
+    cache.feats = loadSingleFromCache("feats.json", "feat");
+  }
+  console.log(`[ReferenceSearch] Loaded ${cache.feats.length} feats from cache.`);
+  return cache.feats;
+}
+
+function getFeats() {
+  if (cache.feats) return cache.feats;
+  cache.feats = loadSingleFromCache("feats.json", "feat");
+  if (!cache.feats.length) {
+    cache.feats = loadSingleFromCache("feats.json", "feat");
+  }
+  console.log(`[ReferenceSearch] Loaded ${cache.feats.length} feats from cache.`);
+  return cache.feats;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers (unchanged from original)
 // ---------------------------------------------------------------------------
@@ -264,6 +287,8 @@ function summarizeItem(item, category) {
       return { ...base, cr: item.cr, hp: item.hp ? { average: item.hp.average, formula: item.hp.formula } : undefined, ac: item.ac, size: item.size, type: item.type };
     case "items":
       return { ...base, rarity: item.rarity, type: item.type, weight: item.weight, value: item.value };
+    case "feats":
+      return { ...base, prerequisite: item.prerequisite };
     default:
       return base;
   }
@@ -277,6 +302,7 @@ function getDataset(category) {
     case "races":    return getRaces();
     case "classes":  return getClasses();
     case "rules":    return getRules();
+    case "feats":    return getFeats();
     default:         return [];
   }
 }
@@ -330,7 +356,7 @@ function getMonsterFluffByName(name, source = "", options = {}) {
 
 function listAvailableSources(category) {
   const sourceSet = new Set();
-  const categories = category ? [category] : ["spells", "monsters", "items", "races", "classes", "rules"];
+  const categories = category ? [category] : ["spells", "monsters", "items", "races", "classes", "rules", "feats"];
   for (const cat of categories) {
     for (const item of getDataset(cat)) {
       const src = normalizeSource(item?.source);

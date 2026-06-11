@@ -2,7 +2,7 @@
 // Tablecast — Level-Up Wizard Component (M3.2)
 // Multi-step guided level-up: HP, ASI/Feat, Review, Apply
 // =============================================================================
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getJsonAuthHeaders } from "../../utils/authHeaders";
 import { formatMod, getProficiencyBonus } from "./characterUtils";
 
@@ -34,6 +34,47 @@ export default function LevelUpWizard({ character, user, onClose, onApplied }) {
   const [asiPrimary, setAsiPrimary] = useState("");
   const [asiSecondary, setAsiSecondary] = useState("");
   const [featName, setFeatName] = useState("");
+  // 5etools feat search
+  const [featSearchQuery, setFeatSearchQuery] = useState("");
+  const [featResults, setFeatResults] = useState([]);
+  const [featSearching, setFeatSearching] = useState(false);
+  const [showFeatResults, setShowFeatResults] = useState(false);
+
+  // Feat autocomplete from 5etools reference
+  const [featSearchResults, setFeatSearchResults] = useState([]);
+  const [featSearchLoading, setFeatSearchLoading] = useState(false);
+  const [showFeatDropdown, setShowFeatDropdown] = useState(false);
+  const featSearchTimer = useRef(null);
+
+  useEffect(() => {
+    if (featSearchTimer.current) clearTimeout(featSearchTimer.current);
+    if (!featName || featName.length < 2) {
+      setFeatSearchResults([]);
+      setShowFeatDropdown(false);
+      return;
+    }
+    featSearchTimer.current = setTimeout(async () => {
+      setFeatSearchLoading(true);
+      try {
+        const authHeaders = getJsonAuthHeaders({ id: user?.id, isCharacter: user?.isCharacter, characterId: user?.characterId });
+        const res = await fetch(`/api/reference/search?category=feats&q=${encodeURIComponent(featName)}&limit=10`, {
+          headers: authHeaders,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setFeatSearchResults(Array.isArray(data) ? data : []);
+          setShowFeatDropdown(data.length > 0);
+        }
+      } catch (err) {
+        console.error("[LevelUpWizard] Feat search error:", err);
+      } finally {
+        setFeatSearchLoading(false);
+      }
+    }, 300);
+    return () => {
+      if (featSearchTimer.current) clearTimeout(featSearchTimer.current);
+    };
+  }, [featName, user]);
 
   // Spell slots progression table (PHB full casters)
   const getSpellSlotsForLevel = (lvl) => {
@@ -89,6 +130,32 @@ export default function LevelUpWizard({ character, user, onClose, onApplied }) {
       : []),
     ...(featName ? [{ label: "Feat", value: featName }] : []),
   ];
+
+  // Search 5etools reference for feats
+  async function handleFeatSearch() {
+    if (!featSearchQuery.trim()) return;
+    setFeatSearching(true);
+    try {
+      const res = await fetch(`/api/reference/search?category=feats&q=${encodeURIComponent(featSearchQuery.trim())}&limit=20`, {
+        headers: getJsonAuthHeaders(user),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFeatResults(data);
+        setShowFeatResults(true);
+      }
+    } catch (err) {
+      console.error("Feat search failed:", err);
+    } finally {
+      setFeatSearching(false);
+    }
+  }
+
+  function handleSelectFeat(feat) {
+    setFeatName(feat.name);
+    setFeatSearchQuery(feat.name);
+    setShowFeatResults(false);
+  }
 
   async function handleApply() {
     setLoading(true);
@@ -291,19 +358,88 @@ export default function LevelUpWizard({ character, user, onClose, onApplied }) {
                 </div>
                 <div>
                   <label style={{ fontSize: "0.7rem", color: "var(--color-muted)", fontWeight: 600 }}>Feat (optional)</label>
-                  <input
-                    type="text"
-                    value={featName}
-                    onChange={(e) => setFeatName(e.target.value)}
-                    placeholder="e.g. Sharpshooter, War Caster..."
-                    style={{
-                      width: "100%", padding: "0.4rem", marginTop: "0.15rem", boxSizing: "border-box",
-                      background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: "4px", color: "var(--color-text)", outline: "none", fontSize: "0.8rem",
-                    }}
-                    className="form-input"
-                  />
+                  <div style={{ display: "flex", gap: "0.35rem", marginTop: "0.15rem" }}>
+                    <input
+                      type="text"
+                      value={featSearchQuery}
+                      onChange={(e) => { setFeatSearchQuery(e.target.value); setFeatName(""); setShowFeatResults(false); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleFeatSearch(); }}
+                      placeholder="Search feats from 5etools..."
+                      style={{
+                        flex: 1, padding: "0.4rem", boxSizing: "border-box",
+                        background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: "4px", color: "var(--color-text)", outline: "none", fontSize: "0.8rem",
+                      }}
+                      className="form-input"
+                    />
+                    <button
+                      onClick={handleFeatSearch}
+                      disabled={featSearching || !featSearchQuery.trim()}
+                      style={{
+                        padding: "0.4rem 0.6rem", fontSize: "0.72rem", borderRadius: "4px",
+                        background: "var(--color-accent)", color: "var(--color-bg)", border: "none",
+                        fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", opacity: featSearching || !featSearchQuery.trim() ? 0.5 : 1,
+                      }}
+                      className="touch-target"
+                    >
+                      {featSearching ? "..." : "Search"}
+                    </button>
+                  </div>
+                  {showFeatResults && (
+                    <div style={{
+                      marginTop: "0.25rem", maxHeight: "160px", overflow: "auto",
+                      border: "1px solid rgba(255,255,255,0.08)", borderRadius: "4px",
+                      background: "rgba(0,0,0,0.4)",
+                    }}>
+                      {featResults.length === 0 ? (
+                        <div style={{ padding: "0.4rem", fontSize: "0.75rem", color: "var(--color-muted)", textAlign: "center" }}>
+                          No feats found. You can type a feat name manually below.
+                        </div>
+                      ) : (
+                        featResults.map((feat, i) => (
+                          <button
+                            key={i}
+                            onClick={() => handleSelectFeat(feat)}
+                            style={{
+                              display: "block", width: "100%", padding: "0.4rem 0.5rem", textAlign: "left",
+                              background: featName === feat.name ? "rgba(200,151,58,0.15)" : "transparent",
+                              border: "none", borderBottom: i < featResults.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                              color: "var(--color-text)", cursor: "pointer", fontSize: "0.78rem",
+                            }}
+                            className="touch-target"
+                          >
+                            <strong>{feat.name}</strong>
+                            {feat.prerequisite && (
+                              <span style={{ color: "var(--color-muted)", marginLeft: "0.35rem", fontSize: "0.7rem" }}>
+                                ({feat.prerequisite})
+                              </span>
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  {featName && !showFeatResults && (
+                    <div style={{ fontSize: "0.72rem", color: "var(--color-accent)", marginTop: "0.2rem" }}>
+                      Selected: <strong>{featName}</strong>
+                    </div>
+                  )}
                 </div>
+                <div style={{ fontSize: "0.7rem", color: "var(--color-muted)", marginTop: "-0.35rem" }}>
+                  Or type a feat name directly below:
+                </div>
+                <input
+                  type="text"
+                  value={featName}
+                  onChange={(e) => { setFeatName(e.target.value); setShowFeatResults(false); }}
+                  placeholder="e.g. Sharpshooter, War Caster..."
+                  style={{
+                    width: "100%", padding: "0.4rem", boxSizing: "border-box",
+                    background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "4px", color: "var(--color-text)", outline: "none", fontSize: "0.8rem",
+                  }}
+                  className="form-input"
+                />
               </>
             ) : (
               <p style={{ color: "var(--color-text)", fontSize: "0.85rem", margin: 0 }}>

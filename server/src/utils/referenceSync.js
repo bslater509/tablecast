@@ -23,6 +23,7 @@ const DATA_FILES = {
   items:    "/items.json",
   races:    "/races.json",
   classes:  "/class/class-barbarian.json",
+  feats:    "/feats.json",
 };
 
 // Additional spell/monster/class source files (discovered at sync time)
