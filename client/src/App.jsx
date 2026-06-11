@@ -224,6 +224,32 @@ function App() {
 
     async function loadData() {
       try {
+        // Restore stored DM session first (independent of heroes API)
+        if (!user) {
+          const storedDmJson = localStorage.getItem(DM_IDENTITY_STORAGE_KEY);
+          if (storedDmJson) {
+            try {
+              const storedDm = JSON.parse(storedDmJson);
+              if (storedDm && storedDm.role === "DM" && storedDm.id) {
+                handleSelectDm({
+                  id: storedDm.id,
+                  username: storedDm.username,
+                  role: "DM",
+                  diceTheme: storedDm.diceTheme,
+                  diceColor: storedDm.diceColor,
+                });
+                // Skip heroes fetch for DM — heroes are loaded on the Characters panel
+                if (!cancelled) setLoadingHeroes(false);
+                return;
+              } else {
+                localStorage.removeItem(DM_IDENTITY_STORAGE_KEY);
+              }
+            } catch {
+              localStorage.removeItem(DM_IDENTITY_STORAGE_KEY);
+            }
+          }
+        }
+
         // Fetch heroes (public, no auth needed)
         const heroRes = await fetch("/api/heroes");
         if (cancelled) return;
@@ -231,30 +257,6 @@ function App() {
           const heroData = await heroRes.json();
           if (cancelled) return;
           setHeroes(heroData);
-
-          // Check for stored DM session first
-          if (!user) {
-            const storedDmJson = localStorage.getItem(DM_IDENTITY_STORAGE_KEY);
-            if (storedDmJson) {
-              try {
-                const storedDm = JSON.parse(storedDmJson);
-                if (storedDm && storedDm.role === "DM" && storedDm.id) {
-                  handleSelectDm({
-                    id: storedDm.id,
-                    username: storedDm.username,
-                    role: "DM",
-                    diceTheme: storedDm.diceTheme,
-                    diceColor: storedDm.diceColor,
-                  });
-                  return;
-                } else {
-                  localStorage.removeItem(DM_IDENTITY_STORAGE_KEY);
-                }
-              } catch {
-                localStorage.removeItem(DM_IDENTITY_STORAGE_KEY);
-              }
-            }
-          }
 
           // Check for stored character session from the same heroData
           if (!user) {
