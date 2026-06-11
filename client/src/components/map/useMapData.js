@@ -10,6 +10,9 @@ const ACTIVE_MAP_STORAGE_KEY = "tablecast.activeMapId";
 const VTT_SHOW_GRID_KEY = "tablecast.vttShowGrid";
 const VTT_SHOW_LIGHTING_KEY = "tablecast.vttShowLighting";
 const VTT_TOOL_KEY = "tablecast.vttTool";
+const VTT_ZOOM_KEY = "tablecast.vttZoom";
+const VTT_PAN_OFFSET_KEY = "tablecast.vttPanOffset";
+const VTT_SELECTED_TOKEN_KEY = "tablecast.vttSelectedToken";
 
 export default function useMapData({ user, isPopout, socket, isConnected, addToast, showConfirm }) {
   // ---------------------------------------------------------------------------
@@ -55,9 +58,18 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     const stored = localStorage.getItem(VTT_SHOW_GRID_KEY);
     return stored !== null ? stored === "true" : true;
   });
-  const [zoom, setZoom] = useState(1.0);
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [selectedTokenId, setSelectedTokenId] = useState(null);
+  const [zoom, setZoom] = useState(() => {
+    const stored = localStorage.getItem(VTT_ZOOM_KEY);
+    return stored ? parseFloat(stored) : 1.0;
+  });
+  const [panOffset, setPanOffset] = useState(() => {
+    const stored = localStorage.getItem(VTT_PAN_OFFSET_KEY);
+    return stored ? JSON.parse(stored) : { x: 0, y: 0 };
+  });
+  const [selectedTokenId, setSelectedTokenId] = useState(() => {
+    const stored = localStorage.getItem(VTT_SELECTED_TOKEN_KEY);
+    return stored ? Number(stored) : null;
+  });
 
   // Fog of War
   const [isDrawing, setIsDrawing] = useState(false);
@@ -307,6 +319,15 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
   useEffect(() => { localStorage.setItem(VTT_SHOW_GRID_KEY, String(showGrid)); }, [showGrid]);
   useEffect(() => { localStorage.setItem(VTT_SHOW_LIGHTING_KEY, String(showLighting)); }, [showLighting]);
   useEffect(() => { localStorage.setItem(VTT_TOOL_KEY, tool); }, [tool]);
+  useEffect(() => { localStorage.setItem(VTT_ZOOM_KEY, String(zoom)); }, [zoom]);
+  useEffect(() => { localStorage.setItem(VTT_PAN_OFFSET_KEY, JSON.stringify(panOffset)); }, [panOffset]);
+  useEffect(() => {
+    if (selectedTokenId !== null) {
+      localStorage.setItem(VTT_SELECTED_TOKEN_KEY, String(selectedTokenId));
+    } else {
+      localStorage.removeItem(VTT_SELECTED_TOKEN_KEY);
+    }
+  }, [selectedTokenId]);
 
   // ---------------------------------------------------------------------------
   // Socket listeners

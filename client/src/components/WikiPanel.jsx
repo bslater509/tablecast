@@ -28,6 +28,7 @@ marked.setOptions({
 
 const SELECTED_ARTICLE_STORAGE_KEY = "tablecast.selectedArticleId";
 const CATEGORY_TAB_STORAGE_KEY = "tablecast.wikiCategoryTab";
+const SEARCH_QUERY_STORAGE_KEY = "tablecast.wikiSearchQuery";
 
 // NpcStatblock has been moved to ./wiki/NpcStatblock.jsx
 
@@ -40,7 +41,9 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [linkedSession, setLinkedSession] = useState(null);
   const [npcs, setNpcs] = useState([]);
   const [monsters, setMonsters] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return localStorage.getItem(SEARCH_QUERY_STORAGE_KEY) || "";
+  });
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -264,6 +267,15 @@ export default function WikiPanel({ user, isPopout = false }) {
       localStorage.removeItem(SELECTED_ARTICLE_STORAGE_KEY);
     }
   }, [selectedArticle]);
+
+  // Persist search query
+  useEffect(() => {
+    if (searchQuery) {
+      localStorage.setItem(SEARCH_QUERY_STORAGE_KEY, searchQuery);
+    } else {
+      localStorage.removeItem(SEARCH_QUERY_STORAGE_KEY);
+    }
+  }, [searchQuery]);
 
   // ── Real-time wiki sync via Socket.io ──────────────────────────────
   useEffect(() => {

@@ -47,6 +47,7 @@ const CONDITION_COLORS = {
 };
 const DEFAULT_COND_COLOR = "#a855f7";
 const SELECTED_ENCOUNTER_STORAGE_KEY = "tablecast.selectedEncounterId";
+const MAP_FILTER_STORAGE_KEY = "tablecast.encounterMapFilter";
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
@@ -66,7 +67,9 @@ export default function EncountersPanel({
 
   /* ---- state ---- */
   const [maps, setMaps] = useState([]);
-  const [selectedMapId, setSelectedMapId] = useState("");
+  const [selectedMapId, setSelectedMapId] = useState(() => {
+    return localStorage.getItem(MAP_FILTER_STORAGE_KEY) || "";
+  });
   const [encounters, setEncounters] = useState([]);
   const [selectedEncounter, setSelectedEncounter] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -176,6 +179,15 @@ export default function EncountersPanel({
   useEffect(() => {
     fetchEncounters(selectedMapId || undefined);
   }, [selectedMapId, fetchEncounters]);
+
+  // Persist selected map filter
+  useEffect(() => {
+    if (selectedMapId) {
+      localStorage.setItem(MAP_FILTER_STORAGE_KEY, selectedMapId);
+    } else {
+      localStorage.removeItem(MAP_FILTER_STORAGE_KEY);
+    }
+  }, [selectedMapId]);
 
   /* ---- Socket listeners ---- */
   useEffect(() => {
