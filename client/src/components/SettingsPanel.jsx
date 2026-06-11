@@ -6,6 +6,16 @@ import { useState, useEffect } from "react";
 import { Bot, Cloud, Plus } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";
+import { styles } from "./settings/settingsStyles";
+import {
+  fetchRefStatus as apiFetchRefStatus,
+  fetchBackupConfig as apiFetchBackupConfig,
+  fetchProviders as apiFetchProviders,
+  fetchConfiguredRemotes as apiFetchConfiguredRemotes,
+  fetchBackupStatus as apiFetchBackupStatus,
+  fetchReferenceSettings as apiFetchReferenceSettings,
+  fetchAiSettings as apiFetchAiSettings,
+} from "./settings/settingsApi";
 
 function SettingsPanel({ user }) {
   const { addToast } = useToast();
@@ -65,123 +75,65 @@ function SettingsPanel({ user }) {
   const authHeaders = getAuthHeaders(user);
   const jsonAuthHeaders = getJsonAuthHeaders(user);
 
-  const fetchRefStatus = async () => {
-    try {
-      const res = await fetch("/api/reference/status");
-      if (res.ok) {
-        const data = await res.json();
-        setRefStatus(data);
-        setSyncingRef(data.isSyncing);
-      }
-    } catch (err) {
-      console.error("Failed to load reference status:", err);
-    }
-  };
-
-  const fetchBackupConfig = async () => {
-    try {
-      const res = await fetch("/api/backup/config", { headers: authHeaders });
-      if (res.ok) {
-        const data = await res.json();
-        setRcloneConfig(data.config || "");
-        const fullRemote = data.remote || "gdrive:tablecast-backups";
-        const colonIndex = fullRemote.indexOf(":");
-        if (colonIndex !== -1) {
-          setRemoteName(fullRemote.substring(0, colonIndex));
-          setRemotePath(fullRemote.substring(colonIndex + 1));
-        } else {
-          setRemoteName(fullRemote);
-          setRemotePath("");
-        }
-      }
-    } catch (err) {
-      console.error("Failed to load backup config:", err);
-    }
-  };
-
-  const fetchProviders = async () => {
-    setLoadingProviders(true);
-    try {
-      const res = await fetch("/api/backup/providers", { headers: authHeaders });
-      if (res.ok) {
-        const data = await res.json();
-        setProviders(data.providers || []);
-      }
-    } catch (err) {
-      console.error("Failed to load rclone providers:", err);
-    } finally {
-      setLoadingProviders(false);
-    }
-  };
-
-  const fetchConfiguredRemotes = async () => {
-    try {
-      const res = await fetch("/api/backup/remotes", { headers: authHeaders });
-      if (res.ok) {
-        const data = await res.json();
-        setConfiguredRemotes(data.remotes || []);
-      }
-    } catch (err) {
-      console.error("Failed to load configured remotes:", err);
-    }
-  };
-
-  const fetchBackupStatus = async () => {
-    if (!user?.id) return;
-    try {
-      const fullRemote = `${remoteName}:${remotePath}`;
-      const res = await fetch(`/api/backup/status?remote=${encodeURIComponent(fullRemote.trim())}`, {
-        headers: authHeaders,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setBackupStatus(data);
-      }
-    } catch (err) {
-      console.error("Failed to load backup status:", err);
-    }
-  };
-
-  const fetchReferenceSettings = async () => {
-    try {
-      const res = await fetch("/api/reference/settings");
-      if (res.ok) {
-        const data = await res.json();
-        setAllowedSourcesInput((data.allowedSources || []).join(", "));
-        setAvailableSources(data.availableSources || []);
-      }
-    } catch (err) {
-      console.error("Failed to load reference settings:", err);
-    }
-  };
-
-  const fetchAiSettings = async () => {
-    try {
-      const res = await fetch("/api/ai/settings", { headers: authHeaders });
-      if (res.ok) {
-        const data = await res.json();
-        setAiProvider(data.provider || "gemini");
-        setAiApiKey(data.apiKey || "");
-        setAiOllamaUrl(data.ollamaUrl || "http://localhost:11434");
-        setAiOllamaModel(data.ollamaModel || "llama3");
-        setAiModel(data.model || "gpt-5-nano");
-        setAiImagePromptStyle(data.imagePromptStyle || "");
-      }
-    } catch (err) {
-      console.error("Failed to load AI settings:", err);
-    }
-  };
-
+  /** Load all initial data on mount / user change */
   useEffect(() => {
-    fetchRefStatus();
-    fetchReferenceSettings();
-    fetchBackupConfig();
-    fetchAiSettings();
+    (async () => {
+      try {
+        const data = await apiFetchRefStatus(authHeaders);
+        if (data) { setRefStatus(data); setSyncingRef(data.isSyncing); }
+      } catch (err) { console.error("Failed to load reference status:", err); }
+    })();
+    (async () => {
+      try {
+        const data = await apiFetchReferenceSettings(authHeaders);
+        if (data) { setAllowedSourcesInput((data.allowedSources || []).join(", ")); setAvailableSources(data.availableSources || []); }
+      } catch (err) { console.error("Failed to load reference settings:", err); }
+    })();
+    (async () => {
+      try {
+        const data = await apiFetchBackupConfig(authHeaders);
+        if (data) {
+          setRcloneConfig(data.config || "");
+          const fullRemote = data.remote || "gdrive:tablecast-backups";
+          const colonIndex = fullRemote.indexOf(":");
+          if (colonIndex !== -1) {
+            setRemoteName(fullRemote.substring(0, colonIndex));
+            setRemotePath(fullRemote.substring(colonIndex + 1));
+          } else {
+            setRemoteName(fullRemote);
+            setRemotePath("");
+          }
+        }
+      } catch (err) { console.error("Failed to load backup config:", err); }
+    })();
+    (async () => {
+      try {
+        const data = await apiFetchAiSettings(authHeaders);
+        if (data) {
+          setAiProvider(data.provider || "gemini");
+          setAiApiKey(data.apiKey || "");
+          setAiOllamaUrl(data.ollamaUrl || "http://localhost:11434");
+          setAiOllamaModel(data.ollamaModel || "llama3");
+          setAiModel(data.model || "gpt-5-nano");
+          setAiImagePromptStyle(data.imagePromptStyle || "");
+        }
+      } catch (err) { console.error("Failed to load AI settings:", err); }
+    })();
   }, [user?.id]);
 
   useEffect(() => {
-    fetchBackupStatus();
-    fetchConfiguredRemotes();
+    (async () => {
+      try {
+        const data = await apiFetchBackupStatus(authHeaders, remoteName, remotePath);
+        if (data) setBackupStatus(data);
+      } catch (err) { console.error("Failed to load backup status:", err); }
+    })();
+    (async () => {
+      try {
+        const data = await apiFetchConfiguredRemotes(authHeaders);
+        if (data) setConfiguredRemotes(data.remotes || []);
+      } catch (err) { console.error("Failed to load configured remotes:", err); }
+    })();
   }, [user?.id, remoteName, remotePath]);
 
   // Poll backend sync logs if in-progress
@@ -189,7 +141,12 @@ function SettingsPanel({ user }) {
     let interval;
     if (syncingRef) {
       interval = setInterval(() => {
-        fetchRefStatus();
+        (async () => {
+          try {
+            const data = await apiFetchRefStatus(authHeaders);
+            if (data) { setRefStatus(data); setSyncingRef(data.isSyncing); }
+          } catch (err) { console.error("Failed to load reference status:", err); }
+        })();
       }, 2000);
     }
     return () => {
@@ -206,7 +163,17 @@ function SettingsPanel({ user }) {
     setRemoteError("");
     setRemoteSuccess("");
     setProviderSearch("");
-    fetchProviders();
+    setLoadingProviders(true);
+    (async () => {
+      try {
+        const data = await apiFetchProviders(authHeaders);
+        if (data) setProviders(data.providers || []);
+      } catch (err) {
+        console.error("Failed to load rclone providers:", err);
+      } finally {
+        setLoadingProviders(false);
+      }
+    })();
   };
 
   const handleSelectProvider = (provider) => {
@@ -270,9 +237,35 @@ function SettingsPanel({ user }) {
       
       setRemoteSuccess(`Remote "${newRemoteName.trim()}" (${selectedProvider.Description || selectedProvider.Name}) configured successfully!`);
       setRemoteStep(3);
-      fetchBackupConfig();
-      fetchBackupStatus();
-      fetchConfiguredRemotes();
+      (async () => {
+        try {
+          const data = await apiFetchBackupConfig(authHeaders);
+          if (data) {
+            setRcloneConfig(data.config || "");
+            const fullRemote = data.remote || "gdrive:tablecast-backups";
+            const colonIndex = fullRemote.indexOf(":");
+            if (colonIndex !== -1) {
+              setRemoteName(fullRemote.substring(0, colonIndex));
+              setRemotePath(fullRemote.substring(colonIndex + 1));
+            } else {
+              setRemoteName(fullRemote);
+              setRemotePath("");
+            }
+          }
+        } catch (err) { console.error("Failed to load backup config:", err); }
+      })();
+      (async () => {
+        try {
+          const data = await apiFetchBackupStatus(authHeaders, remoteName, remotePath);
+          if (data) setBackupStatus(data);
+        } catch (err) { console.error("Failed to load backup status:", err); }
+      })();
+      (async () => {
+        try {
+          const data = await apiFetchConfiguredRemotes(authHeaders);
+          if (data) setConfiguredRemotes(data.remotes || []);
+        } catch (err) { console.error("Failed to load configured remotes:", err); }
+      })();
     } catch (err) {
       setRemoteError(err.message);
     } finally {
@@ -289,9 +282,35 @@ function SettingsPanel({ user }) {
         headers: authHeaders,
       });
       if (res.ok) {
-        fetchConfiguredRemotes();
-        fetchBackupStatus();
-        fetchBackupConfig();
+        (async () => {
+          try {
+            const data = await apiFetchConfiguredRemotes(authHeaders);
+            if (data) setConfiguredRemotes(data.remotes || []);
+          } catch (err) { console.error("Failed to load configured remotes:", err); }
+        })();
+        (async () => {
+          try {
+            const data = await apiFetchBackupStatus(authHeaders, remoteName, remotePath);
+            if (data) setBackupStatus(data);
+          } catch (err) { console.error("Failed to load backup status:", err); }
+        })();
+        (async () => {
+          try {
+            const data = await apiFetchBackupConfig(authHeaders);
+            if (data) {
+              setRcloneConfig(data.config || "");
+              const fullRemote = data.remote || "gdrive:tablecast-backups";
+              const colonIndex = fullRemote.indexOf(":");
+              if (colonIndex !== -1) {
+                setRemoteName(fullRemote.substring(0, colonIndex));
+                setRemotePath(fullRemote.substring(colonIndex + 1));
+              } else {
+                setRemoteName(fullRemote);
+                setRemotePath("");
+              }
+            }
+          } catch (err) { console.error("Failed to load backup config:", err); }
+        })();
       } else {
         const data = await res.json();
         alert(`Failed to delete remote: ${data.error || "Unknown error"}`);
@@ -327,7 +346,12 @@ function SettingsPanel({ user }) {
         headers: authHeaders,
       });
       if (res.ok) {
-        fetchRefStatus();
+        (async () => {
+          try {
+            const data = await apiFetchRefStatus(authHeaders);
+            if (data) { setRefStatus(data); setSyncingRef(data.isSyncing); }
+          } catch (err) { console.error("Failed to load reference status:", err); }
+        })();
       } else {
         const err = await res.json();
         addToast(`Error starting cache refresh: ${err.error || "Unknown"}`, "error");
@@ -349,7 +373,12 @@ function SettingsPanel({ user }) {
       });
       if (res.ok) {
         addToast("Cache cleared. Data will be re-fetched on next search.", "success");
-        fetchRefStatus();
+        (async () => {
+          try {
+            const data = await apiFetchRefStatus(authHeaders);
+            if (data) { setRefStatus(data); setSyncingRef(data.isSyncing); }
+          } catch (err) { console.error("Failed to load reference status:", err); }
+        })();
       } else {
         const err = await res.json();
         addToast(`Error clearing cache: ${err.error || "Unknown"}`, "error");
@@ -385,7 +414,12 @@ function SettingsPanel({ user }) {
       }
 
       setAllowedSourcesInput((data.allowedSources || []).join(", "));
-      fetchRefStatus();
+      (async () => {
+        try {
+          const d = await apiFetchRefStatus(authHeaders);
+          if (d) { setRefStatus(d); setSyncingRef(d.isSyncing); }
+        } catch (err) { console.error("Failed to load reference status:", err); }
+      })();
     } catch (err) {
       addToast(`Error saving sources: ${err.message}`, "error");
     } finally {
@@ -415,7 +449,12 @@ function SettingsPanel({ user }) {
         setConfigMessage("rclone configuration saved successfully!");
         setShowConfigEditor(false);
         setTimeout(() => {
-          fetchBackupStatus();
+          (async () => {
+            try {
+              const data = await apiFetchBackupStatus(authHeaders, remoteName, remotePath);
+              if (data) setBackupStatus(data);
+            } catch (err) { console.error("Failed to load backup status:", err); }
+          })();
         }, 500);
       } else {
         setConfigError(data.error || "Failed to save configuration.");
@@ -520,7 +559,19 @@ function SettingsPanel({ user }) {
       }
 
       // Reload from DB to reflect saved state
-      fetchAiSettings();
+      (async () => {
+        try {
+          const data = await apiFetchAiSettings(authHeaders);
+          if (data) {
+            setAiProvider(data.provider || "gemini");
+            setAiApiKey(data.apiKey || "");
+            setAiOllamaUrl(data.ollamaUrl || "http://localhost:11434");
+            setAiOllamaModel(data.ollamaModel || "llama3");
+            setAiModel(data.model || "gpt-5-nano");
+            setAiImagePromptStyle(data.imagePromptStyle || "");
+          }
+        } catch (err) { console.error("Failed to load AI settings:", err); }
+      })();
     } catch (err) {
       addToast(`Network error saving AI settings: ${err.message}`, "error");
     } finally {
@@ -965,7 +1016,14 @@ function SettingsPanel({ user }) {
                   id="manage-remotes-btn"
                   onClick={() => {
                     setShowManageRemotes(!showManageRemotes);
-                    if (!showManageRemotes) fetchConfiguredRemotes();
+                    if (!showManageRemotes) {
+                      (async () => {
+                        try {
+                          const data = await apiFetchConfiguredRemotes(authHeaders);
+                          if (data) setConfiguredRemotes(data.remotes || []);
+                        } catch (err) { console.error("Failed to load configured remotes:", err); }
+                      })();
+                    }
                   }}
                   style={{ ...styles.secondaryBtn, flex: "1 1 200px", minHeight: "44px" }}
                   className="touch-target btn-hover-scale"
@@ -1704,341 +1762,5 @@ function SettingsPanel({ user }) {
     </div>
   );
 }
-
-const styles = {
-  container: {
-    display: "flex",
-    flexDirection: "column",
-    height: "100%",
-    padding: "1.25rem",
-    overflowY: "auto",
-    background: "var(--color-bg)",
-    gap: "1.5rem",
-  },
-  header: {
-    borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
-    paddingBottom: "0.75rem",
-  },
-  title: {
-    fontSize: "1.5rem",
-    fontWeight: "bold",
-    color: "var(--color-accent)",
-    marginBottom: "0.25rem",
-  },
-  subtitle: {
-    fontSize: "0.85rem",
-    color: "var(--color-muted)",
-  },
-  content: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "1.25rem",
-    maxWidth: "600px",
-    width: "100%",
-    margin: "0 auto",
-  },
-  card: {
-    borderRadius: "8px",
-    padding: "1.25rem",
-    display: "flex",
-    flexDirection: "column",
-    gap: "1rem",
-  },
-  cardTitle: {
-    fontSize: "1.1rem",
-    color: "var(--color-text)",
-    fontWeight: "bold",
-  },
-  cardDesc: {
-    fontSize: "0.85rem",
-    color: "var(--color-muted)",
-    lineHeight: "1.4",
-  },
-  codeInline: {
-    fontFamily: "monospace",
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
-    padding: "0.15rem 0.3rem",
-    borderRadius: "3px",
-    color: "var(--color-accent)",
-    fontSize: "0.8rem",
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "1.25rem",
-  },
-  inputGroup: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.4rem",
-  },
-  label: {
-    fontSize: "0.85rem",
-    fontWeight: 600,
-    color: "var(--color-text)",
-  },
-  input: {
-    width: "100%",
-    padding: "0.75rem",
-    fontSize: "0.9rem",
-  },
-  helpText: {
-    fontSize: "0.75rem",
-    color: "var(--color-muted)",
-    marginTop: "0.15rem",
-  },
-  backupBtn: {
-    width: "100%",
-    border: "none",
-    borderRadius: "6px",
-    fontWeight: "bold",
-    fontSize: "0.95rem",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "0.4rem",
-    transition: "all 0.2s",
-  },
-  secondaryBtn: {
-    width: "100%",
-    border: "1px solid rgba(200, 151, 58, 0.35)",
-    borderRadius: "6px",
-    background: "rgba(200, 151, 58, 0.08)",
-    color: "var(--color-accent)",
-    fontWeight: "bold",
-    fontSize: "0.9rem",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transition: "all 0.2s",
-  },
-  sourceCloud: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "0.4rem",
-  },
-  sourceChip: {
-    minHeight: "44px",
-    padding: "0.45rem 0.7rem",
-    borderRadius: "6px",
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    fontSize: "0.75rem",
-    fontWeight: 700,
-  },
-  loadingSpinnerContainer: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.6rem",
-  },
-  spinner: {
-    width: "18px",
-    height: "18px",
-    border: "2px solid rgba(255,255,255,0.3)",
-    borderTop: "2px solid var(--color-text)",
-    borderRadius: "50%",
-    animation: "shake 0.8s linear infinite", // Fallback microanimation
-  },
-  statusBanner: {
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderRadius: "6px",
-    padding: "1rem",
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.35rem",
-  },
-  bannerHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-  },
-  bannerIcon: {
-    fontSize: "1.2rem",
-  },
-  bannerText: {
-    fontWeight: "bold",
-    fontSize: "0.95rem",
-  },
-  bannerMessage: {
-    fontSize: "0.85rem",
-    color: "var(--color-text)",
-    lineHeight: "1.3",
-  },
-  detailsTable: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.5rem",
-    background: "rgba(0, 0, 0, 0.2)",
-    padding: "0.75rem",
-    borderRadius: "6px",
-    border: "1px solid rgba(255,255,255,0.03)",
-  },
-  detailsRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    fontSize: "0.8rem",
-  },
-  detailsLabel: {
-    color: "var(--color-muted)",
-  },
-  detailsVal: {
-    color: "var(--color-text)",
-    fontFamily: "monospace",
-    fontWeight: "bold",
-  },
-  consoleTitle: {
-    fontSize: "0.85rem",
-    fontWeight: "bold",
-    color: "var(--color-muted)",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    marginTop: "0.5rem",
-  },
-  console: {
-    background: "var(--color-bg)",
-    border: "1px solid rgba(255, 255, 255, 0.05)",
-    borderRadius: "6px",
-    padding: "0.85rem",
-    fontFamily: "Courier New, Courier, monospace",
-    fontSize: "0.8rem",
-    maxHeight: "180px",
-    overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.4rem",
-  },
-  consoleStdout: {
-    color: "var(--color-success)",
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-all",
-  },
-  consoleStderr: {
-    color: "var(--color-danger)",
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-all",
-  },
-  consoleMuted: {
-    color: "var(--color-muted)",
-    fontStyle: "italic",
-  },
-
-  subTabNav: {
-    display: "flex",
-    padding: "0.5rem 0",
-    gap: "0.5rem",
-    marginTop: "0.5rem",
-  },
-  subTabBtn: {
-    flex: 1,
-    maxWidth: "200px",
-    border: "none",
-    borderRadius: "4px",
-    fontSize: "0.8rem",
-    fontWeight: 600,
-    cursor: "pointer",
-    padding: "0.45rem",
-    transition: "all 0.2s",
-    minHeight: "44px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "0.35rem",
-  },
-  configEditorContainer: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.5rem",
-    background: "rgba(0, 0, 0, 0.15)",
-    padding: "1rem",
-    borderRadius: "6px",
-    border: "1px solid rgba(255, 255, 255, 0.05)",
-    marginTop: "0.25rem",
-  },
-  modalOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(5, 3, 10, 0.8)",
-    backdropFilter: "blur(6px)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000,
-    padding: "1rem",
-  },
-  modalContent: {
-    background: "rgba(15, 14, 23, 0.95)",
-    border: "1px solid rgba(200, 151, 58, 0.35)",
-    boxShadow: "0 0 30px rgba(200, 151, 58, 0.25)",
-    borderRadius: "12px",
-    maxWidth: "600px",
-    width: "100%",
-    maxHeight: "90vh",
-    overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: "1.25rem",
-    padding: "1.75rem",
-  },
-  modalHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-    paddingBottom: "0.75rem",
-  },
-  modalTitle: {
-    fontSize: "1.25rem",
-    fontWeight: "bold",
-    color: "var(--color-accent)",
-    margin: 0,
-  },
-  modalCloseBtn: {
-    background: "transparent",
-    border: "none",
-    color: "var(--color-muted)",
-    fontSize: "1.5rem",
-    cursor: "pointer",
-    lineHeight: 1,
-  },
-  tutorialContainer: {
-    background: "rgba(0, 0, 0, 0.2)",
-    padding: "1rem",
-    borderRadius: "8px",
-    border: "1px solid rgba(255, 255, 255, 0.03)",
-    fontSize: "0.85rem",
-    color: "var(--color-text)",
-    lineHeight: "1.45",
-  },
-  copyGroup: {
-    display: "flex",
-    gap: "0.5rem",
-    marginTop: "0.5rem",
-  },
-  copyInput: {
-    flex: 1,
-    background: "rgba(0,0,0,0.4)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: "4px",
-    padding: "0.45rem",
-    fontSize: "0.75rem",
-    color: "var(--color-text)",
-    fontFamily: "monospace",
-  },
-  copyBtn: {
-    padding: "0 0.75rem",
-    background: "rgba(200, 151, 58, 0.15)",
-    border: "1px solid rgba(200, 151, 58, 0.3)",
-    borderRadius: "4px",
-    color: "var(--color-accent)",
-    fontSize: "0.75rem",
-    fontWeight: "bold",
-    cursor: "pointer",
-    minHeight: "36px",
-  },
-};
 
 export default SettingsPanel;
