@@ -10,6 +10,7 @@ import {
   CalendarDays,
   Database,
   ExternalLink,
+  Headphones,
   LogOut,
   Map as MapIcon,
   MessageCircle,
@@ -39,9 +40,11 @@ import SessionsPanel from "./components/SessionsPanel";
 import EncountersPanel from "./components/EncountersPanel";
 import PartyVaultPanel from "./components/PartyVaultPanel";
 import ShopPanel from "./components/ShopPanel";
+import SoundboardPanel from "./components/SoundboardPanel";
 import { useSocket } from "./context/SocketContext";
 import { useToast } from "./context/ToastContext";
 import { AiProvider } from "./context/AiContext";
+import { SoundProvider } from "./context/SoundContext";
 import { getJsonAuthHeaders } from "./utils/authHeaders";
 
 const SELECTED_CHARACTER_STORAGE_KEY = "tablecast.selectedCharacterId";
@@ -117,6 +120,13 @@ const DM_NAV_ITEMS = [
     popoutUrl: "/#/dm/popout/encounters",
     popoutTitle: "Pop out Encounters",
     popoutFeatures: "width=800,height=900,resizable=yes,scrollbars=yes",
+  },
+  {
+    id: "soundboard",
+    label: "Soundboard",
+    mobileLabel: "Sound",
+    path: "/dm/soundboard",
+    icon: Headphones,
   },
   {
     id: "party",
@@ -538,6 +548,7 @@ function App() {
 
 
   return (
+    <SoundProvider>
     <AiProvider user={user}>
     <ErrorBoundary critical={true}>
     <div 
@@ -607,6 +618,7 @@ function App() {
     </div>
     </ErrorBoundary>
     </AiProvider>
+    </SoundProvider>
   );
 }
 
@@ -1315,6 +1327,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="party" element={<PartyVaultPanel user={user} />} />
             <Route path="shop" element={<ShopPanel user={user} addToast={addToast} />} />
             <Route path="importer" element={<ImporterPanel user={user} />} />
+            <Route path="soundboard" element={<SoundboardPanel user={user} />} />
             <Route path="settings" element={<SettingsPanel user={user} />} />
             <Route path="settings/:tab" element={<SettingsPanel user={user} />} />
             <Route path="*" element={<Navigate to="map" replace />} />

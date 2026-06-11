@@ -647,6 +647,26 @@ model Party {
   @@map("parties")
 }
 
+/// An audio track in the DM's Soundboard for ambient music and sound effects.
+/// Files are stored on disk at server/uploads/audio/ and metadata in DB.
+model Soundtrack {
+  id        Int      @id @default(autoincrement())
+  name      String
+  /// Category: COMBAT, EXPLORATION, TOWN, TAVERN, DUNGEON, WILDERNESS, AMBIENT
+  category  String   @default("AMBIENT")
+  /// Relative path under server/uploads/audio/
+  filePath  String
+  /// Duration in seconds (0 = unknown)
+  duration  Int      @default(0)
+  /// Whether the track loops by default
+  loop      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@map("soundtracks")
+}
+
 /// Links a Character to a Party
 model PartyMember {
   id Int @id @default(autoincrement())

@@ -324,7 +324,7 @@ from 5etools reference (classes.json), feat data (feats.json)
 
 ### 3.1 Ambient Soundboard & Background Music
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Audio immersion is one of the easiest wins for table feel —
 tavern ambience, dungeon drones, combat stingers.

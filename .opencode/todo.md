@@ -1,66 +1,43 @@
-# Mission: Section 2 - Gameplay Systems
+# Mission: Section 3.1 - Ambient Soundboard & Background Music
 
-## M1: Short/Long Rest with Recovery (§2.1) | status: completed
-### T1.1: Backend — Hit Die tracking & rest endpoint
-- [x] S1.1.1: Add hitDiceType, hitDiceTotal, hitDiceUsed to Character model + migration
-- [x] S1.1.2: Add POST /api/characters/:id/rest endpoint (short/long rest logic)
-- [x] S1.1.3: Update ALLOWED_FIELDS in characters.js for new fields
+## M1: Backend — Prisma Soundtrack model & migration | agent:Worker
+- [ ] S1.1: Add Soundtrack model to schema.prisma (id, name, category, filePath, duration, loop)
+- [ ] S1.2: Generate Prisma migration for Soundtrack model
+- [ ] S1.3: Create server/uploads/audio/ directory with .gitkeep
 
-### T1.2: Frontend — Rest UI in CharacterSheet
-- [x] S1.2.1: Add rest buttons (Short Rest, Long Rest) with hit dice spending UI
-- [x] S1.2.2: Add rest notification/recovery animation
-- [x] S1.2.3: Wire up rest endpoint with socket broadcast
+## M2: Backend — Soundtrack CRUD + audio upload route | agent:Worker | depends:M1
+- [ ] S2.1: Create server/src/routes/soundtracks.js with multer upload + CRUD endpoints
+- [ ] S2.2: Mount route in server/src/index.js at /api/soundtracks
 
-## M2: Spellbook & Spell Cards UI (§2.4) | status: completed
-### T2.1: Enhanced SpellsPanel
-- [x] S2.1.1: Add spell card layout with full detail view (school, level, components, description)
-- [x] S2.1.2: Add Cast button with slot consumption, concentration tracking
-- [x] S2.1.3: Add filtering (All, Cantrips, Prepared, Concentration, Ritual) + search
-- [x] S2.1.4: Add sorting by level/school/name
-- [x] S2.1.5: Add upcast support (dropdown for higher level casting)
+## M3: Backend — Socket.io sound:state / sound:sync events | agent:Worker | depends:M1
+- [ ] S3.1: Add sound:state and sound:sync socket event handlers to socket.js
+- [ ] S3.2: Store current sound state in server memory (in-memory state)
 
-### T2.2: Spell Detail Integration with 5etools
-- [x] S2.2.1: Fetch spell details from 5etools cache on expand
-- [x] S2.2.2: Show save DC, attack roll, damage formula on spell cards
-- [x] S2.2.3: Add "Roll Damage" and "Roll Attack" buttons on spell cards
+## M4: Backend — MCP tool schemas + handlers for Soundtrack | agent:Worker | depends:M1
+- [ ] S4.1: Add soundtrack tool schemas to server/src/mcp/schemas.js
+- [ ] S4.2: Create server/src/mcp/handlers/soundtracks.js with CRUD handlers
+- [ ] S4.3: Wire handlers into mcp-server.js
 
-## M3: Level-Up Wizard (§2.5) | status: completed
-### T3.1: Backend — Level-up support
-- [x] S3.1.1: Add POST /api/characters/:id/level-up endpoint
-- [x] S3.1.2: Add class features / ASI validation logic
+## M5: Frontend — SoundContext (AudioContext + socket sync) | agent:Worker
+- [ ] S5.1: Create client/src/context/SoundContext.jsx with AudioContext management, multi-client sync
+- [ ] S5.2: Add song library with pre-loaded OGG/MP3 URLs from the public folder
 
-### T3.2: Frontend — Level-Up Wizard UI
-- [x] S3.2.1: Create LevelUpWizard component (multi-step flow: HP, features, ASI/feat, spells)
-- [x] S3.2.2: Add "Level Up" button to CharacterSheet
-- [x] S3.2.3: Integration with 5etools class/feat reference data
+## M6: Frontend — SoundboardPanel component | agent:Worker | depends:M5
+- [ ] S6.1: Create client/src/components/SoundboardPanel.jsx (track list, play/pause, volume, crossfade, upload, queue)
+- [ ] S6.2: Wire up socket sound:state/sound:sync events
 
-### Fixes
-- [x] S3.3.1: Fix prop name mismatch (CharacterSheet.jsx: onLevelUpComplete → onApplied)
-- [x] S3.3.2: Add 5etools reference integration for feats (276 feats cached, autocomplete in LevelUpWizard)
+## M7: Frontend — Nav item + route + wrapper in App.jsx | agent:Worker | depends:M6
+- [ ] S7.1: Add "Soundboard" nav item to DM_NAV_ITEMS in App.jsx
+- [ ] S7.2: Add route for /dm/soundboard in App.jsx
+- [ ] S7.3: Wrap SoundContext provider in App.jsx
 
-## M4: Party Inventory & Shared Gold (§2.3) | status: completed
-### T4.1: Backend — Party model & routes
-- [x] S4.1.1: Add Party model + PartyMember model to Prisma schema + migration
-- [x] S4.1.2: Add CRUD routes for party inventory / shared gold
-- [x] S4.1.3: Add transfer endpoint (character ↔ party)
+## M8: Verification | agent:Reviewer | depends:M2,M3,M4,M7
+- [ ] S8.1: Run Vite build
+- [ ] S8.2: Run LSP diagnostics
+- [ ] S8.3: Verify server routes load cleanly
+- [ ] S8.4: Update features.md §3.1 status to [x]
+- [ ] S8.5: Git commit and push
 
-### T4.2: Frontend — Party Vault Panel
-- [x] S4.2.1: Create PartyVaultPanel component
-- [x] S4.2.2: Add transfer UI for items/gold between characters and party
-- [x] S4.2.3: Add "Party Vault" tab to navigation
-
-## M5: Shopping & Economy System (§2.2) | status: completed
-### T5.1: Backend — Shop model & routes
-- [x] S5.1.1: Add Shop + ShopItem models to Prisma schema + migration | verified
-- [x] S5.1.2: Add CRUD routes for shops/items | verified | fixes: SYNC-3, SYNC-6 applied
-- [x] S5.1.3: Add buy/sell endpoint with currency management | verified | fixes: SYNC-3, SYNC-4, SYNC-7 applied
-
-### T5.2: Frontend — Shop Panel
-- [x] S5.2.1: Create ShopPanel component (inventory browsing, buying) | verified
-- [x] S5.2.2: Add currency display/management on CharacterSheet | verified
-- [x] S5.2.3: Add haggle mechanic (Persuasion check) | verified | fix: SYNC-5 applied (haggle + buy-custom endpoints)
-
-## M6: Verification | status: completed
-- [x] S6.1: Run Vite build
-- [x] S6.2: Run LSP diagnostics
-- [x] S6.3: Verify git status and push
+## M9: Post-Deploy Verify | agent:Reviewer | depends:M8
+- [ ] S9.1: Verify server starts and /api/soundtracks endpoint responds
+- [ ] S9.2: Verify frontend builds and Soundboard panel loads

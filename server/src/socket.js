@@ -12,6 +12,15 @@ const MAX_COORDINATE = 10000;
 const MAX_FOG_POLYGONS = 200;
 const MAX_FOG_POINTS = 500;
 
+// In-memory sound state for multi-client sync
+let currentSoundState = {
+  trackId: null,
+  action: "stop",
+  position: 0,
+  volume: 0.5,
+  timestamp: Date.now(),
+};
+
 function registerSocketHandlers(io) {
   // Auth middleware: authenticate via socket handshake
   // Supports two modes:
@@ -556,6 +565,31 @@ Keep your answer clear, concise, and formatted in Markdown.`;
       } catch (err) {
         logger.error("socket:map", "Error broadcasting map deletion", { error: err.message });
       }
+    });
+
+    // Soundboard events — DM broadcasts play/stop/seek to all clients
+    socket.on("sound:play", (payload) => {
+      if (socket.data.user?.role !== "DM") {
+        return emitSocketError(socket, "sound:play", "DM privileges are required.");
+      }
+      const { trackId, action, position, volume } = payload || {};
+      currentSoundState = {
+        trackId: trackId || null,
+        action: action || "stop",
+        position: typeof position === "number" ? position : 0,
+        volume: typeof volume === "number" ? volume : 0.5,
+        timestamp: Date.now(),
+      };
+      logger.info("socket:sound", "Sound state updated", {
+        trackId: currentSoundState.trackId,
+        action: currentSoundState.action,
+      });
+      io.emit("sound:state", currentSoundState);
+    });
+
+    // Reconnecting client requests current sound state
+    socket.on("sound:sync", () => {
+      socket.emit("sound:state", currentSoundState);
     });
 
     socket.on("encounter:refresh", async (payload) => {

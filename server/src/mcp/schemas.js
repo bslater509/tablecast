@@ -653,6 +653,60 @@ const TOOLS = [
       required: ["id"],
     },
   },
+
+  //  SOUNDBOARD TOOLS
+  {
+    name: "list_soundtracks",
+    description: "List all soundboard audio tracks, optionally filtered by category.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        category: { type: "string", description: "Filter by category (COMBAT, EXPLORATION, TOWN, TAVERN, DUNGEON, WILDERNESS, AMBIENT)." },
+      },
+    },
+  },
+  {
+    name: "create_soundtrack",
+    description: "Register a new soundboard audio track.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Track display name." },
+        category: { type: "string", enum: ["COMBAT", "EXPLORATION", "TOWN", "TAVERN", "DUNGEON", "WILDERNESS", "AMBIENT"], description: "Track category (default: AMBIENT)." },
+        filePath: { type: "string", description: "Relative file path under uploads/audio/." },
+        duration: { type: "number", description: "Duration in seconds (default: 0)." },
+        loop: { type: "boolean", description: "Whether to loop playback (default: false)." },
+      },
+      required: ["name", "filePath"],
+    },
+  },
+  {
+    name: "update_soundtrack",
+    description: "Update an existing soundboard track's metadata.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Track ID to update." },
+        name: { type: "string" },
+        category: { type: "string", enum: ["COMBAT", "EXPLORATION", "TOWN", "TAVERN", "DUNGEON", "WILDERNESS", "AMBIENT"] },
+        filePath: { type: "string" },
+        duration: { type: "number" },
+        loop: { type: "boolean" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "delete_soundtrack",
+    description: "Delete a soundboard track by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Track ID to delete." },
+      },
+      required: ["id"],
+    },
+  },
 ];
 
 module.exports = { TOOLS };

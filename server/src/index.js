@@ -244,6 +244,7 @@ app.use("/api/sessions", sessionsRouter);
 app.use("/api/debug", debugRouter);
 app.use("/api/parties", require("./routes/parties"));
 app.use("/api/shops", shopsRouter);
+app.use("/api/soundtracks", require("./routes/soundtracks"));
 app.use("/api/features", require("./routes/features"));
 
 // ---------------------------------------------------------------------------
