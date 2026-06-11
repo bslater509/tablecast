@@ -7,6 +7,9 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { getAuthHeaders } from "../utils/authHeaders";
 
+const SELECTED_NPC_STORAGE_KEY = "tablecast.selectedNpcId";
+const SELECTED_CHAR_STORAGE_KEY = "tablecast.selectedCharId";
+
 const AiContext = createContext(null);
 
 /**
@@ -27,12 +30,12 @@ export function AiProvider({ children, user }) {
 
   // ---- NPCs ----
   const [npcs, setNpcs] = useState([]);
-  const [selectedNpcId, setSelectedNpcId] = useState("");
+  const [selectedNpcId, setSelectedNpcId] = useState(() => localStorage.getItem(SELECTED_NPC_STORAGE_KEY) || "");
   const [npcsLoading, setNpcsLoading] = useState(false);
 
   // ---- Characters ----
   const [characters, setCharacters] = useState([]);
-  const [selectedCharId, setSelectedCharId] = useState("");
+  const [selectedCharId, setSelectedCharId] = useState(() => localStorage.getItem(SELECTED_CHAR_STORAGE_KEY) || "");
   const [charsLoading, setCharsLoading] = useState(false);
 
   // ---------------------------------------------------------------------------
@@ -102,6 +105,11 @@ export function AiProvider({ children, user }) {
     }
   }, []); // No deps — stable callback; functional updater avoids stale closure issues
 
+  // Persist NPC selection to localStorage
+  useEffect(() => {
+    localStorage.setItem(SELECTED_NPC_STORAGE_KEY, selectedNpcId);
+  }, [selectedNpcId]);
+
   // ---------------------------------------------------------------------------
   // Characters
   // ---------------------------------------------------------------------------
@@ -129,6 +137,11 @@ export function AiProvider({ children, user }) {
       setCharsLoading(false);
     }
   }, []); // No deps — stable callback; functional updater avoids stale closure issues
+
+  // Persist character selection to localStorage
+  useEffect(() => {
+    localStorage.setItem(SELECTED_CHAR_STORAGE_KEY, selectedCharId);
+  }, [selectedCharId]);
 
   // ---------------------------------------------------------------------------
   // Initial loads

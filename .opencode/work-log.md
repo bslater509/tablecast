@@ -1,5 +1,10 @@
 # Work Log
 
+## Active Sessions
+- [x] ses_N (Worker): `client/src/context/AiContext.jsx` - MODIFY (persist selectedNpcId, selectedCharId) done
+- [x] ses_N (Worker): `client/src/components/SettingsPanel.jsx` - MODIFY (persist activeSettingsTab) done
+- [x] ses_N (Worker): `client/src/components/DiceRollerPanel.jsx` - MODIFY (persist activeSubTab) done
+
 ## VERIFICATION: Auth Headers Refactor
 
 ### Result: PASS ✅
@@ -762,6 +767,17 @@ settings.js ────┘
 
 ---
 
+## Active Sessions
+- [x] ses_5 (Worker): `client/src/components/map/useMapData.js` - done (persist tool, showGrid, showLighting, activeMap to localStorage)
+
+## Completed Units (Ready for Integration)
+| File | Session | Unit Test | Timestamp |
+|------|---------|-----------|-----------|
+| client/src/components/map/useMapData.js | ses_5 | n/a (no test framework) | 2026-06-11T18:59:00Z |
+- [x] ses_6 (Worker): `client/src/App.jsx` - done (added 5 localStorage cleanup keys to handleLogout)
+
+---
+
 ## T1.4: Extract NPC Gen Modal & Monster Gen Modal from WikiPanel
 
 ### Result: **PASS** ✅
@@ -845,6 +861,10 @@ Successfully split the monolithic `server/src/ai/generation.js` (1059 lines) int
 - Not yet committed
 
 ---
+
+## Active Sessions
+- [ ] ses_1482a6525ffe (Worker): `EncountersPanel.jsx` - MODIFY pending
+- [ ] ses_1482a6525ffe (Worker): `WikiPanel.jsx` - MODIFY pending
 
 ## UNIT REVIEW: server/src/ai/generation.js Split into generation/ Subdirectory
 

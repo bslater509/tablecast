@@ -9,6 +9,8 @@ import { useSocket } from "../context/SocketContext";
 import { useDiceBox } from "../context/DiceBoxContext";
 import { diceHexToRgb, getDiceThemeOption, getDiceThemePreviewStyles } from "../lib/diceThemes";
 
+const DICE_ROLLER_TAB_STORAGE_KEY = "tablecast.diceRollerTab";
+
 function checkWebGLSupport() {
   try {
     const canvas = document.createElement("canvas");
@@ -123,7 +125,7 @@ const DICE_TYPES = [
 export default function DiceRollerPanel({ user, isPopout = false }) {
   const { socket } = useSocket();
   const { rollDice } = useDiceBox();
-  const [activeSubTab, setActiveSubTab] = useState("roller"); // "roller" | "history"
+  const [activeSubTab, setActiveSubTab] = useState(() => localStorage.getItem(DICE_ROLLER_TAB_STORAGE_KEY) || "roller"); // "roller" | "history"
   const [history, setHistory] = useState([]);
   const activeDiceTheme = getDiceThemeOption(user?.diceTheme || "default");
   const activeDiceColor = user?.diceColor || activeDiceTheme.defaultColor;
@@ -142,6 +144,10 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
   const [rollLabel, setRollLabel] = useState("");
   const [advantage, setAdvantage] = useState("normal"); // "normal" | "advantage" | "disadvantage"
   const [webGlSupported, setWebGlSupported] = useState(true);
+
+  useEffect(() => {
+    localStorage.setItem(DICE_ROLLER_TAB_STORAGE_KEY, activeSubTab);
+  }, [activeSubTab]);
 
   useEffect(() => {
     setWebGlSupported(checkWebGLSupport());

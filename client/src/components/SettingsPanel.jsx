@@ -2,7 +2,7 @@
 // Tablecast — DM Settings Panel (Phase 6)
 // Orchestrator for backup, reference, and AI sub-panels.
 // =============================================================================
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bot, Cloud, Map } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";
@@ -11,12 +11,18 @@ import BackupSettings from "./settings/BackupSettings";
 import AiSetup from "./settings/AiSetup";
 import FeatureRoadmap from "./settings/FeatureRoadmap";
 
+const SETTINGS_TAB_STORAGE_KEY = "tablecast.settingsTab";
+
 function SettingsPanel({ user }) {
   const { addToast } = useToast();
-  const [activeSettingsTab, setActiveSettingsTab] = useState("backups");
+  const [activeSettingsTab, setActiveSettingsTab] = useState(() => localStorage.getItem(SETTINGS_TAB_STORAGE_KEY) || "backups");
 
   const authHeaders = getAuthHeaders(user);
   const jsonAuthHeaders = getJsonAuthHeaders(user);
+
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_TAB_STORAGE_KEY, activeSettingsTab);
+  }, [activeSettingsTab]);
 
   return (
     <div style={styles.container} className="fade-in">
