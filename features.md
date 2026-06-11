@@ -10,6 +10,8 @@ implementation notes for each proposal.
 
 ### 1.1 Dynamic Lighting / Line-of-Sight
 
+- [ ] **Status:** Planned
+
 **Motivation:** Adds tactical depth to combat. Players only see map areas their
 character has line-of-sight to, based on token position, vision radius, and
 walls/obstructions drawn by the DM.
@@ -48,6 +50,8 @@ Map model update (walls JSON), raycasting math utility
 
 ### 1.2 Measurement & Ruler Tool
 
+- [ ] **Status:** Planned
+
 **Motivation:** Essential for D&D combat — players and DMs need to quickly
 measure movement ranges, spell radii, and weapon reach on the VTT grid.
 
@@ -63,6 +67,8 @@ measure movement ranges, spell radii, and weapon reach on the VTT grid.
 ---
 
 ### 1.3 Token Auras & Status Effect Rings
+
+- [ ] **Status:** Planned
 
 **Motivation:** Visual indicators for ongoing spell effects (Bless, Spirit
 Guardians), auras (Paladin aura of protection), and conditions (on fire,
@@ -82,6 +88,8 @@ field `conditions`)
 
 ### 1.4 Condition Tracker with Auto-Expiry
 
+- [ ] **Status:** Planned
+
 **Motivation:** Combat has many temporary effects (Hold Person lasts 1 minute,
 Bless lasts 1 minute). Manual tracking is error-prone.
 
@@ -98,6 +106,8 @@ Socket.io turn advancement logic, chat logging
 ---
 
 ### 1.5 Death Saves Tracker
+
+- [ ] **Status:** Planned
 
 **Motivation:** D&D 5e death saving throws are a critical combat mechanic that
 deserves dedicated UI — not just a chat dice roll.
@@ -118,6 +128,8 @@ deserves dedicated UI — not just a chat dice roll.
 
 ### 2.1 Short/Long Rest with Recovery
 
+- [ ] **Status:** Planned
+
 **Motivation:** Core D&D 5e mechanic. Characters need to spend Hit Dice, recover
 spell slots, and reset abilities after rests. Currently all manual.
 
@@ -136,6 +148,8 @@ new REST log type in chat, optional socket event for party-wide rest
 ---
 
 ### 2.2 Shopping & Economy System
+
+- [ ] **Status:** Planned
 
 **Motivation:** Players accumulate gold and want to buy/sell gear during downtime.
 Currently items have no price or shop context.
@@ -175,6 +189,8 @@ equipment reference
 
 ### 2.3 Party Inventory & Shared Gold
 
+- [ ] **Status:** Planned
+
 **Motivation:** Parties typically share gold, carry common items (rope, torches),
 and manage group resources.
 
@@ -192,6 +208,8 @@ entity, frontend Party Vault panel, transfer UI
 ---
 
 ### 2.4 Spellbook & Spell Cards UI
+
+- [ ] **Status:** Planned
 
 **Motivation:** Spellcasters need quick reference to their prepared spells during
 combat — school, level, components, description, damage dice.
@@ -247,6 +265,8 @@ fields), 5etools reference for spell details
 ---
 
 ### 2.5 Level-Up Wizard
+
+- [ ] **Status:** Planned
 
 **Motivation:** Leveling up is complex in D&D 5e (hit points, features, spell
 slots, ability scores). A guided wizard reduces errors and speeds up downtime.
@@ -304,6 +324,8 @@ from 5etools reference (classes.json), feat data (feats.json)
 
 ### 3.1 Ambient Soundboard & Background Music
 
+- [ ] **Status:** Planned
+
 **Motivation:** Audio immersion is one of the easiest wins for table feel —
 tavern ambience, dungeon drones, combat stingers.
 
@@ -350,6 +372,8 @@ management in React, socket events (`sound:state`, `sound:sync`)
 ---
 
 ### 3.2 In-Game Calendar & Weather
+
+- [ ] **Status:** Planned
 
 **Motivation:** Campaign continuity — tracking in-game dates, seasons, holidays,
 and random weather makes the world feel alive.
@@ -416,6 +440,8 @@ generation module, frontend calendar modal component, socket event
 
 ### 3.3 Quest/Journal Log (Player-Facing)
 
+- [ ] **Status:** Planned
+
 **Motivation:** Players need a persistent, structured view of active quests,
 completed quests, and personal notes separate from the DM's wiki.
 
@@ -461,6 +487,8 @@ frontend component, integration with Encounter (kill tracking) and Inventory
 ---
 
 ### 3.4 Dialogue Tree Builder for NPCs
+
+- [ ] **Status:** Planned
 
 **Motivation:** DMs often prepare NPC dialogue in advance. A simple tree
 structure lets branching conversations play out interactively.
@@ -520,6 +548,8 @@ component (node graph), DialogueRunner component, skill check roll integration
 
 ### 3.5 Player Handouts
 
+- [ ] **Status:** Planned
+
 **Motivation:** DMs need to give handouts (images, documents, secret notes) to
 specific players without revealing to the whole table.
 
@@ -539,6 +569,8 @@ frontend component, socket event for new-handout notification
 
 ### 4.1 Drag & Drop Map Upload
 
+- [ ] **Status:** Planned
+
 **Motivation:** Current map upload requires navigating to Settings → upload
 dialog. A drag-and-drop zone directly on the MapPanel would be much faster.
 
@@ -553,6 +585,8 @@ dialog. A drag-and-drop zone directly on the MapPanel would be much faster.
 ---
 
 ### 4.2 Character Builder Wizard
+
+- [ ] **Status:** Planned
 
 **Motivation:** Creating a D&D 5e character from scratch involves many
 decisions. A step-by-step wizard is more approachable than a blank form.
@@ -572,6 +606,8 @@ races/classes/backgrounds, Character POST route (already exists)
 ---
 
 ### 4.3 Homebrew Content Manager
+
+- [ ] **Status:** Planned
 
 **Motivation:** D&D groups frequently use custom races, subclasses, feats,
 spells, and magic items. A manager keeps them organized and searchable.
@@ -618,6 +654,8 @@ bestiary, and reference search
 
 ### 4.4 Scenario & Encounter Templates
 
+- [ ] **Status:** Planned
+
 **Motivation:** DMs often reuse encounter structures (goblin ambush, dragon
 lair). Templates save setup time.
 
@@ -658,6 +696,8 @@ template CRUD, template → encounter conversion logic
 ---
 
 ### 4.5 Loot Generator
+
+- [ ] **Status:** Planned
 
 **Motivation:** D&D 5e has detailed treasure tables (DMG chapter 7). Automating
 loot rolls saves time after combat.
@@ -722,6 +762,8 @@ party inventory
 
 ### 4.6 Campaign Dashboard
 
+- [ ] **Status:** Planned
+
 **Motivation:** DMs benefit from an at-a-glance overview of the entire campaign
 state — active quests, upcoming sessions, recent events, unfinished encounters.
 
@@ -740,6 +782,8 @@ server endpoint, no new models needed
 ## 5. Technical & Platform
 
 ### 5.1 Progressive Web App (PWA) Support
+
+- [ ] **Status:** Planned
 
 **Motivation:** Players access Tablecast from phones. Adding PWA support means
 they can "install" it as a standalone app, get offline loading, and see a
@@ -798,6 +842,8 @@ significant application code changes
 
 ### 5.2 Chat Command Reference (/help)
 
+- [ ] **Status:** Planned
+
 **Motivation:** Users don't know what commands are available (/ai, /roleplay).
 An in-app reference reduces friction.
 
@@ -813,6 +859,8 @@ An in-app reference reduces friction.
 ---
 
 ### 5.3 Text-to-Speech for NPC Dialogue
+
+- [ ] **Status:** Planned
 
 **Motivation:** Hearing NPCs speak — especially in roleplay-heavy sessions —
 adds a layer of immersion that text alone doesn't provide.
@@ -853,6 +901,8 @@ adds a layer of immersion that text alone doesn't provide.
 
 ### 5.4 Ping System (Player Map Markers)
 
+- [ ] **Status:** Planned
+
 **Motivation:** Players need to communicate "I move here," "Look at this," or
 "That's the trap!" without physical pointing.
 
@@ -869,6 +919,8 @@ adds a layer of immersion that text alone doesn't provide.
 ---
 
 ### 5.5 Offline Resilience Improvements
+
+- [ ] **Status:** Planned
 
 **Motivation:** Connection drops during a session break immersion. The app
 should gracefully handle and recover from offline states.
@@ -934,6 +986,8 @@ serialization, DiceBoxContext fallback
 
 ### 6.1 AI-Triggered Dice Roll Integration
 
+- [ ] **Status:** Planned
+
 **Motivation:** Bridges the two biggest mechanics — AI chat and dice rolling.
 When the Rules Scholar or NPC roleplay AI recommends a check or save, the user
 should be able to roll directly from the chat message.
@@ -966,6 +1020,8 @@ attribute convention, DiceBoxContext integration, CharacterSheet modifier lookup
 ---
 
 ### 6.2 Quest & Story Hook Generator
+
+- [ ] **Status:** Planned
 
 **Motivation:** DMs spend hours brainstorming adventure hooks. An AI-assisted
 hook generator produces multiple distinct ideas from a brief prompt, saving
@@ -1002,6 +1058,8 @@ wiki context fetching, frontend QuestGeneratorPanel or modal
 
 ### 6.3 Name Generator
 
+- [ ] **Status:** Planned
+
 **Motivation:** One of the most common DM tasks — naming NPCs, taverns, towns,
 shops, factions, and landmarks. A simple but high-utility generator.
 
@@ -1034,6 +1092,8 @@ shops, factions, and landmarks. A simple but high-utility generator.
 ---
 
 ### 6.4 Loot & Treasure Generator
+
+- [ ] **Status:** Planned
 
 **Motivation:** After combat, DMs need to quickly determine what the party finds.
 AI can roll on DMG treasure tables and present formatted loot.
@@ -1074,6 +1134,8 @@ reference data (JSON), chat card rendering, party inventory integration
 
 ### 6.5 AI-Powered Wiki Article Generation
 
+- [ ] **Status:** Planned
+
 **Motivation:** DMs can quickly scaffold wiki articles by describing what they
 want. The AI fills in structured, markdown-formatted content in the appropriate
 wiki category.
@@ -1109,6 +1171,8 @@ integration (pre-fill editor with generated content)
 
 ### 6.6 Location & Room Description Generator
 
+- [ ] **Status:** Planned
+
 **Motivation:** DMs need evocative, read-aloud descriptions for rooms,
 buildings, and outdoor locations. AI generates prose ready for the table.
 
@@ -1138,6 +1202,8 @@ buildings, and outdoor locations. AI generates prose ready for the table.
 ---
 
 ### 6.7 Weather & Travel Montage Generator
+
+- [ ] **Status:** Planned
 
 **Motivation:** Overland travel is a D&D staple but narrating every day of a
 long journey is tedious. AI generates day-by-day travelogues with weather,
@@ -1179,6 +1245,8 @@ tables reference data
 
 ### 6.8 NPC Dialogue Phrase Generator
 
+- [ ] **Status:** Planned
+
 **Motivation:** In-session, DMs need quick flavorful lines for NPCs — combat
 taunts, bargaining phrases, common sayings. Generating a bank of lines per NPC
 saves improv pressure during live play.
@@ -1209,6 +1277,8 @@ NPC detail panel UI
 ---
 
 ### 6.9 Image Generation Integration (NPC Portraits & Scene Art)
+
+- [ ] **Status:** Planned
 
 **Motivation:** Visuals enhance immersion. AI-generated NPC portraits, monster
 art, and scene illustrations give the VTT tabletop presence.
@@ -1252,6 +1322,8 @@ section)
 
 ### 6.10 AI Combat Tactician
 
+- [ ] **Status:** Planned
+
 **Motivation:** During combat, DMs manage many creatures simultaneously. An AI
 tactician suggests actions for controlled monsters/NPCs in the encounter,
 reducing cognitive load.
@@ -1287,6 +1359,8 @@ participant action resolution, optional rule-based fallback
 ---
 
 ### 6.11 AI Session Co-Pilot (Live DM Assistant)
+
+- [ ] **Status:** Planned
 
 **Motivation:** During a live session, the DM juggles many things. An always-on
 AI assistant that listens to the game state (or chat) can proactively offer
