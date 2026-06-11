@@ -34,6 +34,10 @@
 - [x] S3.2.2: Add "Level Up" button to CharacterSheet
 - [x] S3.2.3: Integration with 5etools class/feat reference data
 
+### Fixes
+- [x] S3.3.1: Fix prop name mismatch (CharacterSheet.jsx: onLevelUpComplete → onApplied)
+- [x] S3.3.2: Add 5etools reference integration for feats (276 feats cached, autocomplete in LevelUpWizard)
+
 ## M4: Party Inventory & Shared Gold (§2.3) | status: completed
 ### T4.1: Backend — Party model & routes
 - [x] S4.1.1: Add Party model + PartyMember model to Prisma schema + migration
@@ -56,7 +60,7 @@
 - [x] S5.2.2: Add currency display/management on CharacterSheet
 - [x] S5.2.3: Add haggle mechanic (Persuasion check)
 
-## M6: Verification | agent:Reviewer | status: completed
+## M6: Verification | status: completed
 - [x] S6.1: Run Vite build
 - [x] S6.2: Run LSP diagnostics
 - [x] S6.3: Verify git status and push

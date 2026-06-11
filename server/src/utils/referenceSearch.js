@@ -39,7 +39,6 @@ function clearCache() {
     rules: null,
     actions: null,
     feats: null,
-    feats: null,
   };
   console.log("[ReferenceSearch] Memory cache cleared.");
 }
@@ -237,16 +236,6 @@ function getRules() {
   cache.rules = loadSingleFromCache("actions.json", "action");
   console.log(`[ReferenceSearch] Loaded ${cache.rules.length} rules/actions from cache.`);
   return cache.rules;
-}
-
-function getFeats() {
-  if (cache.feats) return cache.feats;
-  cache.feats = loadSingleFromCache("feats.json", "feat");
-  if (!cache.feats.length) {
-    cache.feats = loadSingleFromCache("feats.json", "feat");
-  }
-  console.log(`[ReferenceSearch] Loaded ${cache.feats.length} feats from cache.`);
-  return cache.feats;
 }
 
 function getFeats() {

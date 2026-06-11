@@ -1172,3 +1172,78 @@ Added localStorage persistence for 4 state items in `useMapData.js`: `activeMap`
 - **Prisma validate**: Schema valid
 - **Module load**: rest.js exports Router, POST route registered
 - **No console.log/debug**: Only `console.error` in error handlers
+
+---
+
+## UNIT REVIEW: M3 Level-Up Wizard (§2.5)
+
+### Result: **FAILED** ❌ (2 defects found)
+
+### Files Verified
+
+| File | Action | Lines | Status |
+|------|--------|-------|--------|
+| `server/src/routes/levelup.js` | **CREATE** | 193 | ✅ Backend endpoint with validation |
+| `client/src/components/character/LevelUpWizard.jsx` | **CREATE** | 381 | ✅ Multi-step wizard |
+| `client/src/components/CharacterSheet.jsx` | **MODIFY** | LevelUp integration | ⚠️ Prop mismatch defect |
+
+### Verification Checklist
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| **LSP diagnostics** | ✅ | Full project `*` — clean (0 errors, 0 warnings) |
+| **Vite build** | ✅ | 1794 modules, 7.91s, zero errors |
+| **Server syntax** (`node -c`) | ✅ | `levelup.js` passes syntax check |
+| **No console.log/debug** | ✅ | No debug logging found |
+| **No hardcoded secrets** | ✅ | Clean |
+| **No duplicate files** | ✅ | Old top-level `LevelUpWizard.jsx` properly deleted |
+| **Route registration** | ✅ | Follows `rest.js` pattern (mounted on `/api/characters`) |
+| **Backend: POST endpoint** | ✅ | Validates auth, ownership, newHp, ability increases, level cap 20 |
+| **Backend: ASI logic** | ✅ | `ASI_LEVELS={4,8,12,16,19}`, `MAX_ABILITY_SCORE=20`, 0-2 increments |
+| **Backend: Error handling** | ✅ | try/catch with 400/401/403/404/500 responses |
+| **Backend: Logging** | ✅ | `logger.info/api:levelup` with reqId and structured meta |
+| **Frontend: Multi-step wizard** | ✅ | 3 steps: HP, ASI/Feat, Review & Apply |
+| **Frontend: HP calculation** | ✅ | Average: floor(die/2)+1+conMod; or manual input |
+| **Frontend: ASI UI** | ✅ | Dropdowns, disabled when score≥20, +2/+1+1 modes |
+| **Frontend: Spell slots** | ✅ | Built-in PHB full caster table (levels 1-10) |
+| **Frontend: Level Up button** | ✅ | ArrowUp icon in CharacterSheet header |
+| **Frontend: Mobile-friendly** | ✅ | `touch-target` class on all interactive elements |
+| **Route conflict check** | ✅ | No `POST /:id` in characters.js — no route conflict |
+
+### ❌ DEFECT 1 (HIGH): Prop name mismatch — `onLevelUpComplete` vs `onApplied`
+
+**Location:**
+- CharacterSheet.jsx:1790: `onLevelUpComplete={handleLevelUpApplied}`
+- LevelUpWizard.jsx:21 destructures `onApplied` (not `onLevelUpComplete`)
+- LevelUpWizard.jsx:121 calls `if (onApplied) onApplied(result.character)`
+
+**Problem:** Since the parent passes `onLevelUpComplete` but the child expects `onApplied`, the callback NEVER fires. After a successful level-up:
+1. Character state is NOT updated
+2. No toast is shown
+3. No socket notification is emitted
+4. The wizard just silently closes
+
+**Fix:** CharacterSheet.jsx line 1790: rename `onLevelUpComplete` → `onApplied`
+
+### ⚠️ DEFECT 2 (MEDIUM): Missing 5etools reference integration (S3.2.3 incomplete)
+
+**Problem:** Subtask S3.2.3 requires "Integration with 5etools class/feat reference data" but:
+- Feats are free-text only (no 5etools autocomplete/lookup)
+- No class features fetched from reference data
+- Spell slots are hardcoded PHB table (not from reference)
+
+**Recommendation:** Add 5etools reference integration for feat/class feature autocomplete.
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Total backend code | 193 lines |
+| Total frontend code | 381 lines |
+| Defects found | 2 (1 HIGH, 1 MEDIUM) |
+| Build status | ✅ PASS |
+| LSP status | ✅ CLEAN |
+| Overall verdict | ❌ FAIL — requires rework for DEFECT 1 |
+
+## Active Sessions (Reviewer)
+- [x] ses_review_M3 (Reviewer): `M3 Level-Up Wizard` - Unit Review FAILED ❌ (2 defects found)

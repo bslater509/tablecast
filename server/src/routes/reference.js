@@ -25,6 +25,7 @@ const IMAGE_SECTIONS = {
   races: "races",
   classes: "classes",
   rules: "variantrules",
+  feats: "feats",
 };
 
 function normalizeSources(sources) {
