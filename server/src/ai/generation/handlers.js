@@ -1,14 +1,13 @@
 // =============================================================================
-// Tablecast — AI Generation Routes
-// NPC, character, monster generation, session tools, text expansion, interview
+// Tablecast — AI Generation Route Handlers
+// Extracted handler functions for NPC, character, monster generation,
+// session tools, text expansion, and interview routes.
 // =============================================================================
 "use strict";
 
-const { Router } = require("express");
-const prisma = require("../prisma");
-const logger = require("../utils/logger");
-const generateTokenSvg = require("../utils/generateTokenSvg");
-const { requireDm } = require("../auth");
+const prisma = require("../../prisma");
+const logger = require("../../utils/logger");
+const generateTokenSvg = require("../../utils/generateTokenSvg");
 const {
   loadAiSettings, performAiCall, streamGenerate,
   beginSseResponse, writeSseEvent,
@@ -16,14 +15,12 @@ const {
   buildAssistSystemPrompt, buildAssistUserMessage,
   formatCreaturePromptList, formatEntityList, parseJsonArray,
   ASSIST_ACTIONS_REQUIRING_TEXT, loadSessionAiContext
-} = require("./helpers");
-
-const router = Router();
+} = require("../helpers");
 
 // ---------------------------------------------------------------------------
 // POST /generate-npc-options - Generate multiple NPC concepts (DM only)
 // ---------------------------------------------------------------------------
-router.post("/generate-npc-options", requireDm, async (req, res) => {
+async function handleGenerateNpcOptions(req, res) {
   try {
     const { prompt } = req.body;
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -103,12 +100,12 @@ Generate exactly 4 options. Make each one feel distinct and interesting.`;
     }
     res.status(500).json({ error: err.message || "Failed to generate NPC options." });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // POST /generate-npc - AI NPC Creator (DM only)
 // ---------------------------------------------------------------------------
-router.post("/generate-npc", requireDm, async (req, res) => {
+async function handleGenerateNpc(req, res) {
   try {
     const { prompt, selectedOption } = req.body;
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -215,12 +212,12 @@ The JSON must strictly conform to these fields:
     }
     res.status(500).json({ error: err.message || "Failed to generate NPC." });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // POST /generate-character-options - Generate multiple character concepts (DM only)
 // ---------------------------------------------------------------------------
-router.post("/generate-character-options", requireDm, async (req, res) => {
+async function handleGenerateCharacterOptions(req, res) {
   try {
     const { prompt } = req.body;
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -291,12 +288,12 @@ Generate exactly 4 options. Levels should generally range from 1 to 5 based on t
     }
     res.status(500).json({ error: err.message || "Failed to generate character options." });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // POST /generate-character - Full character generation (DM only)
 // ---------------------------------------------------------------------------
-router.post("/generate-character", requireDm, async (req, res) => {
+async function handleGenerateCharacter(req, res) {
   try {
     const { prompt, selectedOption } = req.body;
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -381,12 +378,12 @@ The JSON must strictly conform to these fields:
     }
     res.status(500).json({ error: err.message || "Failed to generate character." });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // POST /generate-monster-options - Generate multiple monster concepts (DM only)
 // ---------------------------------------------------------------------------
-router.post("/generate-monster-options", requireDm, async (req, res) => {
+async function handleGenerateMonsterOptions(req, res) {
   try {
     const { prompt } = req.body;
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -456,12 +453,12 @@ Generate exactly 4 options. Make each one feel distinct and dangerous.`;
     }
     res.status(500).json({ error: err.message || "Failed to generate monster options." });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // POST /generate-monster - Full monster generation (DM only)
 // ---------------------------------------------------------------------------
-router.post("/generate-monster", requireDm, async (req, res) => {
+async function handleGenerateMonster(req, res) {
   try {
     const { prompt, selectedOption } = req.body;
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -554,12 +551,12 @@ The JSON must strictly conform to these fields:
     }
     res.status(500).json({ error: err.message || "Failed to generate monster." });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // POST /build-encounter - Build a balanced encounter (DM only)
 // ---------------------------------------------------------------------------
-router.post("/build-encounter", requireDm, async (req, res) => {
+async function handleBuildEncounter(req, res) {
   try {
     const { partyLevels, difficulty, context } = req.body;
     const levels = Array.isArray(partyLevels)
@@ -642,12 +639,12 @@ You MUST respond with a single JSON object containing an "encounter" object and 
     logger.error("ai:encounter", "Failed", { error: err.message });
     res.status(500).json({ error: err.message || "Failed to build encounter." });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // POST /encounter-description - Generate encounter title/description (DM only)
 // ---------------------------------------------------------------------------
-router.post("/encounter-description", requireDm, async (req, res) => {
+async function handleEncounterDescription(req, res) {
   try {
     const participants = Array.isArray(req.body?.participants) ? req.body.participants : [];
     if (!participants.length) {
@@ -686,12 +683,12 @@ You MUST respond with a single JSON object and no other text.
     logger.error("ai:encounter", "Failed", { error: err.message });
     res.status(500).json({ error: err.message || "Failed to generate encounter description." });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // POST /session-recap - Generate a session recap from recent chat (DM only)
 // ---------------------------------------------------------------------------
-router.post("/session-recap", requireDm, async (req, res) => {
+async function handleSessionRecap(req, res) {
   try {
     const { sessionId } = req.body;
     const { session, chatMessages, wikiArticles, encounters } = await loadSessionAiContext(sessionId);
@@ -748,12 +745,12 @@ Return plain markdown only.`;
     }
     res.status(500).json({ error: err.message || "Failed to generate session recap." });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // POST /session-agenda - Generate session agenda/prep (DM only)
 // ---------------------------------------------------------------------------
-router.post("/session-agenda", requireDm, async (req, res) => {
+async function handleSessionAgenda(req, res) {
   try {
     const { sessionId } = req.body;
     const { session, wikiArticles } = await loadSessionAiContext(sessionId);
@@ -809,12 +806,12 @@ Return plain markdown only.`;
     }
     res.status(500).json({ error: err.message || "Failed to generate session agenda." });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // POST /expand-text - AI Text Enhancer (DM only)
 // ---------------------------------------------------------------------------
-router.post("/expand-text", requireDm, async (req, res) => {
+async function handleExpandText(req, res) {
   try {
     const { text, action, field, context } = req.body;
     const fieldName = typeof field === "string" && field.trim() ? field.trim() : "markdown";
@@ -864,12 +861,12 @@ router.post("/expand-text", requireDm, async (req, res) => {
     logger.error("ai:expand", "Failed", { error: err.message });
     res.status(500).json({ error: err.message || "Failed to process text." });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // POST /npc-interview - Interactive NPC Creation Interview (DM only)
 // ---------------------------------------------------------------------------
-router.post("/npc-interview", requireDm, async (req, res) => {
+async function handleNpcInterview(req, res) {
   try {
     const { prompt, interviewHistory, finalStep } = req.body;
 
@@ -1054,6 +1051,19 @@ When you have enough info (at least 3 questions answered):
     }
     res.status(500).json({ error: err.message || "Failed during NPC interview." });
   }
-});
+}
 
-module.exports = router;
+module.exports = {
+  handleGenerateNpcOptions,
+  handleGenerateNpc,
+  handleGenerateCharacterOptions,
+  handleGenerateCharacter,
+  handleGenerateMonsterOptions,
+  handleGenerateMonster,
+  handleBuildEncounter,
+  handleEncounterDescription,
+  handleSessionRecap,
+  handleSessionAgenda,
+  handleExpandText,
+  handleNpcInterview,
+};
