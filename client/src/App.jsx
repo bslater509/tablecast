@@ -1296,7 +1296,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop"].includes(pathParts[2])
+  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "encounter-templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
