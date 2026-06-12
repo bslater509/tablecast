@@ -791,6 +791,9 @@ model LootCache {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([createdAt])
+  @@index([totalValue])
+  @@index([tier])
   @@map("loot_caches")
 }
 

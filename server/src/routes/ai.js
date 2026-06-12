@@ -48,11 +48,13 @@ router.use("/", mcpRouter);
 router.use("/", debugRouter);
 router.use("/", copilotRouter);
 
-// Safety-net: register newer generation routes directly in case generation/index.js
-// fails to register them in the Docker environment. These run AFTER generationRouter,
-// so if generationRouter already handled the route these won't fire.
+// Safety-net: register routes directly in case generation/index.js failed to load
+// (empty fallback router). Only active when the main generation router is empty.
 // Using a lazy require so any module load failure is isolated and logged.
-(function registerGenerationSafetyNet() {
+if (generationRouter.stack.length === 0) {
+  const logger = require("../utils/logger");
+  logger.warn("http:ai", "[AI routes] generationRouter is empty — activating safety-net fallback");
+  (function registerGenerationSafetyNet() {
   try {
     const {
       handleGenerateHooks,
@@ -85,8 +87,8 @@ router.use("/", copilotRouter);
     const logger = require("../utils/logger");
     logger.error("ai:routes", "Failed to register safety-net generation routes", { error: err.message });
   }
-})();
-
+  })();
+  }
 
 // Named re-exports for socket.js and other consumers
 module.exports = {

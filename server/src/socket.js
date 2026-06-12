@@ -161,10 +161,6 @@ function registerSocketHandlers(io) {
         // Use authenticated user from socket middleware
         const userObj = socket.data.user || null;
 
-        // Load AI settings once for all AI commands
-        const aiSettings = await loadAiSettings();
-        const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
-
         // Enforce max query length for AI commands to prevent cost abuse
         const MAX_AI_QUERY_LENGTH = 2000;
         if (rawText.startsWith("/ai ") && rawText.length > MAX_AI_QUERY_LENGTH) {
@@ -181,6 +177,10 @@ function registerSocketHandlers(io) {
             type: "system"
           });
         }
+
+        // Load AI settings (only reached for AI commands after length checks pass)
+        const aiSettings = await loadAiSettings();
+        const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
 
         // 1. /ai [query] -> General AI rules/concepts assistant (streamed)
         if (rawText.startsWith("/ai ")) {
@@ -422,8 +422,11 @@ Show this command reference.`;
         }
 
         const moveData = { x: parsed.value.x, y: parsed.value.y };
-        // If VTT feature fields are provided, update them too
-        if (payload.conditions !== undefined) moveData.conditions = payload.conditions;
+        if (payload.conditions !== undefined) {
+          const condResult = validateConditions(payload.conditions);
+          if (!condResult.ok) return emitSocketError(socket, "token:move", condResult.error);
+          moveData.conditions = condResult.value;
+        }
         if (payload.visionRadius !== undefined) moveData.visionRadius = Number(payload.visionRadius) || 0;
         if (payload.darkvisionRadius !== undefined) moveData.darkvisionRadius = Number(payload.darkvisionRadius) || 0;
         if (payload.auraRadius !== undefined) moveData.auraRadius = Number(payload.auraRadius) || 0;
@@ -481,7 +484,10 @@ Show this command reference.`;
           x: parsed.value.x,
           y: parsed.value.y,
           stats: parsed.value.stats,
-          conditions: payload.conditions || "[]",
+          conditions: (() => {
+            const condResult = validateConditions(payload.conditions);
+            return condResult.ok ? condResult.value : "[]";
+          })(),
           visionRadius: Number(payload.visionRadius) || 0,
           darkvisionRadius: Number(payload.darkvisionRadius) || 0,
           auraRadius: Number(payload.auraRadius) || 0,
@@ -961,6 +967,21 @@ function serializeRollDetails(rollDetails) {
     status: "done",
   };
   return JSON.stringify(storedRollDetails);
+}
+
+function validateConditions(conditions) {
+  if (conditions === undefined || conditions === null) return { ok: true, value: "[]" };
+  if (typeof conditions === "string") {
+    try {
+      const parsed = JSON.parse(conditions);
+      if (!Array.isArray(parsed)) return { ok: false, error: "conditions must be a JSON array." };
+      return { ok: true, value: conditions };
+    } catch {
+      return { ok: false, error: "conditions must be valid JSON." };
+    }
+  }
+  if (!Array.isArray(conditions)) return { ok: false, error: "conditions must be an array." };
+  return { ok: true, value: JSON.stringify(conditions) };
 }
 
 function validateTokenMovePayload(payload) {

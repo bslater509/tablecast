@@ -258,7 +258,14 @@ router.post("/:id/tokens", requireDm, async (req, res) => {
       x: tokenX,
       y: tokenY,
       stats: parsedStats,
-      conditions: req.body.conditions || "[]",
+      conditions: (() => {
+        const c = req.body.conditions;
+        if (!c) return "[]";
+        if (typeof c === "string") {
+          try { JSON.parse(c); return c; } catch { return "[]"; }
+        }
+        return JSON.stringify(c);
+      })(),
       visionRadius: Number(req.body.visionRadius) || 0,
       darkvisionRadius: Number(req.body.darkvisionRadius) || 0,
       auraRadius: Number(req.body.auraRadius) || 0,
@@ -321,8 +328,14 @@ router.put("/tokens/:id", requireDm, async (req, res) => {
     if (characterId !== undefined) data.characterId = characterId ? Number(characterId) : null;
     if (npcId !== undefined) data.npcId = npcId ? Number(npcId) : null;
     if (monsterId !== undefined) data.monsterId = monsterId ? Number(monsterId) : null;
-    // VTT feature fields: conditions, vision, aura
-    if (req.body.conditions !== undefined) data.conditions = req.body.conditions;
+    if (req.body.conditions !== undefined) {
+      const c = req.body.conditions;
+      if (typeof c === "string") {
+        try { JSON.parse(c); data.conditions = c; } catch { return res.status(400).json({ error: "conditions must be valid JSON." }); }
+      } else {
+        data.conditions = JSON.stringify(c);
+      }
+    }
     if (req.body.visionRadius !== undefined) data.visionRadius = Number(req.body.visionRadius) || 0;
     if (req.body.darkvisionRadius !== undefined) data.darkvisionRadius = Number(req.body.darkvisionRadius) || 0;
     if (req.body.auraRadius !== undefined) data.auraRadius = Number(req.body.auraRadius) || 0;

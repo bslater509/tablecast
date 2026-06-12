@@ -207,9 +207,24 @@ router.patch("/participants/:id", requireDm, async (req, res) => {
     if (req.body.ac !== undefined) data.ac = clampInt(req.body.ac, 10, 0, 1000);
     if (req.body.isHidden !== undefined) data.isHidden = Boolean(req.body.isHidden);
     if (req.body.name !== undefined) data.name = String(req.body.name || "").trim().slice(0, 120) || "Combatant";
-    // VTT feature fields: conditions & death saves
-    if (req.body.conditions !== undefined) data.conditions = req.body.conditions;
-    if (req.body.deathSaves !== undefined) data.deathSaves = req.body.deathSaves;
+    if (req.body.conditions !== undefined) {
+      if (typeof req.body.conditions === "string") {
+        const parsed = parseJson(req.body.conditions, null);
+        if (!parsed) return res.status(400).json({ error: "conditions must be valid JSON." });
+        data.conditions = req.body.conditions;
+      } else {
+        data.conditions = JSON.stringify(req.body.conditions);
+      }
+    }
+    if (req.body.deathSaves !== undefined) {
+      if (typeof req.body.deathSaves === "string") {
+        const parsed = parseJson(req.body.deathSaves, null);
+        if (!parsed) return res.status(400).json({ error: "deathSaves must be valid JSON." });
+        data.deathSaves = req.body.deathSaves;
+      } else {
+        data.deathSaves = JSON.stringify(req.body.deathSaves);
+      }
+    }
 
     const participant = await prisma.encounterParticipant.update({
       where: { id: participantId },

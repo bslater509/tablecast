@@ -60,8 +60,8 @@ app.use(
         const parts = message.trim().split(" ");
         const method = parts[1]?.replace(/"/g, "") || "?";
         const url = parts[2] || "?";
-        const status = parseInt(parts[parts.length - 3], 10);
-        const responseTime = parts[parts.length - 1]?.replace("ms", "") || "?";
+        const status = parseInt(parts[parts.length - 4], 10);
+        const responseTime = parts[parts.length - 2] || "?";
 
         logger.info("http", `${method} ${url} -> ${status}`, {
           method,

@@ -12,8 +12,7 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
-// eslint-disable-next-line unused-imports/no-unused-vars
-const { getRequestUser, requireDm } = require("../auth");
+const { requireDm } = require("../auth");
 const logger = require("../utils/logger");
 
 const router = Router();
