@@ -8,6 +8,8 @@
 |------|---------|------|-----------|
 | client/src/components/EncounterTemplatesPanel.jsx | ses_T8_ETPanel | lsp_clean+vite_build_pass | 2026-06-12T06:56:00Z |
 | client/src/App.jsx | (prev session) | lsp_clean+vite_build_pass | 2026-06-12T06:56:00Z |
+| server/src/mcp/handlers/encounter-templates.js (T7) | ses_T7 | isolated_test (8/8 pass) | 2026-06-12T06:55:31Z |
+| server/src/mcp-server.js (T10) | ses_T7 | syntax_ok+module_load_ok | 2026-06-12T06:56:40Z |
 
 ## Active Sessions
 - [x] ses_encounter_templates_mcp (Worker): `server/src/mcp/handlers/encounter-templates.js` - CREATE ✅
