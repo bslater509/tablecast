@@ -908,7 +908,7 @@ export default function ShopPanel({ user, addToast }) {
                           min={1}
                           max={isUnlimited ? 99 : item.quantity}
                           value={qty}
-                          onChange={(e) => setBuyQuantities((prev) => ({ ...prev, [item.id]: Math.max(1, Math.min(isUnlimited ? 99 : item.quantity, parseInt(e.target.value) || 1)) }))}
+                          onChange={(e) => setBuyQuantities((prev) => ({ ...prev, [item.id]: Math.max(1, Math.min(isUnlimited ? 99 : item.quantity, parseInt(e.target.value, 10) || 1)) }))}
                           style={PANEL_STYLES.qtyInput}
                         />
                       </div>
@@ -1004,11 +1004,11 @@ export default function ShopPanel({ user, addToast }) {
               <div style={PANEL_STYLES.formRow}>
                 <div style={PANEL_STYLES.formCol}>
                   <label style={PANEL_STYLES.formLabel}>Price (CP)</label>
-                  <input type="number" min={0} style={PANEL_STYLES.formInput} value={addItemForm.price} onChange={(e) => setAddItemForm((p) => ({ ...p, price: Math.max(0, parseInt(e.target.value) || 0) }))} />
+                  <input type="number" min={0} style={PANEL_STYLES.formInput} value={addItemForm.price} onChange={(e) => setAddItemForm((p) => ({ ...p, price: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
                 </div>
                 <div style={PANEL_STYLES.formCol}>
                   <label style={PANEL_STYLES.formLabel}>Stock</label>
-                  <input type="number" min={-1} style={PANEL_STYLES.formInput} value={addItemForm.quantity} onChange={(e) => setAddItemForm((p) => ({ ...p, quantity: parseInt(e.target.value) || -1 }))} placeholder="-1 = unlimited" />
+                  <input type="number" min={-1} style={PANEL_STYLES.formInput} value={addItemForm.quantity} onChange={(e) => setAddItemForm((p) => ({ ...p, quantity: parseInt(e.target.value, 10) || -1 }))} placeholder="-1 = unlimited" />
                 </div>
                 <div style={PANEL_STYLES.formCol}>
                   <label style={PANEL_STYLES.formLabel}>Category</label>

@@ -644,7 +644,7 @@ export default function CalendarPanel({ user }) {
             <input
               type="number"
               value={editDate.year}
-              onChange={(e) => setEditDate({ ...editDate, year: parseInt(e.target.value) || 0 })}
+              onChange={(e) => setEditDate({ ...editDate, year: parseInt(e.target.value, 10) || 0 })}
               style={{ ...s.input, ...s.inputSmall }}
               className="form-input"
               min={0}
@@ -656,7 +656,7 @@ export default function CalendarPanel({ user }) {
             <input
               type="number"
               value={editDate.month}
-              onChange={(e) => setEditDate({ ...editDate, month: Math.min(12, Math.max(1, parseInt(e.target.value) || 1)) })}
+              onChange={(e) => setEditDate({ ...editDate, month: Math.min(12, Math.max(1, parseInt(e.target.value, 10) || 1)) })}
               style={{ ...s.input, ...s.inputSmall }}
               className="form-input"
               min={1}
@@ -672,7 +672,7 @@ export default function CalendarPanel({ user }) {
             <input
               type="number"
               value={editDate.day}
-              onChange={(e) => setEditDate({ ...editDate, day: Math.min(30, Math.max(1, parseInt(e.target.value) || 1)) })}
+              onChange={(e) => setEditDate({ ...editDate, day: Math.min(30, Math.max(1, parseInt(e.target.value, 10) || 1)) })}
               style={{ ...s.input, ...s.inputSmall }}
               className="form-input"
               min={1}
@@ -802,7 +802,7 @@ export default function CalendarPanel({ user }) {
             <input
               type="number"
               value={advanceDays}
-              onChange={(e) => setAdvanceDays(Math.max(0, Math.min(365, parseInt(e.target.value) || 0)))}
+              onChange={(e) => setAdvanceDays(Math.max(0, Math.min(365, parseInt(e.target.value, 10) || 0)))}
               style={{ ...s.input, ...s.inputSmall }}
               className="form-input"
               min={0}

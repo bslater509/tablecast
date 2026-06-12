@@ -579,7 +579,7 @@ function EncounterTemplatesPanel({ user }) {
                   max="20"
                   style={s.input}
                   value={formData.recommendedLevel}
-                  onChange={(e) => setFormData((p) => ({ ...p, recommendedLevel: parseInt(e.target.value) || 1 }))}
+                  onChange={(e) => setFormData((p) => ({ ...p, recommendedLevel: parseInt(e.target.value, 10) || 1 }))}
                 />
               </div>
             </div>

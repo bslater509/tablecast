@@ -1302,7 +1302,7 @@ function StepReview({ form, onError }) {
 // =============================================================================
 // Main Character Builder Wizard Component
 // =============================================================================
-export default function CharacterBuilderWizard({ user, onComplete, onCancel }) {
+export default function CharacterBuilderWizard({ user, onComplete, onCancel, onError }) {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

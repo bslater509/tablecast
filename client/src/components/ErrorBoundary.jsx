@@ -41,7 +41,7 @@ export default class ErrorBoundary extends Component {
               <p style={styles.message}>
                 Tablecast encountered an unexpected error. Please try reloading.
               </p>
-              {process.env.NODE_ENV === "development" && this.state.error && (
+              {import.meta.env.MODE === "development" && this.state.error && (
                 <pre style={styles.details}>
                   {this.state.error.toString()}
                 </pre>

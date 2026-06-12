@@ -584,7 +584,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
                       <input
                         type="number"
                         value={modifier}
-                        onChange={(e) => setModifier(parseInt(e.target.value) || 0)}
+                        onChange={(e) => setModifier(parseInt(e.target.value, 10) || 0)}
                         style={styles.modInput}
                         className="form-input"
                       />

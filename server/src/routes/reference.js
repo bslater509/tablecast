@@ -443,7 +443,7 @@ router.post("/import", requireDm, async (req, res) => {
         for (const act of item.action) {
           const entriesStr = Array.isArray(act.entries) ? act.entries.join(" ") : String(act.entries || "");
           const hitMatch = entriesStr.match(/\{@hit (\d+)\}/);
-          const toHit = hitMatch ? parseInt(hitMatch[1]) : 0;
+          const toHit = hitMatch ? parseInt(hitMatch[1], 10) : 0;
           const dmgMatch = entriesStr.match(/\{@damage ([^}]+)\}/);
           const damage = dmgMatch ? dmgMatch[1].trim() : "";
           

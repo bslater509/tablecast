@@ -260,7 +260,7 @@ export default function LevelUpWizard({ character, user, onClose, onApplied }) {
                   type="number"
                   min={1}
                   value={hpGain}
-                  onChange={(e) => setHpGain(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(e) => setHpGain(Math.max(1, parseInt(e.target.value, 10) || 1))}
                   onClick={(e) => e.stopPropagation()}
                   style={{
                     width: "50px", padding: "0.2rem", marginTop: "0.2rem",

@@ -44,13 +44,13 @@ function NpcStatblock({ npc, socket, isDM, onHpChange }) {
     let formulaText = `Hit: 1d20 + ${toHit} | Dmg: ${diceExpr}`;
 
     if (match) {
-      const count = parseInt(match[1]);
-      const sides = parseInt(match[2]);
+      const count = parseInt(match[1], 10);
+      const sides = parseInt(match[2], 10);
       const remainder = match[3] || "";
       let flatMod = 0;
       const modMatch = remainder.match(/([+-])\s*(\d+)/);
       if (modMatch) {
-        flatMod = parseInt(modMatch[2]) * (modMatch[1] === "-" ? -1 : 1);
+        flatMod = parseInt(modMatch[2], 10) * (modMatch[1] === "-" ? -1 : 1);
       }
       for (let i = 0; i < count; i++) {
         const r = Math.floor(Math.random() * sides) + 1;
@@ -59,7 +59,7 @@ function NpcStatblock({ npc, socket, isDM, onHpChange }) {
       }
       damageTotal += flatMod;
     } else {
-      damageTotal = Math.max(1, parseInt(diceExpr) || 4);
+      damageTotal = Math.max(1, parseInt(diceExpr, 10) || 4);
     }
 
     if (socket) {

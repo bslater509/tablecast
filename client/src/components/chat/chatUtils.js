@@ -79,10 +79,10 @@ export function parseDiceNotation(text) {
   const regex = /^(\d+)?d(\d+)(?:\s*([+-])\s*(\d+))?$/i;
   const match = clean.match(regex);
   if (!match) return null;
-  const qty = match[1] ? parseInt(match[1]) : 1;
-  const sides = parseInt(match[2]);
+  const qty = match[1] ? parseInt(match[1], 10) : 1;
+  const sides = parseInt(match[2], 10);
   const sign = match[3] || "+";
-  const modifierVal = match[4] ? parseInt(match[4]) : 0;
+  const modifierVal = match[4] ? parseInt(match[4], 10) : 0;
   const modifier = sign === "-" ? -modifierVal : modifierVal;
   return { qty, sides, modifier };
 }

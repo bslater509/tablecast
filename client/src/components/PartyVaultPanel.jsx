@@ -812,7 +812,7 @@ function PartyVaultPanel({ user, onBack }) {
                         type="number"
                         min={1}
                         value={transferItemQty}
-                        onChange={(e) => setTransferItemQty(Math.max(1, parseInt(e.target.value) || 1))}
+                        onChange={(e) => setTransferItemQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
                         style={{ ...panelStyles.input, width: "70px" }}
                       />
                     </div>

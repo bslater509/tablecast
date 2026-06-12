@@ -1050,7 +1050,7 @@ export default function DialogueTreePanel({ user, readOnly = false, isPopout = f
                                 className="form-input"
                                 value={choice.skillCheck.dc || 10}
                                 onChange={(e) =>
-                                  handleSkillCheckFieldChange(i, "dc", Math.max(1, parseInt(e.target.value) || 10))
+                                  handleSkillCheckFieldChange(i, "dc", Math.max(1, parseInt(e.target.value, 10) || 10))
                                 }
                                 style={{ ...styles.input, width: 80 }}
                                 min={1}

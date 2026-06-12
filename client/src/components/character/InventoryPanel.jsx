@@ -95,7 +95,7 @@ export default function InventoryPanel({
                 type="number"
                 value={itemQty}
                 min={1}
-                onChange={(e) => onSetItemQty(Math.max(1, parseInt(e.target.value) || 1))}
+                onChange={(e) => onSetItemQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
                 style={styles.subInput}
                 className="form-input"
               />

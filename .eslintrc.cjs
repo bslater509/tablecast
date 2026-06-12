@@ -21,7 +21,7 @@ module.exports = {
       jsx: true,
     },
   },
-  plugins: ["react"],
+  plugins: ["react", "react-hooks"],
   settings: {
     react: {
       version: "detect",
@@ -154,6 +154,8 @@ module.exports = {
       rules: {
         "react/jsx-uses-react": OFF,
         "react/jsx-uses-vars": WARN,
+        "react-hooks/rules-of-hooks": ERROR,
+        "react-hooks/exhaustive-deps": WARN,
       },
     },
     // ── Node/CommonJS ─────────────────────────────────────────────────────

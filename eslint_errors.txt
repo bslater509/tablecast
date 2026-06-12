@@ -1,0 +1,200 @@
+
+/root/tablecast/client/src/components/CalendarPanel.jsx
+   19:3   warning  'ChevronLeft' is defined but never used   no-unused-vars
+   20:3   warning  'ChevronRight' is defined but never used  no-unused-vars
+  452:5   warning  Arrow function expected no return value   consistent-return
+  647:65  error    Missing radix parameter                   radix
+  659:91  error    Missing radix parameter                   radix
+  675:89  error    Missing radix parameter                   radix
+  805:73  error    Missing radix parameter                   radix
+
+--
+/root/tablecast/client/src/components/CampaignDashboard.jsx
+   17:3   warning  'Sparkles' is defined but never used                             no-unused-vars
+   19:3   warning  'Plus' is defined but never used                                 no-unused-vars
+   24:3   warning  'Shield' is defined but never used                               no-unused-vars
+  197:29  warning  Unexpected string concatenation                                  prefer-template
+  224:3   error    Definition for rule 'react-hooks/exhaustive-deps' was not found  react-hooks/exhaustive-deps
+
+--
+  1289:21  warning  'stepStyles' was used before it was defined                  no-use-before-define
+  1290:26  warning  'stepStyles' was used before it was defined                  no-use-before-define
+  1325:9   warning  'totalSteps' is assigned a value but never used              no-unused-vars
+  1332:12  warning  'getStepIndex' is defined but never used                     no-unused-vars
+  1427:53  warning  Unnecessarily quoted property '1' found                      quote-props
+  1454:7   error    'onError' is not defined                                     no-undef
+  1478:12  warning  'getStepLabel' is defined but never used                     no-unused-vars
+--
+   211:18  warning  'e' is defined but never used                                                                          no-unused-vars
+   214:18  warning  'e' is defined but never used                                                                          no-unused-vars
+   254:46  warning  Trailing spaces not allowed                                                                            no-trailing-spaces
+   276:9   warning  Expected property shorthand                                                                            object-shorthand
+   500:44  warning  Trailing spaces not allowed                                                                            no-trailing-spaces
+   506:23  error    Missing radix parameter                                                                                radix
+   506:50  error    Missing radix parameter                                                                                radix
+   525:5   warning  Split 'let' declarations into multiple statements                                                      one-var
+   565:5   warning  Split 'let' declarations into multiple statements                                                      one-var
+   624:5   warning  Split 'let' declarations into multiple statements                                                      one-var
+   680:1   warning  Trailing spaces not allowed                                                                            no-trailing-spaces
+   684:5   warning  Split 'let' declarations into multiple statements                                                      one-var
+   782:29  error    Missing radix parameter                                                                                radix
+   878:25  warning  Unnecessary use of boolean literals in conditional expression                                          no-unneeded-ternary
+--
+  1291:16  warning  'e' is defined but never used                                                                          no-unused-vars
+  1319:12  warning  'formatGoldCp' is defined but never used                                                               no-unused-vars
+  1338:12  warning  'handleCurrencySave' is defined but never used                                                         no-unused-vars
+  1348:12  warning  'handleCurrencyCancel' is defined but never used                                                       no-unused-vars
+  1358:9   warning  'parts' is never reassigned. Use 'const' instead                                                       prefer-const
+  1471:68  error    Missing radix parameter                                                                                radix
+  1472:66  error    Missing radix parameter                                                                                radix
+  1525:90  error    Missing radix parameter                                                                                radix
+  1586:70  error    Missing radix parameter                                                                                radix
+  1587:68  error    Missing radix parameter                                                                                radix
+  1606:71  error    Missing radix parameter                                                                                radix
+  1607:69  error    Missing radix parameter                                                                                radix
+  1618:71  error    Missing radix parameter                                                                                radix
+  1619:69  error    Missing radix parameter                                                                                radix
+  1686:1   warning  Trailing spaces not allowed                                                                            no-trailing-spaces
+--
+  1031:41  warning  'styles' was used before it was defined        no-use-before-define
+  1032:45  warning  'styles' was used before it was defined        no-use-before-define
+  1037:40  warning  'styles' was used before it was defined        no-use-before-define
+  1046:41  warning  'styles' was used before it was defined        no-use-before-define
+  1047:45  warning  'styles' was used before it was defined        no-use-before-define
+  1053:84  error    Missing radix parameter                        radix
+  1055:45  warning  'styles' was used before it was defined        no-use-before-define
+--
+  567:30  warning  'styles' was used before it was defined                     no-use-before-define
+  573:31  warning  'styles' was used before it was defined                     no-use-before-define
+  574:35  warning  'styles' was used before it was defined                     no-use-before-define
+  575:33  warning  'styles' was used before it was defined                     no-use-before-define
+  578:32  warning  'styles' was used before it was defined                     no-use-before-define
+  587:54  error    Missing radix parameter                                     radix
+  588:32  warning  'styles' was used before it was defined                     no-use-before-define
+--
+  140:60  warning  'styles' was used before it was defined  no-use-before-define
+  146:27  warning  'styles' was used before it was defined  no-use-before-define
+
+/root/tablecast/client/src/components/EncounterTemplatesPanel.jsx
+   22:3   warning  'ExternalLink' is defined but never used  no-unused-vars
+  582:82  error    Missing radix parameter                   radix
+
+--
+   47:46  warning  Unnecessarily quoted property 'Restrained' found                                                       quote-props
+   48:3   warning  Unnecessarily quoted property 'Stunned' found                                                          quote-props
+   48:25  warning  Unnecessarily quoted property 'Unconscious' found                                                      quote-props
+   48:51  warning  Unnecessarily quoted property 'Exhaustion' found                                                       quote-props
+   76:60  warning  Unexpected block statement surrounding arrow body; move the returned value immediately after the `=>`  arrow-body-style
+  192:5   error    Definition for rule 'react-hooks/exhaustive-deps' was not found                                        react-hooks/exhaustive-deps
+  200:5   error    Definition for rule 'react-hooks/exhaustive-deps' was not found                                        react-hooks/exhaustive-deps
+  251:5   warning  Arrow function expected no return value                                                                consistent-return
+--
+  37:23  warning  'styles' was used before it was defined  no-use-before-define
+  38:25  warning  'styles' was used before it was defined  no-use-before-define
+  39:27  warning  'styles' was used before it was defined  no-use-before-define
+  40:26  warning  'styles' was used before it was defined  no-use-before-define
+  41:25  warning  'styles' was used before it was defined  no-use-before-define
+  44:16  error    'process' is not defined                 no-undef
+  45:29  warning  'styles' was used before it was defined  no-use-before-define
+--
+/root/tablecast/client/src/components/HomebrewManager.jsx
+   19:3    warning  'FileJson' is defined but never used     no-unused-vars
+   20:3    warning  'Copy' is defined but never used         no-unused-vars
+   21:3    warning  'ChevronUp' is defined but never used    no-unused-vars
+   22:3    warning  'ChevronDown' is defined but never used  no-unused-vars
+  449:188  error    Missing radix parameter                  radix
+  456:142  error    Missing radix parameter                  radix
+  521:157  error    Missing radix parameter                  radix
+  612:136  error    Missing radix parameter                  radix
+  616:136  error    Missing radix parameter                  radix
+  627:138  error    Missing radix parameter                  radix
+
+--
+   20:3   warning  'Wallet' is defined but never used  no-unused-vars
+  301:16  warning  Unexpected string concatenation     prefer-template
+  330:16  warning  Unexpected string concatenation     prefer-template
+  357:16  warning  Unexpected string concatenation     prefer-template
+  378:16  warning  Unexpected string concatenation     prefer-template
+  396:19  error    'styles' is not defined             no-undef
+  398:35  error    'styles' is not defined             no-undef
+  412:21  error    'styles' is not defined             no-undef
+  416:20  error    'styles' is not defined             no-undef
+  418:32  error    'styles' is not defined             no-undef
+  438:28  error    'styles' is not defined             no-undef
+  443:28  error    'styles' is not defined             no-undef
+  450:23  error    'styles' is not defined             no-undef
+  457:11  warning  Use object destructuring            prefer-destructuring
+  468:21  error    'styles' is not defined             no-undef
+  639:95  error    Missing radix parameter             radix
+
+--
+/root/tablecast/client/src/components/PartyVaultPanel.jsx
+    6:86  warning  'Shield' is defined but never used                no-unused-vars
+  228:34  warning  'onBack' is defined but never used                no-unused-vars
+  234:10  warning  'authHeaders' is assigned a value but never used  no-unused-vars
+  279:14  warning  'err' is defined but never used                   no-unused-vars
+  815:73  error    Missing radix parameter                           radix
+
+--
+   630:18   warning  Strings must use doublequote                      quotes
+   630:43   warning  Strings must use doublequote                      quotes
+   631:14   warning  'err' is defined but never used                   no-unused-vars
+   632:18   warning  Strings must use doublequote                      quotes
+   632:44   warning  Strings must use doublequote                      quotes
+   911:149  error    Missing radix parameter                           radix
+  1007:172  error    Missing radix parameter                           radix
+  1011:167  error    Missing radix parameter                           radix
+
+--
+   583:9   warning  'handleBestiaryImport' is assigned a value but never used                                              no-unused-vars
+   589:1   warning  Trailing spaces not allowed                                                                            no-trailing-spaces
+   591:1   warning  Trailing spaces not allowed                                                                            no-trailing-spaces
+   595:1   warning  Trailing spaces not allowed                                                                            no-trailing-spaces
+   601:1   warning  Trailing spaces not allowed                                                                            no-trailing-spaces
+   604:36  error    Missing radix parameter                                                                                radix
+   607:1   warning  Trailing spaces not allowed                                                                            no-trailing-spaces
+--
+  273:50  warning  'styles' was used before it was defined  no-use-before-define
+  285:43  warning  'styles' was used before it was defined  no-use-before-define
+  288:43  warning  'styles' was used before it was defined  no-use-before-define
+
+/root/tablecast/client/src/components/character/InventoryPanel.jsx
+  98:59  error  Missing radix parameter  radix
+
+--
+   91:13   warning  Unnecessarily quoted property '1' found                 quote-props
+   91:41   warning  Unnecessarily quoted property '2' found                 quote-props
+   91:69   warning  Unnecessarily quoted property '3' found                 quote-props
+   91:97   warning  Unnecessarily quoted property '4' found                 quote-props
+   91:125  warning  Unnecessarily quoted property '5' found                 quote-props
+  263:58   error    Missing radix parameter                                 radix
+
+--
+   11:23  warning  'init' is defined but never used                           no-unused-vars
+   11:29  warning  'isSpeaking' is defined but never used                     no-unused-vars
+  534:1   warning  Too many blank lines at the end of file. Max of 1 allowed  no-multiple-empty-lines
+
+/root/tablecast/client/src/components/chat/chatUtils.js
+  82:26  error  Missing radix parameter  radix
+  83:17  error  Missing radix parameter  radix
+  85:34  error  Missing radix parameter  radix
+
+--
+  571:151  warning  Strings must use doublequote                             quotes
+
+/root/tablecast/client/src/components/wiki/NpcStatblock.jsx
+   41:9   warning  'damageRolls' is never reassigned. Use 'const' instead  prefer-const
+   44:9   warning  'formulaText' is never reassigned. Use 'const' instead  prefer-const
+   47:21  error    Missing radix parameter                                 radix
+   48:21  error    Missing radix parameter                                 radix
+   53:19  error    Missing radix parameter                                 radix
+   62:33  error    Missing radix parameter                                 radix
+   89:12  warning  'e' is defined but never used                           no-unused-vars
+--
+  307:1   warning  Trailing spaces not allowed                                    no-trailing-spaces
+  319:40  warning  Expected to return a value at the end of async arrow function  consistent-return
+  373:39  warning  Expected to return a value at the end of arrow function        consistent-return
+  399:52  warning  Expected to return a value at the end of async arrow function  consistent-return
+  408:1   warning  Trailing spaces not allowed                                    no-trailing-spaces
+  446:36  error    Missing radix parameter                                        radix
+  449:1   warning  Trailing spaces not allowed                                    no-trailing-spaces

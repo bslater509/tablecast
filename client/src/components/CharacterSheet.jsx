@@ -503,7 +503,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   function parseDiceExpression(expr) {
     const match = expr.trim().toLowerCase().match(/^(\d+)d(\d+)$/);
     if (match) {
-      return { count: parseInt(match[1]), sides: parseInt(match[2]) };
+      return { count: parseInt(match[1], 10), sides: parseInt(match[2], 10) };
     }
     return { count: 1, sides: 8 }; // Fallback
   }
@@ -779,7 +779,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
     const newItem = {
       name: itemName.trim(),
-      quantity: Math.max(1, parseInt(itemQty) || 1),
+      quantity: Math.max(1, parseInt(itemQty, 10) || 1),
       weight: Math.max(0, parseFloat(itemWeight) || 0),
     };
 
@@ -1468,8 +1468,8 @@ export default function CharacterSheet({ characterId, onBack, user }) {
               id="hp-input"
               type="number"
               value={character.hp}
-              onChange={(e) => handleFieldChange("hp", Math.max(0, parseInt(e.target.value) || 0))}
-              onBlur={(e) => handleFieldChange("hp", Math.max(0, parseInt(e.target.value) || 0))}
+              onChange={(e) => handleFieldChange("hp", Math.max(0, parseInt(e.target.value, 10) || 0))}
+              onBlur={(e) => handleFieldChange("hp", Math.max(0, parseInt(e.target.value, 10) || 0))}
               style={styles.hpInput}
             />
             <button
@@ -1522,7 +1522,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
                 min={0}
                 max={hitDiceAvailable}
                 value={shortRestDice}
-                onChange={(e) => setShortRestDice(Math.max(0, Math.min(hitDiceAvailable, parseInt(e.target.value) || 0)))}
+                onChange={(e) => setShortRestDice(Math.max(0, Math.min(hitDiceAvailable, parseInt(e.target.value, 10) || 0)))}
                 style={{
                   width: "44px",
                   padding: "0.25rem",
@@ -1583,8 +1583,8 @@ export default function CharacterSheet({ characterId, onBack, user }) {
               type="number"
               min={0}
               value={character.gold || 0}
-              onChange={(e) => handleFieldChange("gold", Math.max(0, parseInt(e.target.value) || 0))}
-              onBlur={(e) => handleFieldChange("gold", Math.max(0, parseInt(e.target.value) || 0))}
+              onChange={(e) => handleFieldChange("gold", Math.max(0, parseInt(e.target.value, 10) || 0))}
+              onBlur={(e) => handleFieldChange("gold", Math.max(0, parseInt(e.target.value, 10) || 0))}
               style={{ width: "80px", padding: "0.25rem 0.4rem", fontSize: "0.8rem", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(200,151,58,0.2)", borderRadius: "4px", color: "var(--color-accent)", textAlign: "center", outline: "none" }}
             />
           ) : (
@@ -1603,8 +1603,8 @@ export default function CharacterSheet({ characterId, onBack, user }) {
               value={character.level}
               min={1}
               max={20}
-              onChange={(e) => handleFieldChange("level", Math.max(1, parseInt(e.target.value) || 1))}
-              onBlur={(e) => handleFieldChange("level", Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => handleFieldChange("level", Math.max(1, parseInt(e.target.value, 10) || 1))}
+              onBlur={(e) => handleFieldChange("level", Math.max(1, parseInt(e.target.value, 10) || 1))}
               style={styles.miniInput}
             />
           </div>
@@ -1615,8 +1615,8 @@ export default function CharacterSheet({ characterId, onBack, user }) {
               type="number"
               value={character.maxHp}
               min={1}
-              onChange={(e) => handleFieldChange("maxHp", Math.max(1, parseInt(e.target.value) || 1))}
-              onBlur={(e) => handleFieldChange("maxHp", Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => handleFieldChange("maxHp", Math.max(1, parseInt(e.target.value, 10) || 1))}
+              onBlur={(e) => handleFieldChange("maxHp", Math.max(1, parseInt(e.target.value, 10) || 1))}
               style={styles.miniInput}
             />
           </div>

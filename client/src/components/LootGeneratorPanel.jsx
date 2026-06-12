@@ -393,9 +393,9 @@ function LootGeneratorPanel({ user }) {
     if (entries.length === 0) return <div style={{ color: "var(--color-muted)", fontSize: "0.85rem" }}>No coins</div>;
 
     return (
-      <div style={styles.coinRow}>
+      <div style={STYLES.coinRow}>
         {entries.map(e => (
-          <div key={e.key} style={styles.coinBadge}>
+          <div key={e.key} style={STYLES.coinBadge}>
             <CoinIcon type={e.key} />
             <span>{e.value.toLocaleString()} {e.label}</span>
           </div>
@@ -409,13 +409,13 @@ function LootGeneratorPanel({ user }) {
     if (!items || items.length === 0) return null;
     return (
       <>
-        <div style={styles.sectionTitle}>
+        <div style={STYLES.sectionTitle}>
           {icon}
           {label} ({items.length})
         </div>
-        <ul style={styles.itemList}>
+        <ul style={STYLES.itemList}>
           {items.map((item, i) => (
-            <li key={i} style={styles.itemEntry}>
+            <li key={i} style={STYLES.itemEntry}>
               <span>{item.name}</span>
               <span style={{ color: "var(--color-muted)" }}>
                 {item.value ? `${item.value} gp` : item.consumable ? "Consumable" : "Magic Item"}
@@ -435,19 +435,19 @@ function LootGeneratorPanel({ user }) {
     if (data.type === "both" && data.individual && data.hoard) {
       return (
         <div>
-          <div style={{ ...styles.sectionTitle, fontSize: "1rem", marginTop: 0 }}>
+          <div style={{ ...STYLES.sectionTitle, fontSize: "1rem", marginTop: 0 }}>
             <Coins size={18} /> Individual Treasure
           </div>
           {renderCoins(data.individual.coins)}
           <div style={{ borderTop: "1px solid var(--color-border)", margin: "0.75rem 0" }} />
-          <div style={{ ...styles.sectionTitle, fontSize: "1rem" }}>
+          <div style={{ ...STYLES.sectionTitle, fontSize: "1rem" }}>
             <Database size={18} /> Hoard Treasure
           </div>
           {renderCoins(data.hoard.coins)}
           {renderItemList(data.hoard.gems, "Gems", <Gem size={14} />)}
           {renderItemList(data.hoard.art, "Art Objects", <ScrollText size={14} />)}
           {renderItemList(data.hoard.magicItems, "Magic Items", <Sparkles size={14} />)}
-          <div style={styles.totalBox}>
+          <div style={STYLES.totalBox}>
             Total Value: ~{data.totalValue?.toLocaleString()} gp
           </div>
         </div>
@@ -465,7 +465,7 @@ function LootGeneratorPanel({ user }) {
         {renderItemList(gems, "Gems & Gemstones", <Gem size={14} />)}
         {renderItemList(art, "Art Objects", <ScrollText size={14} />)}
         {renderItemList(magicItems, "Magic Items", <Sparkles size={14} />)}
-        <div style={styles.totalBox}>
+        <div style={STYLES.totalBox}>
           Total Value: ~{data.totalValue?.toLocaleString()} gp
         </div>
       </div>
@@ -636,7 +636,7 @@ function LootGeneratorPanel({ user }) {
                           <select
                             style={{ ...STYLES.select, width: "auto", fontSize: "0.8rem", padding: "0.3rem" }}
                             value={selectedParty[cache.id] || ""}
-                            onChange={(e) => setSelectedParty(prev => ({ ...prev, [cache.id]: parseInt(e.target.value) }))}
+                            onChange={(e) => setSelectedParty(prev => ({ ...prev, [cache.id]: parseInt(e.target.value, 10) }))}
                           >
                             <option value="">Party...</option>
                             {parties.map((p) => (

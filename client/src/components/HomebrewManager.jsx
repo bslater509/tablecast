@@ -446,14 +446,14 @@ function HomebrewManager({ user }) {
                   {["str","dex","con","int","wis","cha"].map((ab) => (
                     <div key={ab}>
                       <label style={{ ...s.label, fontSize: "11px" }}>{ab.toUpperCase()} Bonus</label>
-                      <input type="number" style={s.input} value={formData.content?.abilityBonuses?.[ab] ?? 0} onChange={(e) => { const v = {...formData.content?.abilityBonuses}; v[ab] = parseInt(e.target.value) || 0; handleContentChange("abilityBonuses", v); }} />
+                      <input type="number" style={s.input} value={formData.content?.abilityBonuses?.[ab] ?? 0} onChange={(e) => { const v = {...formData.content?.abilityBonuses}; v[ab] = parseInt(e.target.value, 10) || 0; handleContentChange("abilityBonuses", v); }} />
                     </div>
                   ))}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
                   <div>
                     <label style={{ ...s.label, fontSize: "11px" }}>Speed (ft)</label>
-                    <input type="number" style={s.input} value={formData.content?.speed ?? 30} onChange={(e) => handleContentChange("speed", parseInt(e.target.value) || 30)} />
+                    <input type="number" style={s.input} value={formData.content?.speed ?? 30} onChange={(e) => handleContentChange("speed", parseInt(e.target.value, 10) || 30)} />
                   </div>
                   <div>
                     <label style={{ ...s.label, fontSize: "11px" }}>Size</label>
@@ -518,7 +518,7 @@ function HomebrewManager({ user }) {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                   <div>
                     <label style={{ ...s.label, fontSize: "11px" }}>Level</label>
-                    <input type="number" min="0" max="9" style={s.input} value={formData.content?.level ?? 1} onChange={(e) => handleContentChange("level", parseInt(e.target.value) || 0)} />
+                    <input type="number" min="0" max="9" style={s.input} value={formData.content?.level ?? 1} onChange={(e) => handleContentChange("level", parseInt(e.target.value, 10) || 0)} />
                   </div>
                   <div>
                     <label style={{ ...s.label, fontSize: "11px" }}>School</label>
@@ -609,11 +609,11 @@ function HomebrewManager({ user }) {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginBottom: "8px" }}>
                   <div>
                     <label style={{ ...s.label, fontSize: "11px" }}>HP</label>
-                    <input type="number" style={s.input} value={formData.content?.hp ?? 10} onChange={(e) => handleContentChange("hp", parseInt(e.target.value) || 10)} />
+                    <input type="number" style={s.input} value={formData.content?.hp ?? 10} onChange={(e) => handleContentChange("hp", parseInt(e.target.value, 10) || 10)} />
                   </div>
                   <div>
                     <label style={{ ...s.label, fontSize: "11px" }}>AC</label>
-                    <input type="number" style={s.input} value={formData.content?.ac ?? 10} onChange={(e) => handleContentChange("ac", parseInt(e.target.value) || 10)} />
+                    <input type="number" style={s.input} value={formData.content?.ac ?? 10} onChange={(e) => handleContentChange("ac", parseInt(e.target.value, 10) || 10)} />
                   </div>
                   <div>
                     <label style={{ ...s.label, fontSize: "11px" }}>CR</label>
@@ -624,7 +624,7 @@ function HomebrewManager({ user }) {
                   {["strength","dexterity","constitution","intelligence","wisdom","charisma"].map((ab) => (
                     <div key={ab}>
                       <label style={{ ...s.label, fontSize: "11px" }}>{ab.slice(0, 3).toUpperCase()}</label>
-                      <input type="number" style={s.input} value={formData.content?.[ab] ?? 10} onChange={(e) => handleContentChange(ab, parseInt(e.target.value) || 10)} />
+                      <input type="number" style={s.input} value={formData.content?.[ab] ?? 10} onChange={(e) => handleContentChange(ab, parseInt(e.target.value, 10) || 10)} />
                     </div>
                   ))}
                 </div>
