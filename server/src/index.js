@@ -171,7 +171,18 @@ if (fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH)) {
 // ---------------------------------------------------------------------------
 
 // Health check  confirms the server is alive
-console.log("[DEPLOY] v2-startup-timestamp:", Date.now());
+// Deployment verification 
+let deployInfo = { version: "v1-original" };
+try {
+  deployInfo = require("./deploy-verify.js");
+} catch (e) {
+  deployInfo = { version: "v1-fallback", error: e.message };
+}
+
+app.get("/api/deploy-version", (_req, res) => {
+  res.json(deployInfo);
+});
+
 app.get("/api/health", (_req, res) => {
   logger.info("health", "Health check", { clients: io.engine.clientsCount });
   res.json({
