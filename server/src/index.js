@@ -171,6 +171,7 @@ if (fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH)) {
 // ---------------------------------------------------------------------------
 
 // Health check  confirms the server is alive
+console.log("[DEPLOY] v2-startup-timestamp:", Date.now());
 app.get("/api/health", (_req, res) => {
   logger.info("health", "Health check", { clients: io.engine.clientsCount });
   res.json({
