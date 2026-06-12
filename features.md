@@ -586,7 +586,7 @@ dialog. A drag-and-drop zone directly on the MapPanel would be much faster.
 
 ### 4.2 Character Builder Wizard
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Creating a D&D 5e character from scratch involves many
 decisions. A step-by-step wizard is more approachable than a blank form.
