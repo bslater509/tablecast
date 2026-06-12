@@ -131,7 +131,7 @@ export default function MessageHub({ user, initialView: propInitialView }) {
       setLoading(true);
       try {
         // Load NPCs
-        const npcRes = await fetch("/api/npcs");
+        const npcRes = await fetch("/api/npcs", { headers: getJsonAuthHeaders(user) });
         const npcData = npcRes.ok ? await npcRes.json() : [];
         if (cancelled) return;
         const npcMap = {};
@@ -139,7 +139,7 @@ export default function MessageHub({ user, initialView: propInitialView }) {
         setNpcs(npcData);
 
         // Load last session chat message
-        const chatRes = await fetch("/api/chat?limit=1");
+        const chatRes = await fetch("/api/chat?limit=1", { headers: getJsonAuthHeaders(user) });
         const chatData = chatRes.ok ? await chatRes.json() : [];
         const lastMsg = chatData[chatData.length - 1] || null;
         if (cancelled) return;

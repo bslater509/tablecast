@@ -8,6 +8,7 @@ import { Send, Plus, Smile } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
 import { useDiceBox } from "../context/DiceBoxContext";
 import { ChatPanelSkeleton } from "./PanelSkeleton";
+import { getAuthHeaders } from "../utils/authHeaders";
 import {
   groupMessages, getSenderColor, getSenderInitial, parseDiceNotation,
   getDateKey, mergeMessages, genTempId,
@@ -58,7 +59,7 @@ export default function ChatPanel({ user, isPopout = false }) {
     let cancelled = false;
     async function fetchNpcs() {
       try {
-        const res = await fetch("/api/npcs");
+        const res = await fetch("/api/npcs", { headers: getAuthHeaders(user) });
         if (!cancelled && res.ok) {
           const data = await res.json();
           setNpcs(data);
@@ -84,7 +85,7 @@ export default function ChatPanel({ user, isPopout = false }) {
     let cancelled = false;
     async function loadHistory() {
       try {
-        const res = await fetch("/api/chat?limit=150");
+        const res = await fetch("/api/chat?limit=150", { headers: getAuthHeaders(user) });
         if (!res.ok) throw new Error("Failed to load chat history");
         const data = await res.json();
         if (!cancelled) {
@@ -108,7 +109,7 @@ export default function ChatPanel({ user, isPopout = false }) {
     loadingMoreRef.current = true;
     setLoadingMore(true);
     try {
-      const res = await fetch(`/api/chat?limit=150&before=${oldestMsgId}`);
+      const res = await fetch(`/api/chat?limit=150&before=${oldestMsgId}`, { headers: getAuthHeaders(user) });
       if (!res.ok) throw new Error("Failed to load earlier chat messages");
       const data = await res.json();
       setMessages((prev) => mergeMessages(data, prev));
@@ -162,7 +163,7 @@ export default function ChatPanel({ user, isPopout = false }) {
     let cancelled = false;
     async function resync() {
       try {
-        const res = await fetch("/api/chat?limit=50");
+        const res = await fetch("/api/chat?limit=50", { headers: getAuthHeaders(user) });
         if (!res.ok || cancelled) return;
         const data = await res.json();
         if (!cancelled) {

@@ -20,6 +20,7 @@ This document is a **living reference** describing the project's standards, arch
 - **No 5etools Repository Modifications:** The `5etoolsimg/` and `5etoolssrc/` git submodules have been removed. 5etools reference data (JSON) is fetched from a GitHub raw mirror (`raw.githubusercontent.com/5etools-mirror-3/5etools-src/master/data`) and cached to `server/uploads/5etools-cache/` via `curl`. Monster token images point directly to `https://5e.tools/img/...` (CDN, not behind Cloudflare). Do not create or modify files in the cache directory directly.
 - **Auth Pattern:** The server uses header-based auth: `x-tablecast-user-id: <id>`. DM-only endpoints use the `requireDm` middleware (checks `req.get("x-tablecast-user-id")` and verifies role in DB).
 - **AI Tool Config:** The `opencode.json` at repo root configures MCP servers (puppeteer) and agent behavior. Do not break the MCP server configuration when making changes. The puppeteer MCP uses `ALLOW_DANGEROUS: "true"` and `--no-sandbox`/`--disable-setuid-sandbox` flags — these are required in the container environment where Chrome runs as root inside Docker and lack sandbox capabilities. These are not security concerns on the trusted LAN.
+- **DM Password:** The DM account password is `dm1234`. This is set on the staging server and used for Puppeteer login to access DM-only pages during UI testing.
 
 ---
 
@@ -30,7 +31,7 @@ Tablecast is designed to run **only on a trusted Local Area Network (LAN)** — 
 **This has important security implications:**
 - **No TLS/HTTPS:** The server serves plain HTTP. All traffic including auth headers is unencrypted on the wire. This is acceptable only because the LAN is trusted.
 - **No CSRF protection:** State-changing endpoints rely on header-based auth. Cross-origin attacks are not a realistic threat on a trusted LAN.
-- **Rate limiting:** API has a 200 requests per minute per IP limit configured via `express-rate-limit`. This is acceptable because the LAN is trusted; adjust rate limits via the server config if needed.
+- **Rate limiting:** API has a 500 requests per minute per IP limit configured via `express-rate-limit`. This is acceptable because the LAN is trusted; adjust rate limits via the server config if needed.
 - **User-ID-based auth is not cryptographic:** The `x-tablecast-user-id` header is not signed or verified beyond checking the user exists. Any client on the LAN can impersonate any user including the DM. Treat this as a convenience for local gaming, not a security boundary.
 - **Debug endpoints are unprotected:** Debug, MCP log, and AI response log endpoints are open. This allows anyone on the LAN to inspect server state, LLM prompts, and responses. This is by design for local debugging convenience.
 
