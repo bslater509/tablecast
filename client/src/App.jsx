@@ -1358,6 +1358,8 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
 function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { socket } = useSocket();
+  const { addToast } = useToast();
 
   const pathParts = location.pathname.split("/");
   const currentTab = ["dashboard", "map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "encounter-templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop", "loot", "name-generator", "quest-hooks", "desc-gen", "travel", "copilot"].includes(pathParts[2])
@@ -1498,7 +1500,6 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="homebrew" element={<HomebrewManager user={user} />} />
             <Route path="templates" element={<EncounterTemplatesPanel user={user} />} />
             <Route path="calendar" element={<CalendarPanel user={user} />} />
-            <Route path="copilot" element={<CoPilotPanel user={user} socket={socket} />} />
             <Route path="handouts" element={<HandoutPanel user={user} />} />
             <Route path="journal" element={<QuestLogPanel user={user} />} />
             <Route path="dialogue" element={<DialogueTreePanel user={user} />} />
