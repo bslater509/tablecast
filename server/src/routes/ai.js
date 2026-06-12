@@ -11,6 +11,7 @@ const generationRouter = require("../ai/generation");
 const chatRouter = require("../ai/chat");
 const mcpRouter = require("../ai/mcp");
 const debugRouter = require("../ai/debug");
+const copilotRouter = require("../ai/copilot");
 const helpers = require("../ai/helpers");
 
 // HACK: generation/index.js isn't deploying via Docker. Re-add routes here.
@@ -23,6 +24,7 @@ const {
   handleGenerateTravel,
   handleGenerateNpcPhrases,
   handleDetectRollChips,
+  handleGenerateImage,
 } = require("../ai/generation/handlers");
 
 const router = Router();
@@ -44,6 +46,7 @@ router.use("/", generationRouter);
 router.use("/", chatRouter);
 router.use("/", mcpRouter);
 router.use("/", debugRouter);
+router.use("/", copilotRouter);
 
 // HACK: Missing generation routes (Docker deploy skips server/src/ai/ for some reason)
 router.post("/generate-hooks", requireDm, handleGenerateHooks);
@@ -53,6 +56,7 @@ router.post("/generate-description", requireDm, handleGenerateDescription);
 router.post("/generate-travel", requireDm, handleGenerateTravel);
 router.post("/generate-npc-phrases", requireDm, handleGenerateNpcPhrases);
 router.post("/detect-roll-chips", requireDm, handleDetectRollChips);
+router.post("/generate-image", requireDm, handleGenerateImage);
 
 // Named re-exports for socket.js and other consumers
 module.exports = {

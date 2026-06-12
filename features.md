@@ -1051,121 +1051,78 @@ reference data (JSON), chat card rendering, party inventory integration
 
 ### 6.9 Image Generation Integration (NPC Portraits & Scene Art)
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** Visuals enhance immersion. AI-generated NPC portraits, monster
-art, and scene illustrations give the VTT tabletop presence.
-
-**Scope:** Large
-
-**Generators:**
-1. **NPC Portraits:** "Generate a portrait of a female tiefling rogue with silver hair"
-2. **Monster Art:** "Generate art for a young green dragon in a swamp"
-3. **Scene Illustrations:** "Generate a moody illustration of a haunted crypt entrance"
-4. **Token Art:** "Generate a top-down token for a dwarf cleric" (circular, suitable for VTT)
-
-**Provider Support:**
-- OpenAI DALL-E 3 (via existing API key)
-- Stability AI / Stable Diffusion (via new provider option)
-- Local Stable Diffusion (via Ollama-style local endpoint, future)
-
-**Image Storage:**
-- Generated images stored in `server/uploads/ai-generated/`
-- Associated with the NPC, monster, map, or wiki article
-- Image URL stored as `imageUrl` on the entity
-- Max resolution: 1024×1024 (configurable)
-
-**UI Flow:**
-1. DM clicks "Generate Image" button on NPC form, monster form, or map detail
-2. Prompt field pre-populated from entity data (race, class, description)
-3. DM edits prompt, selects style (photorealistic, painted, sketch, comic)
-4. Single generation → preview → DM accepts or regenerates
-5. Accepted image becomes the entity's `imageUrl`
-
-**Cost Awareness:**
-- Each generation calls out estimated API cost before confirming
-- DM sets monthly budget cap in AI settings
-- Generation counter + cost tracker in AI settings panel
-
-**Depends on:** Image generation API integration, `server/uploads/ai-generated/`
-directory, entity image URL update, frontend generation UI (modal or panel
-section)
+**Implementation:**
+- Backend: `server/src/ai/helpers/imageGeneration.js` (116 lines) — DALL-E 3 image generation via OpenAI API
+  - `generateImage(prompt, style, apiKey)` — calls `https://api.openai.com/v1/images/generations`
+  - Style mapping: photorealistic, painted, sketch, comic, fantasy-art (descriptors prepended to prompt)
+- Backend handler: `POST /api/ai/generate-image` in `routes/ai.js` via `handleGenerateImage` handler
+  - Accepts: `{ prompt, style? }` — returns `{ imageUrl, prompt, style }`
+  - DM-only (requiresDm middleware)
+- Frontend: `client/src/components/GenerateImageModal.jsx` (466 lines)
+  - Prompt textarea with default prompt pre-populated from entity context
+  - Art style dropdown (5 options + none)
+  - Generate button with loading spinner, error display
+  - Preview with Accept/Regenerate/Cancel actions
+  - Keyboard shortcuts: Ctrl+Enter to generate, Escape to close
+  - Supports both `show` and `isOpen` props for compatibility
+- Integrated into WikiPanel NPC and Monster detail views (dice gen button opens modal)
+- Generated images stored temporarily at `/uploads/ai-generated/`
 
 ---
 
 ### 6.10 AI Combat Tactician
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** During combat, DMs manage many creatures simultaneously. An AI
-tactician suggests actions for controlled monsters/NPCs in the encounter,
-reducing cognitive load.
-
-**Scope:** Medium-Large
-
-**Workflow:**
-1. DM is in an active encounter
-2. Clicks "Suggest Action" on an EncounterParticipant (monster/NPC)
-3. AI receives:
-   - Monster/NPC statblock (actions, traits, spells, HP, AC)
-   - Current encounter state (all participants, positions, HP, conditions)
-   - Map context (if available: distances, terrain features)
-4. AI returns a ranked list of 1-3 suggested actions:
-   - **Recommended:** "Multiattack: Bite against the wounded wizard (low HP, low AC)"
-   - **Alternative 1:** "Breath weapon — can hit 3 clustered characters"
-   - **Alternative 2:** "Withdraw to cover behind the pillar and use Ranged attack on the cleric"
-5. DM selects action → AI rolls relevant dice → applies results to encounter
-
-**Tactical Reasoning:**
-- Target prioritization: low HP, low AC, concentrating on a spell, highest threat
-- Positioning: flanking, opportunity attacks, avoiding AoE clusters
-- Resource economy: use limited-use abilities (breath weapons, spells) when impactful
-- Flee/de-escalate: intelligent creatures retreat when bloodied
-
-**Local Fallback:**
-- Without AI, a rule-based fallback uses simple heuristics (attack nearest, flee
-  at 25% HP) for basic auto-pilot
-
-**Depends on:** Encounter context aggregation, `performAiCall`, encounter
-participant action resolution, optional rule-based fallback
+**Implementation:**
+- Backend: `POST /api/encounters/:id/suggest-action` in `routes/encounters.js` (115 lines)
+  - DM-only endpoint (requiresDm)
+  - Accepts: `{ participantId }` — returns `{ recommended, alternatives: [] }`
+  - AI-powered: builds context from participant statblock (monster/NPC/character actions, traits, spells)
+  - Encounter state: all participants' initiative, HP, AC, conditions for tactical awareness
+  - Custom prompt: "You are an AI Combat Tactician for D&D 5e" with target prioritization, positioning, resource economy reasoning
+  - Local fallback: when AI provider not configured, uses heuristic rules (flee at <30% HP, attack nearest, use special abilities)
+  - Response parsed from AI JSON output with markdown code block stripping
+- Frontend: Suggest Action button (Lightbulb icon) per participant row in EncountersPanel
+  - Click opens suggestion popover showing recommended action + alternatives
+  - Loading state while AI generates, error handling for failed requests
+  - Responsive modal design matching project theme
 
 ---
 
 ### 6.11 AI Session Co-Pilot (Live DM Assistant)
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** During a live session, the DM juggles many things. An always-on
-AI assistant that listens to the game state (or chat) can proactively offer
-reminders, rules lookups, and suggestions — like a co-DM.
-
-**Scope:** Large
-
-**Triggers (proactive suggestions pushed to DM, not broadcast):**
-- **Rule Reminder:** Chat mentions "grappled" → AI pushes: "Grappled: speed 0,
-  ends if grappler is incapacitated. Escape DC = Athletics vs. Athletics/Acrobatics."
-- **Forgotten Effect:** "3 rounds since Bless was cast on the fighter — expires
-  in 7 rounds" (tie into condition tracker)
-- **NPC Stat Lookup:** DM types "The guard captain..." → AI suggests relevant NPC
-  or monster stats
-- **Encounter Balance Warning:** Party is level 2, but the DM just added a CR 8
-  monster → AI warns "This encounter is Deadly — expected TPK"
-- **Lore Consistency Check:** DM describes a location that contradicts existing
-  wiki → AI suggests "The wiki says the castle was burned down in 1487 DR"
-
-**UI:**
-- Collapsible sidebar panel: "Co-Pilot"
-- Suggestions appear as cards (dismissable, expandable)
-- DM-only — never visible to players
-- Sound/vibration alert for high-priority warnings
-- Rate-limited to avoid spamming (max 1 suggestion per 30 seconds)
-
-**Optional "Auto-Rule" Mode:**
-- When a player in chat asks a rules question (e.g., "How far can I jump?"),
-  the co-pilot auto-replies in the DM's private panel with the relevant rule
-- DM can choose to forward the answer to public chat or ignore
-
-**Depends on:** Chat event listener + debounce, `findRelevantRules` integration,
-encounter/condition state monitoring, wiki consistency checker, CoPilotPanel
-component, websocket events for DM-private messages
+**Implementation:**
+- Backend: `server/src/ai/copilot.js` — Express router for co-pilot functionality
+  - `POST /api/ai/copilot/check` — analyzes chat messages and returns suggestions
+    - DM-only endpoint (requiresDm)
+    - Accepts: `{ text, encounterId, sessionId }`
+    - Rules detection: `isRulesQuestion()` regex patterns (15 patterns for advantage, saving throws, concentration, grappling, etc.)
+    - Lore consistency check: uses `performAiCall` + `fetchCampaignWikiSnippet` to detect wiki conflicts
+    - Encounter balance warning: CR comparison against party average level (warns if CR > avg level + 4)
+    - Round tracker: encounter context summary (round number, active combatants, party count)
+    - Rate-limited: 30-second cooldown per session
+    - Returns: `{ cooldown: bool, suggestions: [{ type, priority, title, text }] }`
+  - `GET /api/ai/copilot/status` — health check
+  - Mounted via `routes/ai.js` on the AI router
+- Socket.io event: `copilot:check` in `server/src/socket.js`
+  - DM-only — checks `socket.data.user`
+  - Rate-limited per socket connection
+  - Triggers rules check, lore check, and encounter balance check
+  - Emits `copilot:suggestion` with suggestions array to the DM's socket only
+- Frontend: `client/src/components/CoPilotPanel.jsx` (260+ lines)
+  - Collapsible sidebar panel with header "AI Co-Pilot" and connection status indicator
+  - Suggestion cards with priority colors (red=high, amber=medium, gray=low)
+  - Type icons: 📖 rule, 📜 lore, ⚔️ balance, ⏱️ effect
+  - Socket.io listener for `copilot:suggestion` events
+  - Auto-dismiss suggestions older than 5 minutes
+  - Dismiss single or "Clear all" button
+  - Empty state: "Co-Pilot is monitoring the session"
+  - Cooldown indicator when rate-limited
+- Wired into App.jsx DM_NAV_ITEMS as `copilot` with Bot icon
+- Route: `/dm/copilot`
 

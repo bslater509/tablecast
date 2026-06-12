@@ -21,6 +21,16 @@ let currentSoundState = {
   timestamp: Date.now(),
 };
 
+// Co-Pilot rate limiting state (in-memory, per-socket-id)
+const copilotRateLimitMap = new Map();
+function isCopilotRateLimited(sessionId) {
+  const now = Date.now();
+  const last = copilotRateLimitMap.get(sessionId);
+  if (last && now - last < 30000) return true; // 30 second cooldown
+  copilotRateLimitMap.set(sessionId, now);
+  return false;
+}
+
 function registerSocketHandlers(io) {
   // Auth middleware: authenticate via socket handshake
   // Supports two modes:
@@ -844,6 +854,81 @@ Show this command reference.`;
       }
     });
 
+    // ── Co-Pilot: Monitor chat for proactive suggestions ──
+    socket.on("copilot:check", async (data) => {
+      try {
+        if (!socket.data.user) return; // DM only
+        const { text, encounterId, mapId } = data || {};
+        if (!text || typeof text !== "string" || !text.trim()) return;
+
+        if (isCopilotRateLimited(socket.id)) return;
+
+        // Re-use imports already available in this module
+        const aiSettings = await loadAiSettings();
+        const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+        const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+        // Rules trigger patterns
+        const rulesTriggerPatterns = [
+          /how\s+(far|much|long|many)/i, /what\s+(does|is|are|can)/i,
+          /can\s+(i|we|you)/i, /rule/i, /advantage|disadvantage/i,
+          /saving\s+throw/i, /spell\s+(save|dc|slot|level)/i,
+          /concentration/i, /grapple|shove/i, /opportunity\s+attack/i,
+          /reaction/i, /bonus\s+action/i, /proficiency/i,
+        ];
+        const isRulesQuestion = rulesTriggerPatterns.some(p => p.test(text));
+
+        let suggestions = [];
+
+        // 1. Rules reference suggestion
+        if (isRulesQuestion && provider && apiKey) {
+          const rulesResult = await findRelevantRules(text, { role: "DM" });
+          if (rulesResult && rulesResult.trim().length > 0) {
+            suggestions.push({
+              type: "rule",
+              priority: "high",
+              title: "📖 Rules Reference",
+              text: rulesResult,
+            });
+          }
+        }
+
+        // 2. Encounter balance check
+        if (encounterId) {
+          try {
+            const encounter = await prisma.encounter.findUnique({
+              where: { id: Number(encounterId) },
+              include: {
+                participants: { include: { npc: true, character: true, monster: true } }
+              }
+            });
+            if (encounter && (encounter.status === "ACTIVE" || encounter.status === "DRAFT")) {
+              const maxCr = Math.max(...encounter.participants.map(p => {
+                const cr = p.monster?.cr || p.npc?.cr || "0";
+                return cr === "0" ? 0 : (cr.includes("/") ? 0.5 : Number(cr) || 0);
+              }).filter(v => v > 0));
+              const partyLevels = encounter.participants.filter(p => p.character).map(p => p.character.level);
+              const avgLevel = partyLevels.length > 0 ? Math.round(partyLevels.reduce((a, b) => a + b, 0) / partyLevels.length) : 0;
+              if (maxCr > 0 && avgLevel > 0 && maxCr > avgLevel + 4) {
+                suggestions.push({
+                  type: "balance",
+                  priority: "high",
+                  title: "⚔️ Encounter Balance Warning",
+                  text: `Active encounter "${encounter.name}" has CR ${maxCr} monsters vs party avg level ${avgLevel} — potentially Deadly. Consider adjusting.`,
+                });
+              }
+            }
+          } catch (e) { /* ignore encounter lookup errors */ }
+        }
+
+        if (suggestions.length > 0) {
+          socket.emit("copilot:suggestion", { suggestions });
+        }
+      } catch (err) {
+        logger.error("socket:copilot", "Copilot check error", { error: err.message });
+      }
+    });
+
     socket.on("disconnect", (reason) => {
       logger.info("socket", "Client disconnected", { clientId, reason });
       log("disconnect — clientId=%s reason=%s", clientId, reason);
@@ -861,8 +946,8 @@ Show this command reference.`;
       logger.error("socket", "Client socket error", { error: typeof err === "string" ? err : err?.message || "Unknown" });
       log("error — clientId=%s error=%s", clientId, typeof err === "string" ? err : err?.message || "Unknown error");
     });
-  });
-}
+    });
+  }
 
 async function emitPersistedChatMessage(io, partial) {
   const message = await persistChatMessage({

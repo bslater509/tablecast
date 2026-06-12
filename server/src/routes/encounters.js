@@ -582,4 +582,122 @@ router.post("/:id/turn", requireDm, async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// POST /:id/suggest-action — AI Combat Tactician
+// Suggests tactical actions for a specific encounter participant
+// ---------------------------------------------------------------------------
+router.post("/:id/suggest-action", requireDm, async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    const participantId = Number(req.body?.participantId);
+
+    if (!Number.isInteger(participantId) || participantId <= 0) {
+      return res.status(400).json({ error: "A valid participantId is required." });
+    }
+
+    const encounter = await fetchEncounter(encounterId);
+    if (!encounter) return res.status(404).json({ error: "Encounter not found." });
+
+    const participant = encounter.participants.find(p => p.id === participantId);
+    if (!participant) return res.status(404).json({ error: "Participant not found." });
+
+    // Build statblock context
+    let statblock = {};
+    let actions = [];
+
+    if (participant.monster) {
+      statblock = participant.monster;
+      const rawActions = parseJson(participant.monster.actions, []);
+      actions = rawActions.map(a => `${a.name}: ${a.description}${a.toHit ? ` (hit: +${a.toHit})` : ""}${a.damage ? ` (damage: ${a.damage})` : ""}`);
+    } else if (participant.npc) {
+      statblock = participant.npc;
+      const rawActions = parseJson(participant.npc.actions, []);
+      actions = rawActions.map(a => `${a.name}: ${a.description}${a.toHit ? ` (hit: +${a.toHit})` : ""}${a.damage ? ` (damage: ${a.damage})` : ""}`);
+    } else if (participant.character) {
+      statblock = participant.character;
+      actions = ["Unarmed Strike", "Improvised Weapon", "Dash", "Dodge", "Help", "Hide"];
+    }
+
+    // Build encounter state summary
+    const allParticipants = encounter.participants.map(p => ({
+      name: p.name,
+      initiative: p.initiative,
+      hp: `${p.currentHp}/${p.maxHp}`,
+      ac: p.ac,
+      conditions: parseJson(p.conditions, []).map(c => c.name),
+      isCurrentTurn: p.id === participantId,
+      source: p.source || (p.npcId ? "npc" : p.monsterId ? "monster" : p.characterId ? "character" : "unknown"),
+    }));
+
+    const { performAiCall, loadAiSettings } = require("../ai/helpers");
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      // Fallback: simple heuristic-based suggestion
+      const hpPercent = participant.currentHp / Math.max(1, participant.maxHp);
+      const intelligent = participant.npc?.intelligence > 10 || participant.monster ? true : false;
+      let fallback = { recommended: "", alternatives: [] };
+
+      if (hpPercent < 0.3) {
+        fallback.recommended = "Flee or retreat — the creature is bloodied and would seek safety";
+        if (intelligent) {
+          fallback.alternatives.push("Use a defensive action: Dodge or cast a protective spell");
+        }
+      } else if (actions.length > 0) {
+        fallback.recommended = "Use Multiattack or primary action against the nearest visible threat";
+        fallback.alternatives.push("Use a special ability if available");
+        if (actions.length > 1) {
+          fallback.alternatives.push(`Try ${actions[1]}`);
+        }
+      } else {
+        fallback.recommended = "Attack the nearest enemy combatant";
+        fallback.alternatives.push("Use the Help action to assist an ally");
+      }
+
+      return res.json(fallback);
+    }
+
+    const systemPrompt = `You are an AI Combat Tactician for Dungeons & Dragons 5th Edition.
+Given an encounter participant's statblock and the current combat state, suggest 1-3 tactical actions.
+Consider: target prioritization (low HP, concentrating, highest threat), positioning, resource economy (limited-use abilities), and creature intelligence.
+Return JSON only (no markdown): { "recommended": "action description with reasoning", "alternatives": ["alt 1", "alt 2"] }`;
+
+    const userMessage = `Current encounter state (all participants):
+${JSON.stringify(allParticipants, null, 2)}
+
+This participant's statblock:
+${JSON.stringify(statblock, null, 2)}
+
+Available actions:
+${actions.length > 0 ? actions.join("\n") : "No special actions available — use standard actions"}
+
+Current HP: ${participant.currentHp}/${participant.maxHp}
+Current AC: ${participant.ac}
+Conditions: ${JSON.stringify(parseJson(participant.conditions, []).map(c => c.name))}
+
+Suggest tactical actions for ${participant.name}.`;
+
+    const rawResult = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage, [], "combat-tactician");
+
+    // Parse JSON from response
+    let cleanJson = rawResult.trim();
+    if (cleanJson.startsWith("```")) {
+      const match = cleanJson.match(/```(?:json)?([\s\S]+?)```/);
+      if (match) cleanJson = match[1].trim();
+    }
+
+    const result = JSON.parse(cleanJson);
+    res.json({
+      recommended: result.recommended || "Attack the nearest enemy",
+      alternatives: result.alternatives || [],
+    });
+  } catch (err) {
+    if (err.code === "P2025") return res.status(404).json({ error: "Encounter not found." });
+    logger.error("api:route", "Error in POST /api/encounters/:id/suggest-action", { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

@@ -38,6 +38,7 @@ const {
 const { safeParseJsonResponse, performAiCall } = require("./calls");
 const { loadSessionAiContext } = require("./session");
 const { streamGenerate } = require("./generation");
+const { generateImage } = require("./imageGeneration");
 
 module.exports = {
   logAiResponse,
@@ -71,4 +72,5 @@ module.exports = {
   loadSessionAiContext,
   ASSIST_ACTIONS_REQUIRING_TEXT,
   streamGenerate,
+  generateImage,
 };

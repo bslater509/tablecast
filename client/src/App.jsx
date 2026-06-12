@@ -8,7 +8,9 @@ import {
   Activity,
   Beaker,
   BookOpen,
+  Bot,
   Box,
+  BrainCircuit,
   CalendarDays,
   Compass,
   Database,
@@ -62,6 +64,7 @@ import QuestHookGenerator from "./components/QuestHookGenerator";
 import NameGenerator from "./components/NameGenerator";
 import DescriptionGenerator from "./components/DescriptionGenerator";
 import TravelGenerator from "./components/TravelGenerator";
+import CoPilotPanel from "./components/CoPilotPanel";
 import CampaignDashboard from "./components/CampaignDashboard";
 import { useSocket } from "./context/SocketContext";
 import { useToast } from "./context/ToastContext";
@@ -79,6 +82,13 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Home",
     path: "/dm/dashboard",
     icon: Activity,
+  },
+  {
+    id: "copilot",
+    label: "Co-Pilot",
+    mobileLabel: "AI",
+    path: "/dm/copilot",
+    icon: BrainCircuit,
   },
   {
     id: "map",
@@ -261,6 +271,13 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Import",
     path: "/dm/importer",
     icon: Database,
+  },
+  {
+    id: "copilot",
+    label: "AI Co-Pilot",
+    mobileLabel: "Co-Pilot",
+    path: "/dm/copilot",
+    icon: Bot,
   },
 ];
 
@@ -1343,7 +1360,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["dashboard", "map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "encounter-templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop", "loot", "name-generator", "quest-hooks", "desc-gen", "travel"].includes(pathParts[2])
+  const currentTab = ["dashboard", "map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "encounter-templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop", "loot", "name-generator", "quest-hooks", "desc-gen", "travel", "copilot"].includes(pathParts[2])
     ? pathParts[2]
     : "dashboard";
 
@@ -1433,6 +1450,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
         <main style={styles.mainContent}>
           <Routes>
             <Route path="dashboard" element={<CampaignDashboard user={user} />} />
+            <Route path="copilot" element={<CoPilotPanel user={user} socket={socket} />} />
             <Route path="map" element={<ErrorBoundary critical={false}><MapPanel user={user} /></ErrorBoundary>} />
             <Route path="map/:id" element={<ErrorBoundary critical={false}><MapPanel user={user} /></ErrorBoundary>} />
             <Route
@@ -1480,6 +1498,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="homebrew" element={<HomebrewManager user={user} />} />
             <Route path="templates" element={<EncounterTemplatesPanel user={user} />} />
             <Route path="calendar" element={<CalendarPanel user={user} />} />
+            <Route path="copilot" element={<CoPilotPanel user={user} socket={socket} />} />
             <Route path="handouts" element={<HandoutPanel user={user} />} />
             <Route path="journal" element={<QuestLogPanel user={user} />} />
             <Route path="dialogue" element={<DialogueTreePanel user={user} />} />

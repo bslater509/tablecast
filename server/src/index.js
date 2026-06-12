@@ -270,11 +270,15 @@ app.use("/api/loot", lootRouter);
 app.use("/api/dashboard", require("./routes/dashboard"));
 
 // ---------------------------------------------------------------------------
-// Serve map and token image uploads
+// Serve map, token, and AI-generated image uploads
 // ---------------------------------------------------------------------------
 const uploadsPath = path.join(__dirname, "../uploads");
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
+}
+const aiGeneratedPath = path.join(uploadsPath, "ai-generated");
+if (!fs.existsSync(aiGeneratedPath)) {
+  fs.mkdirSync(aiGeneratedPath, { recursive: true });
 }
 
 // Generate placeholder map image if it doesn't exist

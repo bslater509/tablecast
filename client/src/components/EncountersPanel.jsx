@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Flag,
   Heart,
+  Lightbulb,
   Plus,
   Shield,
   Skull,
@@ -99,6 +100,11 @@ export default function EncountersPanel({
   /* condition picker */
   const [conditionPickerParticipant, setConditionPickerParticipant] = useState(null);
   const [conditionPickerDuration, setConditionPickerDuration] = useState(1);
+
+  /* suggest action */
+  const [suggestingAction, setSuggestingAction] = useState(null); // participant id being loaded
+  const [actionSuggestion, setActionSuggestion] = useState(null); // { participantId, recommended, alternatives } or null
+  const [actionLoading, setActionLoading] = useState(false);
 
   /* ---- helpers ---- */
   const handleApiError = (err, fallback) => {
@@ -451,6 +457,32 @@ export default function EncountersPanel({
       setBusy(false);
     }
   };
+
+  /* ── Suggest Action handler ── */
+  async function handleSuggestAction(participant) {
+    if (!selectedEncounter) return;
+    setSuggestingAction(participant.id);
+    setActionSuggestion(null);
+    setActionLoading(true);
+    try {
+      const response = await fetch(`/api/encounters/${selectedEncounter.id}/suggest-action`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-tablecast-user-id": "1",
+        },
+        body: JSON.stringify({ participantId: participant.id }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      setActionSuggestion({ participantId: participant.id, ...data });
+    } catch (err) {
+      setActionSuggestion({ participantId: participant.id, recommended: "Failed to get suggestion", alternatives: [] });
+    } finally {
+      setSuggestingAction(null);
+      setActionLoading(false);
+    }
+  }
 
   /* ── Death Save handlers ── */
   const handleDeathSave = async (participant, type) => {
@@ -1026,27 +1058,49 @@ export default function EncountersPanel({
                       </div>
                     </td>
 
-                    {/* delete */}
+                    {/* actions: suggest + delete */}
                     {isDm && selectedEncounter.status !== "COMPLETE" && (
                       <td style={encounterStyles.td}>
-                        <button
-                          onClick={() => handleDeleteParticipant(p.id)}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            color: "#64748b",
-                            cursor: "pointer",
-                            padding: 4,
-                            minWidth: 30,
-                            minHeight: 30,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                          aria-label={`Remove ${p.name}`}
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+                          <button
+                            onClick={() => handleSuggestAction(p)}
+                            disabled={suggestingAction === p.id}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: suggestingAction === p.id ? "#c8973a" : "#94a3b8",
+                              cursor: "pointer",
+                              padding: 4,
+                              minWidth: 30,
+                              minHeight: 30,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                            title="Suggest Action"
+                            aria-label={`Suggest action for ${p.name}`}
+                          >
+                            <Lightbulb size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteParticipant(p.id)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#64748b",
+                              cursor: "pointer",
+                              padding: 4,
+                              minWidth: 30,
+                              minHeight: 30,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                            aria-label={`Remove ${p.name}`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -1140,6 +1194,135 @@ export default function EncountersPanel({
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Action Suggestion Popover ── */}
+      {(actionLoading || actionSuggestion) && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setActionSuggestion(null)}
+        >
+          <div
+            style={{
+              background: "#1e293b",
+              border: "1px solid #334155",
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 420,
+              width: "90%",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Lightbulb size={20} color="#eab308" />
+                <span style={{ fontWeight: 700, fontSize: 16, color: "#e2e8f0" }}>
+                  {actionSuggestion
+                    ? `Suggest Action`
+                    : "Thinking…"}
+                </span>
+              </div>
+              <button
+                onClick={() => setActionSuggestion(null)}
+                style={{
+                  background: "none", border: "none", color: "#94a3b8",
+                  cursor: "pointer", padding: 4,
+                  minWidth: 30, minHeight: 30,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Loading state */}
+            {actionLoading && (
+              <div style={{ textAlign: "center", padding: "24px 0" }}>
+                <div style={{ color: "#eab308", fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+                  Consulting tactical oracle…
+                </div>
+                <div style={{ color: "#64748b", fontSize: 12 }}>
+                  Analyzing combat situation and statblock…
+                </div>
+              </div>
+            )}
+
+            {/* Result / Error */}
+            {!actionLoading && actionSuggestion && (
+              <>
+                {/* Recomended action */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{
+                    fontWeight: 600, fontSize: 11, color: "#4ade80",
+                    marginBottom: 6, textTransform: "uppercase", letterSpacing: 1,
+                  }}>
+                    Recommended Action
+                  </div>
+                  <div style={{
+                    color: "#e2e8f0", fontSize: 14, lineHeight: 1.6,
+                    background: "#0f172a", borderRadius: 8, padding: 12,
+                  }}>
+                    {actionSuggestion.recommended || "No recommendation available."}
+                  </div>
+                </div>
+
+                {/* Alternatives */}
+                {actionSuggestion.alternatives && actionSuggestion.alternatives.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{
+                      fontWeight: 600, fontSize: 11, color: "#94a3b8",
+                      marginBottom: 6, textTransform: "uppercase", letterSpacing: 1,
+                    }}>
+                      Alternatives
+                    </div>
+                    <ul style={{ margin: 0, padding: "0 0 0 16px", color: "#cbd5e1", fontSize: 13, lineHeight: 1.8 }}>
+                      {actionSuggestion.alternatives.map((alt, i) => (
+                        <li key={i}>{alt}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Error state */}
+                {actionSuggestion.recommended === "Failed to get suggestion" && (
+                  <div style={{
+                    marginTop: 8, padding: "8px 12px",
+                    background: "#7f1d1d33", border: "1px solid #7f1d1d66",
+                    borderRadius: 8, color: "#fca5a5", fontSize: 13,
+                  }}>
+                    Could not fetch AI suggestion. Check the server connection or AI settings.
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Close button */}
+            <div style={{ marginTop: 16, textAlign: "right" }}>
+              <button
+                onClick={() => setActionSuggestion(null)}
+                style={{
+                  background: "#334155", border: "none", color: "#e2e8f0",
+                  padding: "8px 20px", borderRadius: 8, cursor: "pointer",
+                  fontWeight: 600, fontSize: 14,
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

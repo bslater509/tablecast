@@ -17,6 +17,7 @@ const {
   ASSIST_ACTIONS_REQUIRING_TEXT, loadSessionAiContext
 } = require("../helpers");
 const { scanTextForRollChips } = require("../../utils/diceRollDetection");
+const { generateImage } = require("../helpers/imageGeneration");
 
 // DEBUG: Verify deployment version
 async function handleDeployTest(req, res) {
@@ -1578,6 +1579,34 @@ async function handleDetectRollChips(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// POST /generate-image - Generate image via DALL-E 3 (6.9) (DM only)
+// ---------------------------------------------------------------------------
+async function handleGenerateImage(req, res) {
+  try {
+    const { prompt, style } = req.body;
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return res.status(400).json({ error: "Image prompt is required." });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey } = aiSettings;
+
+    // For now, only OpenAI DALL-E is supported for images
+    const effectiveApiKey = apiKey;
+    if (!effectiveApiKey) {
+      return res.status(400).json({ error: "AI API key is required. Configure it in Settings." });
+    }
+
+    const imageUrl = await generateImage(prompt, style || "", effectiveApiKey);
+
+    res.json({ imageUrl, prompt, style: style || "" });
+  } catch (err) {
+    logger.error("ai:image", "Image generation failed", { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+}
+
 module.exports = {
   handleGenerateNpcOptions,
   handleGenerateNpc,
@@ -1599,4 +1628,5 @@ module.exports = {
   handleGenerateNpcPhrases,
   handleDetectRollChips,
   handleDeployTest,
+  handleGenerateImage,
 };

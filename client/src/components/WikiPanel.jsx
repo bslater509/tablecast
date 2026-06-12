@@ -20,6 +20,7 @@ import { WikiPanelSkeleton } from "./PanelSkeleton";
 import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";
 import NpcGenModal from "./wiki/NpcGenModal";
 import MonsterGenModal from "./wiki/MonsterGenModal";
+import GenerateImageModal from "./GenerateImageModal";
 // DialogueEditor is available via the /dm/dialogue/:npcId route
 
 marked.setOptions({
@@ -97,6 +98,9 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [npcPhrases, setNpcPhrases] = useState([]);
   const [phrasesLoading, setPhrasesLoading] = useState(false);
   const [phrasesCopiedIndex, setPhrasesCopiedIndex] = useState(null);
+
+  // Image generation modal state (Section 6.9)
+  const [imageGenModal, setImageGenModal] = useState({ open: false, entityType: "", entityId: null, entityName: "" });
 
   // Sidebar drawer state (mobile)
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1220,6 +1224,36 @@ export default function WikiPanel({ user, isPopout = false }) {
                       title="Generate dialogue phrases for this NPC"
                     >
                       🎭 Phrases
+                    </button>
+                  )}
+                  {isDM && (
+                    <button
+                      type="button"
+                      onClick={() => setImageGenModal({
+                        open: true,
+                        entityType: activeCategoryTab === "MONSTER" ? "monster" : "npc",
+                        entityId: selectedArticle.id,
+                        entityName: selectedArticle.name,
+                      })}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
+                        padding: "0.3rem 0.6rem",
+                        fontSize: "0.7rem",
+                        fontWeight: "600",
+                        background: "rgba(59,130,246,0.1)",
+                        color: "#60a5fa",
+                        border: "1px solid rgba(59,130,246,0.25)",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                        transition: "all 0.2s",
+                      }}
+                      className="touch-target btn-hover-scale"
+                      title={`Generate AI portrait for this ${activeCategoryTab === "MONSTER" ? "monster" : "NPC"}`}
+                    >
+                      🎨 {activeCategoryTab === "MONSTER" ? "Generate Art" : "Generate Portrait"}
                     </button>
                   )}
                   <button
@@ -2788,6 +2822,21 @@ export default function WikiPanel({ user, isPopout = false }) {
             <img src={lightboxImage} alt="NPC Portrait Full size" className="lightbox-image" />
           </div>
         </div>
+      )}
+
+      {/* AI IMAGE GENERATION MODAL (Section 6.9) */}
+      {imageGenModal.open && (
+        <GenerateImageModal
+          isOpen={imageGenModal.open}
+          onClose={() => setImageGenModal({ ...imageGenModal, open: false })}
+          onAccept={(imageUrl) => {
+            // Handle the accepted image URL
+            setImageGenModal({ ...imageGenModal, open: false });
+            // Could dispatch a wiki article update to store the imageUrl
+          }}
+          entityType={imageGenModal.entityType}
+          entityName={imageGenModal.entityName}
+        />
       )}
     </div>
   );
