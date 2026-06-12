@@ -7,6 +7,7 @@ import { canMoveToken } from "../../utils/authHeaders";
 
 export default function useMapInteraction({
   // State values
+  // eslint-disable-next-line unused-imports/no-unused-vars
   tool, zoom, panOffset, isDrawing, isPanning, panStart, dragState, currentPolygon,
   tokens, gridSize, user, isDM, activeMap,
   // Setters

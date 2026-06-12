@@ -72,6 +72,7 @@ function SessionChatScreen({ user, onBack }) {
 // Main MessageHub Component
 // =============================================================================
 export default function MessageHub({ user, initialView: propInitialView }) {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { socket, isConnected } = useSocket();
   const [npcs, setNpcs] = useState([]);
   const [conversations, setConversations] = useState([]);

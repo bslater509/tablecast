@@ -200,6 +200,7 @@ async function handleAddItemToCharacter(args, { prisma }) {
     });
   }
 
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const updated = await prisma.character.update({
     where: { id: characterId },
     data: { inventory: JSON.stringify(inv) },

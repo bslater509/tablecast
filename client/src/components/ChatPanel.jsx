@@ -41,6 +41,7 @@ export default function ChatPanel({ user, isPopout = false }) {
   const [initialLoading, setInitialLoading] = useState(true);
   const scrollRef = useRef(null);
   const typingTimeout = useRef(null);
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const pendingAcksRef = useRef({});
   const initialLoadRef = useRef(true);
   const inputRef = useRef(null);

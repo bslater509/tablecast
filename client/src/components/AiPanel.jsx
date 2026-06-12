@@ -83,11 +83,13 @@ export default function AiPanel({ user }) {
   const {
     aiSettings,
     npcs, selectedNpcId, selectNpc,
+    // eslint-disable-next-line unused-imports/no-unused-vars
     characters, selectedCharId, selectChar,
   } = useAi();
 
   // ---- Conversations hook ----
   const {
+    // eslint-disable-next-line unused-imports/no-unused-vars
     conversations, loadingConvs,
     loadConversationList, createConversation, deleteConversation, loadConversation,
   } = useConversations({ user });

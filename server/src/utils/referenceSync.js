@@ -126,7 +126,7 @@ function ensureCacheDir() {
  * Returns a file-safe name from a URL path.
  */
 function urlPathToFilename(urlPath) {
-  return urlPath.replace(/^\/+/, "").replace(/[\/?]/g, "_");
+  return urlPath.replace(/^\/+/, "").replace(/[/?]/g, "_");
 }
 
 /**

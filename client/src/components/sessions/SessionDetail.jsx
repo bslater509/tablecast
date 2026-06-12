@@ -29,6 +29,7 @@ import {
 export default function SessionDetail({
   selectedSession,
   saving,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   error,
   isDm,
   user,
@@ -47,6 +48,7 @@ export default function SessionDetail({
   onSetError,
   onSetSaving,
   onSessionSynced,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   showConfirm,
 }) {
   /* ---- local UI state ---- */

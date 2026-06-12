@@ -48,6 +48,7 @@ function evaluateCondition(condition, context = {}) {
 
   try {
     // Use Function constructor for safe evaluation with limited scope
+    // eslint-disable-next-line no-new-func
     const fn = new Function(
       "party", "player", "variables", "roll",
       `"use strict"; return (${condition});`

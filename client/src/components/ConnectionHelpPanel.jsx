@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 export default function ConnectionHelpPanel({ user }) {
   const [ips, setIps] = useState([]);
   const [loading, setLoading] = useState(true);

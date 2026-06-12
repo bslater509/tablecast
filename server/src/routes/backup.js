@@ -103,13 +103,14 @@ function escapeHtml(str) {
       case ">": return "&gt;";
       case '"': return "&quot;";
       case "'": return "&#39;";
+      default: return m;
     }
   });
 }
 
 function escapeJsStr(str) {
   if (typeof str !== "string") return "";
-  return str.replace(/['\\\n\r<\/]/g, (m) => {
+  return str.replace(/['\\\n\r</]/g, (m) => {
     switch (m) {
       case "'": return "\\'";
       case "\\": return "\\\\";
@@ -117,6 +118,7 @@ function escapeJsStr(str) {
       case "\r": return "\\r";
       case "<": return "\\u003C";
       case "/": return "\\u002F";
+      default: return m;
     }
   });
 }

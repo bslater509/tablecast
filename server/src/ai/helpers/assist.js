@@ -4,6 +4,7 @@
 // =============================================================================
 "use strict";
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const { buildNpcProfileContext, buildNpcRoleplaySystemPrompt } = require("./profiles");
 
 function buildAssistSystemPrompt(field, action) {

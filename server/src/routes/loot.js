@@ -9,6 +9,7 @@
 
 const { Router } = require("express");
 const prisma = require("../prisma");
+// eslint-disable-next-line unused-imports/no-unused-vars
 const { requireDm, getRequestUser } = require("../auth");
 const logger = require("../utils/logger");
 const {

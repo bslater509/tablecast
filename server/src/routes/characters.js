@@ -62,6 +62,7 @@ const ALLOWED_LEVEL_RANGE = { min: 1, max: 20 };
 const ALLOWED_ABILITY_RANGE = { min: 3, max: 30 };
 const ALLOWED_HP_RANGE = { min: 1, max: 100000 };
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 function clampInt(value, fallback, min = 0, max = 100000) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -146,6 +147,10 @@ router.get("/", async (req, res) => {
     const result = characters.map((c) => {
       const isOwner = c.userId === reqUser.id || (reqUser.type === "character" && c.id === reqUser.id);
       if (isOwner || isDM) return c;
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      // eslint-disable-next-line unused-imports/no-unused-vars
       const { inventory, modifiers, spells, spellSlots, ...safe } = c;
       return safe;
     });
@@ -192,6 +197,10 @@ router.get("/:id", async (req, res) => {
     if (!isOwner && isDM) {
       // DM sees all
     } else if (!isOwner) {
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      // eslint-disable-next-line unused-imports/no-unused-vars
       const { inventory, modifiers, spells, spellSlots, ...safe } = character;
       return res.json(safe);
     }

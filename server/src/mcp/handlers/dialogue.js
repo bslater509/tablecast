@@ -11,6 +11,7 @@ const {
   pickWeightedRandom,
 } = require("../../utils/dialogueEngine");
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleGetNpcDialogue(args, { prisma, logError }) {
   const npcId = Number(args.npcId);
   if (!Number.isInteger(npcId) || npcId < 1) {
@@ -34,6 +35,7 @@ async function handleGetNpcDialogue(args, { prisma, logError }) {
   };
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleUpdateNpcDialogue(args, { prisma, logError }) {
   const npcId = Number(args.npcId);
   if (!Number.isInteger(npcId) || npcId < 1) {

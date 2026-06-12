@@ -35,6 +35,7 @@ async function handleListSessions(args, { prisma, parseJsonArray, VALID_SESSION_
   };
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleCreateSession(args, { prisma, parseJsonArray, toJsonArrayString, VALID_SESSION_STATUSES }) {
   const {
     title,

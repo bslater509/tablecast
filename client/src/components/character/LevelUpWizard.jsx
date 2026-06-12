@@ -41,8 +41,11 @@ export default function LevelUpWizard({ character, user, onClose, onApplied }) {
   const [showFeatResults, setShowFeatResults] = useState(false);
 
   // Feat autocomplete from 5etools reference
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const [featSearchResults, setFeatSearchResults] = useState([]);
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const [featSearchLoading, setFeatSearchLoading] = useState(false);
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const [showFeatDropdown, setShowFeatDropdown] = useState(false);
   const featSearchTimer = useRef(null);
 

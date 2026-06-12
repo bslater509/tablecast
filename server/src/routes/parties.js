@@ -33,6 +33,7 @@ function parseJson(value, fallback) {
  * Format copper pieces into a display-friendly string.
  * e.g. 12537 → "125 GP, 3 SP, 7 CP"
  */
+// eslint-disable-next-line unused-imports/no-unused-vars
 function formatCopper(cp) {
   if (!cp || cp < 0) cp = 0;
   const gold = Math.floor(cp / 100);

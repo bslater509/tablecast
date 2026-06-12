@@ -59,7 +59,7 @@ function isValidImageUrl(url) {
   if (url.startsWith("/uploads/")) return true;
   if (url.startsWith("https://5e.tools/")) return true;
   try {
-    new URL(url);
+    const _url = new URL(url);
     return url.startsWith("http://") || url.startsWith("https://");
   } catch {
     return false;

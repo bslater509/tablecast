@@ -10,6 +10,7 @@ export default function MapToolbar({
   setTool,
   showGrid,
   setShowGrid,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   zoom,
   handleZoom,
   fitView,

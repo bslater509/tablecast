@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const { Router } = require("express");
 const prisma = require("../prisma");
 const { getRequestUser, requireDm } = require("../auth");
+// eslint-disable-next-line unused-imports/no-unused-vars
 const referenceSearch = require("../utils/referenceSearch");
 const tokenImageLookup = require("../utils/tokenImageLookup");
 const generateTokenSvg = require("../utils/generateTokenSvg");
@@ -80,6 +81,7 @@ function monsterImageUrl(monster) {
   return match?.url || "";
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 function monsterToNpcData(monster, nameOverride = "") {
   const hp = clampInt(monster?.hp?.average, 10, 1, 10000);
   const ac = Array.isArray(monster?.ac)

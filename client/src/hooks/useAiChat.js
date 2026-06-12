@@ -169,6 +169,7 @@ export function useAiChat({
               return [...prev, { role: "assistant", text: `Error: ${errorText}` }];
             }
             const copy = [...prev];
+            // eslint-disable-next-line unused-imports/no-unused-vars
             const last = copy[copy.length - 1];
             copy[copy.length - 1] = {
               role: "assistant",

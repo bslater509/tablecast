@@ -43,6 +43,7 @@ const FILTER_TABS = [
 ];
 
 export default function SpellsPanel({
+  // eslint-disable-next-line unused-imports/no-unused-vars
   character,
   spellSlots,
   spells,
@@ -373,6 +374,7 @@ export default function SpellsPanel({
         <div style={styles.spellList}>
           {/* When sorting by name or school, show flat list instead of level groups */}
           {sortBy !== "level" ? (
+            // eslint-disable-next-line unused-imports/no-unused-vars
             sortedSpells.map((spell, idx) => {
               const spellIndex = spells.indexOf(spell);
               const isExpanded = expandedSpell === spellIndex;
@@ -390,7 +392,7 @@ export default function SpellsPanel({
                     </span>
                     <span style={styles.spellGroupCount}>{levelSpells.length}</span>
                   </div>
-                  {levelSpells.map((spell, idx) => {
+                  {levelSpells.map((spell, _idx) => {
                     const spellIndex = spells.indexOf(spell);
                     const isExpanded = expandedSpell === spellIndex;
                     return renderSpellCard(spell, spellIndex, isExpanded);

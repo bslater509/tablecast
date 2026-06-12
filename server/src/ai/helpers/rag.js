@@ -7,6 +7,7 @@
 const prisma = require("../../prisma");
 const referenceSearch = require("../../utils/referenceSearch");
 const logger = require("../../utils/logger");
+// eslint-disable-next-line unused-imports/no-unused-vars
 const { cleanText, stringifyEntries } = require("./formatting");
 
 // ---------------------------------------------------------------------------

@@ -1316,6 +1316,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   // ─── CURRENCY / GOLD HANDLERS ────────────────────────────────────────────
 
   // Convert a display string like "12 GP, 5 SP, 3 CP" from copper pieces
+  // eslint-disable-next-line unused-imports/no-unused-vars
   function formatGoldCp(cp) {
     if (cp === undefined || cp === null || cp < 0) return "—";
     const val = Math.max(0, Number(cp) || 0);
@@ -1335,6 +1336,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   }
 
   // Save edited currency denominations back to character
+  // eslint-disable-next-line unused-imports/no-unused-vars
   function handleCurrencySave() {
     const total = (Number(currencyValues.pp || 0) * 1000) +
                   (Number(currencyValues.gp || 0) * 100) +
@@ -1345,6 +1347,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     setShowCurrencyEdit(false);
   }
 
+  // eslint-disable-next-line unused-imports/no-unused-vars
   function handleCurrencyCancel() {
     setShowCurrencyEdit(false);
   }

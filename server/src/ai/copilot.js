@@ -27,6 +27,7 @@ function isRateLimited(sessionId) {
 // ---------------------------------------------------------------------------
 router.post("/copilot/check", requireDm, async (req, res) => {
   try {
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const { text, encounterId, mapId, sessionId } = req.body;
     if (!text || typeof text !== "string" || !text.trim()) {
       return res.status(400).json({ error: "Message text is required." });

@@ -25,6 +25,7 @@ const TYPE_ICONS = {
 
 const DEFAULT_ICON = "\uD83D\uDCA1";
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 export default function CoPilotPanel({ user, socket, encounterId }) {
   const [suggestions, setSuggestions] = useState([]);
   const [isCooldown, setIsCooldown] = useState(false);

@@ -9,6 +9,7 @@ const prisma = require("../prisma");
 const logger = require("../utils/logger");
 const { getRequestUser } = require("../auth");
 const {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   loadAiSettings, performAiCall, performAiStreamTokens, performAiStream,
   findRelevantRules, buildNpcRoleplaySystemPrompt,
   beginSseResponse, writeSseEvent

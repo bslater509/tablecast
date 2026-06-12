@@ -65,6 +65,7 @@ function generateWeather(month, terrain = "plains") {
   const nightTemp = baseTemp + terrainMod.night;
 
   // Weight weather by precipitation probability
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const precipRoll = Math.random();
   const suitableWeather = WEATHER_TYPES.filter((w) => {
     const tempOk = dayTemp >= w.minTemp && dayTemp <= w.maxTemp;

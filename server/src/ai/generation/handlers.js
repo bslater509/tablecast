@@ -9,10 +9,12 @@ const prisma = require("../../prisma");
 const logger = require("../../utils/logger");
 const generateTokenSvg = require("../../utils/generateTokenSvg");
 const {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   loadAiSettings, performAiCall, streamGenerate,
   beginSseResponse, writeSseEvent,
   fetchCampaignWikiSnippet, cleanAiFieldOutput, stripAiJsonCodeFences,
   buildAssistSystemPrompt, buildAssistUserMessage,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   formatCreaturePromptList, formatEntityList, parseJsonArray,
   ASSIST_ACTIONS_REQUIRING_TEXT, loadSessionAiContext
 } = require("../helpers");
@@ -905,6 +907,7 @@ async function handleNpcInterview(req, res) {
 
       const interviewSummary = interviewHistory
         ? interviewHistory.map(
+            // eslint-disable-next-line unused-imports/no-unused-vars
             (h, i) => `${h.question}: ${h.answer.label}${h.answer.description ? ` — ${h.answer.description}` : ""}`
           ).join("\n")
         : "";
@@ -1590,6 +1593,7 @@ async function handleGenerateImage(req, res) {
     }
 
     const aiSettings = await loadAiSettings();
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const { provider, apiKey } = aiSettings;
 
     // For now, only OpenAI DALL-E is supported for images

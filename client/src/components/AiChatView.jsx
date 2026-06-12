@@ -4,10 +4,9 @@
 // Uses the same useAiChat hook as AiPanel but in a focused chat view.
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Send, User, Sparkles } from "lucide-react";
+import { ArrowLeft, Send, User, Sparkles, Copy, Check } from "lucide-react";
 import { useAiChat } from "../hooks/useAiChat";
 import { useSocket } from "../context/SocketContext";
-import { Copy, Check } from "lucide-react";
 import { compileMarkdown } from "../utils/markdown";
 import AiStreamingIndicator from "./AiStreamingIndicator";
 

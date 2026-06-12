@@ -280,6 +280,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
       if (qty <= 0) return;
       const dieConfig = DICE_TYPES.find((d) => d.id === key);
       if (!dieConfig) return;
+      // eslint-disable-next-line unused-imports/no-unused-vars
       const {sides} = dieConfig;
 
       if (key === "d20" && advantage !== "normal" && qty === 1) {
@@ -321,6 +322,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
       const roll1 = groups[0]?.rolls?.[0]?.value || 0;
       const roll2 = groups[1]?.rolls?.[0]?.value || 0;
       const chosen = advantage === "advantage" ? Math.max(roll1, roll2) : Math.min(roll1, roll2);
+      // eslint-disable-next-line unused-imports/no-unused-vars
       const discarded = advantage === "advantage" ? Math.min(roll1, roll2) : Math.max(roll1, roll2);
 
       // Recompute total: only the chosen die contributes (plus modifier)

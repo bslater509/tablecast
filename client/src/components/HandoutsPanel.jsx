@@ -670,7 +670,7 @@ function HandoutsPanel({ user, readOnly = false, isPopout = false }) {
           {filteredHandouts.map((handout) => {
             const targetInfo = getTargetNames(handout);
             const excerpt = (handout.content || "")
-              .replace(/[#*`>\[\]]/g, "")
+              .replace(/[#*>[\]]/g, "")
               .slice(0, 120);
 
             return (

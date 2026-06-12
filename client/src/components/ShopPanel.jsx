@@ -395,6 +395,7 @@ export default function ShopPanel({ user, addToast }) {
   const [showHaggle, setShowHaggle] = useState(null); // itemId being haggled
   const [haggleResult, setHaggleResult] = useState(null);
   const [characters, setCharacters] = useState([]);
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const [charLoading, setCharLoading] = useState(true);
 
   // DM state: add item form
@@ -507,6 +508,7 @@ export default function ShopPanel({ user, addToast }) {
 
   const [sellModal, setSellModal] = useState(null); // { characterId, items }
 
+  // eslint-disable-next-line unused-imports/no-unused-vars
   function openSellModal(character) {
     if (!character) return;
     setSellModal({

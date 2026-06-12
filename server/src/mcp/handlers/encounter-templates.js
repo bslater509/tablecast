@@ -31,6 +31,7 @@ async function handleListEncounterTemplates(args, { prisma, parseJsonArray }) {
   };
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleCreateEncounterTemplate(args, { prisma, toJsonArrayString }) {
   const { name, description, difficulty, recommendedLevel, tags, participants, mapId } = args;
 

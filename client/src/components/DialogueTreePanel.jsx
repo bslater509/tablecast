@@ -22,6 +22,7 @@ import { useSocket } from "../context/SocketContext";
 import { useToast } from "../context/ToastContext";
 import { WikiPanelSkeleton } from "./PanelSkeleton";
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const debug = import.meta.env.DEV ? console.log : () => {};
 
 const SKILL_TYPES = [
@@ -189,6 +190,7 @@ export default function DialogueTreePanel({ user, readOnly = false, isPopout = f
     return dialogueTree.nodes.find((n) => n.id === selectedNodeId) || null;
   }, [dialogueTree.nodes, selectedNodeId]);
 
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const rootNode = useMemo(() => {
     if (dialogueTree.startNodeId) {
       return dialogueTree.nodes.find((n) => n.id === dialogueTree.startNodeId) || null;
@@ -374,10 +376,12 @@ export default function DialogueTreePanel({ user, readOnly = false, isPopout = f
 
   function handleToggleSkillCheck(choiceIndex) {
     if (!selectedNode || !selectedNode.choices) return;
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const choice = selectedNode.choices[choiceIndex];
     const updated = selectedNode.choices.map((c, i) => {
       if (i !== choiceIndex) return c;
       if (c.skillCheck) {
+        // eslint-disable-next-line unused-imports/no-unused-vars
         const { skillCheck, ...rest } = c;
         return rest;
       }

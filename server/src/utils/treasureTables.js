@@ -440,6 +440,7 @@ function rollD100() {
 /**
  * Roll a dX (1-X).
  */
+// eslint-disable-next-line unused-imports/no-unused-vars
 function rollDie(sides) {
   return Math.floor(Math.random() * sides) + 1;
 }

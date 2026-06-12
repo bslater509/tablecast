@@ -81,7 +81,7 @@ router.post("/", requireDm, async (req, res) => {
     let resolvedImageUrl = "/uploads/placeholder_map.png";
 
     if (imageData && typeof imageData === "string" && imageData.startsWith("data:")) {
-      const matches = imageData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      const matches = imageData.match(/^data:([A-Za-z-+/]+);base64,(.+)$/);
       if (matches && matches.length === 3) {
         const mimeType = matches[1];
         const base64Data = matches[2];

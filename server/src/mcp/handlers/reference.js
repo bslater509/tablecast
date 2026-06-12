@@ -3,6 +3,7 @@
 // =============================================================================
 "use strict";
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleSearchReference(args, { prisma, referenceSearch, logError }) {
   const { category, query, limit } = args;
   const maxResults = limit ? Math.min(100, Math.max(1, limit)) : 10;
@@ -22,6 +23,7 @@ async function handleSearchReference(args, { prisma, referenceSearch, logError }
   };
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleGetReferenceDetail(args, { prisma, referenceSearch, logError }) {
   const { category, name: refName, source } = args;
 

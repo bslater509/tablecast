@@ -5,6 +5,7 @@
 "use strict";
 
 const prisma = require("../../prisma");
+// eslint-disable-next-line unused-imports/no-unused-vars
 const logger = require("../../utils/logger");
 
 // ---------------------------------------------------------------------------

@@ -89,7 +89,7 @@ export default function HandoutPanel({ user, isPopout = false }) {
 
   function previewText(text) {
     if (!text) return "";
-    const plain = text.replace(/[#*_~`>\[\]]/g, "").trim();
+    const plain = text.replace(/[#*_~>[]]/g, "").trim();
     if (plain.length <= 100) return plain;
     return `${plain.slice(0, 100)}\u2026`;
   }

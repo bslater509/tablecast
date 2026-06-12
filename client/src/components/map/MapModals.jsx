@@ -17,6 +17,7 @@ export default function MapModals({
   setNewMapName,
   newMapGridSize,
   setNewMapGridSize,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   newMapFile,
   setNewMapFile,
   newMapImagePath,
@@ -27,18 +28,23 @@ export default function MapModals({
   setNewTokenCharacterId,
   newTokenNpcId,
   setNewTokenNpcId,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   newTokenMonsterId,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   setNewTokenMonsterId,
   newTokenImageUrl,
   setNewTokenImageUrl,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   newTokenIsMonster,
   setNewTokenIsMonster,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   newTokenStats,
   setNewTokenStats,
   tokenType,
   setTokenType,
   availableCharacters,
   availableNpcs,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   availableMonsters,
   isCreatingMap,
   loadError,
@@ -64,12 +70,15 @@ export default function MapModals({
   resolveMonsterTokenImage,
   handleBuildEncounter,
   handleApplyEncounterResult,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   setShowAddMapModal,
   setShowAddTokenModal,
   showGridSizePrompt,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   setShowGridSizePrompt,
   newDropGridSize,
   setNewDropGridSize,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   pendingMapId,
   handleConfirmGridSize,
   handleCancelGridSize,

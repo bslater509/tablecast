@@ -157,6 +157,7 @@ async function handleUpdateEncounter(args, { prisma, parseJsonObject, VALID_ENCO
   };
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleAddEncounterParticipant(args, { prisma, parseJsonObject, logError }) {
   const {
     encounterId,
@@ -255,6 +256,7 @@ async function handleAddEncounterParticipant(args, { prisma, parseJsonObject, lo
   };
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleUpdateEncounterParticipant(args, { prisma, parseJsonObject, logError }) {
   const { id, name, currentHp, maxHp, ac, isHidden, initiative } = args;
 

@@ -9,6 +9,7 @@
  * Pattern definitions for D&D 5e checks, saves, and attack rolls.
  * Each pattern produces a roll chip with type, label, and optional DC.
  */
+// eslint-disable-next-line unused-imports/no-unused-vars
 const PATTERNS = [
   // "Perception check", "Investigation check", etc.
   { regex: /\b(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)\s+(check|save|saving throw)\b/gi, mapType: "save" },

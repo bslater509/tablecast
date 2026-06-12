@@ -1,0 +1,131 @@
+/root/tablecast/client/src/App.jsx:282 'addToast' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/App.jsx:369 'currentTab' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/AiPanel.jsx:86 'selectChar' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/AiPanel.jsx:91 'loadingConvs' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:23 'MAX_SPELL_SEARCH' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:27 'FULL_CASTER_LEVELS' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:140 'raceTraits' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:141 'loadingDetail' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:343 'loadingDetail' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:497 'rolledDraft' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:554 'standardAssignments' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:554 'setStandardAssignments' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:580 'totalWithBonuses' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:690 'setSavingThrows' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:691 'setToolChoices' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:934 'onError' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:1168 'onError' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:1323 'totalSteps' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:1330 'getStepIndex' is defined but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterBuilderWizard.jsx:1476 'getStepLabel' is defined but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterSheet.jsx:1319 'formatGoldCp' is defined but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterSheet.jsx:1338 'handleCurrencySave' is defined but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CharacterSheet.jsx:1348 'handleCurrencyCancel' is defined but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/ChatPanel.jsx:44 'pendingAcksRef' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/CoPilotPanel.jsx:28 'user' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/ConnectionHelpPanel.jsx:4 'user' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/DialogueTreePanel.jsx:25 'debug' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/DialogueTreePanel.jsx:192 'rootNode' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/DialogueTreePanel.jsx:377 'choice' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/DialogueTreePanel.jsx:381 'skillCheck' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/DiceRollerPanel.jsx:283 'sides' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/DiceRollerPanel.jsx:324 'discarded' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/MapPanel.jsx:86 'authHeaders' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/MessageHub.jsx:75 'isConnected' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/PartyVaultPanel.jsx:228 'onBack' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/PartyVaultPanel.jsx:234 'authHeaders' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/QuestLogPanel.jsx:935 'isPopout' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/QuestLogPanel.jsx:1363 'ObjIcon' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/ShopPanel.jsx:398 'charLoading' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/ShopPanel.jsx:510 'openSellModal' is defined but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/SoundboardPanel.jsx:31 'socket' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/WikiPanel.jsx:74 'importQuery' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/WikiPanel.jsx:90 'dialogueNpcId' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/WikiPanel.jsx:577 'handleBestiaryImport' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/WikiPanel.jsx:684 'handleStartDialogue' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/WikiPanel.jsx:689 'handleEndDialogue' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/WikiPanel.jsx:2823 'imageUrl' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/character/LevelUpWizard.jsx:44 'featSearchResults' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/character/LevelUpWizard.jsx:45 'featSearchLoading' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/character/LevelUpWizard.jsx:46 'showFeatDropdown' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/character/SpellsPanel.jsx:46 'character' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/character/SpellsPanel.jsx:376 'idx' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/character/SpellsPanel.jsx:393 'idx' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:10 'containerRef' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:25 'isDrawing' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:26 'setIsDrawing' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:27 'setCurrentPolygon' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:28 'setMousePosWorld' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:29 'setIsPanning' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:30 'setPanStart' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:33 'setSelectedTokenId' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:34 'setDragState' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:35 'socket' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:36 'isConnected' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:37 'setTokens' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:38 'pendingMovesRef' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:98 'computeDistance' is defined but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/map/MapCanvas.jsx:461 'imgUrl' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/map/MapModals.jsx:20 'newMapFile' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapModals.jsx:30 'newTokenMonsterId' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapModals.jsx:31 'setNewTokenMonsterId' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapModals.jsx:34 'newTokenIsMonster' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapModals.jsx:36 'newTokenStats' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapModals.jsx:42 'availableMonsters' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapModals.jsx:67 'setShowAddMapModal' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapModals.jsx:70 'setShowGridSizePrompt' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapModals.jsx:73 'pendingMapId' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/MapToolbar.jsx:13 'zoom' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/map/useMapInteraction.js:10 'currentPolygon' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/sessions/SessionDetail.jsx:32 'error' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/sessions/SessionDetail.jsx:50 'showConfirm' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/components/wiki/NpcGenModal.jsx:207 'summaryText' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/client/src/components/wiki/NpcGenModal.jsx:208 'i' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/client/src/hooks/useAiChat.js:172 'last' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/ai/chat.js:12 'performAiStream' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/ai/copilot.js:30 'mapId' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/ai/generation/handlers.js:12 'streamGenerate' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/ai/generation/handlers.js:16 'parseJsonArray' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/ai/generation/handlers.js:908 'i' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/ai/generation/handlers.js:1593 'provider' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/ai/helpers/assist.js:7 'buildNpcRoleplaySystemPrompt' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/ai/helpers/calls.js:7 'logger' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/ai/helpers/rag.js:10 'cleanText' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/ai/helpers/settings.js:8 'logger' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/ai/settings.js:11 'loadAiSettings' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/characters.js:203 'updated' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/dialogue.js:14 'logError' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/dialogue.js:37 'logError' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/encounter-templates.js:34 'toJsonArrayString' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/encounters.js:160 'logError' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/encounters.js:258 'logError' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/handouts.js:6 'logError' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/handouts.js:29 'toJsonArrayString' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/handouts.js:64 'toJsonArrayString' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/handouts.js:64 'logError' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/handouts.js:113 'logError' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/quests.js:35 'toJsonArrayString' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/quests.js:35 'toJsonObjectString' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/reference.js:6 'logError' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/reference.js:25 'logError' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/mcp/handlers/sessions.js:38 'toJsonArrayString' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/routes/calendar.js:81 'month' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/routes/calendar.js:81 'year' is defined but never used. Allowed unused args must match /^_/u.
+/root/tablecast/server/src/routes/characters.js:65 'clampInt' is defined but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/characters.js:149 'inventory' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/characters.js:149 'modifiers' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/characters.js:149 'spells' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/characters.js:149 'spellSlots' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/characters.js:195 'inventory' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/characters.js:195 'modifiers' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/characters.js:195 'spells' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/characters.js:195 'spellSlots' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/encounters.js:7 'referenceSearch' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/encounters.js:83 'monsterToNpcData' is defined but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/homebrew.js:15 'getRequestUser' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/loot.js:12 'getRequestUser' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/parties.js:36 'formatCopper' is defined but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/routes/shops.js:9 'getRequestUser' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/utils/diceRollDetection.js:12 'PATTERNS' is assigned a value but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/utils/treasureTables.js:443 'rollDie' is defined but never used. Allowed unused vars must match /^_/u.
+/root/tablecast/server/src/utils/weatherGenerator.js:68 'precipRoll' is assigned a value but never used. Allowed unused vars must match /^_/u.

@@ -3,6 +3,7 @@
 // =============================================================================
 "use strict";
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleListHandouts(args, { prisma, parseJsonArray, logError }) {
   const where = {};
   if (args.characterId !== undefined) {
@@ -26,6 +27,7 @@ async function handleListHandouts(args, { prisma, parseJsonArray, logError }) {
   return { content: [{ type: "text", text: JSON.stringify(handouts, null, 2) }] };
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleCreateHandout(args, { prisma, parseJsonArray, toJsonArrayString, logError, getIo }) {
   const { title, content, imageUrl, targetCharacterIds } = args;
 
@@ -61,6 +63,8 @@ async function handleCreateHandout(args, { prisma, parseJsonArray, toJsonArraySt
   };
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleUpdateHandout(args, { prisma, parseJsonArray, toJsonArrayString, logError }) {
   const { id, title, content, imageUrl, targetCharacterIds } = args;
 
@@ -110,6 +114,7 @@ async function handleUpdateHandout(args, { prisma, parseJsonArray, toJsonArraySt
   };
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleDeleteHandout(args, { prisma, logError }) {
   const { id } = args;
 

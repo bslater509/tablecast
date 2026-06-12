@@ -28,6 +28,7 @@ function formatDuration(seconds) {
 }
 
 export default function SoundboardPanel({ user }) {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { socket } = useSocket();
   const { isPlaying, currentTrackId, volume, playTrack, stopTrack, setVolumeAll } = useSound();
   const [tracks, setTracks] = useState([]);

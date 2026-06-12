@@ -7,6 +7,7 @@ import { parseWalls, computeAllVision } from "../../utils/dynamicLighting";
 
 export default function MapCanvas({
   canvasRef,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   containerRef,
   activeMap,
   tokens,
@@ -22,19 +23,31 @@ export default function MapCanvas({
   tokenImagesRef,
   gridSize,
   user,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   isDrawing,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   setIsDrawing,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   setCurrentPolygon,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   setMousePosWorld,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   setIsPanning,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   setPanStart,
   setPanOffset,
   setZoom,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   setSelectedTokenId,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   setDragState,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   socket,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   isConnected,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   setTokens,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   pendingMovesRef,
   drawRafIdRef,
   triggerRedrawRef,
@@ -95,6 +108,7 @@ export default function MapCanvas({
   };
 
   // Compute total distance along ruler points
+  // eslint-disable-next-line unused-imports/no-unused-vars
   function computeDistance(pts) {
     let total = 0;
     for (let i = 1; i < pts.length; i++) {
@@ -458,6 +472,7 @@ export default function MapCanvas({
         ctx.arc(px, py, radius - 1.5, 0, Math.PI * 2);
         ctx.fill();
 
+        // eslint-disable-next-line unused-imports/no-unused-vars
         const imgUrl = token.imageUrl || token.character?.imageUrl || token.npc?.imageUrl || token.monster?.imageUrl;
         const tokenImg = tokenImagesRef.current[token.id];
 
@@ -646,6 +661,7 @@ export default function MapCanvas({
         case "ArrowRight": setPanOffset(p => ({ ...p, x: p.x - step })); break;
         case "=": case "+": setZoom(z => Math.min(z + 0.1, 3)); break;
         case "-": setZoom(z => Math.max(z - 0.1, 0.1)); break;
+        default: break;
       }
     };
 

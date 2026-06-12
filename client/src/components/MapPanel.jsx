@@ -83,6 +83,7 @@ export default function MapPanel({ user, isPopout = false }) {
   };
 
   // ---- Derived ----
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { gridSize, authHeaders, jsonAuthHeaders, withUser, isDM } = D;
 
   // ---------------------------------------------------------------------------

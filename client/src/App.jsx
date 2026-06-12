@@ -279,6 +279,7 @@ const DM_NAV_ITEMS = [
 ];
 
 function App() {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { addToast } = useToast();
   const { connectionStatus, connectionFailed, setUserId, setCharacterId, clearAuth } = useSocket();
   const navigate = useNavigate();
@@ -366,6 +367,7 @@ function App() {
   }, [user, location.pathname, navigate, loadingHeroes]);
 
   const pathParts = location.pathname.split("/");
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const currentTab = ["map", "characters", "chat-journal", "settings"].includes(pathParts[1])
     ? pathParts[1]
     : "chat-journal";

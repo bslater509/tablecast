@@ -33,17 +33,17 @@ export function buildImagePrompt(npc, styleSuffix = "") {
   if (npc.alignment) parts.push(`with a ${npc.alignment.toLowerCase()} alignment`);
   // Appearance (strip markdown for cleaner prompt)
   if (npc.appearance) {
-    const clean = npc.appearance.replace(/[*#>`_~\[\]]/g, "").trim();
+    const clean = npc.appearance.replace(/[*#>_~[\]]/g, "").trim();
     if (clean) parts.push(clean);
   }
   // Personality flavour
   if (npc.personality) {
-    const clean = npc.personality.replace(/[*#>`_~\[\]]/g, "").trim().slice(0, 160);
+    const clean = npc.personality.replace(/[*#>_~[\]]/g, "").trim().slice(0, 160);
     if (clean) parts.push(`Personality: ${clean}`);
   }
   // Description / location hints
   if (npc.description) {
-    const clean = npc.description.replace(/[*#>`_~\[\]]/g, "").trim().slice(0, 200);
+    const clean = npc.description.replace(/[*#>_~[\]]/g, "").trim().slice(0, 200);
     if (clean) parts.push(clean);
   }
   // Gear / equipment from actions

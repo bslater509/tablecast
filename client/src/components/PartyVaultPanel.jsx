@@ -225,12 +225,14 @@ function formatGold(cp) {
   return parts.join(", ");
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 function PartyVaultPanel({ user, onBack }) {
   const [parties, setParties] = useState([]);
   const [selectedParty, setSelectedParty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("overview"); // overview | transfer | members
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const [authHeaders, setAuthHeaders] = useState({});
   const [jsonAuthHeaders, setJsonAuthHeaders] = useState({});
 

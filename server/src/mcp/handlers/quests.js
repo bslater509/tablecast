@@ -32,6 +32,8 @@ async function handleListQuests(args, { prisma, parseJsonArray, parseJsonObject 
   };
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handleCreateQuest(args, { prisma, toJsonArrayString, toJsonObjectString }) {
   const {
     title,

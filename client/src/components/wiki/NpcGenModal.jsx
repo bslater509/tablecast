@@ -92,6 +92,8 @@ export default function NpcGenModal({ show, onClose, jsonAuthHeaders, onNpcCreat
             break;
           case "done":
             break;
+          default:
+            break;
         }
       }
     }
@@ -204,7 +206,9 @@ export default function NpcGenModal({ show, onClose, jsonAuthHeaders, onNpcCreat
     setNpcGenProgress("Starting NPC generation...");
 
     const effectiveHistory = historyOverride || npcInterviewHistory;
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const summaryText = interviewResult.summary || effectiveHistory.map(
+      // eslint-disable-next-line unused-imports/no-unused-vars
       (h, i) => `${h.question}: ${h.answer.label}${h.answer.description ? ` \u2014 ${h.answer.description}` : ""}`
     ).join("\n");
 

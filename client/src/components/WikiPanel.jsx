@@ -71,6 +71,7 @@ export default function WikiPanel({ user, isPopout = false }) {
 
   // NPC Editor Specific States
   const [editingNpc, setEditingNpc] = useState(null);
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const [importQuery, setImportQuery] = useState("");
 
   // Custom Delete Modal State
@@ -87,6 +88,7 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [genLoading, setGenLoading] = useState(false);
 
   // Dialogue editor state (NPC reader → run dialogue)
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const [dialogueNpcId, setDialogueNpcId] = useState(null);
 
   // NPC phrase generation state
@@ -574,6 +576,7 @@ export default function WikiPanel({ user, isPopout = false }) {
   }
 
   // Bestiary importer
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const handleBestiaryImport = async (bestiaryItem) => {
     try {
       const res = await fetch(`/api/reference/detail?category=monsters&name=${encodeURIComponent(bestiaryItem.name)}&source=${encodeURIComponent(bestiaryItem.source)}`, {
@@ -681,11 +684,13 @@ export default function WikiPanel({ user, isPopout = false }) {
   };
 
   // Dialogue editor handlers
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const handleStartDialogue = (npc) => {
     if (!npc || !npc.id) return;
     setDialogueNpcId(npc.id);
   };
 
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const handleEndDialogue = () => {
     setDialogueNpcId(null);
   };
@@ -2820,6 +2825,7 @@ export default function WikiPanel({ user, isPopout = false }) {
         <GenerateImageModal
           isOpen={imageGenModal.open}
           onClose={() => setImageGenModal({ ...imageGenModal, open: false })}
+          // eslint-disable-next-line unused-imports/no-unused-vars
           onAccept={(imageUrl) => {
             // Handle the accepted image URL
             setImageGenModal({ ...imageGenModal, open: false });

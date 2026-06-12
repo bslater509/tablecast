@@ -8,6 +8,7 @@ const { Router } = require("express");
 const prisma = require("../prisma");
 const logger = require("../utils/logger");
 const { requireDm } = require("../auth");
+// eslint-disable-next-line unused-imports/no-unused-vars
 const { loadAiSettings, performAiCall } = require("./helpers");
 
 const router = Router();

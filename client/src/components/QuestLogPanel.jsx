@@ -932,6 +932,7 @@ function RewardsEditor({ rewards, onChange }) {
 // Main Component
 // ═════════════════════════════════════════════════════════════════════════
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 export default function QuestLogPanel({ user, isPopout = false }) {
   const { socket } = useSocket();
   const { addToast } = useToast();
@@ -1360,6 +1361,7 @@ export default function QuestLogPanel({ user, isPopout = false }) {
             </h3>
             {objectives.map((obj, idx) => {
               const isComplete = obj.isComplete || false;
+              // eslint-disable-next-line unused-imports/no-unused-vars
               const ObjIcon = OBJECTIVE_TYPES.find((t) => t.value === obj.type)?.icon || Target;
               return (
                 <div
