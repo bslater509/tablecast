@@ -3,7 +3,7 @@
 // Allows users to select an existing character sheet or create a new one.
 // =============================================================================
 import { useState, useEffect } from "react";
-import { ChevronRight, UserRound, Wand2 } from "lucide-react";
+import { ChevronRight, UserRound, Wand2, Trash2 } from "lucide-react";
 import CharacterBuilderWizard from "./CharacterBuilderWizard";
 import { useToast } from "../context/ToastContext";
 import { getJsonAuthHeaders } from "../utils/authHeaders";
@@ -16,8 +16,33 @@ export default function CharacterList({ user, onSelectCharacter }) {
   
   // Creation wizard state
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   const isDM = user?.role === "DM";
+
+  async function handleDeleteCharacter(char, e) {
+    e.stopPropagation();
+    if (!window.confirm(`Delete hero "${char.name}"? This cannot be undone.`)) return;
+    setDeletingId(char.id);
+    try {
+      const res = await fetch(`/api/characters/${char.id}`, {
+        method: "DELETE",
+        headers: getJsonAuthHeaders(user),
+      });
+      if (res.ok) {
+        setCharacters((prev) => prev.filter((c) => c.id !== char.id));
+        addToast(`Hero "${char.name}" deleted.`, "success");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        addToast(err.error || "Failed to delete hero.", "error");
+      }
+    } catch (err) {
+      console.error("[CharacterList] Delete error:", err);
+      addToast("Network error deleting hero.", "error");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   // Fetch characters list
   useEffect(() => {
@@ -115,7 +140,21 @@ export default function CharacterList({ user, onSelectCharacter }) {
                   <span style={styles.ownerBadge}>Owner: {char.user?.username}</span>
                 )}
               </div>
-              <div style={styles.cardArrow}><ChevronRight size={18} /></div>
+              <div style={styles.cardActions}>
+                {isDM && (
+                  <button
+                    id={`delete-character-${char.id}`}
+                    title="Delete hero"
+                    disabled={deletingId === char.id}
+                    onClick={(e) => handleDeleteCharacter(char, e)}
+                    style={styles.deleteBtn}
+                    className="touch-target"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
+                <ChevronRight size={18} style={{ color: "var(--color-accent)", opacity: 0.7 }} />
+              </div>
             </div>
           ))}
         </div>
@@ -209,12 +248,25 @@ const styles = {
     width: "fit-content",
     marginTop: "0.2rem",
   },
-  cardArrow: {
-    color: "var(--color-accent)",
-    opacity: 0.7,
+  cardActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    flexShrink: 0,
+  },
+  deleteBtn: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    width: "32px",
+    height: "32px",
+    borderRadius: "6px",
+    background: "transparent",
+    border: "1px solid transparent",
+    color: "var(--color-danger, #eb5757)",
+    cursor: "pointer",
+    opacity: 0.6,
+    transition: "opacity 0.15s, background 0.15s, border-color 0.15s",
   },
   infoText: {
     textAlign: "center",
