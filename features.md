@@ -654,7 +654,7 @@ bestiary, and reference search
 
 ### 4.4 Scenario & Encounter Templates
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** DMs often reuse encounter structures (goblin ambush, dragon
 lair). Templates save setup time.

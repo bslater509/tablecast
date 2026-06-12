@@ -1006,6 +1006,100 @@ const TOOLS = [
       required: ["npcId", "nodeId"],
     },
   },
+  //  ENCOUNTER TEMPLATE TOOLS
+  {
+    name: "list_encounter_templates",
+    description: "List all encounter templates, optionally filtered by difficulty.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        difficulty: { type: "string", enum: ["easy", "medium", "hard", "deadly"], description: "Filter by difficulty." },
+      },
+    },
+  },
+  {
+    name: "create_encounter_template",
+    description: "Create a reusable encounter template.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Template name." },
+        description: { type: "string", description: "Template description." },
+        difficulty: { type: "string", enum: ["easy", "medium", "hard", "deadly"], description: "Difficulty rating." },
+        recommendedLevel: { type: "number", description: "Recommended party level." },
+        tags: { type: "array", items: { type: "string" }, description: "Array of tag strings." },
+        participants: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              sourceType: { type: "string", enum: ["npc", "monster", "character", "placeholder"], description: "Source type." },
+              sourceId: { type: "number", description: "Source entity ID (optional for placeholders)." },
+              name: { type: "string", description: "Display name." },
+              count: { type: "number", description: "Number of this participant." },
+            },
+          },
+          description: "Array of participant objects.",
+        },
+        mapId: { type: "number", description: "Associated map ID (optional)." },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "update_encounter_template",
+    description: "Update an encounter template.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Template ID to update." },
+        name: { type: "string", description: "Template name." },
+        description: { type: "string", description: "Template description." },
+        difficulty: { type: "string", enum: ["easy", "medium", "hard", "deadly"], description: "Difficulty rating." },
+        recommendedLevel: { type: "number", description: "Recommended party level." },
+        tags: { type: "array", items: { type: "string" }, description: "Array of tag strings." },
+        participants: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              sourceType: { type: "string", enum: ["npc", "monster", "character", "placeholder"], description: "Source type." },
+              sourceId: { type: "number", description: "Source entity ID (optional for placeholders)." },
+              name: { type: "string", description: "Display name." },
+              count: { type: "number", description: "Number of this participant." },
+            },
+          },
+          description: "Array of participant objects.",
+        },
+        mapId: { type: "number", description: "Associated map ID (optional)." },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "delete_encounter_template",
+    description: "Delete an encounter template by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Template ID to delete." },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "apply_encounter_template",
+    description: "Apply a template to create a live encounter.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        templateId: { type: "number", description: "Template ID to apply." },
+        mapId: { type: "number", description: "Override map ID (optional)." },
+        name: { type: "string", description: "Encounter name override (optional)." },
+      },
+      required: ["templateId"],
+    },
+  },
 ];
 
 module.exports = { TOOLS };

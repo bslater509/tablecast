@@ -1,6 +1,7 @@
 # Work Log
 
 ## Active Sessions
+- [x] ses_encounter_templates_mcp (Worker): `server/src/mcp/handlers/encounter-templates.js` - CREATE ✅
 - [x] ses_T2_Calendar (Worker): `server/src/utils/weatherGenerator.js` - CREATE ✅
 - [x] ses_T2_Calendar (Worker): `server/src/routes/calendar.js` - CREATE ✅
 - [x] ses_T2_Calendar (Worker): `server/src/index.js` - MODIFY (mount route) ✅
@@ -27,6 +28,9 @@
 | server/src/mcp-server.js | ses_T2 | syntax | 2026-06-11T21:35:00Z |
 | client/src/components/CalendarPanel.jsx | ses_T6 | vite build | 2026-06-11T21:38:00Z |
 | client/src/App.jsx | ses_T6 | vite build | 2026-06-11T21:38:00Z |
+| server/src/mcp/handlers/encounter-templates.js | ses_encounter_templates_mcp | isolated test (37 pass) | 2026-06-12T06:50:28 |
+| server/src/routes/encounter-templates.js | ses_encounter_templates_route | syntax + lsp | 2026-06-12T06:51:00 |
+| server/src/routes/encounter-templates.js | Reviewer | unit_review_FAIL | 2026-06-12T06:53:00 |
 | features.md | ses_T6 | n/a | 2026-06-11T21:39:00Z |
 | client/src/components/DialogueEditor.jsx | ses_dialogue_editor | lsp | 2026-06-11T21:45:00Z |
 | client/src/components/CalendarWidget.jsx | ses_CalendarWidget | lsp | 2026-06-11T21:40:00Z |
@@ -62,6 +66,12 @@
 - ✅ S11.2: Vite build — PASS (exit 0)
 - ✅ S11.3: Server syntax check — ALL 10 files PASS (calendar.js, quests.js, handouts.js, dialogue.js, weatherGenerator.js, dialogueEngine.js, 4 MCP handlers)
 - ✅ S11.4: features.md — §3.2, §3.3, §3.4, §3.5 already [x] Implemented
+
+## Reviewer: encounter-templates Route Unit Review (2026-06-12T06:53)
+**Result: FAIL** — 3 issues requiring Worker action
+- 🔴 Bug: Duplicate route mount in index.js lines 254 + 256
+- 🔴 Missing: No unit tests for route module
+- 🔴 Missing: features.md §4.4 status not updated from Planned
 
 ## Verified Complete (2026-06-11T21:53)
 - ✅ S7.4: Journal notification badges — QuestLogPanel.jsx lines 952-953, 1664-1665 (newQuestCount, notificationDot)

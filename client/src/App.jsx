@@ -13,6 +13,7 @@ import {
   ExternalLink,
   FileText,
   Headphones,
+  Layers,
   LogOut,
   Map as MapIcon,
   MessageCircle,
@@ -49,6 +50,7 @@ import HandoutPanel from "./components/HandoutPanel";
 import QuestLogPanel from "./components/QuestLogPanel";
 import DialogueTreePanel from "./components/DialogueTreePanel";
 import HomebrewManager from "./components/HomebrewManager";
+import EncounterTemplatesPanel from "./components/EncounterTemplatesPanel";
 import { useSocket } from "./context/SocketContext";
 import { useToast } from "./context/ToastContext";
 import { AiProvider } from "./context/AiContext";
@@ -135,6 +137,20 @@ const DM_NAV_ITEMS = [
     popoutUrl: "/#/dm/popout/encounters",
     popoutTitle: "Pop out Encounters",
     popoutFeatures: "width=800,height=900,resizable=yes,scrollbars=yes",
+  },
+  {
+    id: "encounter-templates",
+    label: "Enc. Templates",
+    mobileLabel: "Templates",
+    path: "/dm/encounter-templates",
+    icon: Layers,
+  },
+  {
+    id: "templates",
+    label: "Templates",
+    mobileLabel: "Templates",
+    path: "/dm/templates",
+    icon: Layers,
   },
   {
     id: "handouts",
@@ -1280,7 +1296,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "handouts", "journal", "settings", "dice", "importer", "party", "shop"].includes(pathParts[2])
+  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
@@ -1398,6 +1414,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="sessions/:id" element={<SessionsPanel user={user} basePath="/dm/sessions" />} />
             <Route path="encounters" element={<ErrorBoundary critical={false}><EncountersPanel user={user} basePath="/dm/encounters" /></ErrorBoundary>} />
             <Route path="encounters/:id" element={<ErrorBoundary critical={false}><EncountersPanel user={user} basePath="/dm/encounters" /></ErrorBoundary>} />
+            <Route path="encounter-templates" element={<EncounterTemplatesPanel user={user} />} />
             <Route path="chat-journal" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat-journal/chat" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat-journal/journal" element={<Navigate to="/dm/wiki" replace />} />
@@ -1408,6 +1425,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="importer" element={<ImporterPanel user={user} />} />
             <Route path="soundboard" element={<SoundboardPanel user={user} />} />
             <Route path="homebrew" element={<HomebrewManager user={user} />} />
+            <Route path="templates" element={<EncounterTemplatesPanel user={user} />} />
             <Route path="calendar" element={<CalendarPanel user={user} />} />
             <Route path="handouts" element={<HandoutPanel user={user} />} />
             <Route path="journal" element={<QuestLogPanel user={user} />} />

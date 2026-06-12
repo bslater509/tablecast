@@ -214,6 +214,7 @@ const sessionsRouter = require("./routes/sessions");
 const shopsRouter = require("./routes/shops");
 const debugRouter = require("./routes/debug");
 const authRouter = require("./routes/auth");
+const encounterTemplatesRouter = require("./routes/encounter-templates");
 
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
@@ -250,6 +251,7 @@ app.use("/api/calendar", require("./routes/calendar"));
 app.use("/api/handouts", require("./routes/handouts"));
 app.use("/api/quests", require("./routes/quests"));
 app.use("/api/homebrew", require("./routes/homebrew"));
+app.use("/api/encounter-templates", encounterTemplatesRouter);
 app.use("/api/features", require("./routes/features"));
 
 // ---------------------------------------------------------------------------

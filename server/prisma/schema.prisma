@@ -176,8 +176,9 @@ model Map {
   walls String @default("[]") // JSON
 
   // Relations
-  tokens     Token[]
-  encounters Encounter[]
+  tokens             Token[]
+  encounters         Encounter[]
+  encounterTemplates EncounterTemplate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -787,4 +788,35 @@ model PartyMember {
 
   @@unique([partyId, characterId])
   @@map("party_members")
+}
+
+/// A reusable encounter template that DMs can load and apply to create encounters.
+/// difficulty: "easy" | "medium" | "hard" | "deadly"
+/// participants: JSON array of { sourceType, sourceId?, name, count }
+model EncounterTemplate {
+  id        Int      @id @default(autoincrement())
+  name      String
+  description String @default("")
+
+  /// "easy", "medium", "hard", or "deadly"
+  difficulty String @default("medium")
+  recommendedLevel Int @default(1)
+
+  /// JSON array of tag strings
+  tags String @default("[]") // JSON
+
+  /// JSON array of participant templates:
+  /// [{ sourceType: "npc"|"monster"|"character"|"placeholder", sourceId?, name, count }]
+  participants String @default("[]") // JSON
+
+  /// Optional link to a recommended map
+  mapId Int?
+  map   Map? @relation(fields: [mapId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([difficulty])
+  @@index([recommendedLevel])
+  @@map("encounter_templates")
 }

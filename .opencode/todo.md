@@ -1,28 +1,32 @@
-# Mission: Implement Section 4.3 - Homebrew Content Manager
+# Mission: Implement Section 4.4 - Scenario & Encounter Templates
 
-## Status: ✅ MISSION COMPLETE
+## Status: IN PROGRESS
 
 ### M1: Prisma Schema & Migration ✅
-- [x] T1: Add HomebrewEntry model to schema.prisma
-- [x] T1.1: Generate migration `add_homebrew_entry`
+- [x] T1: Add EncounterTemplate model to schema.prisma
+- [x] T2: Add relation to Map model
+- [x] T3: Generate migration `add_encounter_template`
+- [x] T4: Apply migration + generate Prisma client
 
-### M2: Backend Routes & MCP Tools ✅
-- [x] T2: Backend CRUD routes for /api/homebrew (with export/import)
-- [x] T3: MCP helper functions in server/src/mcp/handlers/homebrew.js
-- [x] T4: MCP tool schemas added to schemas.js (list/create/update/delete)
-- [x] T5: Wire handler into mcp-server.js
-- [x] T6: Wire route into index.js
+### M2: Backend Routes ✅
+- [x] T5: Create backend CRUD + apply route module
 
-### M3: Reference Search Integration ✅
-- [x] T7: Augment /api/reference/search with homebrew entries by category
-- [x] T8: Fallback in /api/reference/detail for homebrew entries
+### M3: MCP Tools ✅ (pending apply handler fix)
+- [x] T6: Add MCP tool schemas to schemas.js (list/create/update/delete/apply)
+- [x] T7: Create MCP handler at server/src/mcp/handlers/encounter-templates.js
+- [x] T7.1: Fix missing handleApplyEncounterTemplate handler
 
 ### M4: Frontend Component ✅
-- [x] T9: Create HomebrewManager.jsx (list, create/edit modal, search, filter, export/import, type-specific forms)
-- [x] T10: Wire App.jsx (import Beaker icon, add DM nav item, add route)
+- [x] T8: Create EncounterTemplatesPanel.jsx
 
-### M5: Verification ✅
-- [x] T11: Server syntax check - ALL 6 files PASS
-- [x] T12: Vite build - PASS
-- [x] T13: LSP diagnostics - ALL clean
-- [x] T14: features.md updated - §4.3 marked [x] Implemented
+### M5: Wiring
+- [x] T9: Wire route into server/src/index.js
+- [x] T10: Wire MCP handler into server/src/mcp-server.js
+- [x] T11: Wire nav item and route in App.jsx
+
+### M6: Verification | pending | agent:Reviewer
+- [ ] T12: Server syntax check
+- [ ] T13: Vite build
+- [ ] T14: LSP diagnostics
+- [ ] T15: features.md update - §4.4 marked [x] Implemented
+- [ ] T16: Git commit + push

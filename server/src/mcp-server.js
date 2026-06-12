@@ -25,6 +25,7 @@ const questHandlers = require("./mcp/handlers/quests");
 const calendarHandlers = require("./mcp/handlers/calendar");
 const handoutHandlers = require("./mcp/handlers/handouts");
 const homebrewHandlers = require("./mcp/handlers/homebrew");
+const encounterTemplateHandlers = require("./mcp/handlers/encounter-templates");
 
 const {
   generateModifiers,
@@ -51,6 +52,7 @@ const HANDLERS = {
   ...calendarHandlers,
   ...dialogueHandlers,
   ...homebrewHandlers,
+  ...encounterTemplateHandlers,
 };
 
 // Lazy import — avoids circular dependency (routes/ai → mcp-server → index)
