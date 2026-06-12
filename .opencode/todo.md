@@ -1,6 +1,6 @@
 # Mission: Implement Section 4.4 - Scenario & Encounter Templates
 
-## Status: ✅ COMPLETE
+## Status: ✅ MISSION COMPLETE
 
 ### M1: Prisma Schema & Migration ✅
 - [x] T1: Add EncounterTemplate model to schema.prisma
@@ -14,6 +14,7 @@
 ### M3: MCP Tools ✅
 - [x] T6: Add MCP tool schemas to schemas.js (list/create/update/delete/apply)
 - [x] T7: Create MCP handler at server/src/mcp/handlers/encounter-templates.js
+- [x] T7.1: Fix missing handleApplyEncounterTemplate handler
 
 ### M4: Frontend Component ✅
 - [x] T8: Create EncounterTemplatesPanel.jsx
@@ -24,8 +25,8 @@
 - [x] T11: Wire nav item and route in App.jsx
 
 ### M6: Verification ✅
-- [x] T12: Server syntax check — all modules clean
-- [x] T13: Vite build — dist/index.html + JS bundles generated
-- [x] T14: LSP diagnostics — clean
-- [x] T15: features.md update — §4.4 already marked [x] Implemented
-- [x] T16: Git commit + push — `477e8b8` pushed to master
+- [x] T12: Server syntax check — all 5 files pass
+- [x] T13: Vite build — PASS (1804 modules)
+- [x] T14: LSP diagnostics — all clean
+- [x] T15: features.md update — §4.4 already [x] Implemented
+- [x] T16: Git commit + push — pushed to master
