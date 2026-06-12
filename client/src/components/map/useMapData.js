@@ -408,6 +408,25 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
       }, 3500);
     };
 
+    const handleReconnectState = (diffs) => {
+      if (!diffs) return;
+      // Apply token position diffs
+      if (diffs.tokenPositions) {
+        setTokens(prev => prev.map(t => {
+          const pos = diffs.tokenPositions[t.id];
+          return pos ? { ...t, x: pos.x, y: pos.y } : t;
+        }));
+      }
+      // Apply fog state diffs
+      if (diffs.fogState && activeMapRef.current && Number(activeMapRef.current.id) === Number(diffs.fogState.mapId)) {
+        setActiveMap(prev => ({ ...prev, fogState: diffs.fogState.state }));
+      }
+      // Reload encounter if diffs present
+      if (diffs.encounter) {
+        loadActiveEncounter(diffs.encounter.id);
+      }
+    };
+
     socket.on("map:selected", handleMapSelected);
     socket.on("token:moved", handleTokenMoved);
     socket.on("token:created", handleTokenCreated);
@@ -417,6 +436,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     socket.on("encounter:updated", handleEncounterRefresh);
     socket.on("encounter:turnChanged", handleEncounterRefresh);
     socket.on("token:pong", handleTokenPong);
+    socket.on("reconnect:state", handleReconnectState);
 
     return () => {
       socket.off("map:selected", handleMapSelected);
@@ -428,6 +448,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
       socket.off("encounter:updated", handleEncounterRefresh);
       socket.off("encounter:turnChanged", handleEncounterRefresh);
       socket.off("token:pong", handleTokenPong);
+      socket.off("reconnect:state", handleReconnectState);
     };
   }, [socket]);
 

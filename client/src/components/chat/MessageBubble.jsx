@@ -8,7 +8,7 @@ import { Sparkles, Volume2, VolumeX } from "lucide-react";
 import { compileMarkdown } from "../../utils/markdown";
 import AiStreamingIndicator from "../AiStreamingIndicator";
 import CopyButton from "./CopyButton";
-import { speak, stop, isSpeaking, getVoiceForNpc } from "../../utils/ttsManager";
+import { speak, stop, init, isSpeaking, getVoiceForNpc } from "../../utils/ttsManager";
 import { formatTime, getSenderColor } from "./chatUtils";
 
 export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, status, npcs }) {

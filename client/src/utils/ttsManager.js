@@ -269,6 +269,7 @@ const ttsManager = new TTSManager();
 
 // Named exports matching the spec
 // Supports both speak(text, options) and speak({ text, ...options })
+export function init() { return ttsManager.init(); }
 export function speak(text, options = {}) {
   if (typeof text === "object" && text !== null) {
     const { text: txt, ...rest } = text;

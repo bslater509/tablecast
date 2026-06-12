@@ -128,11 +128,13 @@ export function SocketProvider({ children }) {
       setConnectionStatus("connected");
       setConnectionFailed(false);
       setReconnectCount(prev => prev + 1);
-
-      // Emit reconnect:sync with last known state
-      const state = lastKnownStateRef.current;
-      if (Object.keys(state.tokenPositions).length > 0 || state.fogState) {
-        socket.emit("reconnect:sync", { lastKnownState: state });
+      // Request state sync from server
+      if (socket && socket.connected) {
+        socket.emit("reconnect:sync", {
+          lastKnownState: {
+            tokenPositions: {},
+          }
+        });
       }
     }
 
