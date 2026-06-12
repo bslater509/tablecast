@@ -1,6 +1,15 @@
 # Work Log
 
 ## Active Sessions
+- [x] ses_T8_ETPanel (Worker): `client/src/components/EncounterTemplatesPanel.jsx` - CREATE ✅
+
+## Completed Units (Updated 2026-06-12)
+| File | Session | Test | Timestamp |
+|------|---------|------|-----------|
+| client/src/components/EncounterTemplatesPanel.jsx | ses_T8_ETPanel | lsp_clean+vite_build_pass | 2026-06-12T06:56:00Z |
+| client/src/App.jsx | (prev session) | lsp_clean+vite_build_pass | 2026-06-12T06:56:00Z |
+
+## Active Sessions
 - [x] ses_encounter_templates_mcp (Worker): `server/src/mcp/handlers/encounter-templates.js` - CREATE ✅
 - [x] ses_T2_Calendar (Worker): `server/src/utils/weatherGenerator.js` - CREATE ✅
 - [x] ses_T2_Calendar (Worker): `server/src/routes/calendar.js` - CREATE ✅
