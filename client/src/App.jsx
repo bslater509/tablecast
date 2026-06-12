@@ -5,6 +5,7 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import {
+  Activity,
   Beaker,
   BookOpen,
   Box,
@@ -52,6 +53,7 @@ import DialogueTreePanel from "./components/DialogueTreePanel";
 import HomebrewManager from "./components/HomebrewManager";
 import EncounterTemplatesPanel from "./components/EncounterTemplatesPanel";
 import LootGeneratorPanel from "./components/LootGeneratorPanel";
+import CampaignDashboard from "./components/CampaignDashboard";
 import { useSocket } from "./context/SocketContext";
 import { useToast } from "./context/ToastContext";
 import { AiProvider } from "./context/AiContext";
@@ -62,6 +64,13 @@ const SELECTED_CHARACTER_STORAGE_KEY = "tablecast.selectedCharacterId";
 const DM_IDENTITY_STORAGE_KEY = "tablecast.dmIdentity";
 
 const DM_NAV_ITEMS = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    mobileLabel: "Home",
+    path: "/dm/dashboard",
+    icon: Activity,
+  },
   {
     id: "map",
     label: "Map VTT",
@@ -305,7 +314,7 @@ function App() {
 
     if (user.role === "DM") {
       if (!location.pathname.startsWith("/dm")) {
-        navigate("/dm/map", { replace: true });
+        navigate("/dm/dashboard", { replace: true });
       }
     } else {
       if (!location.pathname.startsWith("/player")) {
@@ -1304,9 +1313,9 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "encounter-templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop", "loot"].includes(pathParts[2])
+  const currentTab = ["dashboard", "map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "encounter-templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop", "loot"].includes(pathParts[2])
     ? pathParts[2]
-    : "map";
+    : "dashboard";
 
   return (
     <div className="dm-layout-shell">
@@ -1393,6 +1402,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
         {/* Main Workspace content */}
         <main style={styles.mainContent}>
           <Routes>
+            <Route path="dashboard" element={<CampaignDashboard user={user} />} />
             <Route path="map" element={<ErrorBoundary critical={false}><MapPanel user={user} /></ErrorBoundary>} />
             <Route path="map/:id" element={<ErrorBoundary critical={false}><MapPanel user={user} /></ErrorBoundary>} />
             <Route
@@ -1442,7 +1452,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="dialogue/:npcId" element={<DialogueTreePanel user={user} />} />
             <Route path="settings" element={<SettingsPanel user={user} />} />
             <Route path="settings/:tab" element={<SettingsPanel user={user} />} />
-            <Route path="*" element={<Navigate to="map" replace />} />
+            <Route path="*" element={<Navigate to="dashboard" replace />} />
           </Routes>
         </main>
 

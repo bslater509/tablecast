@@ -399,6 +399,12 @@ const ART_TYPES = {
 function rollDice(notation) {
   if (!notation || notation === "0") return 0;
 
+  // Handle plain integer strings (e.g., "1", "5")
+  const plainNum = parseInt(notation, 10);
+  if (!isNaN(plainNum) && String(plainNum) === String(notation)) {
+    return plainNum;
+  }
+
   // Handle "x" notation (e.g., "4d6x100")
   const multMatch = notation.match(/^(\d+)d(\d+)x(\d+)$/);
   if (multMatch) {

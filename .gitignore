@@ -49,6 +49,9 @@ Thumbs.db
 
 # IDEs and Editors
 .vscode/
+
+# Agent workspace
+.opencode/
 .idea/
 *.suo
 *.ntvs*

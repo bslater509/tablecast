@@ -219,9 +219,43 @@ export default function ChatPanel({ user, isPopout = false }) {
   // Send message
   async function sendMessage(e) {
     e.preventDefault();
-    if (!draft.trim() || !socket || !isConnected) return;
+    if (!draft.trim()) return;
 
     const text = draft.trim();
+
+    // —— Help command (local-only, works offline) ——
+    if (text === "/help") {
+      const helpText = `**📖 Available Commands**
+
+**/roll** \`<formula>\` or **/r** \`<formula>\`
+Roll dice with 3D animation. Examples: \`/roll 1d20\`, \`/r 2d6+3\`
+
+**/ai** \`<question>\`
+Ask the D&D AI Assistant about rules, lore, or get DM help.
+
+**/roleplay** \`<NPC Name>: <message>\`
+Roleplay with an NPC. Example: \`/roleplay Elminster: Tell me about the weave\`
+
+**/help**
+Show this command reference.`;
+
+      const tempId = genTempId();
+      const optimisticMsg = {
+        id: tempId,
+        userId: user?.id,
+        sender: "System",
+        text: helpText,
+        timestamp: Date.now(),
+        type: "system",
+      };
+      setMessages((prev) => [...prev, optimisticMsg]);
+      setMessageStatus((prev) => ({ ...prev, [tempId]: "sent" }));
+      setDraft("");
+      return;
+    }
+
+    // —— Socket guard for everything else ——
+    if (!socket || !isConnected) return;
 
     // —— Dice roll handling ——
     if (text.startsWith("/roll ") || text.startsWith("/r ") || /^\/roll$/i.test(text) || /^\/r$/i.test(text)) {

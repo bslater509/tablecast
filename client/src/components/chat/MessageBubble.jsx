@@ -3,10 +3,12 @@
 // Renders a single chat message with WhatsApp-style layout: roll cards,
 // AI scholar messages, NPC roleplay, system notices, and plain text.
 // =============================================================================
-import { Sparkles } from "lucide-react";
+import { useState } from "react";
+import { Sparkles, Volume2, VolumeX } from "lucide-react";
 import { compileMarkdown } from "../../utils/markdown";
 import AiStreamingIndicator from "../AiStreamingIndicator";
 import CopyButton from "./CopyButton";
+import { speak, stop, isSpeaking, getVoiceForNpc } from "../../utils/ttsManager";
 import { formatTime, getSenderColor } from "./chatUtils";
 
 export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, status, npcs }) {
@@ -40,7 +42,7 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
             maxWidth: "85%",
           }}
         >
-          {msg.text}
+          <span dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }} style={{ all: "unset" }} />
         </span>
       </div>
     );
@@ -284,6 +286,7 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
   if (isNpc) {
     const matchedNpc = npcs?.find((n) => n.name.toLowerCase() === msg.sender.toLowerCase());
     const npcAvatar = matchedNpc?.imageUrl || matchedNpc?.largeImageUrl || "";
+    const [ttsPlaying, setTtsPlaying] = useState(false);
     return (
       <div
         className={`chat-bubble-wrapper theirs msg-enter`}
@@ -311,7 +314,46 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
               {msg.sender}
             </span>
           </div>
-          <span style={{ fontSize: "0.6rem", color: "var(--color-muted)" }}>{msgTime}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+            <span style={{ fontSize: "0.6rem", color: "var(--color-muted)" }}>{msgTime}</span>
+            {/* TTS speaker button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (ttsPlaying) {
+                  stop();
+                  setTtsPlaying(false);
+                } else {
+                  const npcForVoice = npcs?.find((n) => n.name.toLowerCase() === msg.sender.toLowerCase());
+                  const cleanText = msg.text.replace(/<[^>]*>/g, "");
+                  speak(cleanText, {
+                    voice: npcForVoice ? getVoiceForNpc(npcForVoice) : null,
+                    pitch: npcForVoice?.voicePitch ?? 1.0,
+                    rate: npcForVoice?.voiceRate ?? 1.0,
+                    onStart: () => setTtsPlaying(true),
+                    onEnd: () => setTtsPlaying(false),
+                    onError: () => setTtsPlaying(false),
+                  });
+                }
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                color: ttsPlaying ? "var(--color-accent)" : "var(--color-muted)",
+                cursor: "pointer",
+                padding: "2px",
+                display: "inline-flex",
+                alignItems: "center",
+                marginRight: "0.3rem",
+                fontSize: "0.85rem",
+              }}
+              className="touch-target btn-hover-scale"
+              title={ttsPlaying ? "Stop" : "Read aloud"}
+              aria-label={ttsPlaying ? "Stop speaking" : "Read message aloud"}
+            >
+              {ttsPlaying ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            </button>
+          </div>
         </div>
         <div
           className="wiki-content"

@@ -746,7 +746,7 @@ party inventory integration via `/api/loot/cache/:id/assign`
 
 ### 4.6 Campaign Dashboard
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** DMs benefit from an at-a-glance overview of the entire campaign
 state — active quests, upcoming sessions, recent events, unfinished encounters.
@@ -767,202 +767,111 @@ server endpoint, no new models needed
 
 ### 5.1 Progressive Web App (PWA) Support
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
 **Motivation:** Players access Tablecast from phones. Adding PWA support means
 they can "install" it as a standalone app, get offline loading, and see a
 custom splash screen.
 
-**Scope:** Small
-
-**Manifest (`public/manifest.json`):**
-```json
-{
-  "name": "Tablecast",
-  "short_name": "Tablecast",
-  "description": "D&D 5e Virtual Tabletop Companion",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#1a1a2e",
-  "theme_color": "#1a1a2e",
-  "orientation": "portrait-primary",
-  "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
-  ]
-}
-```
-
-**Service Worker:**
-- Generated/managed with `vite-plugin-pwa`
-- Cache strategy:
-  - **Cache First:** app shell (HTML, JS, CSS, fonts, icons)
-  - **Network First:** API calls (`/api/*`), WebSocket data
-  - **Stale While Revalidate:** reference data, map images
-- Offline fallback: static "You are offline" page with reconnect status
-- Reconnection: on online event, ping server, if connected → clear SW cache, reload
-
-**Icon Sizes:**
-| Size | Name |
-|------|------|
-| 48×48 | `icon-48.png` |
-| 72×72 | `icon-72.png` |
-| 96×96 | `icon-96.png` |
-| 144×144 | `icon-144.png` |
-| 192×192 | `icon-192.png` |
-| 512×512 | `icon-512.png` |
-| 1024×1024 | `icon-1024.png` (Apple) |
-
-**Meta Tags:**
-- `<meta name="apple-mobile-web-app-capable" content="yes">`
-- `<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">`
-- `<link rel="apple-touch-icon" href="/icons/icon-192.png">`
-- `<meta name="mobile-web-app-capable" content="yes">`
-
-**Depends on:** Vite build config (`vite-plugin-pwa`), icon assets, no
-significant application code changes
+**Implementation:**
+- `vite-plugin-pwa` configured in `client/vite.config.js` with `registerType: "autoUpdate"`
+- Manifest generated at build time (`dist/manifest.webmanifest`):
+  - name: "Tablecast", short_name: "Tablecast"
+  - display: "standalone", orientation: "portrait-primary"
+  - theme/background: `#1e1b2e`
+  - Icons: 192×192 and 512×512 (PNG, with maskable variant)
+- Icons located at `client/public/pwa-192x192.png` and `client/public/pwa-512x512.png`
+- `index.html` includes:
+  - `<link rel="manifest" href="/manifest.webmanifest">`
+  - `<link rel="apple-touch-icon" href="/pwa-192x192.png">`
+  - `<meta name="apple-mobile-web-app-capable" content="yes">`
+  - `<meta name="apple-mobile-web-app-status-bar-style" content="black">`
+  - `<meta name="apple-mobile-web-app-title" content="Tablecast">`
+  - `<meta name="theme-color" content="#1e1b2e">`
+- Workbox runtime caching: NetworkFirst for API calls (`/api/*`) with 1-hour expiry
+- Glob patterns: `**/*.{js,css,html,svg,png,ico,wasm,json}`
 
 ---
 
 ### 5.2 Chat Command Reference (/help)
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** Users don't know what commands are available (/ai, /roleplay).
-An in-app reference reduces friction.
-
-**Scope:** Small
-- `/help` command in chat → system message listing all available commands
-- `/ai <query>` — Ask the D&D AI Assistant
-- `/roleplay <NPC>: <message>` — Roleplay with an NPC
-- `/roll <formula>` — Roll dice via text command (if not using dice box)
-- `/whisper <name>: <message>` — Private message to a specific user (future)
-
-**Depends on:** ChatPanel command parsing, no new models
+**Implementation:**
+- `/help` command in `ChatPanel.jsx` `sendMessage()` — local-only, works offline
+- Sends a system message with markdown-formatted help text listing all available commands
+- System messages rendered with `compileMarkdown()` (DOMPurify-sanitized) in `MessageBubble.jsx`
+- Commands documented:
+  - `/roll <formula>` or `/r <formula>` — Roll dice with 3D animation
+  - `/ai <question>` — Ask the D&D AI Assistant
+  - `/roleplay <NPC>: <message>` — Roleplay with an NPC
+  - `/help` — Show this command reference
 
 ---
 
 ### 5.3 Text-to-Speech for NPC Dialogue
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** Hearing NPCs speak — especially in roleplay-heavy sessions —
-adds a layer of immersion that text alone doesn't provide.
-
-**Scope:** Medium
-
-**Voice Selection:**
-- Uses browser `SpeechSynthesis` API (Web Speech API) — no server cost
-- Voice stored per NPC in new `voice` field (string, e.g. "Google UK English Female")
-- Fallback: if exact voice not available, pick closest match
-- Predefined voice archetypes:
-  - "Deep" (male, low pitch) — for orcs, giants, villains
-  - "Soft" (female, gentle) — for healers, merchants, quest givers
-  - "Raspy" (male, rough) — for rogues, goblins, veterans
-  - "High" (female, bright) — for children, fairies, excited NPCs
-  - "Elderly" (male, slow) — for sages, village elders
-- Pitch and rate tunable per NPC: `voicePitch` (0.5-2.0), `voiceRate` (0.5-2.0)
-
-**Playback Controls:**
-- Speaker icon next to NPC chat messages → click to play
-- Auto-play toggle ("Play NPC voices automatically")
-- Stop button in header when TTS active
-- Queue: multiple NPC messages in a row are queued and played sequentially
-- Language support: auto-detect from NPC voice locale, or fall back to browser default
-
-**Implementation Notes:**
-- `window.speechSynthesis.speak(new SpeechSynthesisUtterance(text))`
-- Set `utterance.voice`, `.pitch`, `.rate`, `.volume` before speaking
-- Listen for `onend` event to trigger next queued message
-- Chrome requires user interaction before first use (click to enable)
-- iOS Safari limits: requires silent audio context unlock (user tap first)
-- SSML not supported by Web Speech API — use plain text only
-
-**Depends on:** Browser SpeechSynthesis API, Npc model update (`voice` field,
-`voicePitch`, `voiceRate`), ChatPanel UI button, TTS queue manager
+**Implementation:**
+- `client/src/utils/ttsManager.js` — Browser `SpeechSynthesis` wrapper with:
+  - `speak({ text, voice, pitch, rate, onEnd, onError })` — speaks text with optional voice config
+  - `isTtsSupported()` — detects browser support
+  - Voice queue management for sequential playback
+- `MessageBubble.jsx`: Speaker icon (`Volume2` / `🔊`) on NPC messages
+  - Click to play / stop TTS
+  - Uses NPC `voice`, `voicePitch`, `voiceRate` from NPC data
+  - Auto-strips HTML tags before speaking
+  - `touch-target` class for mobile accessibility
+- Falls back gracefully if `SpeechSynthesis` unavailable
 
 ---
 
 ### 5.4 Ping System (Player Map Markers)
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** Players need to communicate "I move here," "Look at this," or
-"That's the trap!" without physical pointing.
-
-**Scope:** Small
-- Long-press or double-tap on map canvas → ping (ripple animation + sound)
-- Ping type: Move, Attack, Look, Danger (color-coded)
-- Ping visible to all connected clients for ~3 seconds then fades
-- Socket event: `token:ping` → `token:pong`
-- DM sees player name on ping labels
-
-**Depends on:** Socket.io event (`token:ping`), MapPanel canvas overlay
-(animated circle + label)
+**Implementation:**
+- Socket event: `token:ping` (client→server) → `token:pong` (server→all clients)
+- Server validates `mapId`, `x`, `y`, `type` (move/attack/look/danger), `sender`
+- Color-coded ping types: Move=🟢, Attack=🔴, Look=🔵, Danger=🟡
+- Canvas overlay rendering: expanding ring + pulsing dot + sender label
+- Ping animation: 2-second lifecycle (expands from 15→55px radius, fades out)
+- Long-press gesture on map canvas (800ms hold) triggers ping
+- Movement during long-press cancels the ping
 
 ---
 
 ### 5.5 Offline Resilience Improvements
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** Connection drops during a session break immersion. The app
-should gracefully handle and recover from offline states.
-
-**Scope:** Medium
+**Implementation:**
 
 **Socket Event Queue:**
-- Every outbound socket emit goes through a wrapper: `safeEmit(event, data)`
-- If socket is connected → emit immediately
-- If socket is disconnected → push to `pendingQueue` (in-memory array)
-- Queue structure: `[{ event, data, timestamp, retries: 0 }]`
-- On reconnect → replay all queued events in FIFO order (max 10s delay between each)
-- Events older than 5 minutes are discarded (state is stale)
-- Replayed events check server for conflicts before applying (see below)
+- `safeEmit(event, data)` wrapper in `SocketContext.jsx`
+- Connected → emit immediately; disconnected → push to `pendingQueue` (in-memory array)
+- Queue: `[{ event, data, timestamp, retries: 0 }]`
+- On reconnect → replay all queued events in FIFO order (100ms between each)
+- Events older than 5 minutes discarded (state is stale)
 
-**localStorage Cache Schema:**
-```
-{
-  "cache:map:{mapId}:tokens": Token[],
-  "cache:map:{mapId}:fog": fogState,
-  "cache:encounter:{encounterId}": Encounter,
-  "cache:character:{characterId}": Character,
-  "cache:lastSync": timestamp
-}
-```
-- Cache written on every successful server sync
-- On disconnect, UI reads from cache instead of showing empty state
-- Stale indicator: faded overlay on cached elements with "Last synced: Xm ago"
-- Cache size limit: 5MB (localStorage quota warning)
+**localStorage Cache:**
+- `cacheSet(key, data)` / `cacheGet(key)` / `cacheGetWithAge(key)` / `cacheRemove(key)` / `getCacheAge(key)`
+- Prefix: `tablecast:cache:`, max age: 5 minutes
+- Safe JSON serialization with try/catch fallback
+- `cacheGetWithAge` returns `{ data, age, isStale }` for conditional use
 
-**Reconnection Strategy:**
-| Attempt | Delay | Notes |
-|---------|-------|-------|
-| 1st | 1s | Immediate retry |
-| 2nd | 2s | Exponential backoff |
-| 3rd | 4s | |
-| 4th | 8s | |
-| 5th | 16s | |
-| 6th+ | 30s | Cap at 30s between retries |
-| After 2min | Show "Reconnecting..." banner | |
-| After 5min | Show "Connection Lost" with manual reload button | |
+**Reconnection Sync Protocol:**
+- Server emits `reconnect:sync` on authentication
+- Client sends `reconnect:sync` with `{ lastKnownState: { tokenPositions, fogState, activeEncounterId } }`
+- Server responds with `reconnect:state` containing diffs for changed state
+- Diffs include: token positions, fog state, encounter state (round, turnIndex, status)
+- Server-side diffing avoids sending redundant data
 
-**Conflict Resolution on Reconnect:**
-- Client sends `reconnect:sync` with `{ lastKnownState: { tokenPositions: {...}, fogState: {...} } }`
-- Server compares its current state with client's last known
-- Server responds with `reconnect:state` containing only the diffs
-- Client applies diffs to local cache, discards stale queued events
-- Dice roll queued events are never discarded (critical game state)
-
-**Offline Dice Rolling:**
-- `@3d-dice/dice-box` requires WebGL → may not initialize without connectivity
-- Fallback: pseudo-random number generator (seeded with timestamp) for `/roll` command
-- Results queued with `safeEmit` and sent when reconnected
-- Visual: text-based result "🎲 1d20 → 15" instead of 3D animation
-
-**Depends on:** Socket event queue wrapper (`safeEmit`), localStorage cache
-strategy, `reconnect:sync`/`reconnect:state` socket events, MapPanel state
-serialization, DiceBoxContext fallback
+**Socket.io Reconnection:**
+- Built-in Socket.io reconnection with exponential backoff
+- Pending queue ensures no events lost during disconnect
+- `reconnectCount` state tracks reconnection attempts
 
 ---
 

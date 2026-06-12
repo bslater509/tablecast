@@ -17,6 +17,9 @@ export default function useMapInteraction({
   // Socket
   socket, isConnected, setTokens,
 }) {
+  const longPressTimerRef = useRef(null);
+  const longPressPosRef = useRef(null);
+
   const getWorldCoordinates = useCallback((clientX, clientY) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -112,9 +115,31 @@ export default function useMapInteraction({
         setCurrentPolygon(prev => [...prev, { x, y }]);
       }
     }
+
+    // Start long-press timer for ping (touch only)
+    if (options.isTouch === true) {
+      longPressPosRef.current = { x: clientX, y: clientY };
+      longPressTimerRef.current = setTimeout(() => {
+        const { x: wx, y: wy } = getWorldCoordinates(clientX, clientY);
+        if (socket && isConnected && activeMap) {
+          const col = Math.round(wx / gridSize - 0.5);
+          const row = Math.round(wy / gridSize - 0.5);
+          socket.emit("token:ping", {
+            mapId: activeMap.id,
+            x: col,
+            y: row,
+            type: "look",
+            userId: user?.id,
+            sender: user?.username || "Player",
+          });
+        }
+        longPressTimerRef.current = null;
+      }, 500);
+    }
   }, [getWorldCoordinates, tool, tokens, gridSize, user, isDM, activeMap,
       setMousePosWorld, setSelectedTokenId, setDragState, setIsPanning,
-      setPanStart, setIsDrawing, setCurrentPolygon, panOffset]);
+      setPanStart, setIsDrawing, setCurrentPolygon, panOffset,
+      socket, isConnected]);
 
   const handleMove = useCallback((clientX, clientY) => {
     const { x, y, screenX, screenY } = getWorldCoordinates(clientX, clientY);
@@ -123,15 +148,15 @@ export default function useMapInteraction({
       setMousePosWorld({ x, y });
     }
 
-    if (dragState) {
-      setDragState(prev => {
-        if (prev.pending) {
-          const dx = screenX - prev.startScreenPos.x;
-          const dy = screenY - prev.startScreenPos.y;
-          if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return prev;
-        }
+      if (dragState) {
+        setDragState(prev => {
+          if (prev.pending) {
+            const dx = screenX - prev.startScreenPos.x;
+            const dy = screenY - prev.startScreenPos.y;
+            if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return prev;
+          }
 
-        return {
+          return {
           ...prev,
           pending: false,
           currentWorldPos: {
@@ -145,6 +170,17 @@ export default function useMapInteraction({
         x: screenX - panStart.x,
         y: screenY - panStart.y,
       });
+    }
+
+    // Cancel long-press if pointer moved too far
+    if (longPressTimerRef.current && longPressPosRef.current) {
+      const dx = clientX - longPressPosRef.current.x;
+      const dy = clientY - longPressPosRef.current.y;
+      if (Math.hypot(dx, dy) > 10) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+        longPressPosRef.current = null;
+      }
     }
   }, [getWorldCoordinates, isDrawing, dragState, isPanning, panStart,
       setMousePosWorld, setDragState, setPanOffset]);
@@ -196,6 +232,13 @@ export default function useMapInteraction({
     if (isPanning) {
       setIsPanning(false);
     }
+
+    // Cancel long-press on quick tap
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressPosRef.current = null;
   }, [dragState, isPanning, gridSize, imageRef, socket, isConnected, user,
       setDragState, setIsPanning, setTokens, pendingMovesRef]);
 
@@ -241,6 +284,12 @@ export default function useMapInteraction({
 
   const handleTouchEnd = useCallback((e) => {
     e.preventDefault();
+
+    // Cancel long-press on touch end
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
 
     if (e.touches.length === 0) {
       gestureRef.current = null;

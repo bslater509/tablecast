@@ -255,6 +255,7 @@ app.use("/api/homebrew", require("./routes/homebrew"));
 app.use("/api/encounter-templates", encounterTemplatesRouter);
 app.use("/api/features", require("./routes/features"));
 app.use("/api/loot", lootRouter);
+app.use("/api/dashboard", require("./routes/dashboard"));
 
 // ---------------------------------------------------------------------------
 // Serve map and token image uploads

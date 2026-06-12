@@ -218,6 +218,8 @@ export default function MapPanel({ user, isPopout = false }) {
           handleTouchMove={interaction.handleTouchMove}
           handleTouchEnd={interaction.handleTouchEnd}
 
+          // Pings (ephemeral map markers)
+          pings={D.pings}
           // Ruler tool props
           rulerPoints={D.rulerPoints}
           rulerHoverPos={D.mousePosWorld}

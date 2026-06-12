@@ -87,6 +87,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [dragState, setDragState] = useState(null);
+  const [pings, setPings] = useState([]); // [{ id, x, y, type, sender, timestamp }]
 
   // Modals
   const [showAddMapModal, setShowAddMapModal] = useState(false);
@@ -133,6 +134,19 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
   const withUser = (payload = {}) => ({ ...payload, userId: user?.id });
   const isDM = user?.role === "DM";
+
+  // ---- Ping emission ----
+  const emitPing = useCallback((x, y, type = "look") => {
+    if (socket && isConnected && activeMap) {
+      socket.emit("token:ping", {
+        mapId: activeMap.id,
+        x,
+        y,
+        type,
+        sender: user?.username || isDM ? "DM" : "Someone",
+      });
+    }
+  }, [socket, isConnected, activeMap, user, isDM]);
 
   // ---------------------------------------------------------------------------
   // Staleness check
@@ -379,6 +393,20 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
         loadActiveEncounter(payload.mapId || currentMap?.id);
       }
     };
+    const handleTokenPong = (payload) => {
+      const ping = {
+        id: `${payload.timestamp}-${Math.random().toString(36).slice(2, 6)}`,
+        x: payload.x,
+        y: payload.y,
+        type: payload.type || "look",
+        sender: payload.senderName || "Someone",
+        timestamp: payload.timestamp,
+      };
+      setPings((prev) => [...prev.slice(-10), ping]);
+      setTimeout(() => {
+        setPings((prev) => prev.filter((p) => p.id !== ping.id));
+      }, 3500);
+    };
 
     socket.on("map:selected", handleMapSelected);
     socket.on("token:moved", handleTokenMoved);
@@ -388,6 +416,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     socket.on("map:deleted", handleMapDeleted);
     socket.on("encounter:updated", handleEncounterRefresh);
     socket.on("encounter:turnChanged", handleEncounterRefresh);
+    socket.on("token:pong", handleTokenPong);
 
     return () => {
       socket.off("map:selected", handleMapSelected);
@@ -398,6 +427,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
       socket.off("map:deleted", handleMapDeleted);
       socket.off("encounter:updated", handleEncounterRefresh);
       socket.off("encounter:turnChanged", handleEncounterRefresh);
+      socket.off("token:pong", handleTokenPong);
     };
   }, [socket]);
 
@@ -1163,7 +1193,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     pendingMovesRef, triggerRedrawRef,
 
     // Derived
-    authHeaders, jsonAuthHeaders, withUser, isDM,
+    authHeaders, jsonAuthHeaders, withUser, isDM, pings,
 
     // Setters
     setMapsList, setActiveMap, setTokens, setActiveEncounter,
@@ -1178,7 +1208,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     setIsDrawing, setCurrentPolygon, setMousePosWorld,
     setRulerPoints, setRulerHoverPos,
     setShowLighting,
-    setIsPanning, setPanStart, setDragState,
+    setIsPanning, setPanStart, setDragState, setPings,
     setShowAddMapModal, setShowAddTokenModal,
     setIsDragOver, setShowGridSizePrompt, setPendingMapId, setNewDropGridSize,
     setNewMapName, setNewMapGridSize, setNewMapFile, setNewMapImagePath,

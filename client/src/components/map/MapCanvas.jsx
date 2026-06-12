@@ -1,7 +1,7 @@
 // =============================================================================
 // MapCanvas — Canvas rendering for grid, fog, and tokens
 // =============================================================================
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { parseFogState } from "./MapConstants";
 import { parseWalls, computeAllVision } from "../../utils/dynamicLighting";
 
@@ -45,6 +45,8 @@ export default function MapCanvas({
   handleTouchMove,
   handleTouchEnd,
 
+  // Pings (ephemeral map markers)
+  pings,
   // Ruler tool props
   rulerPoints,
   rulerHoverPos,
@@ -491,6 +493,72 @@ export default function MapCanvas({
         ctx.fillText(labelText, px, py + radius + 3);
       });
 
+      // 7. Render Pings (ephemeral map markers)
+      if (pings && pings.length > 0) {
+        const now = Date.now();
+        const PING_COLORS = { move: "#3b82f6", attack: "#ef4444", look: "#22c55e", danger: "#eab308" };
+        const PING_GLOW_COLORS = { move: "#93c5fd", attack: "#fca5a5", look: "#86efac", danger: "#fde68a" };
+        pings.forEach((ping) => {
+          const elapsed = now - ping.timestamp;
+          if (elapsed > 3500) return;
+
+          const px = ping.x * gridSize + gridSize / 2;
+          const py = ping.y * gridSize + gridSize / 2;
+          const progress = elapsed / 3500; // 0 to 1
+          const radius = 10 + progress * 30; // expands from 10 to 40px
+          const alpha = 1 - progress; // fades out
+          const type = ping.type || "look";
+          const color = PING_COLORS[type] || PING_COLORS.look;
+          const glowColor = PING_GLOW_COLORS[type] || PING_GLOW_COLORS.look;
+
+          ctx.save();
+
+          // Outer glow circle
+          ctx.beginPath();
+          ctx.arc(px, py, radius + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = glowColor;
+          ctx.lineWidth = 2;
+          ctx.globalAlpha = alpha * 0.3;
+          ctx.stroke();
+
+          // Expanding ring
+          ctx.beginPath();
+          ctx.arc(px, py, radius, 0, Math.PI * 2);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 3;
+          ctx.globalAlpha = alpha * 0.7;
+          ctx.stroke();
+
+          // Inner glow dot
+          ctx.beginPath();
+          ctx.arc(px, py, 8, 0, Math.PI * 2);
+          ctx.fillStyle = glowColor;
+          ctx.globalAlpha = alpha * 0.5;
+          ctx.fill();
+
+          // Inner solid dot
+          ctx.beginPath();
+          ctx.arc(px, py, 4, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.globalAlpha = alpha * 0.9;
+          ctx.fill();
+
+          // Sender label above ring
+          ctx.globalAlpha = alpha * 0.85;
+          ctx.fillStyle = "rgba(0,0,0,0.65)";
+          ctx.font = "bold 11px Segoe UI";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          const labelText = ping.sender || "";
+          const labelWidth = ctx.measureText(labelText).width;
+          ctx.fillRect(px - labelWidth / 2 - 4, py - radius - 18, labelWidth + 8, 16);
+          ctx.fillStyle = color;
+          ctx.fillText(labelText, px, py - radius - 6);
+
+          ctx.restore();
+        });
+      }
+
       ctx.restore();
     };
 
@@ -512,7 +580,7 @@ export default function MapCanvas({
     activeMap, tokens, zoom, panOffset, showGrid, dragState,
     selectedTokenId, currentPolygon, mousePosWorld, mapImageLoaded, user,
     canvasRef, imageRef, tokenImagesRef, gridSize, drawRafIdRef, triggerRedrawRef,
-    rulerPoints, rulerHoverPos, tool, showLighting,
+    rulerPoints, rulerHoverPos, tool, showLighting, pings,
   ]);
 
   // ---------------------------------------------------------------------------
