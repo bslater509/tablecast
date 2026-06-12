@@ -51,5 +51,6 @@ router.post("/generate-travel", requireDm, handleGenerateTravel);
 router.post("/generate-npc-phrases", requireDm, handleGenerateNpcPhrases);
 router.post("/detect-roll-chips", requireDm, handleDetectRollChips);
 router.post("/deploy-test", handleDeployTest);
+router.get("/ping", (req, res) => res.json({ ok: true, ts: Date.now() }));
 
 module.exports = router;
