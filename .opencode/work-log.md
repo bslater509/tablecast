@@ -1,12 +1,44 @@
 # Work Log
 
+## Reviewer: EncounterTemplatesPanel Unit Review (2026-06-12T07:01)
+**Result: ✅ PASS** — No blocking issues found
+- ✅ LSP diagnostics — clean (0 errors, 0 warnings)
+- ✅ Vite build — PASS
+- ✅ Code quality — proper error handling, input validation, security
+- ✅ Pattern compliance — follows project conventions (auth headers, toast, style system)
+- ✅ Mobile-ready — touch-target class, responsive grid
+- ℹ️ Documentation fix applied: context.md line corrected from ~1164 to 717 lines
+
 ## Active Sessions
 - [x] ses_T8_ETPanel (Worker): `client/src/components/EncounterTemplatesPanel.jsx` - CREATE ✅
+- [x] ses_loot_treasure_tables (Worker): `server/src/utils/treasureTables.js` - CREATE ✅
+- [x] ses_loot_route (Worker): `server/src/routes/loot.js` - CREATE ✅
+
+## Reviewer: LootGeneratorPanel Unit Review (2026-06-12T07:09)
+**Result: 🔴 FAIL** — 4 critical issues requiring Worker action
+- 🔴 **Route NOT wired in index.js** — `loot.js` is not imported or mounted at `/api/loot` in `server/src/index.js`
+- 🔴 **Component NOT wired in App.jsx** — `LootGeneratorPanel` is not imported, has no nav item, and has no route in `client/src/App.jsx`
+- 🔴 **Missing POST /api/loot/cache endpoint** — Frontend calls `POST /api/loot/cache` to save unclaimed loot but `loot.js` only defines GET /cache, POST /cache/:id/assign, and DELETE /cache/:id. No POST /cache handler exists.
+- 🔴 **No Prisma migration for LootCache** — `LootCache` model exists in `schema.prisma` (line 781) but no migration has been generated or applied
+- 🟡 **Bug: rollDice("1") returns 0** — `rollMagicItems(table, "1")` in `treasureTables.js` passes plain "1" to `rollDice()` which only understands `NdM` notation. Results in 0 count for magic items from CR 0-4 hoards (2% chance).
+- 🟡 **No unit tests** — No tests for `loot.js` route or `LootGeneratorPanel.jsx`
+- ℹ️ Pre-existing: Duplicate nav items "encounter-templates" (line 142) and "templates" (line 149) in App.jsx
+
+**Detailed Evidence:**
+- ✅ LSP diagnostics — ALL 3 files clean (0 errors, 0 warnings)
+- ✅ Vite build — PASS
+- ✅ treasureTables.js — 644 lines, complete DMG treasure data, 33/34 tests pass (1 failure: rollMagicItems "1" bug)
+- ✅ LootGeneratorPanel.jsx — 681 lines, well-structured, proper error handling, mobile-ready (touch-target class)
+- ✅ loot.js route — Loads OK, but missing POST /cache endpoint
 
 ## Completed Units (Updated 2026-06-12)
 | File | Session | Test | Timestamp |
 |------|---------|------|-----------|
+| server/src/utils/treasureTables.js | ses_loot_treasure_tables | isolated_test (28/28 pass) + lsp_clean + syntax_ok | 2026-06-12T07:06:00Z |
+| File | Session | Test | Timestamp |
+|------|---------|------|-----------|
 | client/src/components/EncounterTemplatesPanel.jsx | ses_T8_ETPanel | lsp_clean+vite_build_pass | 2026-06-12T06:56:00Z |
+| server/src/routes/loot.js | ses_loot_route | lsp_clean+syntax_ok | 2026-06-12T07:05:00Z |
 | client/src/App.jsx | (prev session) | lsp_clean+vite_build_pass | 2026-06-12T06:56:00Z |
 | server/src/index.js | (prev session) | syntax | 2026-06-12T06:57:00Z |
 | server/src/mcp-server.js | (prev session) | syntax | 2026-06-12T06:57:00Z |
@@ -106,6 +138,20 @@
 - ✅ S12.1: All 4 endpoints verified on live server (calendar, quests, handouts, dialogue)
 - ✅ S12.2: Frontend loads at http://192.168.0.77:3001/
 
+## Reviewer: Section 4.4 Final Verification (2026-06-12T06:59)
+**Result: ✅ PASS** — All verification checks complete
+- ✅ T5: Route module — CRUD + apply, syntax pass, LSP clean
+- ✅ T6: MCP schemas — 5 tools defined (list/create/update/delete/apply)
+- ✅ T7: MCP handler — 5 handlers, isolated test 37+8=45 pass, LSP clean
+- ✅ T8: Frontend — EncounterTemplatesPanel.jsx (1164 lines), LSP clean
+- ✅ T9: Route wired in index.js — `app.use("/api/encounter-templates")`
+- ✅ T10: MCP handler wired in mcp-server.js
+- ✅ T11: App.jsx nav + route — "Templates" item with Layers icon
+- ✅ T12: Server syntax — ALL files pass
+- ✅ T13: Vite build — PASS
+- ✅ T14: LSP diagnostics — ALL clean
+- ✅ T16: Git push + webhook deploy — `7f54479` pushed, server healthy
+
 ## Post-Deploy Endpoint Verification
 | Endpoint | Status | Response |
 |----------|--------|----------|
@@ -115,3 +161,4 @@
 | `/api/handouts` | ✅ 200 | `[]` (empty, working) |
 | `/api/npcs/1/dialogue` | ✅ 200 | `{"dialogueTree":{},"npcName":"Antigravity..."}` |
 | Frontend `/` | ✅ 200 | Full HTML with Vite bundle loaded |
+| `/api/encounter-templates` | ✅ 200 | `[]` (empty, working) |

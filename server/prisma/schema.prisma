@@ -776,6 +776,24 @@ model HomebrewEntry {
   @@map("homebrew_entries")
 }
 
+/// Generated loot results that have been "kept unclaimed" by the DM for later assignment.
+/// Stores the full loot result data as JSON for later assignment to party inventory.
+model LootCache {
+  id        Int      @id @default(autoincrement())
+  /// Label describing where the loot came from (e.g. "Goblin Ambush", "CR 5 Hoard")
+  label     String   @default("")
+  /// JSON: full loot result { coins: {...}, gems: [...], art: [...], magicItems: [...] }
+  data      String   @default("{}")
+  /// Total value in GP (cached for sorting/display)
+  totalValue Float   @default(0)
+  /// CR tier that generated this loot
+  tier String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("loot_caches")
+}
+
 /// Links a Character to a Party
 model PartyMember {
   id Int @id @default(autoincrement())

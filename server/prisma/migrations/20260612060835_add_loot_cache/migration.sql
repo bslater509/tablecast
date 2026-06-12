@@ -1,0 +1,10 @@
+-- CreateTable
+CREATE TABLE "loot_caches" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "label" TEXT NOT NULL DEFAULT '',
+    "data" TEXT NOT NULL DEFAULT '{}',
+    "totalValue" REAL NOT NULL DEFAULT 0,
+    "tier" TEXT NOT NULL DEFAULT '',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);

@@ -1,50 +1,44 @@
-# Project Context - Section 4.3 Complete
+# Project Context - Section 4.4 Complete
 
 ## Environment
 - Language: JavaScript (Node.js 22, React 18)
 - Build: Vite 5 (client) / Node (server)
 - Package Manager: npm, Docker, Prisma 5 (SQLite)
 
-## What Was Built - Section 4.3: Homebrew Content Manager
+## What Was Built - Section 4.4: Scenario & Encounter Templates
 
 ### Prisma Schema
-- New `HomebrewEntry` model with fields: id, type (RACE|CLASS|FEAT|SPELL|MAGIC_ITEM|MONSTER), name, source, version, content (JSON), tags (JSON), isActive, timestamps
+- New `EncounterTemplate` model with: id, name, description, difficulty (easy/medium/hard/deadly), recommendedLevel, tags (JSON), participants (JSON), mapId (optional relation to Map), timestamps
+- Migration `add_encounter_template` applied and DB is up to date
 
-### Backend — `/api/homebrew` Routes
-- `GET /api/homebrew` — list with optional ?type= and ?active=true filters
-- `GET /api/homebrew/:id` — single entry
-- `POST /api/homebrew` — create (DM only)
-- `PUT /api/homebrew/:id` — update (DM only)
-- `DELETE /api/homebrew/:id` — delete (DM only)
-- `POST /api/homebrew/export` — export all/selected entries as JSON
-- `POST /api/homebrew/import` — import entries with duplicate detection and optional overwrite
+### Backend — `/api/encounter-templates` Routes
+- `GET /api/encounter-templates` — list with optional ?difficulty, ?minLevel, ?maxLevel filters
+- `GET /api/encounter-templates/:id` — single template
+- `POST /api/encounter-templates` — create template (DM only)
+- `PUT /api/encounter-templates/:id` — update template (DM only, partial)
+- `DELETE /api/encounter-templates/:id` — delete template (DM only)
+- `POST /api/encounter-templates/:id/apply` — apply template to create live Encounter with participants (npc/monster/character/placeholder source types)
 
-### MCP Tools
-- `list_homebrew` — list entries by type/active status
-- `create_homebrew` — create entry with type-specific content
-- `update_homebrew` — update entry fields
-- `delete_homebrew` — delete by ID
+### MCP Tools (5 tools)
+- `list_encounter_templates` — list with optional difficulty filter
+- `create_encounter_template` — create template with participants
+- `update_encounter_template` — update template fields
+- `delete_encounter_template` — delete by ID
+- `apply_encounter_template` — apply template to create encounter
 
-### Reference Search Integration
-- `/api/reference/search` now augments results with homebrew entries matching the category
-- Category mapping: spells→SPELL, monsters→MONSTER, items→MAGIC_ITEM, races→RACE, classes→CLASS, feats→FEAT
-- `/api/reference/detail` falls back to homebrew entries when 5etools lookup fails
+### Frontend — EncounterTemplatesPanel.jsx (717 lines)
+DM-only panel for managing encounter templates:
+- **List view**: Cards with difficulty badge, level range, tags, participant count
+- **Search/filter**: By name, difficulty dropdown (easy/medium/hard/deadly/All)
+- **Create/Edit Modal**: Name, description, difficulty, level range, tags, participants (add/remove rows with sourceType dropdown, name, count)
+- **Apply button**: Quick-action to create live encounter from template
+- **Seed templates**: 4 built-in templates (Goblin Ambush, Bandit Camp, Kobold Warren, Dragon's Lair)
+- **Delete with confirmation**: Toast notification on success/error
 
-### Frontend — HomebrewManager.jsx (~550 lines)
-DM-only panel for managing homebrew content:
-- **List view**: Cards with type badge, name, version/source, tags, active toggle, edit/delete buttons
-- **Search & filter**: By name/source/tag, and type dropdown filter
-- **Create/Edit Modal**: Type-specific form with fields for each content type:
-  - RACE: ability bonuses, speed, size, traits, languages
-  - CLASS: hit die, spellcasting ability, features
-  - FEAT: description, prerequisites
-  - SPELL: level, school, casting time, range, components, duration, description, higher levels, damage, save type, attack type
-  - MAGIC_ITEM: item type, rarity, attunement, description, properties
-  - MONSTER: HP, AC, CR, 6 ability scores, actions, description
-- **Export**: Downloads all entries as JSON file
-- **Import**: Upload JSON file with overwrite option
+### Wiring
+- Route wired in index.js at `/api/encounter-templates`
+- MCP handler wired in mcp-server.js
+- Nav item added to App.jsx: id="templates", icon=Layers, path="/dm/templates"
 
-### App.jsx Wiring
-- Imported `Beaker` icon from lucide-react
-- Added DM nav item: id="homebrew", path="/dm/homebrew", icon=Beaker
-- Added Route: `<Route path="homebrew" element={<HomebrewManager user={user} />} />`
+### Tests
+- 15 isolated unit tests for the route module (all pass)

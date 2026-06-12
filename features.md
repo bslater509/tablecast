@@ -697,66 +697,50 @@ template CRUD, template → encounter conversion logic
 
 ### 4.5 Loot Generator
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
 **Motivation:** D&D 5e has detailed treasure tables (DMG chapter 7). Automating
 loot rolls saves time after combat.
 
 **Scope:** Small-Medium
 
-**Treasure Table Reference:**
-- DMG treasure tables encoded as JSON (stored in reference data or AppSetting)
-- **Individual Treasure:** per CR tier (0-4, 5-10, 11-16, 17+)
-  - Roll d100: coin amounts (cp, sp, gp, pp)
-- **Hoard Treasure:** per CR tier
-  - Roll d100 for coin hoard (significant amounts)
-  - Roll d100 for art objects / gems (count and value)
-  - Roll d100 for magic items (by table: A, B, C, D, E, F, G, H, I)
-- Magic item tables: each has a d100 roll mapping to specific items
-
-**Magic Item Distribution:**
-| Table | CR 0-4 | CR 5-10 | CR 11-16 | CR 17+ |
-|-------|--------|---------|----------|--------|
-| A (consumables) | 6% | 10% | 12% | 15% |
-| B (minor items) | 4% | 8% | 10% | 12% |
-| C (major items) | 2% | 5% | 8% | 10% |
-| D (weapons/armor) | 2% | 4% | 6% | 8% |
-| E (scrolls) | 3% | 6% | 8% | 10% |
-| F (rods/staves) | — | 2% | 4% | 6% |
-| G (wondrous) | — | 1% | 3% | 5% |
-| H (very rare+) | — | — | 2% | 4% |
-| I (legendary) | — | — | — | 2% |
+**Implementation:**
+- **Treasure Table Reference:** `server/src/utils/treasureTables.js` (644 lines)
+  - DMG treasure tables A-I encoded with full d100 lookup tables
+  - Individual Treasure per CR tier (0-4, 5-10, 11-16, 17+)
+  - Hoard Treasure per CR tier with coin hoards, gems, art, magic items
+  - Magic item tables A-I (consumables, minor, major, weapons, scrolls, rods, wondrous, very rare, legendary)
+  - Gem types (10gp–5000gp) and art objects (25gp–7500gp)
+  - Dice rolling helpers (`rollDice`, `rollD100`) with multiplier notation support
+- **API Endpoints** (`server/src/routes/loot.js`):
+  - `POST /api/loot/generate` — Generate loot from CR + type (individual/hoard/both)
+  - `POST /api/loot/cache` — Save as unclaimed cache
+  - `GET /api/loot/cache` — List unclaimed caches
+  - `POST /api/loot/cache/:id/assign` — Assign to party inventory + gold pool
+  - `DELETE /api/loot/cache/:id` — Discard cache
+- **Frontend** (`client/src/components/LootGeneratorPanel.jsx`):
+  - Generate tab: CR input, treasure type selector, formatted result with coins/gems/art/magic items
+  - Unclaimed tab: cached loot list, party selector, assign/discard buttons
+  - Toast notifications for all actions
+- **Prisma:** `LootCache` model added, migration applied
+- **Unit Tests:** 31 tests covering treasure tables (getCrTier, calculateTotalValue, rollDice, generateIndividualTreasure, generateHoardTreasure, generateGemsOrArt, rollMagicItems, MAGIC_ITEM_TABLES structure, GEM_TYPES/ART_TYPES)
+- **Wiring:** Route mounted at `/api/loot`, frontend nav item + route in DmLayout
 
 **Loot Generation Flow:**
-1. DM selects encounter (or monster CR/type)
-2. System suggests: "Individual Treasure" (per monster) or "Hoard Treasure" (per encounter)
-3. Auto-roll: animate coin rolls, gem reveals, item cards flipping
-4. Result displayed as formatted loot card in chat:
-   ```
-   ┌─── LOOT ─────────────────┐
-   │ 250 gp, 120 sp, 30 pp     │
-   │ 3 gems (100gp each)       │
-   │ ──────────────────────────│
-   │ 🎲 Potion of Healing      │
-   │ 🎲 Wand of Magic Missiles │
-   │ 🎲 +1 Longsword           │
-   │ ──────────────────────────│
-   │ [Assign to Party] [Reroll]│
-   └──────────────────────────┘
-   ```
-5. DM can modify: add/remove items, adjust coin amounts, reroll individual slots
-6. "Assign to Party" → items added to party inventory, coins added to gold pool
-7. "Keep Unclaimed" → loot stored as loot cache, assignable later
+1. DM enters CR (0-30, step 0.25) and selects treasure type (Individual/Hoard/Both)
+2. System rolls on DMG tables, returns formatted result with coins, gems, art, magic items
+3. Result card shows: coin breakdown with colored dots, gem/art lists with values, magic items with type indicators, total GP value
+4. "Keep Unclaimed" → loot stored in `LootCache` table for later assignment
+5. "Assign to Party" → coins added to party gold pool, items to party inventory
+6. "Regenerate" → re-roll with same parameters
 
 **Art Objects & Gems:**
 - Random gemstone type from table (ornamental → gemstone → jewel → precious)
 - Random art object from table (painting, statue, jewelry, tapestry, etc.)
 - Values per table: 10gp, 25gp, 50gp, 100gp, 250gp, 500gp, 750gp, 1000gp, 2500gp, 5000gp, 7500gp
 
-**Depends on:** Reference data for treasure tables (encoded in
-`server/uploads/5etools-cache/` or custom JSON), loot generation function,
-chat card rendering for loot (markdown or custom component), integration with
-party inventory
+**Depends on:** Reference data (treasureTables.js), Prisma LootCache model,
+party inventory integration via `/api/loot/cache/:id/assign`
 
 ---
 

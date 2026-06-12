@@ -215,6 +215,7 @@ const shopsRouter = require("./routes/shops");
 const debugRouter = require("./routes/debug");
 const authRouter = require("./routes/auth");
 const encounterTemplatesRouter = require("./routes/encounter-templates");
+const lootRouter = require("./routes/loot");
 
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
@@ -253,6 +254,7 @@ app.use("/api/quests", require("./routes/quests"));
 app.use("/api/homebrew", require("./routes/homebrew"));
 app.use("/api/encounter-templates", encounterTemplatesRouter);
 app.use("/api/features", require("./routes/features"));
+app.use("/api/loot", lootRouter);
 
 // ---------------------------------------------------------------------------
 // Serve map and token image uploads

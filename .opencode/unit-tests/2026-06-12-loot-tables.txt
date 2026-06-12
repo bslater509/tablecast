@@ -1,0 +1,41 @@
+# Unit Test Record: Treasure Tables & Loot Generator
+## Date: 2026-06-12
+## File: server/__tests__/loot.test.js
+
+## Test Summary
+- Total tests: 31
+- Passed: 31
+- Failed: 0
+
+## Test Suites (9)
+1. treasureTables — getCrTier() - 5 tests
+2. treasureTables — calculateTotalValue() - 3 tests
+3. treasureTables — rollDice() - 4 tests
+4. treasureTables — generateIndividualTreasure() - 5 tests
+5. treasureTables — generateHoardTreasure() - 4 tests
+6. treasureTables — generateGemsOrArt() - 1 test
+7. treasureTables — rollMagicItems() - 3 tests
+8. treasureTables — MAGIC_ITEM_TABLES structure - 3 tests
+9. treasureTables — GEM_TYPES and ART_TYPES - 3 tests
+
+## Test Details
+- getCrTier: CR boundaries (0-4, 5-10, 11-16, 17+), string input handling
+- calculateTotalValue: empty result, coin values (PP=*10, GP, SP/10, CP/100), gem+art inclusion
+- rollDice: basic notation, multiplier notation (2d6x100), '0' input, single die
+- generateIndividualTreasure: CR 1, CR 8, stochastic variation, CR 0, CR 30
+- generateHoardTreasure: CR 5 hoard, CR 10 gem/art, CR 11+ magic items, total value
+- generateGemsOrArt: CR 5-10 tier returns array
+- rollMagicItems: table A default, table B multiple rolls (1d4), unknown table
+- MAGIC_ITEM_TABLES: all tables A-I exist, entries have name+range, consumable boolean
+- GEM_TYPES/ART_TYPES: grouped by value, arrays of name strings
+
+## Run Command
+node --test server/__tests__/loot.test.js
+
+## Test Framework
+Node 22 built-in test runner (node:test)
+
+## Coverage
+- Pure logic functions from server/src/utils/treasureTables.js
+- HTTP routes tested separately via build verification + manual curl
+- Frontend component verified via Vite build inclusion

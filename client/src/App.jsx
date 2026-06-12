@@ -51,6 +51,7 @@ import QuestLogPanel from "./components/QuestLogPanel";
 import DialogueTreePanel from "./components/DialogueTreePanel";
 import HomebrewManager from "./components/HomebrewManager";
 import EncounterTemplatesPanel from "./components/EncounterTemplatesPanel";
+import LootGeneratorPanel from "./components/LootGeneratorPanel";
 import { useSocket } from "./context/SocketContext";
 import { useToast } from "./context/ToastContext";
 import { AiProvider } from "./context/AiContext";
@@ -200,6 +201,13 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Homebrew",
     path: "/dm/homebrew",
     icon: Beaker,
+  },
+  {
+    id: "loot",
+    label: "Loot Generator",
+    mobileLabel: "Loot",
+    path: "/dm/loot",
+    icon: Database,
   },
   {
     id: "importer",
@@ -1296,7 +1304,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "encounter-templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop"].includes(pathParts[2])
+  const currentTab = ["map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "encounter-templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop", "loot"].includes(pathParts[2])
     ? pathParts[2]
     : "map";
 
@@ -1421,6 +1429,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="chat-journal/ai" element={<Navigate to="/dm/messages" replace />} />
             <Route path="chat-journal/:subtab" element={<Navigate to="/dm/messages" replace />} />
             <Route path="party" element={<PartyVaultPanel user={user} />} />
+            <Route path="loot" element={<LootGeneratorPanel user={user} />} />
             <Route path="shop" element={<ShopPanel user={user} addToast={addToast} />} />
             <Route path="importer" element={<ImporterPanel user={user} />} />
             <Route path="soundboard" element={<SoundboardPanel user={user} />} />
