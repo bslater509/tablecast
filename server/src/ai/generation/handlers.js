@@ -1174,10 +1174,17 @@ async function handleGenerateNames(req, res) {
       return res.status(400).json({ error: "category is required. Options: NPC (Dwarf), NPC (Elf), NPC (Human), Tavern, Town, Shop, Faction, Landmark, MonsterLair" });
     }
 
-    const validCategories = ["NPC (Dwarf)", "NPC (Elf)", "NPC (Human)", "Tavern", "Town", "Shop", "Faction", "Landmark", "MonsterLair"];
+    const validCategories = ["npc-dwarf", "npc-elf", "npc-human", "tavern", "town", "shop", "faction", "landmark", "monster-lair"];
     if (!validCategories.includes(category)) {
-      return res.status(400).json({ error: `Invalid category. Must be one of: ${validCategories.join(", ")}` });
+      return res.status(400).json({ error: `Invalid category. Must be one of: NPC (Dwarf), NPC (Elf), NPC (Human), Tavern, Town, Shop, Faction, Landmark, MonsterLair` });
     }
+
+    const categoryLabels = {
+      "npc-dwarf": "NPC (Dwarf)", "npc-elf": "NPC (Elf)", "npc-human": "NPC (Human)",
+      "tavern": "Tavern", "town": "Town/City", "shop": "Shop",
+      "faction": "Faction", "landmark": "Landmark", "monster-lair": "Monster Lair",
+    };
+    const categoryLabel = categoryLabels[category] || category;
 
     const aiSettings = await loadAiSettings();
     const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
@@ -1198,7 +1205,7 @@ You MUST respond with a single JSON object containing a "names" array (and NO ot
 }
 Generate exactly ${count} names. Make each one distinct and evocative.`;
 
-    const userMessage = `Generate ${count} names for category: ${category}.${styleText}`;
+    const userMessage = `Generate ${count} names for category: ${categoryLabel}.${styleText}`;
     const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage, [], "generate-names");
 
     let namesData;
