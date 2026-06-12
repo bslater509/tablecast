@@ -18,6 +18,11 @@ const {
 } = require("../helpers");
 const { scanTextForRollChips } = require("../../utils/diceRollDetection");
 
+// DEBUG: Verify deployment version
+async function handleDeployTest(req, res) {
+  res.json({ version: "v2-handlers-2026-06-12", deployed: true, newRoutes: true });
+}
+
 // ---------------------------------------------------------------------------
 // POST /generate-npc-options - Generate multiple NPC concepts (DM only)
 // ---------------------------------------------------------------------------
@@ -1586,4 +1591,5 @@ module.exports = {
   handleGenerateTravel,
   handleGenerateNpcPhrases,
   handleDetectRollChips,
+  handleDeployTest,
 };

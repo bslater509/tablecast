@@ -28,6 +28,7 @@ const {
   handleGenerateTravel,
   handleGenerateNpcPhrases,
   handleDetectRollChips,
+  handleDeployTest,
 } = require("./handlers");
 
 router.post("/generate-npc-options", requireDm, handleGenerateNpcOptions);
@@ -49,5 +50,6 @@ router.post("/generate-description", requireDm, handleGenerateDescription);
 router.post("/generate-travel", requireDm, handleGenerateTravel);
 router.post("/generate-npc-phrases", requireDm, handleGenerateNpcPhrases);
 router.post("/detect-roll-chips", requireDm, handleDetectRollChips);
+router.post("/deploy-test", handleDeployTest);
 
 module.exports = router;
