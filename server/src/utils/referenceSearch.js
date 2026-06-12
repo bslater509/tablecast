@@ -7,6 +7,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const logger = require("./logger");
 
 const CACHE_DIR = path.resolve(__dirname, "../../uploads/5etools-cache");
 // Base URL for 5etools raw data (GitHub mirror — 5e.tools is behind Cloudflare)
@@ -40,7 +41,7 @@ function clearCache() {
     actions: null,
     feats: null,
   };
-  console.log("[ReferenceSearch] Memory cache cleared.");
+  logger.info("app:reference", "Memory cache cleared.");
 }
 
 /**
@@ -104,13 +105,13 @@ async function loadData(urlPath, dataKey) {
         return data[dataKey];
       }
     } catch (err) {
-      console.warn(`[ReferenceSearch] Cache read failed for ${cacheFile}: ${err.message}`);
+      logger.warn("app:reference", `Cache read failed for ${cacheFile}: ${err.message}`);
     }
   }
 
   // Fetch from remote
   try {
-    console.log(`[ReferenceSearch] Fetching ${url}...`);
+    logger.info("app:reference", `Fetching ${url}...`);
     const body = await fetchUrl(url);
     ensureCacheDir();
     fs.writeFileSync(cacheFile, body, "utf8");
@@ -120,7 +121,7 @@ async function loadData(urlPath, dataKey) {
     }
     return [];
   } catch (err) {
-    console.error(`[ReferenceSearch] Failed to fetch ${url}: ${err.message}`);
+    logger.error("app:reference", `Failed to fetch ${url}: ${err.message}`);
     return [];
   }
 }
@@ -144,11 +145,11 @@ function loadAllFromCache(prefix, arrayKey) {
           list.push(...data[arrayKey]);
         }
       } catch (err) {
-        console.warn(`[ReferenceSearch] Failed to parse cached file ${file}:`, err.message);
+        logger.warn("app:reference", `Failed to parse cached file ${file}:`, { error: err.message });
       }
     }
   } catch (err) {
-    console.error(`[ReferenceSearch] Cache directory read failed:`, err.message);
+    logger.error("app:reference", `Cache directory read failed:`, { error: err.message });
   }
   return list;
 }
@@ -166,7 +167,7 @@ function loadSingleFromCache(filename, arrayKey) {
       return data[arrayKey];
     }
   } catch (err) {
-    console.warn(`[ReferenceSearch] Failed to parse ${filePath}:`, err.message);
+    logger.warn("app:reference", `Failed to parse ${filePath}:`, { error: err.message });
   }
   return [];
 }
@@ -180,7 +181,7 @@ function getSpells() {
   if (!cache.spells.length) {
     cache.spells = loadSingleFromCache("spells_spells-phb.json", "spell");
   }
-  console.log(`[ReferenceSearch] Loaded ${cache.spells.length} spells from cache.`);
+  logger.info("app:reference", `Loaded ${cache.spells.length} spells from cache.`);
   return cache.spells;
 }
 
@@ -190,7 +191,7 @@ function getMonsters() {
   if (!cache.monsters.length) {
     cache.monsters = loadSingleFromCache("bestiary_bestiary-mm.json", "monster");
   }
-  console.log(`[ReferenceSearch] Loaded ${cache.monsters.length} monsters from cache.`);
+  logger.info("app:reference", `Loaded ${cache.monsters.length} monsters from cache.`);
   return cache.monsters;
 }
 
@@ -200,7 +201,7 @@ function getMonsterFluff() {
   if (!cache.monsterFluff.length) {
     cache.monsterFluff = loadSingleFromCache("bestiary_fluff-bestiary-mm.json", "monsterFluff");
   }
-  console.log(`[ReferenceSearch] Loaded ${cache.monsterFluff.length} monster fluff entries from cache.`);
+  logger.info("app:reference", `Loaded ${cache.monsterFluff.length} monster fluff entries from cache.`);
   return cache.monsterFluff;
 }
 
@@ -210,14 +211,14 @@ function getItems() {
   if (!cache.items.length) {
     cache.items = loadSingleFromCache("items.json", "item");
   }
-  console.log(`[ReferenceSearch] Loaded ${cache.items.length} items from cache.`);
+  logger.info("app:reference", `Loaded ${cache.items.length} items from cache.`);
   return cache.items;
 }
 
 function getRaces() {
   if (cache.races) return cache.races;
   cache.races = loadSingleFromCache("races.json", "race");
-  console.log(`[ReferenceSearch] Loaded ${cache.races.length} races from cache.`);
+  logger.info("app:reference", `Loaded ${cache.races.length} races from cache.`);
   return cache.races;
 }
 
@@ -227,14 +228,14 @@ function getClasses() {
   if (!cache.classes.length) {
     cache.classes = loadSingleFromCache("class_class-barbarian.json", "class");
   }
-  console.log(`[ReferenceSearch] Loaded ${cache.classes.length} classes from cache.`);
+  logger.info("app:reference", `Loaded ${cache.classes.length} classes from cache.`);
   return cache.classes;
 }
 
 function getRules() {
   if (cache.rules) return cache.rules;
   cache.rules = loadSingleFromCache("actions.json", "action");
-  console.log(`[ReferenceSearch] Loaded ${cache.rules.length} rules/actions from cache.`);
+  logger.info("app:reference", `Loaded ${cache.rules.length} rules/actions from cache.`);
   return cache.rules;
 }
 
@@ -244,7 +245,7 @@ function getFeats() {
   if (!cache.feats.length) {
     cache.feats = loadSingleFromCache("feats.json", "feat");
   }
-  console.log(`[ReferenceSearch] Loaded ${cache.feats.length} feats from cache.`);
+  logger.info("app:reference", `Loaded ${cache.feats.length} feats from cache.`);
   return cache.feats;
 }
 

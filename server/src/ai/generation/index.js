@@ -56,7 +56,8 @@ router.post("/deploy-test", handleDeployTest);
 router.get("/ping", (req, res) => res.json({ ok: true, ts: Date.now() }));
 
 // Startup diagnostic — appears in container logs to confirm this file version loaded
-console.log(
+const logger = require("../../utils/logger");
+logger.debug("ai:generation",
   "[AI generation] index.js loaded — routes registered:",
   router.stack.filter((s) => s.route).map((s) => s.route.path).join(", ")
 );

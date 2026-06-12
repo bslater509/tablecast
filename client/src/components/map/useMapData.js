@@ -14,7 +14,7 @@ const VTT_ZOOM_KEY = "tablecast.vttZoom";
 const VTT_PAN_OFFSET_KEY = "tablecast.vttPanOffset";
 const VTT_SELECTED_TOKEN_KEY = "tablecast.vttSelectedToken";
 
-export default function useMapData({ user, isPopout, socket, isConnected, addToast, showConfirm, initialMapId = null }) {
+export default function useMapData({ user, socket, isConnected, addToast, showConfirm, initialMapId = null }) {
   // ---------------------------------------------------------------------------
   // Map & token state
   // ---------------------------------------------------------------------------
@@ -135,18 +135,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
   const withUser = (payload = {}) => ({ ...payload, userId: user?.id });
   const isDM = user?.role === "DM";
 
-  // ---- Ping emission ----
-  const emitPing = useCallback((x, y, type = "look") => {
-    if (socket && isConnected && activeMap) {
-      socket.emit("token:ping", {
-        mapId: activeMap.id,
-        x,
-        y,
-        type,
-        sender: user?.username || isDM ? "DM" : "Someone",
-      });
-    }
-  }, [socket, isConnected, activeMap, user, isDM]);
+
 
   // ---------------------------------------------------------------------------
   // Staleness check
@@ -959,7 +948,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     const fm = (val) => (val >= 0 ? `+${val}` : `${val}`);
 
     let damageTotal = 0;
-    let dmgRolls = [];
+    const dmgRolls = [];
     let dmgFormula = "";
 
     if (dmgExpr) {
@@ -967,11 +956,11 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
         const cleanExpr = dmgExpr.toLowerCase().replace(/\s/g, "");
         const parts = cleanExpr.split("+");
         const dicePart = parts[0];
-        const modPart = parts[1] ? parseInt(parts[1]) : 0;
+        const modPart = parts[1] ? parseInt(parts[1], 10) : 0;
         const diceMatch = dicePart.match(/^(\d+)d(\d+)$/);
         if (diceMatch) {
-          const count = parseInt(diceMatch[1]);
-          const sides = parseInt(diceMatch[2]);
+          const count = parseInt(diceMatch[1], 10);
+          const sides = parseInt(diceMatch[2], 10);
           for (let i = 0; i < count; i++) dmgRolls.push(Math.floor(Math.random() * sides) + 1);
           const sumRolls = dmgRolls.reduce((a, b) => a + b, 0);
           damageTotal = sumRolls + modPart;
@@ -992,7 +981,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
           rollName: actionName,
           formula: dmgExpr ? `Hit: 1d20 + ${toHitMod || 0} | Dmg: ${dmgFormula}` : `Hit: 1d20 + ${toHitMod || 0}`,
           isAttack: true, toHitRoll: d20, toHitMod: Number(toHitMod || 0), toHitTotal,
-          damageRolls: dmgRolls, damageDice: dmgExpr || "", damageMod: dmgExpr ? (parseInt(dmgExpr.split("+")[1]) || 0) : 0, damageTotal,
+          damageRolls: dmgRolls, damageDice: dmgExpr || "", damageMod: dmgExpr ? (parseInt(dmgExpr.split("+")[1], 10) || 0) : 0, damageTotal,
         },
       });
     }
@@ -1000,7 +989,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
 
   const handleMonsterRoll = (monsterName, actionName, actionText) => {
     const hitMatch = actionText.match(/\{@hit (\d+)\}/);
-    const toHitMod = hitMatch ? parseInt(hitMatch[1]) : 0;
+    const toHitMod = hitMatch ? parseInt(hitMatch[1], 10) : 0;
     const dmgMatch = actionText.match(/\{@damage ([^}]+)\}/);
     const dmgExpr = dmgMatch ? dmgMatch[1].trim() : "";
     const d20 = Math.floor(Math.random() * 20) + 1;
@@ -1008,17 +997,17 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     const fm = (val) => (val >= 0 ? `+${val}` : `${val}`);
 
     let damageTotal = 0;
-    let dmgRolls = [];
+    const dmgRolls = [];
     let dmgFormula = "";
 
     if (dmgExpr) {
       const parts = dmgExpr.toLowerCase().replace(/\s/g, "").split("+");
       const dicePart = parts[0];
-      const modPart = parts[1] ? parseInt(parts[1]) : 0;
+      const modPart = parts[1] ? parseInt(parts[1], 10) : 0;
       const diceMatch = dicePart.match(/^(\d+)d(\d+)$/);
       if (diceMatch) {
-        const count = parseInt(diceMatch[1]);
-        const sides = parseInt(diceMatch[2]);
+        const count = parseInt(diceMatch[1], 10);
+        const sides = parseInt(diceMatch[2], 10);
         for (let i = 0; i < count; i++) dmgRolls.push(Math.floor(Math.random() * sides) + 1);
         const sumRolls = dmgRolls.reduce((a, b) => a + b, 0);
         damageTotal = sumRolls + modPart;
@@ -1037,7 +1026,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
           rollName: actionName,
           formula: dmgExpr ? `Hit: 1d20 + ${toHitMod} | Dmg: ${dmgFormula}` : `Hit: 1d20 + ${toHitMod}`,
           isAttack: true, toHitRoll: d20, toHitMod, toHitTotal,
-          damageRolls: dmgRolls, damageDice: dmgExpr, damageMod: dmgExpr ? (parseInt(dmgExpr.split("+")[1]) || 0) : 0, damageTotal,
+          damageRolls: dmgRolls, damageDice: dmgExpr, damageMod: dmgExpr ? (parseInt(dmgExpr.split("+")[1], 10) || 0) : 0, damageTotal,
         },
       });
     }

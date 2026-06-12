@@ -308,7 +308,7 @@ if (!fs.existsSync(placeholderPath)) {
     }
 
     // Build PNG manually (no dependencies needed)
-    function pngChunk(type, data) {
+    const pngChunk = (type, data) => {
       const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
       const c = Buffer.concat([Buffer.from(type), data]);
       const crc = Buffer.alloc(4); crc.writeUInt32BE(require("zlib").crc32(c) >>> 0);
@@ -396,9 +396,9 @@ app.use((err, req, res, _next) => {
 // ---------------------------------------------------------------------------
 server.listen(PORT, HOST, () => {
   const startupMsg = `Server running at http://${HOST}:${PORT}`;
-  console.log(`[Tablecast]  ${startupMsg}`);
-  console.log(`[Tablecast]  Health check:    http://${HOST}:${PORT}/api/health`);
-  console.log(`[Tablecast]  Socket.io ready  awaiting connections`);
+  logger.info("app:startup", `[Tablecast]  ${startupMsg}`);
+  logger.info("app:startup", `[Tablecast]  Health check:    http://${HOST}:${PORT}/api/health`);
+  logger.info("app:startup", `[Tablecast]  Socket.io ready  awaiting connections`);
 
   const hasHttps = fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH);
   logger.info("server", "Server started", {

@@ -1,7 +1,7 @@
 "use strict";
 
 const prisma = require("./prisma");
-const { performAiCall, performAiStream, performAiStreamTokens, findRelevantRules, buildNpcRoleplaySystemPrompt, loadAiSettings } = require("./routes/ai");
+const { performAiStreamTokens, findRelevantRules, buildNpcRoleplaySystemPrompt, loadAiSettings } = require("./routes/ai");
 const { sanitizeText, sanitizeShortText } = require("./utils/sanitize");
 
 const debug = require("./utils/debug");
@@ -858,15 +858,14 @@ Show this command reference.`;
     socket.on("copilot:check", async (data) => {
       try {
         if (!socket.data.user) return; // DM only
-        const { text, encounterId, mapId } = data || {};
+        const { text, encounterId } = data || {};
         if (!text || typeof text !== "string" || !text.trim()) return;
 
         if (isCopilotRateLimited(socket.id)) return;
 
         // Re-use imports already available in this module
         const aiSettings = await loadAiSettings();
-        const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
-        const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+        const { provider, apiKey } = aiSettings;
 
         // Rules trigger patterns
         const rulesTriggerPatterns = [
@@ -878,7 +877,7 @@ Show this command reference.`;
         ];
         const isRulesQuestion = rulesTriggerPatterns.some(p => p.test(text));
 
-        let suggestions = [];
+        const suggestions = [];
 
         // 1. Rules reference suggestion
         if (isRulesQuestion && provider && apiKey) {

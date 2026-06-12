@@ -8,18 +8,6 @@
 const IMG_BASE_URL = "https://5e.tools/img";
 
 /**
- * Normalize a string for comparison.
- */
-function normalize(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/\.[a-z0-9]+$/i, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-/**
  * Encode a name for use in a URL path.
  */
 function urlEncodeName(name) {
@@ -54,7 +42,7 @@ function getMonsterPortraitUrl(name, source) {
  *
  * Returns a match object with the constructed URL, or null if name is empty.
  */
-function findReferenceImage({ name, source, section, preferToken = false, tokenOnly = false, excludeTokens = false }) {
+function findReferenceImage({ name, source, section, preferToken = false, tokenOnly = false }) {
   if (!name || typeof name !== "string" || !name.trim()) {
     return null;
   }

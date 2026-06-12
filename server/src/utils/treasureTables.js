@@ -408,21 +408,21 @@ function rollDice(notation) {
   // Handle "x" notation (e.g., "4d6x100")
   const multMatch = notation.match(/^(\d+)d(\d+)x(\d+)$/);
   if (multMatch) {
-    const [_, count, sides, multiplier] = multMatch;
+    const [, count, sides, multiplier] = multMatch;
     let total = 0;
-    for (let i = 0; i < parseInt(count); i++) {
-      total += Math.floor(Math.random() * parseInt(sides)) + 1;
+    for (let i = 0; i < parseInt(count, 10); i++) {
+      total += Math.floor(Math.random() * parseInt(sides, 10)) + 1;
     }
-    return total * parseInt(multiplier);
+    return total * parseInt(multiplier, 10);
   }
 
   // Handle standard "NdM" notation
   const match = notation.match(/^(\d+)d(\d+)$/);
   if (match) {
-    const [_, count, sides] = match;
+    const [, count, sides] = match;
     let total = 0;
-    for (let i = 0; i < parseInt(count); i++) {
-      total += Math.floor(Math.random() * parseInt(sides)) + 1;
+    for (let i = 0; i < parseInt(count, 10); i++) {
+      total += Math.floor(Math.random() * parseInt(sides, 10)) + 1;
     }
     return total;
   }
@@ -542,12 +542,12 @@ function generateGemsOrArt(tier, type, countNotation, valuePer) {
   const count = rollDice(countNotation);
   if (count <= 0) return [];
 
-  const valueNum = parseInt(valuePer);
+  const valueNum = parseInt(valuePer, 10);
   const items = [];
 
   for (let i = 0; i < count; i++) {
     if (type === "gem") {
-      const tierKey = Object.keys(GEM_TYPES).find(k => parseInt(k) === valueNum) || "10 gp";
+      const tierKey = Object.keys(GEM_TYPES).find(k => parseInt(k, 10) === valueNum) || "10 gp";
       const gemTypes = GEM_TYPES[tierKey] || GEM_TYPES["10 gp"];
       items.push({
         name: pickRandom(gemTypes),
@@ -555,7 +555,7 @@ function generateGemsOrArt(tier, type, countNotation, valuePer) {
         type: "gem",
       });
     } else if (type === "art") {
-      const tierKey = Object.keys(ART_TYPES).find(k => parseInt(k) === valueNum) || "25 gp";
+      const tierKey = Object.keys(ART_TYPES).find(k => parseInt(k, 10) === valueNum) || "25 gp";
       const artTypes = ART_TYPES[tierKey] || ART_TYPES["25 gp"];
       items.push({
         name: pickRandom(artTypes),

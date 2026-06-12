@@ -79,7 +79,8 @@ router.use("/", copilotRouter);
     safetyRouter.post("/deploy-test", handleDeployTest);
     safetyRouter.get("/ping", (req, res) => res.json({ ok: true, ts: Date.now(), via: "safety-net" }));
     router.use("/", safetyRouter);
-    console.log("[AI routes] Safety-net generation routes registered.");
+    const logger = require("../utils/logger");
+    logger.info("http:ai", "[AI routes] Safety-net generation routes registered.");
   } catch (err) {
     const logger = require("../utils/logger");
     logger.error("ai:routes", "Failed to register safety-net generation routes", { error: err.message });
