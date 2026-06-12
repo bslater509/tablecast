@@ -3,8 +3,8 @@
 // Allows users to select an existing character sheet or create a new one.
 // =============================================================================
 import { useState, useEffect } from "react";
-import { ChevronRight, Plus, UserRound } from "lucide-react";
-import Autocomplete from "./Autocomplete";
+import { ChevronRight, UserRound, Wand2 } from "lucide-react";
+import CharacterBuilderWizard from "./CharacterBuilderWizard";
 import { useToast } from "../context/ToastContext";
 import { getJsonAuthHeaders } from "../utils/authHeaders";
 
@@ -14,12 +14,8 @@ export default function CharacterList({ user, onSelectCharacter }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Creation form state
+  // Creation wizard state
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [name, setName] = useState("");
-  const [race, setRace] = useState("");
-  const [charClass, setCharClass] = useState("");
-  const [creating, setCreating] = useState(false);
 
   const isDM = user?.role === "DM";
 
@@ -52,65 +48,6 @@ export default function CharacterList({ user, onSelectCharacter }) {
     }
   }, [user, isDM]);
 
-  // Handle character creation
-  async function handleCreate(e) {
-    e.preventDefault();
-    if (!name.trim()) return;
-
-    setCreating(true);
-    try {
-      const payload = {
-        name: name.trim(),
-        race: race.trim() || "Unknown",
-        class: charClass.trim() || "Commoner",
-        level: 1,
-        hp: 10,
-        maxHp: 10,
-        strength: 10,
-        dexterity: 10,
-        constitution: 10,
-        intelligence: 10,
-        wisdom: 10,
-        charisma: 10,
-        inventory: "[]",
-        modifiers: JSON.stringify({
-          proficiencies: [],
-          saveProficiencies: [],
-          attacks: [],
-        }),
-      };
-
-      const res = await fetch("/api/characters", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getJsonAuthHeaders(user),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to create character.");
-      }
-
-      const newChar = await res.json();
-      setCharacters((prev) => [...prev, newChar]);
-      setShowCreateForm(false);
-      setName("");
-      setRace("");
-      setCharClass("");
-      
-      // Auto select the newly created character
-      onSelectCharacter(newChar);
-    } catch (err) {
-      console.error("[CharacterList] Create error:", err);
-      addToast(err.message, "error");
-    } finally {
-      setCreating(false);
-    }
-  }
-
   return (
     <div style={styles.container} className="fade-in">
       <header style={styles.header}>
@@ -122,81 +59,23 @@ export default function CharacterList({ user, onSelectCharacter }) {
             style={styles.createBtn}
             className="touch-target btn-hover-scale"
           >
-            <Plus size={16} />
+            <Wand2 size={16} />
             <span>New Hero</span>
           </button>
         )}
       </header>
 
       {showCreateForm ? (
-        /*  CREATION FORM  */
-        <form onSubmit={handleCreate} style={styles.form} className="glass-panel gold-border-glow">
-          <h3 style={styles.formTitle}>Forge a New Hero</h3>
-          
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Hero Name</label>
-            <input
-              id="char-name-input"
-              type="text"
-              placeholder="e.g. Thorin Ironforge"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              style={styles.input}
-              className="form-input"
-              maxLength={32}
-            />
-          </div>
-
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Race</label>
-            <Autocomplete
-              id="char-race-input"
-              category="races"
-              placeholder="e.g. Mountain Dwarf, Elf, Human"
-              value={race}
-              onChange={(val) => setRace(val)}
-              onSelect={(item) => setRace(item.name)}
-              className="form-input"
-              inputStyle={styles.input}
-            />
-          </div>
-
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Class</label>
-            <Autocomplete
-              id="char-class-input"
-              category="classes"
-              placeholder="e.g. Fighter, Wizard, Rogue"
-              value={charClass}
-              onChange={(val) => setCharClass(val)}
-              onSelect={(item) => setCharClass(item.name)}
-              className="form-input"
-              inputStyle={styles.input}
-            />
-          </div>
-
-          <div style={styles.btnRow}>
-            <button
-              type="button"
-              onClick={() => setShowCreateForm(false)}
-              style={styles.cancelBtn}
-              className="touch-target btn-hover-scale"
-              disabled={creating}
-            >
-              Cancel
-            </button>
-            <button
-              id="submit-char-btn"
-              type="submit"
-              style={styles.submitBtn}
-              className="touch-target btn-hover-scale"
-              disabled={creating || !name.trim()}
-            >
-              {creating ? "Forging" : "Create Character"}
-            </button>
-          </div>
-        </form>
+        /* Character Builder Wizard */
+        <CharacterBuilderWizard
+          user={user}
+          onComplete={(newChar) => {
+            setCharacters((prev) => [...prev, newChar]);
+            setShowCreateForm(false);
+            onSelectCharacter(newChar);
+          }}
+          onCancel={() => setShowCreateForm(false)}
+        />
       ) : (
         /*  CHARACTER CARDS LIST  */
         <div style={styles.list}>

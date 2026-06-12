@@ -1,4 +1,4 @@
-# Project Context - Section 3 Complete
+# Project Context - Section 4.2 Complete
 
 ## Environment
 - Language: JavaScript (Node.js 22, React 18)
@@ -6,38 +6,32 @@
 - Test: No frontend unit tests (project pattern)
 - Package Manager: npm, Docker, Prisma 5 (SQLite)
 
-## What Was Built - Section 3: Narrative & Worldbuilding
+## What Was Built - Section 4.2: Character Builder Wizard
 
-### 3.2 In-Game Calendar & Weather
-- **Backend**: `server/src/routes/calendar.js` - GET/PUT calendar config, POST advance time, POST generate weather
-- **Storage**: Calendar config stored in AppSetting table (`calendar.config` key) as JSON
-- **Utility**: `server/src/utils/weatherGenerator.js` - Procedural D&D weather: seasons/terrain modifiers, 10 weather types, wind, temperature
-- **Socket**: `game:dateChange` event broadcast
-- **Default**: Forgotten Realms calendar (12 months: Hammer, Alturiak, Ches, etc.), year 1495
-- **MCP**: get_calendar, update_calendar, advance_calendar, generate_weather
-- **Frontend**: CalendarPanel.jsx + CalendarWidget.jsx - DM calendar config + player weather view
+### Backend Changes
+- **`server/src/routes/reference.js`**: `GET /api/reference/search` now supports `summary=false` query param. When set, returns full item data (not summarized) — needed by the wizard for complete race/class data (traits, features, proficiencies, ability bonuses, equipment).
 
-### 3.3 Quest/Journal Log
-- **Backend**: `server/src/routes/quests.js` - CRUD quests with objectives/rewards/quest chains
-- **Prisma**: Quest model (title, description, status, objectives JSON, rewards JSON, questGiverNpcId, parentQuestId, isVisibleToPlayers)
-- **MCP**: list_quests, create_quest, update_quest, delete_quest
-- **Frontend**: QuestLogPanel.jsx - DM quest CRUD with objective builder, reward config, quest chain support
+### Frontend — CharacterBuilderWizard.jsx (~960 lines)
+A 7-step guided character creation wizard with D&D 5e rules, mobile-first (44px min touch targets):
 
-### 3.4 NPC Dialogue Trees
-- **Backend**: `server/src/routes/dialogue.js` (mounted at `/api/npcs/:npcId/dialogue`) - GET/PUT tree, POST start/advance/evaluate
-- **Prisma**: Npc model has `dialogueTree` (JSON) field
-- **Utility**: `server/src/utils/dialogueEngine.js` - Tree traversal, skill check resolution, condition evaluation
-- **Socket**: dialogue:start, dialogue:advance events
-- **MCP**: get_npc_dialogue, update_npc_dialogue, start_npc_dialogue, advance_npc_dialogue
-- **Frontend**: DialogueTreePanel.jsx - DM tree builder (6 node types: SPEECH/CHOICE/CONDITION/ACTION/RANDOM/SKILL_CHECK) + player chat bubble mode
+| Step | Content |
+|------|---------|
+| **1. Name & Race** | Name input + 5etools race search → full detail via `/api/reference/detail` → racial traits, ability bonuses, speed, size, subrace selection |
+| **2. Class** | 5etools class search → full detail → hit die, proficiencies (armor/weapons/tools/saves), skill choices, level 1 features, spellcasting detection |
+| **3. Ability Scores** | Three methods: Standard Array (click-to-assign), Point Buy (27pts, 8-15 range), Rolled (4d6 drop lowest, re-roll). Racial+subrace bonuses applied. |
+| **4. Skills** | Class auto-proficiencies shown. Skill choices from `startingProficiencies.skills[{choose, from}]`. 18 D&D skills grid with limited picks. |
+| **5. Equipment** | Class starting equipment auto-loaded. 5etools item search for additional gear. Quantity adjust + remove. |
+| **6. Spells** | Only for spellcasting classes (detected via classFeatures). Cantrip/Level 1 tabs. 5etools spell search. Shows spellcasting ability, save DC, attack bonus. |
+| **7. Review & Create** | Full summary: ability scores (base+racial), skills, equipment, HP (max hit die + CON), spellcasting. Create button → POST /api/characters → navigates to sheet. |
 
-### 3.5 Player Handouts
-- **Backend**: `server/src/routes/handouts.js` - CRUD handouts with character targeting
-- **Prisma**: Handout model (title, content, imageUrl, targetCharacterIds JSON, isRead, createdByDmId)
-- **Socket**: handout:created, handout:updated, handout:deleted
-- **MCP**: list_handouts, create_handout, update_handout, delete_handout
-- **Frontend**: HandoutPanel.jsx / HandoutsPanel.jsx - DM create/assign + player read view
+**Navigation**: Progress dots, step labels, back/next buttons, step counter.
+
+### CharacterList.jsx Integration
+- Removed simple create form (name/race/class fields)
+- Imported `CharacterBuilderWizard`, shows it when "Create" is clicked
+- `onComplete` callback adds character to list + navigates to sheet
+- Button icon changed to `Wand2` icon
 
 ### Deployment
-- All endpoints verified live at 192.168.0.77:3001
-- Git commits: a4ade56 (section 3 code), 5636b0d (cleanup)
+- Client build verified (npm run build — 1802 modules, 4.61s)
+- Server syntax verified (node -c)

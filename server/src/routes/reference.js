@@ -213,7 +213,7 @@ router.post("/sync", requireDm, (req, res) => {
 // ---------------------------------------------------------------------------
 router.get("/search", async (req, res) => {
   try {
-    const { category, q, limit } = req.query;
+    const { category, q, limit, summary } = req.query;
 
     if (!category) {
       return res.status(400).json({ error: "Category query parameter is required." });
@@ -221,8 +221,13 @@ router.get("/search", async (req, res) => {
 
     const maxResults = limit ? Math.min(200, Math.max(1, Number(limit))) : 50;
     const allowedSources = await getAllowedSources();
+    // Support summary=false for full item data (used by Character Builder Wizard)
+    const searchOpts = { sources: allowedSources };
+    if (String(summary).toLowerCase() === "false") {
+      searchOpts.summary = false;
+    }
     const results = referenceSearch
-      .search(category, q || "", maxResults, { sources: allowedSources })
+      .search(category, q || "", maxResults, searchOpts)
       .map((item) => withReferenceImage(item, category));
     
     res.json(results);
