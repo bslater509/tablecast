@@ -879,36 +879,24 @@ custom splash screen.
 
 ### 6.1 AI-Triggered Dice Roll Integration
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** Bridges the two biggest mechanics — AI chat and dice rolling.
-When the Rules Scholar or NPC roleplay AI recommends a check or save, the user
-should be able to roll directly from the chat message.
+**Implementation:**
+- **Server-side detection** (`server/src/utils/diceRollDetection.js`, 187 lines):
+  - `scanTextForRollChips(text)` — regex scanning for skills, saves, ability checks, attack rolls, and DC values. Returns `[{ type, label, skill?, ability?, dc? }]`.
+  - `injectRollChips(text)` — appends chip markers with `data-dice-roll` attributes to markdown text.
+  - Integrated into `server/src/ai/chat.js`: after AI generates a reply, `scanTextForRollChips` is called and results are sent as `rollChips` SSE event (streaming) or attached to JSON response.
+  - `POST /api/ai/detect-roll-chips` endpoint for server-side scanning.
 
-**Scope:** Small
+- **Client-side rendering** (`client/src/components/chat/MessageBubble.jsx`):
+  - AI replies and NPC roleplay messages display detected roll chips as clickable button chips below the message text.
+  - Each chip shows the skill/check/save label and DC (e.g., "Perception Check (DC 15)").
+  - Clicking a chip:
+    1. Rolls 1d20 via `useDiceBox()` with the user's dice theme/color.
+    2. Posts the result to chat with DC comparison: "Perception Check: 18 vs DC 15 — ✅ Pass".
+  - `useAiChat.js`: attaches `rollChips` from AI stream response to the last assistant message object.
 
-**Detection:**
-- AI replies are scanned server-side after generation for D&D check patterns:
-  `{skill|ability|save} check`, `DC N`, `saving throw`, `attack roll`
-- Matched spans are flagged with a `data-dice-roll` attribute in the markdown output
-- Client renders a clickable chip: e.g. `[🎲 Roll Perception DC 15]` inline in the message
-
-**Dice Roll Chips:**
-- Each chip carries: `{ type, skill/ability, dc, advantage? }`
-- Clicking the chip:
-  1. Sends `/roll 1d20+{modifier}` (modifier pulled from active character sheet)
-  2. Dice box animates the roll
-  3. Result posted to chat with DC comparison: "✅ Success (18 vs DC 15)" or "❌ Fail (9 vs DC 15)"
-- DMs get an extra "Roll for monster/NPC" variant using NPC stats if in NPC roleplay
-
-**Refinements:**
-- Advantage/disadvantage detection: AI says "with advantage" or "at disadvantage"
-- Critical success/failure callout for natural 20/1
-- Auto-damage roll for attacks: "make a melee attack (1d8+3 slashing)"
-- Configurable: toggle auto-detection on/off per conversation
-
-**Depends on:** Server-side regex/pattern scanning in chat handler, `data-dice-roll`
-attribute convention, DiceBoxContext integration, CharacterSheet modifier lookup
+**Known Limitation:** Current implementation rolls a flat 1d20 without pulling the character sheet modifier. Modifier lookup requires the roll chip to know which character is active and which skill/ability modifier to apply — pending future enhancement.
 
 ---
 

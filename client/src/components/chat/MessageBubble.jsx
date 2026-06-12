@@ -3,13 +3,15 @@
 // Renders a single chat message with WhatsApp-style layout: roll cards,
 // AI scholar messages, NPC roleplay, system notices, and plain text.
 // =============================================================================
-import { useState } from "react";
-import { Sparkles, Volume2, VolumeX } from "lucide-react";
+import { useState, useCallback, useRef } from "react";
+import { Sparkles, Volume2, VolumeX, Loader2 } from "lucide-react";
 import { compileMarkdown } from "../../utils/markdown";
 import AiStreamingIndicator from "../AiStreamingIndicator";
 import CopyButton from "./CopyButton";
 import { speak, stop, init, isSpeaking, getVoiceForNpc } from "../../utils/ttsManager";
 import { formatTime, getSenderColor } from "./chatUtils";
+import { useDiceBox } from "../../context/DiceBoxContext";
+import { useSocket } from "../../context/SocketContext";
 
 /** Parse explicit [roll:formula] inline syntax from message text */
 function parseDiceRolls(text) {
@@ -23,6 +25,9 @@ function parseDiceRolls(text) {
 }
 
 export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, status, npcs }) {
+  const { rollDice } = useDiceBox();
+  const { socket } = useSocket();
+  const [rollingChip, setRollingChip] = useState(null);
   const [copiedRollIndex, setCopiedRollIndex] = useState(null);
   const msgTime = formatTime(msg.timestamp);
   const isRoll = msg.type === "roll" && msg.rollDetails;
@@ -65,6 +70,106 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
             >
               <Sparkles size={12} />
               {isCopied ? "Copied!" : `Roll ${roll.formula}`}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  /** Handle clicking an AI roll chip — rolls 1d20 and sends result to chat */
+  const handleAiRollChip = useCallback(async (chip) => {
+    if (rollingChip) return;
+    setRollingChip(chip.label);
+    try {
+      const result = await rollDice(["1d20"], {
+        theme: msg.diceTheme || "default",
+        color: msg.diceColor || "#7c3aed",
+      });
+      const rawTotal = result.total;
+      let chipText = `${chip.label}`;
+      if (chip.dc) {
+        const passed = rawTotal >= chip.dc;
+        chipText += `: ${rawTotal} vs DC ${chip.dc} — ${passed ? "✅ Pass" : "❌ Fail"}`;
+      } else {
+        chipText += `: ${rawTotal}`;
+      }
+      if (socket) {
+        socket.emit("chat:send", {
+          userId: msg.userId || null,
+          sender: msg.sender || "System",
+          text: `🎲 ${chipText}`,
+          type: "roll",
+          rollDetails: {
+            rollName: chip.label,
+            formula: "1d20",
+            rolls: result.allRolls,
+            modifier: 0,
+            total: rawTotal,
+            isAttack: chip.type === "attack",
+            status: "rolled",
+            diceTheme: msg.diceTheme || "default",
+            diceColor: msg.diceColor || "#7c3aed",
+          },
+        });
+      }
+    } catch (err) {
+      console.error("[MessageBubble] rollDice failed:", err);
+      if (socket) {
+        socket.emit("chat:send", {
+          userId: msg.userId || null,
+          sender: msg.sender || "System",
+          text: `🎲 ${chip.label} — Roll failed: ${err.message}`,
+          type: "system",
+        });
+      }
+    } finally {
+      setRollingChip(null);
+    }
+  }, [rollDice, socket, msg, rollingChip]);
+
+  /** Render AI roll chips from msg.rollChips array */
+  function renderAiRollChips(chips) {
+    if (!chips || chips.length === 0) return null;
+    return (
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+        {chips.map((chip, i) => {
+          const isLoading = rollingChip === chip.label;
+          return (
+            <button
+              key={i}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAiRollChip(chip);
+              }}
+              disabled={!!rollingChip}
+              className="touch-target btn-hover-scale"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                padding: "0.25rem 0.7rem",
+                background: isLoading
+                  ? "rgba(200,151,58,0.2)"
+                  : "rgba(200,151,58,0.1)",
+                border: isLoading
+                  ? "1px solid rgba(200,151,58,0.5)"
+                  : "1px solid rgba(200,151,58,0.25)",
+                borderRadius: "999px",
+                fontSize: "0.75rem",
+                color: "var(--color-accent)",
+                cursor: rollingChip ? "not-allowed" : "pointer",
+                opacity: rollingChip && !isLoading ? 0.5 : 1,
+                transition: "all 0.15s",
+              }}
+              title={chip.dc ? `${chip.label} (DC ${chip.dc})` : chip.label}
+            >
+              {isLoading ? (
+                <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} />
+              ) : (
+                <Sparkles size={12} />
+              )}
+              {chip.label}{chip.dc ? ` (DC ${chip.dc})` : ""}
             </button>
           );
         })}
@@ -329,6 +434,7 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
           dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
         />
         {renderRollChips(msg.text)}
+        {renderAiRollChips(msg.rollChips)}
         {msg.text === "_Thinking…" && (
           <AiStreamingIndicator text="Thinking" />
         )}
@@ -416,6 +522,7 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
           dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
         />
         {renderRollChips(msg.text)}
+        {renderAiRollChips(msg.rollChips)}
         <div className="bubble-tail" />
       </div>
     );
@@ -423,3 +530,5 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
 
   return null;
 }
+
+
