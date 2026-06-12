@@ -1,7 +1,7 @@
 // =============================================================================
 // Tablecast — AI Generation Route Handlers
 // Extracted handler functions for NPC, character, monster generation,
-// session tools, text expansion, and interview routes.
+// session tools, text expansion, and interview routes (v2).
 // =============================================================================
 "use strict";
 

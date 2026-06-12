@@ -1,6 +1,6 @@
 // =============================================================================
 // Tablecast — AI Generation Routes
-// NPC, character, monster generation, session tools, text expansion, interview
+// NPC, character, monster generation, session tools, text expansion, interview (v2)
 // =============================================================================
 "use strict";
 
