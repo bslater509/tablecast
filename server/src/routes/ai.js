@@ -16,6 +16,7 @@ const helpers = require("../ai/helpers");
 const router = Router();
 
 // Mount sub-modules — each defines its own route paths under /api/ai
+router.get("/router-test", (req, res) => res.json({ ok: true, from: "routes/ai.js" }));
 router.use("/", settingsRouter);
 router.use("/", generationRouter);
 router.use("/", chatRouter);
