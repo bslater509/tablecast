@@ -1266,6 +1266,85 @@ export default function WikiPanel({ user, isPopout = false }) {
                   />
                 </div>
               )}
+              {showNpcPhrases && (
+                <div style={{
+                  background: "rgba(124,58,237,0.05)",
+                  border: "1px solid rgba(124,58,237,0.15)",
+                  borderRadius: "8px",
+                  padding: "0.75rem",
+                  marginTop: "0.5rem",
+                  marginBottom: "0.5rem",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                    <h4 style={{ margin: 0, fontSize: "0.85rem", color: "#a78bfa" }}>🎭 Generated Phrases</h4>
+                    <button
+                      onClick={() => setShowNpcPhrases(false)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "var(--color-muted)",
+                        cursor: "pointer",
+                        fontSize: "0.75rem",
+                        padding: "0.2rem 0.4rem",
+                      }}
+                      className="touch-target"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {phrasesLoading ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-muted)", fontSize: "0.8rem" }}>
+                      <span className="spinner" />
+                      Generating phrases...
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+                      {npcPhrases.map((phrase, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.3rem",
+                            background: "rgba(124,58,237,0.1)",
+                            border: "1px solid rgba(124,58,237,0.2)",
+                            borderRadius: "6px",
+                            padding: "0.3rem 0.5rem",
+                            fontSize: "0.75rem",
+                            color: "var(--color-text)",
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>"{phrase}"</span>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(phrase);
+                                setPhrasesCopiedIndex(idx);
+                                setTimeout(() => setPhrasesCopiedIndex(null), 2000);
+                              } catch (e) {
+                                addToast("Failed to copy", "error");
+                              }
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: phrasesCopiedIndex === idx ? "var(--color-success)" : "var(--color-muted)",
+                              cursor: "pointer",
+                              fontSize: "0.65rem",
+                              padding: "0.1rem 0.2rem",
+                              flexShrink: 0,
+                            }}
+                            className="touch-target"
+                            title="Copy to clipboard"
+                          >
+                            {phrasesCopiedIndex === idx ? "✅" : "📋"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={styles.npcBioDetails}>
                 {selectedArticle.alignment && (
                   <div style={styles.npcBioSection}>

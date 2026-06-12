@@ -21,7 +21,7 @@ import {
   Map as MapIcon,
   MessageCircle,
   PenLine,
-  Route,
+  Route as RouteIcon,
   ScrollText,
   Settings,
   ShoppingCart,
@@ -253,7 +253,7 @@ const DM_NAV_ITEMS = [
     label: "Travel Montage",
     mobileLabel: "Travel",
     path: "/dm/travel",
-    icon: Route,
+    icon: RouteIcon,
   },
   {
     id: "importer",
