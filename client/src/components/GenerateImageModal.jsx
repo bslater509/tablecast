@@ -9,7 +9,7 @@ import { useState, useEffect } from "react";
 import { Sparkles, Loader2, X, Check } from "lucide-react";
 
 // ---------------------------------------------------------------------------
-// Style mapping per task requirements
+// Style options mapping per task requirements
 // ---------------------------------------------------------------------------
 const STYLE_OPTIONS = [
   { value: "", label: "None" },
@@ -25,13 +25,10 @@ const STYLE_OPTIONS = [
 // ---------------------------------------------------------------------------
 export default function GenerateImageModal({
   show,
-  isOpen,
   onClose,
   onAccept,
   defaultPrompt = "",
   authHeaders = {},
-  entityType,
-  entityName,
 }) {
   const [promptText, setPromptText] = useState("");
   const [selectedStyle, setSelectedStyle] = useState("");
@@ -41,14 +38,14 @@ export default function GenerateImageModal({
 
   // Reset state when the modal opens
   useEffect(() => {
-    if (show || isOpen) {
+    if (show) {
       setPromptText(defaultPrompt);
       setSelectedStyle("");
       setLoading(false);
       setError(null);
       setGeneratedUrl(null);
     }
-  }, [show, isOpen, defaultPrompt]);
+  }, [show, defaultPrompt]);
 
   // Handle image generation
   const handleGenerate = async () => {
@@ -105,7 +102,7 @@ export default function GenerateImageModal({
     }
   };
 
-  if (!show && !isOpen) return null;
+  if (!show) return null;
 
   // ===========================================================================
   // Styles
