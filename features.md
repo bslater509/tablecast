@@ -569,7 +569,7 @@ frontend component, socket event for new-handout notification
 
 ### 4.1 Drag & Drop Map Upload
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** Current map upload requires navigating to Settings → upload
 dialog. A drag-and-drop zone directly on the MapPanel would be much faster.

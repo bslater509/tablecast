@@ -151,6 +151,39 @@ router.post("/", requireDm, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// PATCH /api/maps/:id  Update a map (gridSize, name, etc.)
+// Body: { name?, gridSize?, gridType?, walls? }
+// ---------------------------------------------------------------------------
+router.patch("/:id", requireDm, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "id must be a valid number." });
+    }
+
+    const data = {};
+    if (req.body.name !== undefined) data.name = String(req.body.name).trim();
+    if (req.body.gridSize !== undefined) data.gridSize = Math.max(20, Math.min(200, Number(req.body.gridSize)));
+    if (req.body.gridType !== undefined) data.gridType = req.body.gridType;
+    if (req.body.walls !== undefined) data.walls = req.body.walls;
+    if (req.body.fogState !== undefined) data.fogState = req.body.fogState;
+
+    const updated = await prisma.map.update({
+      where: { id },
+      data,
+    });
+
+    res.json(updated);
+  } catch (err) {
+    if (err.code === "P2025") {
+      return res.status(404).json({ error: "Map not found." });
+    }
+    logger.error("api:route", "Error in PATCH /api/maps/:id", { error: err.message });
+    res.status(500).json({ error: "Failed to update map." });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // DELETE /api/maps/:id  Delete a map
 // ---------------------------------------------------------------------------
 router.delete("/:id", requireDm, async (req, res) => {

@@ -151,7 +151,33 @@ export default function MapPanel({ user, isPopout = false }) {
       )}
 
       {/* Main Grid/Map Arena Workspace */}
-      <div ref={D.containerRef} style={styles.vttWorkspace} className="glass-panel gold-border-glow">
+      <div
+        ref={D.containerRef}
+        style={styles.vttWorkspace}
+        className="glass-panel gold-border-glow"
+        onDragOver={D.handleDragOver}
+        onDragLeave={D.handleDragLeave}
+        onDrop={D.handleDrop}
+      >
+        {/* Drop zone overlay */}
+        {(D.isDragOver || D.isDropProcessing) && (
+          <div style={styles.dropZoneOverlay} className="glass-panel">
+            <div style={styles.dropZoneContent}>
+              <div style={styles.dropZoneIcon}>
+                {D.isDropProcessing ? "⏳" : "📁"}
+              </div>
+              <div style={styles.dropZoneText}>
+                {D.isDropProcessing
+                  ? "Uploading map image..."
+                  : "Drop image to create new map"
+                }
+              </div>
+              <div style={styles.dropZoneHint}>
+                {!D.isDropProcessing && "PNG, JPEG, WEBP, GIF — up to 10MB"}
+              </div>
+            </div>
+          </div>
+        )}
         <MapCanvas
           canvasRef={D.canvasRef}
           containerRef={D.containerRef}
@@ -413,6 +439,13 @@ export default function MapPanel({ user, isPopout = false }) {
         handleApplyEncounterResult={D.handleApplyEncounterResult}
         setShowAddMapModal={D.setShowAddMapModal}
         setShowAddTokenModal={D.setShowAddTokenModal}
+        showGridSizePrompt={D.showGridSizePrompt}
+        setShowGridSizePrompt={D.setShowGridSizePrompt}
+        newDropGridSize={D.newDropGridSize}
+        setNewDropGridSize={D.setNewDropGridSize}
+        pendingMapId={D.pendingMapId}
+        handleConfirmGridSize={D.handleConfirmGridSize}
+        handleCancelGridSize={D.handleCancelGridSize}
         styles={styles}
       />
     </div>
@@ -687,6 +720,41 @@ const styles = {
     fontSize: "0.75rem",
     padding: "0.35rem",
     cursor: "pointer",
+  },
+  dropZoneOverlay: {
+    position: "absolute",
+    inset: 0,
+    zIndex: 200,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "rgba(0, 0, 0, 0.6)",
+    backdropFilter: "blur(4px)",
+    borderRadius: "7px",
+  },
+  dropZoneContent: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "0.75rem",
+    padding: "2rem",
+    borderRadius: "12px",
+    border: "2px dashed var(--color-accent)",
+    background: "rgba(200, 151, 58, 0.08)",
+  },
+  dropZoneIcon: {
+    fontSize: "2.5rem",
+  },
+  dropZoneText: {
+    fontSize: "1.05rem",
+    fontWeight: 700,
+    color: "var(--color-accent)",
+    textAlign: "center",
+  },
+  dropZoneHint: {
+    fontSize: "0.8rem",
+    color: "var(--color-muted)",
+    textAlign: "center",
   },
   modalOverlay: {
     position: "fixed",

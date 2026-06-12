@@ -97,6 +97,13 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
   const [newMapGridSize, setNewMapGridSize] = useState(50);
   const [newMapFile, setNewMapFile] = useState(null);
   const [newMapImagePath, setNewMapImagePath] = useState("");
+
+  // Drag & Drop map upload
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isDropProcessing, setIsDropProcessing] = useState(false);
+  const [showGridSizePrompt, setShowGridSizePrompt] = useState(false);
+  const [pendingMapId, setPendingMapId] = useState(null);
+  const [newDropGridSize, setNewDropGridSize] = useState(50);
   const [newTokenLabel, setNewTokenLabel] = useState("");
   const [newTokenCharacterId, setNewTokenCharacterId] = useState("");
   const [newTokenImageUrl, setNewTokenImageUrl] = useState("");
@@ -423,6 +430,124 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     setNewMapFile(null);
     setNewMapImagePath("");
     setLoadError(null);
+  };
+
+  // -- Drag & Drop map upload --
+  const VALID_DROP_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isDropProcessing) return;
+    const hasImage = Array.from(e.dataTransfer.types).some(
+      (t) => t === "Files" || VALID_DROP_TYPES.includes(t)
+    );
+    if (hasImage) {
+      e.dataTransfer.dropEffect = "copy";
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    if (isDropProcessing) return;
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    if (!VALID_DROP_TYPES.includes(file.type)) {
+      addToast("Unsupported file format. Please use PNG, JPEG, WEBP, or GIF.", "warning");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      addToast("Image too large. Maximum size is 10MB.", "warning");
+      return;
+    }
+
+    setIsDropProcessing(true);
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsDataURL(file);
+      });
+
+      // Auto-name: use filename without extension
+      const name = file.name.replace(/\.[^/.]+$/, "").trim() || "Dropped Map";
+
+      const res = await fetch("/api/maps", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({
+          name,
+          gridSize: 50,
+          gridType: "SQUARE",
+          imageData: base64,
+        }),
+      });
+
+      if (res.ok) {
+        const map = await res.json();
+        setPendingMapId(map.id);
+        setNewDropGridSize(50);
+        setShowGridSizePrompt(true);
+        addToast("Map uploaded! Set the grid size below.", "success");
+      } else {
+        const errData = await res.json().catch(() => ({ error: "Failed to create map." }));
+        addToast(errData.error || "Failed to upload map.", "error");
+      }
+    } catch (err) {
+      addToast("Failed to upload dropped image.", "error");
+    } finally {
+      setIsDropProcessing(false);
+    }
+  };
+
+  const handleConfirmGridSize = async () => {
+    if (!pendingMapId) return;
+    const gridSize = Math.max(20, Math.min(200, newDropGridSize));
+    try {
+      const res = await fetch(`/api/maps/${pendingMapId}`, {
+        method: "PATCH",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ gridSize }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to update grid size.");
+      }
+      setShowGridSizePrompt(false);
+      await loadMaps(pendingMapId);
+      if (isDM && socket && isConnected) {
+        socket.emit("map:select", withUser({ mapId: pendingMapId }));
+      }
+      setPendingMapId(null);
+      addToast(`Map created with ${gridSize}px grid.`, "success");
+    } catch (err) {
+      addToast("Failed to set grid size. Map created with default 50px grid.", "warning");
+      setPendingMapId(null);
+      setShowGridSizePrompt(false);
+      // Still try to select the map
+      await loadMaps(pendingMapId);
+      if (isDM && socket && isConnected) {
+        socket.emit("map:select", withUser({ mapId: pendingMapId }));
+      }
+    }
+  };
+
+  const handleCancelGridSize = () => {
+    setShowGridSizePrompt(false);
+    setPendingMapId(null);
+    // Map was already created, it will just use the default 50px grid
   };
 
   const handleCreateMap = async (e) => {
@@ -1026,6 +1151,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     showLighting,
     isPanning, panStart, dragState,
     showAddMapModal, showAddTokenModal,
+    isDragOver, isDropProcessing, showGridSizePrompt, pendingMapId, newDropGridSize,
     newMapName, newMapGridSize, newMapFile, newMapImagePath,
     newTokenLabel, newTokenCharacterId, newTokenNpcId, newTokenMonsterId,
     newTokenImageUrl, newTokenIsMonster, newTokenStats, tokenType,
@@ -1054,6 +1180,7 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     setShowLighting,
     setIsPanning, setPanStart, setDragState,
     setShowAddMapModal, setShowAddTokenModal,
+    setIsDragOver, setShowGridSizePrompt, setPendingMapId, setNewDropGridSize,
     setNewMapName, setNewMapGridSize, setNewMapFile, setNewMapImagePath,
     setNewTokenLabel, setNewTokenCharacterId, setNewTokenNpcId, setNewTokenMonsterId,
     setNewTokenImageUrl, setNewTokenIsMonster, setNewTokenStats, setTokenType,
@@ -1071,6 +1198,8 @@ export default function useMapData({ user, isPopout, socket, isConnected, addToa
     handleNpcRoll, handleMonsterRoll,
     handleRulerClick, handleRulerUndo, handleRulerClear,
     handleUndoFog, handleClearFog, handleFinishFogPolygon,
+    handleDragOver, handleDragLeave, handleDrop,
+    handleConfirmGridSize, handleCancelGridSize,
     handleBuildEncounter, handleApplyEncounterResult, handleGenerateEncounterName,
   };
 }

@@ -66,6 +66,13 @@ export default function MapModals({
   handleApplyEncounterResult,
   setShowAddMapModal,
   setShowAddTokenModal,
+  showGridSizePrompt,
+  setShowGridSizePrompt,
+  newDropGridSize,
+  setNewDropGridSize,
+  pendingMapId,
+  handleConfirmGridSize,
+  handleCancelGridSize,
   styles,
 }) {
   return (
@@ -148,6 +155,48 @@ export default function MapModals({
                 </button>
                 <button type="submit" style={styles.btnSubmit} className="touch-target btn-hover-scale" disabled={!newMapName.trim() || isCreatingMap}>
                   {isCreatingMap ? "Creating..." : "Create Map"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: GRID SIZE PROMPT (after drag & drop upload) */}
+      {showGridSizePrompt && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard} className="glass-panel gold-border-glow">
+            <h3 style={styles.modalTitle}> Set Map Grid Size</h3>
+            <p style={{ fontSize: "0.8rem", color: "var(--color-muted)", margin: 0 }}>
+              Map uploaded successfully! Choose the grid cell size for this map.
+            </p>
+            <form
+              onSubmit={(e) => { e.preventDefault(); handleConfirmGridSize(); }}
+              style={styles.form}
+            >
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Grid cell size (pixels)</label>
+                <input
+                  type="number"
+                  value={newDropGridSize}
+                  onChange={(e) => setNewDropGridSize(Number(e.target.value))}
+                  style={styles.input}
+                  className="form-input"
+                  min={20}
+                  max={200}
+                  required
+                  autoFocus
+                />
+                <span style={{ fontSize: "0.7rem", color: "var(--color-muted)", marginTop: "0.15rem" }}>
+                  Common values: 50 (standard), 70 (large), 100 (cinematic)
+                </span>
+              </div>
+              <div style={styles.modalActions}>
+                <button type="button" onClick={handleCancelGridSize} style={styles.btnCancel} className="touch-target">
+                  Use Default (50px)
+                </button>
+                <button type="submit" style={styles.btnSubmit} className="touch-target btn-hover-scale">
+                  Set Grid Size
                 </button>
               </div>
             </form>
