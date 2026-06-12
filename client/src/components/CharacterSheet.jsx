@@ -172,6 +172,21 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
   // Fetch character details from backend on mount/ID change
   useEffect(() => {
+    function safeJsonParse(val, fallback) {
+      if (!val) return fallback;
+      let parsed = val;
+      try {
+        while (typeof parsed === "string") {
+          const next = JSON.parse(parsed);
+          if (typeof next === "string" && next === parsed) break;
+          parsed = next;
+        }
+        return parsed || fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
     async function loadCharacter() {
       setLoading(true);
       setError(null);
@@ -180,36 +195,20 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           headers: getJsonAuthHeaders(user),
         });
         if (!res.ok) {
-          throw new Error("Failed to load character sheet.");
+          throw new Error(res.status === 404 ? "Character not found." : "Failed to load character.");
         }
         const data = await res.json();
 
-        // Parse inventory and modifiers JSON blobs
-        let parsedInventory = [];
-        let parsedModifiers = { proficiencies: [], saveProficiencies: [], attacks: [] };
+        // Parse JSON blob fields robustly
+        const parsedInventory = Array.isArray(data.inventory) ? data.inventory : safeJsonParse(data.inventory, []);
+        const parsedModifiers = typeof data.modifiers === "object" && data.modifiers !== null ? data.modifiers : safeJsonParse(data.modifiers, {
+          proficiencies: [],
+          saveProficiencies: [],
+          attacks: getDefaultAttacks(),
+        });
+        const parsedSpellSlots = typeof data.spellSlots === "object" && data.spellSlots !== null ? data.spellSlots : safeJsonParse(data.spellSlots, {});
+        const parsedSpells = Array.isArray(data.spells) ? data.spells : safeJsonParse(data.spells, []);
 
-        try {
-          parsedInventory = JSON.parse(data.inventory || "[]");
-        } catch (e) {}
-
-        try {
-          const modObject = JSON.parse(data.modifiers || "{}");
-          parsedModifiers = {
-            proficiencies: modObject.proficiencies || [],
-            saveProficiencies: modObject.saveProficiencies || [],
-            attacks: modObject.attacks || getDefaultAttacks(),
-          };
-        } catch (e) {}
-
-        // Parse spell JSON blobs
-        let parsedSpellSlots = {};
-        let parsedSpells = [];
-        try {
-          parsedSpellSlots = JSON.parse(data.spellSlots || "{}");
-        } catch (e) {}
-        try {
-          parsedSpells = JSON.parse(data.spells || "[]");
-        } catch (e) {}
         setSpellSlots(parsedSpellSlots);
         setSpells(parsedSpells);
         setSpellcastingAbility(data.spellcastingAbility || "");
