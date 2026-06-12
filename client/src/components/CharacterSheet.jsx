@@ -1649,17 +1649,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
         </div>
       </section>
 
-      <section style={styles.narrativeSection} className="glass-panel">
-        <BioTabs
-          character={character}
-          onUpdate={(field, value) => { setCharacter((prev) => ({ ...prev, [field]: value })); handleFieldChange(field, value); }}
-          onError={setError}
-          user={user}
-          styles={styles}
-        />
-      </section>
-
-      {/* Internal Tabs (Stats, Skills, Attacks, Inventory) */}
+      {/* Internal Tabs (Stats, Skills, Attacks, Inventory, Bio) */}
       <nav style={styles.tabNav}>
         {[
           { key: "stats", label: "Stats", Icon: Brain },
@@ -1667,6 +1657,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           { key: "attacks", label: "Attacks", Icon: Swords },
           { key: "inventory", label: "Items", Icon: Backpack },
           { key: "spells", label: "Spells", Icon: BookOpen },
+          { key: "bio", label: "Bio", Icon: UserRound },
         ].map(({ key, label, Icon }) => (
           <button
             key={key}
@@ -1770,6 +1761,19 @@ export default function CharacterSheet({ characterId, onBack, user }) {
             onSpellAttack={handleSpellAttack}
             onEnrichSpell={handleEnrichSpell}
           />
+        )}
+
+        {/*  BIO TAB  */}
+        {sheetTab === "bio" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", paddingBottom: "1rem" }}>
+            <BioTabs
+              character={character}
+              onUpdate={(field, value) => { setCharacter((prev) => ({ ...prev, [field]: value })); handleFieldChange(field, value); }}
+              onError={setError}
+              user={user}
+              styles={styles}
+            />
+          </div>
         )}
 
       </div>

@@ -248,11 +248,13 @@ const styles = {
 
   tabNav: {
     display: "flex",
-    justifyContent: "space-around",
+    justifyContent: "flex-start",
     gap: "0.25rem",
     padding: "0.25rem 0.35rem",
     borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
     flexShrink: 0,
+    overflowX: "auto",
+    WebkitOverflowScrolling: "touch",
   },
   tabBtn: {
     background: "transparent",
@@ -268,7 +270,8 @@ const styles = {
     gap: "0.2rem",
     borderRadius: "8px",
     transition: "all 0.2s ease",
-    minWidth: "52px",
+    minWidth: "56px",
+    flex: "1 0 auto",
   },
   tabBtnActive: {
     background: "var(--color-accent-dim)",
