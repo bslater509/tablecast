@@ -11,13 +11,66 @@ import CopyButton from "./CopyButton";
 import { speak, stop, init, isSpeaking, getVoiceForNpc } from "../../utils/ttsManager";
 import { formatTime, getSenderColor } from "./chatUtils";
 
+/** Parse explicit [roll:formula] inline syntax from message text */
+function parseDiceRolls(text) {
+  const pattern = /\[roll:([^\]]+)\]/g;
+  const matches = [];
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    matches.push({ formula: match[1].trim() });
+  }
+  return matches;
+}
+
 export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, status, npcs }) {
+  const [copiedRollIndex, setCopiedRollIndex] = useState(null);
   const msgTime = formatTime(msg.timestamp);
   const isRoll = msg.type === "roll" && msg.rollDetails;
   const isAi = msg.sender === "D&D AI Assistant";
   const isNpc = msg.type === "npc";
   const isSystem = msg.type === "system" && msg.sender === "System";
   const isPlain = !isRoll && !isAi && !isNpc && !isSystem;
+
+  /** Render clickable dice roll chips from [roll:X] patterns in AI/NPC messages */
+  function renderRollChips(text) {
+    const rolls = parseDiceRolls(text);
+    if (rolls.length === 0) return null;
+    return (
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+        {rolls.map((roll, i) => {
+          const key = `${roll.formula}-${i}`;
+          const isCopied = copiedRollIndex === key;
+          return (
+            <button
+              key={i}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(`/roll ${roll.formula}`).catch(() => {});
+                setCopiedRollIndex(key);
+                setTimeout(() => setCopiedRollIndex(null), 2000);
+              }}
+              className="touch-target btn-hover-scale"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                padding: "0.2rem 0.6rem",
+                background: "rgba(124,58,237,0.15)",
+                border: "1px solid rgba(124,58,237,0.3)",
+                borderRadius: "999px",
+                fontSize: "0.75rem",
+                color: "var(--color-primary)",
+                cursor: "pointer",
+              }}
+            >
+              <Sparkles size={12} />
+              {isCopied ? "Copied!" : `Roll ${roll.formula}`}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   // System messages: centered, no bubble
   if (isSystem) {
@@ -236,6 +289,7 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
           </div>
         )}
 
+        {renderRollChips(msg.text)}
         {/* Tail */}
         <div className="bubble-tail" />
       </div>
@@ -274,7 +328,8 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
           style={{ fontSize: "0.9rem", color: "var(--color-text)", lineHeight: 1.45 }}
           dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
         />
-        {msg.text === "_Thinking\u2026" && (
+        {renderRollChips(msg.text)}
+        {msg.text === "_Thinking…" && (
           <AiStreamingIndicator text="Thinking" />
         )}
         <div className="bubble-tail" />
@@ -360,6 +415,7 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
           style={{ fontSize: "0.9rem", color: "var(--color-text)", fontFamily: "Georgia, serif", fontStyle: "italic", lineHeight: 1.5 }}
           dangerouslySetInnerHTML={{ __html: compileMarkdown(msg.text) }}
         />
+        {renderRollChips(msg.text)}
         <div className="bubble-tail" />
       </div>
     );

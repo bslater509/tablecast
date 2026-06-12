@@ -71,6 +71,7 @@ export async function streamAiChat({
   let buffer = "";
   let fullText = "";
   let receivedToken = false;
+  let rollChips = null;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -96,6 +97,8 @@ export async function streamAiChat({
         receivedToken = true;
         fullText += event.text;
         onToken(event.text);
+      } else if (event.type === "rollChips" && event.chips) {
+        rollChips = event.chips;
       } else if (event.type === "error") {
         throw new Error(event.message || "Failed to query AI assistant.");
       }
@@ -107,7 +110,7 @@ export async function streamAiChat({
     throw new Error("AI returned an empty response.");
   }
 
-  return { text: fullText, conversationId: opts.conversationId };
+  return { text: fullText, rollChips };
 }
 
 /**

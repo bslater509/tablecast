@@ -143,6 +143,18 @@ export function useAiChat({
         if (result?.conversationId) {
           setConversationId(result.conversationId);
         }
+
+        // Attach rollChips to the last assistant message if present
+        if (result?.rollChips && result.rollChips.length > 0) {
+          setMessages((prev) => {
+            const copy = [...prev];
+            const last = copy[copy.length - 1];
+            if (last && last.role === "assistant") {
+              copy[copy.length - 1] = { ...last, rollChips: result.rollChips };
+            }
+            return copy;
+          });
+        }
       } catch (err) {
         if (err.name === "AbortError" || !mountedRef.current || cancelledRef.current) return;
 

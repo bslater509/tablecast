@@ -13,6 +13,7 @@ const {
   findRelevantRules, buildNpcRoleplaySystemPrompt,
   beginSseResponse, writeSseEvent
 } = require("./helpers");
+const { scanTextForRollChips } = require("../utils/diceRollDetection");
 
 const router = Router();
 
@@ -135,6 +136,12 @@ Keep your responses concise, readable, and structured in Markdown.`;
           }
         }
 
+        // Scan for dice roll chips in the completed response
+        const rollChips = scanTextForRollChips(fullResponse);
+        if (rollChips.length > 0) {
+          writeSseEvent(res, { type: "rollChips", chips: rollChips });
+        }
+
         writeSseEvent(res, { type: "done" });
       } catch (streamErr) {
         if (streamErr.name === "AbortError") {
@@ -175,7 +182,9 @@ Keep your responses concise, readable, and structured in Markdown.`;
       }
     }
 
-    res.json({ reply, context: referenceContext, conversationId: conversationId || null });
+    const rollChips = scanTextForRollChips(reply);
+
+    res.json({ reply, context: referenceContext, conversationId: conversationId || null, rollChips: rollChips.length > 0 ? rollChips : undefined });
   } catch (err) {
     logger.error("ai:chat", "Chat operation failed", { error: err.message });
     if (res.headersSent) {

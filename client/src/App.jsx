@@ -10,18 +10,23 @@ import {
   BookOpen,
   Box,
   CalendarDays,
+  Compass,
   Database,
   ExternalLink,
+  Eye,
   FileText,
   Headphones,
   Layers,
   LogOut,
   Map as MapIcon,
   MessageCircle,
+  PenLine,
+  Route,
   ScrollText,
   Settings,
   ShoppingCart,
   SlidersHorizontal,
+  Sparkles,
   Swords,
   Users,
   Wallet,
@@ -53,6 +58,10 @@ import DialogueTreePanel from "./components/DialogueTreePanel";
 import HomebrewManager from "./components/HomebrewManager";
 import EncounterTemplatesPanel from "./components/EncounterTemplatesPanel";
 import LootGeneratorPanel from "./components/LootGeneratorPanel";
+import QuestHookGenerator from "./components/QuestHookGenerator";
+import NameGenerator from "./components/NameGenerator";
+import DescriptionGenerator from "./components/DescriptionGenerator";
+import TravelGenerator from "./components/TravelGenerator";
 import CampaignDashboard from "./components/CampaignDashboard";
 import { useSocket } from "./context/SocketContext";
 import { useToast } from "./context/ToastContext";
@@ -219,18 +228,39 @@ const DM_NAV_ITEMS = [
     icon: Database,
   },
   {
+    id: "quest-hooks",
+    label: "Quest Hooks",
+    mobileLabel: "Hooks",
+    path: "/dm/quest-hooks",
+    icon: Compass,
+  },
+  {
+    id: "name-generator",
+    label: "Name Generator",
+    mobileLabel: "Names",
+    path: "/dm/name-generator",
+    icon: Sparkles,
+  },
+  {
+    id: "desc-gen",
+    label: "Description Gen.",
+    mobileLabel: "Describe",
+    path: "/dm/desc-gen",
+    icon: PenLine,
+  },
+  {
+    id: "travel",
+    label: "Travel Montage",
+    mobileLabel: "Travel",
+    path: "/dm/travel",
+    icon: Route,
+  },
+  {
     id: "importer",
     label: "5etools Importer",
     mobileLabel: "Import",
     path: "/dm/importer",
     icon: Database,
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    mobileLabel: "Settings",
-    path: "/dm/settings",
-    icon: Settings,
   },
 ];
 
@@ -1313,7 +1343,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const location = useLocation();
 
   const pathParts = location.pathname.split("/");
-  const currentTab = ["dashboard", "map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "encounter-templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop", "loot"].includes(pathParts[2])
+  const currentTab = ["dashboard", "map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "encounter-templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop", "loot", "name-generator", "quest-hooks", "desc-gen", "travel"].includes(pathParts[2])
     ? pathParts[2]
     : "dashboard";
 
@@ -1440,6 +1470,10 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="chat-journal/:subtab" element={<Navigate to="/dm/messages" replace />} />
             <Route path="party" element={<PartyVaultPanel user={user} />} />
             <Route path="loot" element={<LootGeneratorPanel user={user} />} />
+            <Route path="quest-hooks" element={<QuestHookGenerator user={user} />} />
+            <Route path="name-generator" element={<NameGenerator user={user} />} />
+            <Route path="desc-gen" element={<DescriptionGenerator user={user} />} />
+            <Route path="travel" element={<TravelGenerator user={user} />} />
             <Route path="shop" element={<ShopPanel user={user} addToast={addToast} />} />
             <Route path="importer" element={<ImporterPanel user={user} />} />
             <Route path="soundboard" element={<SoundboardPanel user={user} />} />

@@ -16,6 +16,7 @@ const {
   formatCreaturePromptList, formatEntityList, parseJsonArray,
   ASSIST_ACTIONS_REQUIRING_TEXT, loadSessionAiContext
 } = require("../helpers");
+const { scanTextForRollChips } = require("../../utils/diceRollDetection");
 
 // ---------------------------------------------------------------------------
 // POST /generate-npc-options - Generate multiple NPC concepts (DM only)
@@ -1053,6 +1054,518 @@ When you have enough info (at least 3 questions answered):
   }
 }
 
+// ---------------------------------------------------------------------------
+// POST /generate-hooks - Quest & Story Hook Generator (6.2) (DM only)
+// ---------------------------------------------------------------------------
+async function handleGenerateHooks(req, res) {
+  try {
+    const { partyLevel, environment, tone, constraints, includeCombat, includePuzzles, includeNpcs, includeMoralDilemma } = req.body;
+
+    if (!partyLevel || !Array.isArray(partyLevel) || partyLevel.length === 0) {
+      return res.status(400).json({ error: "partyLevel must be a non-empty array of player levels." });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    beginSseResponse(res);
+
+    writeSseEvent(res, { type: "status", message: "Consulting campaign lore..." });
+
+    const campaignWiki = await fetchCampaignWikiSnippet([environment, tone, constraints].filter(Boolean).join(" "));
+    const campaignBlock = campaignWiki
+      ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
+      : "";
+
+    writeSseEvent(res, { type: "status", message: "Generating quest hooks..." });
+
+    const includeCombatStr = includeCombat !== false ? "Include at least one combat-focused hook." : "No combat hooks needed.";
+    const includePuzzlesStr = includePuzzles ? "Include at least one puzzle or investigation hook." : "";
+    const includeNpcsStr = includeNpcs ? "Include social/NPC-driven hooks." : "";
+    const includeMoralStr = includeMoralDilemma ? "Include at least one hook with a moral dilemma." : "";
+
+    const systemPrompt = `You are a D&D quest and story hook generator for a Tabletop RPG.
+Given the party level, environment, and tone, generate 3-4 distinct quest hooks.
+Each hook should be a complete adventure seed the DM can drop into their campaign.
+${campaignBlock}
+${includeCombatStr}
+${includePuzzlesStr}
+${includeNpcsStr}
+${includeMoralStr}
+
+You MUST respond with a single JSON object containing a "hooks" array (and NO other text). Do not wrap in codeblocks.
+{
+  "hooks": [
+    {
+      "title": "Hook title",
+      "pitch": "One-sentence hook that grabs attention",
+      "setupScene": "Opening scene description — where and how the party gets involved",
+      "conflict": "Central conflict or problem to resolve",
+      "keyNpcs": "Key NPCs involved (name and brief role)",
+      "complications": "Possible twists or complications",
+      "rewards": "Suggested rewards (gold, magic items, story advancement)"
+    }
+  ]
+}
+Generate 3-4 hooks. Make each one feel distinct and playable.`;
+
+    const userMessage = [
+      `Party level(s): ${partyLevel.join(", ")}`,
+      `Environment: ${environment || "Any"}`,
+      `Tone: ${tone || "Neutral"}`,
+      `Constraints: ${constraints || "None"}`,
+      `Include combat: ${includeCombat !== false ? "yes" : "no"}`,
+      `Include puzzles: ${includePuzzles ? "yes" : "no"}`,
+      `Include NPCs: ${includeNpcs ? "yes" : "no"}`,
+      `Include moral dilemma: ${includeMoralDilemma ? "yes" : "no"}`,
+    ].join("\n");
+
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage, [], "generate-hooks");
+
+    writeSseEvent(res, { type: "status", message: "Parsing results..." });
+
+    let hooksData;
+    try {
+      hooksData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      logger.error("ai:hooks", "JSON parse failed on text", { response: rawResponse });
+      throw new Error("Failed to generate valid quest hooks from the AI response.");
+    }
+
+    if (!hooksData.hooks || !Array.isArray(hooksData.hooks) || hooksData.hooks.length === 0) {
+      throw new Error("AI returned an empty hooks list.");
+    }
+
+    writeSseEvent(res, { type: "result", data: hooksData });
+    writeSseEvent(res, { type: "done" });
+    res.end();
+  } catch (err) {
+    logger.error("ai:hooks", "Failed", { error: err.message });
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate quest hooks." });
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: err.message || "Failed to generate quest hooks." });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /generate-names - Name Generator (6.3) (DM only)
+// ---------------------------------------------------------------------------
+async function handleGenerateNames(req, res) {
+  try {
+    const { category, stylePrompt } = req.body;
+    let count = parseInt(req.body.count, 10) || 5;
+    if (count < 1) count = 1;
+    if (count > 20) count = 20;
+
+    if (!category || typeof category !== "string" || !category.trim()) {
+      return res.status(400).json({ error: "category is required. Options: NPC (Dwarf), NPC (Elf), NPC (Human), Tavern, Town, Shop, Faction, Landmark, MonsterLair" });
+    }
+
+    const validCategories = ["NPC (Dwarf)", "NPC (Elf)", "NPC (Human)", "Tavern", "Town", "Shop", "Faction", "Landmark", "MonsterLair"];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({ error: `Invalid category. Must be one of: ${validCategories.join(", ")}` });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    const styleText = stylePrompt ? ` Style preference: ${stylePrompt}` : "";
+
+    const systemPrompt = `You are a fantasy name generator for D&D 5e.
+Given a category and count, generate creative, fitting names.
+${styleText}
+You MUST respond with a single JSON object containing a "names" array (and NO other text). Do not wrap in codeblocks.
+{
+  "names": ["Name1", "Name2", "Name3"]
+}
+Generate exactly ${count} names. Make each one distinct and evocative.`;
+
+    const userMessage = `Generate ${count} names for category: ${category}.${styleText}`;
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage, [], "generate-names");
+
+    let namesData;
+    try {
+      namesData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      logger.error("ai:names", "JSON parse failed on text", { response: rawResponse });
+      throw new Error("Failed to generate valid names from the AI response.");
+    }
+
+    if (!namesData.names || !Array.isArray(namesData.names) || namesData.names.length === 0) {
+      throw new Error("AI returned an empty names list.");
+    }
+
+    res.json({ names: namesData.names });
+  } catch (err) {
+    logger.error("ai:names", "Failed", { error: err.message });
+    res.status(500).json({ error: err.message || "Failed to generate names." });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /generate-wiki-article - AI Wiki Article Generation (6.5) (DM only)
+// ---------------------------------------------------------------------------
+async function handleGenerateWikiArticle(req, res) {
+  try {
+    const { prompt, category, includeSections } = req.body;
+
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return res.status(400).json({ error: "prompt is required describing the article topic." });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    beginSseResponse(res);
+
+    writeSseEvent(res, { type: "status", message: "Consulting campaign lore..." });
+
+    const campaignWiki = await fetchCampaignWikiSnippet(prompt);
+    const campaignBlock = campaignWiki
+      ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
+      : "";
+
+    writeSseEvent(res, { type: "status", message: "Writing wiki article..." });
+
+    const sectionsDef = includeSections && Array.isArray(includeSections)
+      ? `Include these sections: ${includeSections.join(", ")}`
+      : "Include relevant sections like Description, History, Notable Locations, Inhabitants, Rumors, and Adventure Hooks.";
+
+    const categoryStr = category ? `\nCategory: ${category}` : "";
+
+    const systemPrompt = `You are a campaign wiki article writer for a D&D 5e Tabletop RPG.
+Given a topic prompt, write a comprehensive wiki article in markdown format.
+${campaignBlock}
+${sectionsDef}${categoryStr}
+
+You MUST respond with a single JSON object and no other text. Do not wrap in codeblocks.
+{
+  "title": "Article title",
+  "content": "Full article content in markdown format with headings, paragraphs, and bullet lists as appropriate",
+  "suggestedTags": ["tag1", "tag2", "tag3"]
+}
+
+Write engaging, flavorful prose that a DM can use directly at the table.`;
+
+    const userMessage = `Write a wiki article about: ${prompt.trim()}`;
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage, [], "generate-wiki-article");
+
+    writeSseEvent(res, { type: "status", message: "Parsing results..." });
+
+    let articleData;
+    try {
+      articleData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      logger.error("ai:wiki", "JSON parse failed on text", { response: rawResponse });
+      throw new Error("Failed to generate a valid wiki article from the AI response.");
+    }
+
+    if (!articleData.title || !articleData.content) {
+      throw new Error("AI returned an incomplete article structure.");
+    }
+
+    writeSseEvent(res, { type: "result", data: articleData });
+    writeSseEvent(res, { type: "done" });
+    res.end();
+  } catch (err) {
+    logger.error("ai:wiki", "Failed", { error: err.message });
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate wiki article." });
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: err.message || "Failed to generate wiki article." });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /generate-description - Location/Room Description Generator (6.6) (DM only)
+// ---------------------------------------------------------------------------
+async function handleGenerateDescription(req, res) {
+  try {
+    const { type, prompt, tone } = req.body;
+
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return res.status(400).json({ error: "prompt is required describing the location or room." });
+    }
+
+    const validTypes = ["room", "building", "wilderness", "settlement"];
+    const descType = type && validTypes.includes(type) ? type : "room";
+
+    const validTones = ["ominous", "peaceful", "mysterious", "grand", "dilapidated"];
+    const descTone = tone && validTones.includes(tone) ? tone : "mysterious";
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    beginSseResponse(res);
+
+    writeSseEvent(res, { type: "status", message: "Consulting campaign lore..." });
+
+    const campaignWiki = await fetchCampaignWikiSnippet(prompt);
+    const campaignBlock = campaignWiki
+      ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
+      : "";
+
+    writeSseEvent(res, { type: "status", message: `Writing ${descType} description (${descTone} tone)...` });
+
+    const systemPrompt = `You are a D&D location and room description writer for a Tabletop RPG.
+Given a prompt, type, and tone, write an immersive description for a ${descType} with a ${descTone} tone.
+${campaignBlock}
+
+You MUST respond with a single JSON object and no other text. Do not wrap in codeblocks.
+{
+  "description": "Full atmospheric description in markdown format covering layout, atmosphere, notable features, and points of interest",
+  "sensoryDetails": {
+    "sights": "What characters see — visual details, lighting, colors, movement",
+    "sounds": "What characters hear — ambient sounds, echoes, silence, distant noises",
+    "smells": "What characters smell — odors, scents, freshness, decay"
+  },
+  "hiddenDetails": "Secret features, hidden doors, traps, or clues that might be discovered with investigation"
+}
+
+Write evocative, sensory-rich prose that a DM can read aloud at the table.`;
+
+    const userMessage = `Describe a ${descType} with ${descTone} tone: ${prompt.trim()}`;
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage, [], "generate-description");
+
+    writeSseEvent(res, { type: "status", message: "Parsing results..." });
+
+    let descriptionData;
+    try {
+      descriptionData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      logger.error("ai:description", "JSON parse failed on text", { response: rawResponse });
+      throw new Error("Failed to generate a valid description from the AI response.");
+    }
+
+    if (!descriptionData.description) {
+      throw new Error("AI returned an empty description.");
+    }
+
+    writeSseEvent(res, { type: "result", data: descriptionData });
+    writeSseEvent(res, { type: "done" });
+    res.end();
+  } catch (err) {
+    logger.error("ai:description", "Failed", { error: err.message });
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate description." });
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: err.message || "Failed to generate description." });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /generate-travel - Weather & Travel Montage Generator (6.7) (DM only)
+// ---------------------------------------------------------------------------
+async function handleGenerateTravel(req, res) {
+  try {
+    const { route, terrain, days, season, partyLevel, dangerous } = req.body;
+
+    let numDays = parseInt(days, 10) || 5;
+    if (numDays < 3) numDays = 3;
+    if (numDays > 7) numDays = 7;
+
+    if (!route || typeof route !== "string" || !route.trim()) {
+      return res.status(400).json({ error: "route is required describing the travel route." });
+    }
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    beginSseResponse(res);
+
+    writeSseEvent(res, { type: "status", message: "Consulting campaign lore..." });
+
+    const campaignWiki = await fetchCampaignWikiSnippet(route);
+    const campaignBlock = campaignWiki
+      ? `\nUse this campaign lore for tone, names, and setting consistency when relevant:\n${campaignWiki}\n`
+      : "";
+
+    writeSseEvent(res, { type: "status", message: `Planning ${numDays}-day journey...` });
+
+    const dangerText = dangerous ? "This journey is dangerous — include combat encounters and hazards." : "Keep hazards manageable; focus on atmosphere over combat.";
+    const seasonText = season ? ` Season: ${season}.` : "";
+    const terrainText = terrain ? ` Terrain: ${terrain}.` : "";
+    const partyText = partyLevel && Array.isArray(partyLevel)
+      ? ` Party level(s): ${partyLevel.join(", ")}.`
+      : "";
+
+    const systemPrompt = `You are a D&D travel montage and weather generator for a Tabletop RPG.
+Given a route, generate a day-by-day travel montage. Each day should have varied weather, an evocative scene description, and optionally a hook or encounter.
+${campaignBlock}
+${dangerText}${seasonText}${terrainText}${partyText}
+
+You MUST respond with a single JSON object containing a "legs" array (and NO other text). Do not wrap in codeblocks.
+{
+  "legs": [
+    {
+      "day": 1,
+      "weather": "Weather description (temperature, precipitation, wind, visibility)",
+      "temperature": "Temperature description (e.g. 'Bitterly cold', 'Warm and humid', 'Mild breeze')",
+      "description": "Evocative scene description for this day's travel",
+      "hook": "Optional encounter or discovery hook for this day (or empty string if none)"
+    }
+  ]
+}
+Generate exactly ${numDays} days. Each day should feel distinct. Descriptions should be vivid and usable at the table.`;
+
+    const userMessage = `Generate a ${numDays}-day travel montage for route: ${route}.${terrainText}${seasonText}${dangerText}`;
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage, [], "generate-travel");
+
+    writeSseEvent(res, { type: "status", message: "Parsing travel montage..." });
+
+    let travelData;
+    try {
+      travelData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      logger.error("ai:travel", "JSON parse failed on text", { response: rawResponse });
+      throw new Error("Failed to generate a valid travel montage from the AI response.");
+    }
+
+    if (!travelData.legs || !Array.isArray(travelData.legs) || travelData.legs.length === 0) {
+      throw new Error("AI returned an empty travel legs list.");
+    }
+
+    writeSseEvent(res, { type: "result", data: travelData });
+    writeSseEvent(res, { type: "done" });
+    res.end();
+  } catch (err) {
+    logger.error("ai:travel", "Failed", { error: err.message });
+    if (res.headersSent) {
+      writeSseEvent(res, { type: "error", message: err.message || "Failed to generate travel montage." });
+      res.end();
+      return;
+    }
+    res.status(500).json({ error: err.message || "Failed to generate travel montage." });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /generate-npc-phrases - NPC Dialogue Phrase Generator (6.8) (DM only)
+// ---------------------------------------------------------------------------
+async function handleGenerateNpcPhrases(req, res) {
+  try {
+    const { npcId, name, race, personality, phraseType, count } = req.body;
+
+    let numCount = parseInt(count, 10) || 5;
+    if (numCount < 1) numCount = 1;
+    if (numCount > 15) numCount = 15;
+
+    const npcName = name || "an NPC";
+    const npcRace = race || "unknown race";
+    const npcPersonality = personality || "mysterious";
+
+    const validPhraseTypes = ["greeting", "threat", "bargain", "combat", "rumor", "farewell"];
+    const phraseCat = phraseType && validPhraseTypes.includes(phraseType) ? phraseType : "greeting";
+
+    const aiSettings = await loadAiSettings();
+    const { provider, apiKey, ollamaUrl, ollamaModel, model } = aiSettings;
+    const activeModel = provider === "opencode" ? (model || "gpt-5-nano") : ollamaModel;
+
+    if (!provider) {
+      return res.status(400).json({ error: "AI is not configured. Please set up API keys in Settings." });
+    }
+
+    // If npcId is provided, fetch the actual NPC for richer context
+    let npcContext = "";
+    if (npcId) {
+      try {
+        const npc = await prisma.npc.findUnique({ where: { id: parseInt(npcId, 10) } });
+        if (npc) {
+          npcContext = `\nNPC Profile:\nName: ${npc.name}\nRace: ${npc.race}\nPersonality: ${npc.personality || "Unknown"}\nAlignment: ${npc.alignment || "Unknown"}\nDescription: ${npc.description || ""}\n`;
+        }
+      } catch (dbErr) {
+        logger.warn("ai:phrases", "Could not fetch NPC for context", { npcId, error: dbErr.message });
+      }
+    }
+
+    const systemPrompt = `You are a D&D NPC dialogue phrase generator for a Tabletop RPG.
+Given an NPC's profile and a phrase type, generate ${numCount} distinct, in-character phrases the NPC might say.
+${npcContext}
+
+Phrase type: ${phraseCat}
+NPC name: ${npcName}
+NPC race: ${npcRace}
+NPC personality: ${npcPersonality}
+
+Each phrase should feel authentic to the character's personality and the situation.
+You MUST respond with a single JSON object containing a "phrases" array (and NO other text). Do not wrap in codeblocks.
+{
+  "phrases": ["Phrase 1", "Phrase 2", "Phrase 3"]
+}
+Generate exactly ${numCount} phrases. Make each one distinct and usable at the table.`;
+
+    const userMessage = `Generate ${numCount} ${phraseCat} phrases for ${npcName} (${npcRace}, ${npcPersonality}).`;
+    const rawResponse = await performAiCall(provider, apiKey, ollamaUrl, activeModel, systemPrompt, userMessage, [], "generate-npc-phrases");
+
+    let phrasesData;
+    try {
+      phrasesData = JSON.parse(stripAiJsonCodeFences(rawResponse));
+    } catch (e) {
+      logger.error("ai:phrases", "JSON parse failed on text", { response: rawResponse });
+      throw new Error("Failed to generate valid phrases from the AI response.");
+    }
+
+    if (!phrasesData.phrases || !Array.isArray(phrasesData.phrases) || phrasesData.phrases.length === 0) {
+      throw new Error("AI returned an empty phrases list.");
+    }
+
+    res.json({ phrases: phrasesData.phrases });
+  } catch (err) {
+    logger.error("ai:phrases", "Failed", { error: err.message });
+    res.status(500).json({ error: err.message || "Failed to generate phrases." });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /detect-roll-chips - Scan text for D&D roll patterns (DM only)
+// ---------------------------------------------------------------------------
+async function handleDetectRollChips(req, res) {
+  try {
+    const { text } = req.body;
+    if (!text || typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({ error: "text is required." });
+    }
+
+    const chips = scanTextForRollChips(text);
+    res.json({ chips });
+  } catch (err) {
+    logger.error("ai:rolls", "Failed to detect roll chips", { error: err.message });
+    res.status(500).json({ error: err.message || "Failed to scan text." });
+  }
+}
+
 module.exports = {
   handleGenerateNpcOptions,
   handleGenerateNpc,
@@ -1066,4 +1579,11 @@ module.exports = {
   handleSessionAgenda,
   handleExpandText,
   handleNpcInterview,
+  handleGenerateHooks,
+  handleGenerateNames,
+  handleGenerateWikiArticle,
+  handleGenerateDescription,
+  handleGenerateTravel,
+  handleGenerateNpcPhrases,
+  handleDetectRollChips,
 };

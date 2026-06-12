@@ -5,7 +5,7 @@
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { ExternalLink, Menu, MessageCircle } from "lucide-react";
+import { ExternalLink, Menu, MessageCircle, Loader2 } from "lucide-react";
 import { marked } from "marked";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
 import TokenPresetIcon from "./TokenPresetIcon";
@@ -84,8 +84,19 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [showMonsterGenModal, setShowMonsterGenModal] = useState(false);
   const [npcCopiedPrompt, setNpcCopiedPrompt] = useState(false); // "Copied!" feedback for image prompt copy
 
+  // Wiki Article AI Generation Modal state (Section 6.5)
+  const [showGenModal, setShowGenModal] = useState(false);
+  const [genPrompt, setGenPrompt] = useState("");
+  const [genLoading, setGenLoading] = useState(false);
+
   // Dialogue editor state (NPC reader → run dialogue)
   const [dialogueNpcId, setDialogueNpcId] = useState(null);
+
+  // NPC phrase generation state
+  const [showNpcPhrases, setShowNpcPhrases] = useState(false);
+  const [npcPhrases, setNpcPhrases] = useState([]);
+  const [phrasesLoading, setPhrasesLoading] = useState(false);
+  const [phrasesCopiedIndex, setPhrasesCopiedIndex] = useState(null);
 
   // Sidebar drawer state (mobile)
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -187,6 +198,38 @@ export default function WikiPanel({ user, isPopout = false }) {
       document.body.removeChild(textarea);
       setNpcCopiedPrompt(true);
       npcTimerRef.current = setTimeout(() => setNpcCopiedPrompt(false), 2000);
+    }
+  }
+
+  // Generate dialogue phrases for NPC
+  async function handleGeneratePhrases(npc) {
+    if (!npc || !npc.id) return;
+    setPhrasesLoading(true);
+    setShowNpcPhrases(true);
+    setNpcPhrases([]);
+    setPhrasesCopiedIndex(null);
+    try {
+      const res = await fetch("/api/ai/generate-npc-phrases", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ npcId: npc.id, npcName: npc.title || npc.name }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to generate phrases");
+      }
+      const data = await res.json();
+      if (data.phrases && Array.isArray(data.phrases)) {
+        setNpcPhrases(data.phrases);
+      } else {
+        throw new Error("Unexpected response format");
+      }
+    } catch (err) {
+      console.error("[WikiPanel] Generate phrases error:", err);
+      addToast(err.message, "error");
+      setShowNpcPhrases(false);
+    } finally {
+      setPhrasesLoading(false);
     }
   }
 
@@ -912,6 +955,76 @@ export default function WikiPanel({ user, isPopout = false }) {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // AI Wiki Article Generation (Section 6.5)
+  // ---------------------------------------------------------------------------
+  async function handleGenerateArticle(prompt) {
+    setGenLoading(true);
+    setEditorError(null);
+    try {
+      const res = await fetch("/api/ai/generate-wiki-article", {
+        method: "POST",
+        headers: jsonAuthHeaders,
+        body: JSON.stringify({ prompt, category: editCategory }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to generate article.");
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("text/event-stream")) {
+        // SSE streaming response
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr) continue;
+            try {
+              const event = JSON.parse(jsonStr);
+              if (event.type === "result" && event.data) {
+                const { title, content, suggestedTags } = event.data;
+                if (title) setEditTitle(title);
+                if (content) setEditContent(content);
+                if (Array.isArray(suggestedTags)) setEditTags(suggestedTags);
+                addToast("Article generated successfully!", "success");
+              } else if (event.type === "error") {
+                throw new Error(event.message || "Generation failed.");
+              }
+            } catch (e) {
+              if (e.message !== "Generation failed.") continue;
+              throw e;
+            }
+          }
+        }
+      } else {
+        // Non-streaming fallback
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        if (data.title) setEditTitle(data.title);
+        if (data.content) setEditContent(data.content);
+        if (Array.isArray(data.suggestedTags)) setEditTags(data.suggestedTags);
+        addToast("Article generated successfully!", "success");
+      }
+    } catch (err) {
+      setEditorError(err.message);
+      addToast(err.message, "error");
+    } finally {
+      setGenLoading(false);
+      setShowGenModal(false);
+    }
+  }
+
   // Formatting Shortcuts Helper
   function insertText(prefix, suffix = "", fieldName = "description") {
     const elementId = activeCategoryTab === "NPC" ? `wiki-textarea-${fieldName}` : "wiki-markdown-textarea";
@@ -1082,6 +1195,31 @@ export default function WikiPanel({ user, isPopout = false }) {
                     >
                       <MessageCircle size={12} />
                       Dialogue
+                    </button>
+                  )}
+                  {isDM && (
+                    <button
+                      type="button"
+                      onClick={() => handleGeneratePhrases(selectedArticle)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
+                        padding: "0.3rem 0.6rem",
+                        fontSize: "0.7rem",
+                        fontWeight: "600",
+                        background: "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)",
+                        color: "#fffffe",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                        transition: "all 0.2s",
+                      }}
+                      className="touch-target btn-hover-scale"
+                      title="Generate dialogue phrases for this NPC"
+                    >
+                      🎭 Phrases
                     </button>
                   )}
                   <button
@@ -1920,6 +2058,22 @@ export default function WikiPanel({ user, isPopout = false }) {
                   Cancel
                 </button>
                 <button
+                  type="button"
+                  onClick={() => {
+                    setGenPrompt("");
+                    setShowGenModal(true);
+                  }}
+                  style={{
+                    ...styles.saveBtn,
+                    background: "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)",
+                    color: "#fffffe",
+                    marginRight: "0.5rem",
+                  }}
+                  className="touch-target btn-hover-scale"
+                >
+                  ✨ AI Generate
+                </button>
+                <button
                   type="submit"
                   style={styles.saveBtn}
                   className="touch-target btn-hover-scale"
@@ -2052,6 +2206,21 @@ export default function WikiPanel({ user, isPopout = false }) {
                       onError={(msg) => setEditorError(msg)}
                       user={user}
                     />
+                    <button
+                      type="button"
+                      onClick={() => { setGenPrompt(editTitle); setShowGenModal(true); }}
+                      disabled={genLoading || !editTitle.trim()}
+                      style={{
+                        ...styles.toolbarBtn,
+                        color: "var(--color-accent)",
+                        fontWeight: 600,
+                        opacity: genLoading || !editTitle.trim() ? 0.5 : 1,
+                      }}
+                      className="touch-target"
+                      title="Generate full article with AI (Section 6.5)"
+                    >
+                      {genLoading ? "⏳" : "✨"} Gen.
+                    </button>
                   </div>
 
                   <textarea
@@ -2454,6 +2623,81 @@ export default function WikiPanel({ user, isPopout = false }) {
                 Destroy Entry
               </button>
             </footer>
+          </div>
+        </div>
+      )}
+
+      {/* AI WIKI ARTICLE GENERATOR MODAL */}
+      {showGenModal && (
+        <div style={styles.modalOverlay} className="fade-in">
+          <div style={styles.categoryPromptBox} className="glass-panel gold-border-glow">
+            <header style={styles.modalHeader}>
+              <h3 style={{ ...styles.modalTitle, color: "var(--color-accent)" }}>
+                ✨ AI Generate Article
+              </h3>
+              <button
+                onClick={() => setShowGenModal(false)}
+                style={styles.modalCloseBtn}
+                className="touch-target"
+                disabled={genLoading}
+              >
+                ✕
+              </button>
+            </header>
+            <div style={styles.modalBody}>
+              <p style={{ marginBottom: "1rem", color: "var(--color-muted)" }}>
+                Describe the article you want to create. Include details about
+                locations, NPCs, history, or any specific elements.
+              </p>
+              <textarea
+                value={genPrompt}
+                onChange={(e) => setGenPrompt(e.target.value)}
+                placeholder="e.g. The ancient ruins of Myth Lharast, a once-great elven city now overgrown with magical fungi..."
+                style={{
+                  ...styles.input,
+                  minHeight: "100px",
+                  resize: "vertical",
+                  width: "100%",
+                  boxSizing: "border-box",
+                  marginBottom: "1rem",
+                }}
+                className="form-input"
+                disabled={genLoading}
+              />
+              <div style={styles.modalFooter}>
+                <button
+                  type="button"
+                  onClick={() => setShowGenModal(false)}
+                  style={styles.modalCancelBtn}
+                  className="touch-target"
+                  disabled={genLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateArticle(genPrompt)}
+                  style={{
+                    ...styles.saveBtn,
+                    background: genLoading
+                      ? "var(--color-muted)"
+                      : "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)",
+                    color: "#fffffe",
+                  }}
+                  className="touch-target btn-hover-scale"
+                  disabled={genLoading || !genPrompt.trim()}
+                >
+                  {genLoading ? (
+                    <>
+                      <Loader2 className="icon-spin" size={16} style={{ marginRight: "0.3rem", verticalAlign: "middle" }} />
+                      Generating...
+                    </>
+                  ) : (
+                    "✨ Generate"
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

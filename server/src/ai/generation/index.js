@@ -21,6 +21,13 @@ const {
   handleSessionAgenda,
   handleExpandText,
   handleNpcInterview,
+  handleGenerateHooks,
+  handleGenerateNames,
+  handleGenerateWikiArticle,
+  handleGenerateDescription,
+  handleGenerateTravel,
+  handleGenerateNpcPhrases,
+  handleDetectRollChips,
 } = require("./handlers");
 
 router.post("/generate-npc-options", requireDm, handleGenerateNpcOptions);
@@ -35,5 +42,12 @@ router.post("/session-recap", requireDm, handleSessionRecap);
 router.post("/session-agenda", requireDm, handleSessionAgenda);
 router.post("/expand-text", requireDm, handleExpandText);
 router.post("/npc-interview", requireDm, handleNpcInterview);
+router.post("/generate-hooks", requireDm, handleGenerateHooks);
+router.post("/generate-names", requireDm, handleGenerateNames);
+router.post("/generate-wiki-article", requireDm, handleGenerateWikiArticle);
+router.post("/generate-description", requireDm, handleGenerateDescription);
+router.post("/generate-travel", requireDm, handleGenerateTravel);
+router.post("/generate-npc-phrases", requireDm, handleGenerateNpcPhrases);
+router.post("/detect-roll-chips", requireDm, handleDetectRollChips);
 
 module.exports = router;

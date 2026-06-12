@@ -914,79 +914,49 @@ attribute convention, DiceBoxContext integration, CharacterSheet modifier lookup
 
 ### 6.2 Quest & Story Hook Generator
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** DMs spend hours brainstorming adventure hooks. An AI-assisted
-hook generator produces multiple distinct ideas from a brief prompt, saving
-prep time and sparking creativity.
-
-**Scope:** Medium
-
-**Input Format:**
-- DM provides: party level, environment (forest/urban/dungeon/etc.), tone
-  (heroic/dark/horror/mystery/comedy), optional constraints ("must involve a hag")
-- Configuration checkboxes: include combat, include puzzles, include NPCs,
-  include moral dilemma
-
-**Output:**
-- 3-4 distinct hooks, each with:
-  - **Hook title** and **one-line pitch**
-  - **Setup scene** (2-3 sentences setting the stage)
-  - **Conflict** (what's at stake)
-  - **Key NPCs** (2-3 named NPCs with one-line personality/motivation)
-  - **Possible complications** (2-3 twists the DM can deploy)
-  - **Rewards** (suggested XP, gold, and 1-2 magic items)
-- DM picks one → option to "expand" into a full session agenda
-- "Regenerate" button per hook; "Mix & Match" to combine elements from different hooks
-
-**AI Integration:**
-- Uses campaign wiki context for consistency (existing `fetchCampaignWikiSnippet`)
-- Ties into existing party data (character levels, classes)
-- Generated hooks are copyable/editable; optionally saved as new Wiki article
-
-**Depends on:** New `POST /api/ai/generate-hooks` route, `performAiCall`, existing
-wiki context fetching, frontend QuestGeneratorPanel or modal
+**Implementation:**
+- Backend: `POST /api/ai/generate-hooks` in `server/src/ai/generation/handlers.js`
+  — `handleGenerateHooks` (96 lines)
+- SSE-based streaming response with status updates during generation
+- Accepts: `partyLevel`, `environment`, `tone`, `constraints`, `includeCombat`,
+  `includePuzzles`, `includeNpcs`, `includeMoralDilemma`
+- Returns JSON result: `{ hooks: [{ title, pitch, setup, conflict, npcs, complications, rewards }] }`
+- Frontend: `client/src/components/QuestHookGenerator.jsx` (809 lines)
+  - Environment dropdown (9 options), tone dropdown (5 options)
+  - Checkboxes for combat/puzzles/NPCs/moral dilemma
+  - Party levels text input (comma-separated)
+  - SSE stream reader with real-time status
+  - Hook cards with copy-to-clipboard, per-hook regenerate button
+  - Route: `/dm/quest-hooks`
+- Uses campaign wiki context via `fetchCampaignWikiSnippet()`
 
 ---
 
 ### 6.3 Name Generator
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** One of the most common DM tasks — naming NPCs, taverns, towns,
-shops, factions, and landmarks. A simple but high-utility generator.
-
-**Scope:** Small
-
-**Name Categories:**
-| Category | Example Output |
-|---|---|
-| NPC (Dwarf) | Durgan Ironvein, Helga Stonebrow |
-| NPC (Elf) | Caelynn Moonshadow, Tharion Starweaver |
-| NPC (Human) | Aldric Vance, Mira Thornwell |
-| Tavern | The Rusty Flagon, The Wandering Wisp |
-| Town/City | Thornhaven, Silverfall Crossing |
-| Shop | Glimmer & Gear (magic items), The Sharpened Edge (weapons) |
-| Faction | The Iron Concord, Order of the Ashen Hand |
-| Landmark | The Weeping Cairn, Thunderpeak Ridge |
-| Monster Lair | Skullfang Den, The Rotwood Hive |
-
-**Endpoint:** `POST /api/ai/generate-names`
-- Body: `{ category, count (default 5), style/tone prompt (optional) }`
-- Response: `{ names: ["...", "..."] }`
-
-**UI:**
-- Simple card in AI panel: category dropdown + count slider + "Generate" button
-- Results displayed as chips; tap a chip to copy to clipboard
-- "Generate More" appends results; "Replace" clears and regenerates
-
-**Depends on:** New route, `performAiCall`, frontend name generator sub-component
+**Implementation:**
+- Backend: `POST /api/ai/generate-names` in `server/src/ai/generation/handlers.js`
+  — `handleGenerateNames` (55 lines, JSON response)
+- Accepts: `category` (9 valid categories validated server-side), `count` (1-20, default 5),
+  `stylePrompt` (optional)
+- Response: `{ names: ["name1", "name2", ...] }`
+- Frontend: `client/src/components/NameGenerator.jsx` (495 lines)
+  - Category dropdown (9 categories)
+  - Count slider (1-20)
+  - Style/tone text input (optional)
+  - Result chips with click-to-copy, copied feedback (green highlight)
+  - "Generate More" appends, "Clear" resets
+  - Route: `/dm/name-generator`
 
 ---
 
 ### 6.4 Loot & Treasure Generator
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
 **Motivation:** After combat, DMs need to quickly determine what the party finds.
 AI can roll on DMG treasure tables and present formatted loot.
@@ -1027,145 +997,67 @@ reference data (JSON), chat card rendering, party inventory integration
 
 ### 6.5 AI-Powered Wiki Article Generation
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** DMs can quickly scaffold wiki articles by describing what they
-want. The AI fills in structured, markdown-formatted content in the appropriate
-wiki category.
-
-**Scope:** Small-Medium
-
-**Workflow:**
-1. DM opens Wiki → "Generate Article" button
-2. Prompt: "Write an article about the city of Neverwinter" or "Describe the Thieves' Guild"
-3. DM selects category (LORE, NPC, LOCATION, FACTION, etc.)
-4. AI generates structured markdown with:
-   - **Title** and **short description**
-   - **History** section
-   - **Notable Locations/NPCs** section
-   - **Plot Hooks** section (for DM-eyes-only)
-   - **Tags** auto-suggested from content
-5. Pre-fills the wiki editor — DM reviews, edits, and publishes
-
-**Endpoint:** `POST /api/ai/generate-wiki-article`
-- Body: `{ prompt, category?, includeSections: string[] }`
-- Response: `{ title, content (markdown), suggestedTags: string[] }`
-
-**Campaign Awareness:**
-- Existing wiki articles of the same category are included as context (summary only,
-  not full content) to maintain consistency
-- Example: if generating a location article, existing location wiki articles are
-  sent as reference so the AI doesn't contradict established lore
-
-**Depends on:** New route, `performAiCall`, wiki context fetching, WikiPanel
-integration (pre-fill editor with generated content)
+**Implementation:**
+- Backend: `POST /api/ai/generate-wiki-article` in `server/src/ai/generation/handlers.js`
+  — `handleGenerateWikiArticle` (76 lines, SSE-based)
+- Accepts: `prompt` (required), `category` (optional), `includeSections` (optional array)
+- Returns: `{ title, content (markdown), suggestedTags: string[] }`
+- Uses campaign wiki context via `fetchCampaignWikiSnippet()` for setting consistency
+- Auto-suggests tags from generated content
 
 ---
 
 ### 6.6 Location & Room Description Generator
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** DMs need evocative, read-aloud descriptions for rooms,
-buildings, and outdoor locations. AI generates prose ready for the table.
-
-**Scope:** Small
-
-**Description Types:**
-- **Room:** "Describe a dusty alchemist's laboratory with bubbling vats"
-- **Building:** "Describe the exterior of the Temple of Pelor in a small village"
-- **Wilderness:** "Describe the approach to a dragon's lair in volcanic mountains"
-- **Settlement:** "Describe the market square of Waterdeep at noon"
-
-**Endpoint:** `POST /api/ai/generate-description`
-- Body: `{ type ("room"|"building"|"wilderness"|"settlement"), prompt, tone ("ominous"|"peaceful"|"mysterious"|"grand"|"dilapidated") }`
-- Response: `{ description (markdown), sensoryDetails: { sights, sounds, smells } }`
-
-**UI:**
-- "Generate Description" button in MapPanel and Wiki editor
-- Result shown in chat panel with "Read Aloud" voice toggle (see §5.3)
-- DM can copy, edit, or attach to a map marker
-
-**Senses-Based Output:**
-- Each description includes what the characters see, hear, and smell
-- Optional "hidden detail" section (perception-check-gated) the DM can reveal
-
-**Depends on:** New route, `performAiCall`, MapPanel/WikiPanel integration
+**Implementation:**
+- Backend: `POST /api/ai/generate-description` in `server/src/ai/generation/handlers.js`
+  — `handleGenerateDescription` (79 lines, SSE-based)
+- Accepts: `type` (room/building/wilderness/settlement — validated), `prompt` (required),
+  `tone` (ominous/peaceful/mysterious/grand/dilapidated — validated)
+- Returns: `{ description, sensoryDetails: { sights, sounds, smells }, hiddenDetails }`
+- Uses campaign wiki context for setting consistency
+- Frontend: `client/src/components/DescriptionGenerator.jsx` (730 lines, SSE streaming)
 
 ---
 
 ### 6.7 Weather & Travel Montage Generator
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** Overland travel is a D&D staple but narrating every day of a
-long journey is tedious. AI generates day-by-day travelogues with weather,
-scenery, and encounter hooks.
-
-**Scope:** Small-Medium
-
-**Input:**
-- Route: "from Phandalin to Neverwinter"
-- Terrain: forest, mountains, plains, swamp, desert
-- Days of travel: 3-7
-- Season: spring/summer/autumn/winter
-- Party level (for encounter scaling)
-- Optional: "dangerous route" / "peaceful route" toggle
-
-**Output:**
-- Day-by-day entries:
-  ```
-  Day 1 — Spring, 14°C / 57°F, Light Rain
-  The road winds through the Neverwinter Wood. The canopy
-  drips with last night's rainfall. Deer tracks are visible
-  in the mud — fresh, perhaps an hour old.
-  🎲 Encounter Hook: A merchant's wagon is stuck in the mud (DC 12 Strength)
-  ```
-- Each day includes: weather, temperature, scenery description, optional encounter hook
-- Encounter hooks are lightweight (not full encounters) — just a prompt for the DM
-- Optional: roll for random encounters using DMG wilderness encounter tables
-- "Add to Session Agenda" button → appends travel log to current session
-
-**Endpoints:**
-- `POST /api/ai/generate-travel` — generate travel montage
-- Body: `{ route, terrain, days, season, partyLevel, dangerous }`
-- Response: `{ legs: [{ day, weather, temperature, description, hook }] }`
-
-**Depends on:** New route, `performAiCall`, session agenda integration, weather
-tables reference data
+**Implementation:**
+- Backend: `POST /api/ai/generate-travel` in `server/src/ai/generation/handlers.js`
+  — `handleGenerateTravel` (86 lines, SSE-based)
+- Accepts: `route` (required), `terrain`, `days` (3-7, clamped), `season`,
+  `partyLevel`, `dangerous` (boolean)
+- Returns: `{ legs: [{ day, weather, temperature, description, hook }] }`
+- Uses campaign wiki context for setting consistency
+- Frontend: `client/src/components/TravelGenerator.jsx` (786 lines)
+  - Route text input, terrain/season dropdowns, days slider (3-7)
+  - Party level number input, dangerous route toggle
+  - SSE stream reader with per-day card rendering
+  - Weather icons (sunny/cloudy/rainy/snowy/stormy/windy/foggy)
+  - Copy single day / Copy all to clipboard
+  - Cancel in-flight generation
+  - Route: `/dm/travel`
 
 ---
 
 ### 6.8 NPC Dialogue Phrase Generator
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented (Jun 2026)
 
-**Motivation:** In-session, DMs need quick flavorful lines for NPCs — combat
-taunts, bargaining phrases, common sayings. Generating a bank of lines per NPC
-saves improv pressure during live play.
-
-**Scope:** Small
-
-**Endpoint:** `POST /api/ai/generate-npc-phrases`
-- Body: `{ npcId?, name, race, personality, phraseType ("greeting"|"threat"|"bargain"|"combat"|"rumor"|"farewell"), count (default 5) }`
+**Implementation:**
+- Backend: `POST /api/ai/generate-npc-phrases` in `server/src/ai/generation/handlers.js`
+  — `handleGenerateNpcPhrases` (72 lines, JSON response)
+- Accepts: `npcId?` (optional — fetches NPC from DB for richer context),
+  `name`, `race`, `personality`, `phraseType` (greeting/threat/bargain/combat/rumor/farewell
+  — validated), `count` (1-15, clamped, default 5)
 - Response: `{ phrases: ["...", "..."] }`
-
-**Phrase Types:**
-- **Greeting:** "Welcome to the Lazy Lantern, travelers. Ale or trouble?"
-- **Threat:** "You've got about three seconds to rethink that decision."
-- **Bargain:** "Two hundred gold? Ha! I could buy a *real* adventurer for that."
-- **Combat:** "Should've stayed in whatever hole you crawled out of!"
-- **Rumor:** "Word is the old mill's been haunted since last midsummer."
-- **Farewell:** "Keep your blade sharp and your wits sharper."
-
-**UI Integration:**
-- Button on NPC detail panel: "Generate Phrases"
-- Results displayed as list of chips; tap to copy to clipboard
-- "Insert into roleplay" → pushes a selected phrase into active NPC chat as a
-  DM-sent NPC message
-
-**Depends on:** New route, `performAiCall`, NPC model or profile context,
-NPC detail panel UI
+- Graceful fallback if NPC lookup fails (logs warning, continues with provided fields)
 
 ---
 
