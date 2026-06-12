@@ -814,50 +814,10 @@ Show this command reference.`;
       }
     });
 
-    // —— Ping system (player map markers) ——
-    socket.on("token:ping", (payload) => {
-      try {
-        const { userId, mapId, x, y, type } = payload || {};
-        if (!userId || !mapId || typeof x !== "number" || typeof y !== "number") {
-          log("token:ping — invalid payload: %j", payload);
-          return;
-        }
-
-        // Clamp coordinates
-        const clampedX = Math.max(-MAX_COORDINATE, Math.min(x, MAX_COORDINATE));
-        const clampedY = Math.max(-MAX_COORDINATE, Math.min(y, MAX_COORDINATE));
-
-        const pingId = Math.random().toString(16).slice(2, 6);
-        const pingTypes = ["move", "attack", "look", "danger"];
-        const pingType = pingTypes.includes(type) ? type : "look";
-
-        // Look up user for sender name
-        prisma.user.findUnique({ where: { id: Number(userId) } }).then(user => {
-          const senderName = user?.username || "Unknown";
-
-          io.emit("token:pong", {
-            pingId,
-            userId: Number(userId),
-            senderName,
-            mapId,
-            x: clampedX,
-            y: clampedY,
-            type: pingType,
-            timestamp: Date.now(),
-          });
-          logger.info("socket", "token:ping — userId=%d mapId=%s type=%s", Number(userId), mapId, pingType);
-        }).catch(err => {
-          logger.error("socket:ping", "Error looking up user", { error: err.message });
-        });
-      } catch (err) {
-        logger.error("socket:ping", "Error handling token:ping", { error: err.message });
-      }
-    });
-
     // ── Co-Pilot: Monitor chat for proactive suggestions ──
     socket.on("copilot:check", async (data) => {
       try {
-        if (!socket.data.user) return; // DM only
+        if (socket.data.user?.role !== "DM") return;
         const { text, encounterId } = data || {};
         if (!text || typeof text !== "string" || !text.trim()) return;
 

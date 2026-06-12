@@ -8,7 +8,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { spawnSync } = require("child_process");
+const https = require("https");
 
 // Cache directory — resolves to server/uploads/5etools-cache/
 const CACHE_DIR = path.resolve(__dirname, "../../uploads/5etools-cache");
@@ -85,30 +85,25 @@ function log(message, type = "info") {
 
 /**
  * HTTP GET helper that returns response body as string.
- * Uses curl via child_process to fetch from GitHub (raw.githubusercontent.com).
- * Curl is also used as a backup strategy if we ever need to bypass Cloudflare
- * on the main 5e.tools site.
+ * Uses native https to avoid blocking the event loop.
  */
 function fetchUrl(url) {
   return new Promise((resolve, reject) => {
-    const result = spawnSync("curl", [
-      "-s",
-      "-L",
-      "--max-time", "30",
-      "-H", "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "-H", "Accept: application/json, text/plain, */*",
-      url,
-    ], { timeout: 35000, maxBuffer: 50 * 1024 * 1024, encoding: "utf8" });
-
-    if (result.error) {
-      reject(new Error(`Curl error: ${result.error.message}`));
-      return;
-    }
-    if (result.status !== 0) {
-      reject(new Error(`Curl exit code ${result.status} for ${url}: ${result.stderr?.substring(0, 200)}`));
-      return;
-    }
-    resolve(result.stdout);
+    https.get(url, { timeout: 30000, headers: {
+      "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "Accept": "application/json, text/plain, */*",
+    }}, (res) => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+        return;
+      }
+      let body = "";
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => resolve(body));
+    }).on("error", reject).on("timeout", function() {
+      this.destroy();
+      reject(new Error(`Timeout fetching ${url}`));
+    });
   });
 }
 

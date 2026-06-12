@@ -820,18 +820,6 @@ const TOOLS = [
       },
     },
   },
-  {
-    name: "delete_soundtrack",
-    description: "Delete a soundboard track by ID.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        id: { type: "number", description: "Track ID to delete." },
-      },
-      required: ["id"],
-    },
-  },
-
   //  QUEST TOOLS
   {
     name: "list_quests",

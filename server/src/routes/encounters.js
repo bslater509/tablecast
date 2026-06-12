@@ -4,8 +4,6 @@ const crypto = require("crypto");
 const { Router } = require("express");
 const prisma = require("../prisma");
 const { getRequestUser, requireDm } = require("../auth");
-// eslint-disable-next-line unused-imports/no-unused-vars
-const referenceSearch = require("../utils/referenceSearch");
 const tokenImageLookup = require("../utils/tokenImageLookup");
 const generateTokenSvg = require("../utils/generateTokenSvg");
 const logger = require("../utils/logger");
@@ -79,44 +77,6 @@ function monsterImageUrl(monster) {
     source: monster.source || "",
   });
   return match?.url || "";
-}
-
-// eslint-disable-next-line unused-imports/no-unused-vars
-function monsterToNpcData(monster, nameOverride = "") {
-  const hp = clampInt(monster?.hp?.average, 10, 1, 10000);
-  const ac = Array.isArray(monster?.ac)
-    ? clampInt(monster.ac[0]?.ac ?? monster.ac[0], 10, 0, 1000)
-    : 10;
-
-  const modifiers = {
-    strength: `${getModifier(monster?.str) >= 0 ? "+" : ""}${getModifier(monster?.str)}`,
-    dexterity: `${getModifier(monster?.dex) >= 0 ? "+" : ""}${getModifier(monster?.dex)}`,
-    constitution: `${getModifier(monster?.con) >= 0 ? "+" : ""}${getModifier(monster?.con)}`,
-    intelligence: `${getModifier(monster?.int) >= 0 ? "+" : ""}${getModifier(monster?.int)}`,
-    wisdom: `${getModifier(monster?.wis) >= 0 ? "+" : ""}${getModifier(monster?.wis)}`,
-    charisma: `${getModifier(monster?.cha) >= 0 ? "+" : ""}${getModifier(monster?.cha)}`,
-  };
-
-  return {
-    name: nameOverride || monster.name || "Monster",
-    race: monsterTypeLabel(monster.type),
-    class: "Monster",
-    level: Math.max(1, Math.floor(hp / 6)),
-    hp,
-    maxHp: hp,
-    ac,
-    cr: String(monster.cr || "0"),
-    imageUrl: monsterImageUrl(monster),
-    strength: clampInt(monster.str, 10, 1, 100),
-    dexterity: clampInt(monster.dex, 10, 1, 100),
-    constitution: clampInt(monster.con, 10, 1, 100),
-    intelligence: clampInt(monster.int, 10, 1, 100),
-    wisdom: clampInt(monster.wis, 10, 1, 100),
-    charisma: clampInt(monster.cha, 10, 1, 100),
-    inventory: "[]",
-    modifiers: JSON.stringify(modifiers),
-    actions: JSON.stringify(mapMonsterActions(monster)),
-  };
 }
 
 function includeEncounter() {

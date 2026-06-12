@@ -105,12 +105,11 @@ The server has a structured logging and debugging system designed to help AI age
 - Active MCP SSE transport sessions log a `debug`-level heartbeat every 60s via namespace `"mcp:sse:heartbeat"`.
 - Includes `sessionId`, `ageMs`, and `ageSeconds` to detect stale connections.
 
-### Pushover Notifications
-The AI agent's OpenCode environment sends mobile push notifications via the [Pushover](https://pushover.net/) API to alert the DM when the agent needs attention.
+### Terminal Bell Notifications
+The AI agent's OpenCode environment sends notifications via the **terminal bell** (`\a`/ASCII 0x07) to alert the DM. On Termius for Android (or any SSH client), this triggers a vibration/haptic feedback. A bold notification text line is also printed to stderr so you see what happened.
 
 **Configuration:**
-- Credentials stored in `~/.config/opencode/pushover.json`: `token` (app token) and `user` (user key).
-- Can also be set via env vars `PUSHOVER_APP_TOKEN` and `PUSHOVER_USER_KEY`.
+- No credentials needed — works over SSH with any terminal emulator that supports the bell character.
 - Disable entirely by setting `OPENCODE_NOTIFY=0`.
 
 **Trigger events:**

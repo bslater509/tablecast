@@ -23,6 +23,14 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+// Global unhandled rejection handler — prevents process crashes on async errors
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("server", "Unhandled Rejection", {
+    error: reason?.message || reason,
+    stack: reason?.stack,
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Express app
 // ---------------------------------------------------------------------------
@@ -97,6 +105,18 @@ const apiLimiter = rateLimit({
 app.use("/api/", apiLimiter);
 
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// Request timeout — prevents long-running requests from hanging connections
+const REQUEST_TIMEOUT_MS = 120_000; // 2 minutes
+app.use((req, res, next) => {
+  res.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    logger.warn("http", "Request timed out", { method: req.method, path: req.path, reqId: req.id });
+    if (!res.headersSent) {
+      res.status(503).json({ error: "Request timed out." });
+    }
+  });
+  next();
+});
 
 // Legacy debug-log incoming API requests (kept for backwards compat)
 const debug = require("./utils/debug");

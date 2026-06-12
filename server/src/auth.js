@@ -5,6 +5,22 @@ const debug = require("./utils/debug");
 const logger = require("./utils/logger");
 const log = debug("tablecast:auth");
 
+// In-memory identity cache with TTL — reduces DB load for repeated auth checks
+const CACHE_TTL_MS = 60_000; // 1 minute
+const identityCache = new Map();
+function getCachedIdentity(key) {
+  const entry = identityCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL_MS) {
+    identityCache.delete(key);
+    return null;
+  }
+  return entry.identity;
+}
+function setCachedIdentity(key, identity) {
+  identityCache.set(key, { identity, ts: Date.now() });
+}
+
 // ---------------------------------------------------------------------------
 // Header Parsers
 // ---------------------------------------------------------------------------
@@ -35,15 +51,23 @@ function getCharacterId(req) {
  * or null if neither header is valid.
  */
 async function getRequestIdentity(req) {
+  // Check cache first
+  const rawUserId = getUserId(req);
+  const rawCharId = getCharacterId(req);
+  const cacheKey = rawCharId ? `char:${rawCharId}` : (rawUserId ? `user:${rawUserId}` : null);
+  if (cacheKey) {
+    const cached = getCachedIdentity(cacheKey);
+    if (cached) return cached;
+  }
+
   // 1) Try character header first
-  const charId = getCharacterId(req);
-  if (charId) {
+  if (rawCharId) {
     const character = await prisma.character.findUnique({
-      where: { id: charId },
+      where: { id: rawCharId },
     });
     if (character) {
-      log("getRequestIdentity — character id=%d name=%s", charId, character.name);
-      return {
+      log("getRequestIdentity — character id=%d name=%s", rawCharId, character.name);
+      const identity = {
         id: character.id,
         username: character.name,
         role: "PLAYER",
@@ -54,18 +78,19 @@ async function getRequestIdentity(req) {
         type: "character",
         characterId: character.id,
       };
+      setCachedIdentity(cacheKey, identity);
+      return identity;
     }
   }
 
   // 2) Fall back to user header (DM)
-  const userId = getUserId(req);
-  if (userId) {
+  if (rawUserId) {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: rawUserId },
     });
     if (user) {
-      log("getRequestIdentity — user id=%d username=%s role=%s", userId, user.username, user.role);
-      return {
+      log("getRequestIdentity — user id=%d username=%s role=%s", rawUserId, user.username, user.role);
+      const identity = {
         id: user.id,
         username: user.username,
         role: user.role,
@@ -76,17 +101,19 @@ async function getRequestIdentity(req) {
         type: "user",
         userId: user.id,
       };
+      setCachedIdentity(cacheKey, identity);
+      return identity;
     }
 
     // Fallback: if user wasn't found in users table, try characters table.
     // This handles cases where the frontend sends a character ID via
     // x-tablecast-user-id (backward compat with older components).
     const fallbackChar = await prisma.character.findUnique({
-      where: { id: userId },
+      where: { id: rawUserId },
     });
     if (fallbackChar) {
-      log("getRequestIdentity — fallback character id=%d name=%s", userId, fallbackChar.name);
-      return {
+      log("getRequestIdentity — fallback character id=%d name=%s", rawUserId, fallbackChar.name);
+      const identity = {
         id: fallbackChar.id,
         username: fallbackChar.name,
         role: "PLAYER",
@@ -97,6 +124,8 @@ async function getRequestIdentity(req) {
         type: "character",
         characterId: fallbackChar.id,
       };
+      setCachedIdentity(cacheKey, identity);
+      return identity;
     }
   }
 
