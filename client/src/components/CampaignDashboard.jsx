@@ -220,15 +220,17 @@ export default function CampaignDashboard({ user }) {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  // Depend on user.id (stable primitive) not the full user object (new identity every render)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 60 seconds
   useEffect(() => {
-    const interval = setInterval(fetchDashboard, 30000);
+    const interval = setInterval(fetchDashboard, 60000);
     return () => clearInterval(interval);
   }, [fetchDashboard]);
 
