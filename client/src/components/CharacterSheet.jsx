@@ -80,7 +80,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
   // AI Character Generator states
   const [showCharGen, setShowCharGen] = useState(false);
-  
+
   // Level-Up Wizard
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [charGenPrompt, setCharGenPrompt] = useState("");
@@ -90,7 +90,6 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   const [charGenProgress, setCharGenProgress] = useState("");
   const [charGenOptions, setCharGenOptions] = useState([]);
   const [charGenSelected, setCharGenSelected] = useState(null);
-  
 
 
   // Debounce ref for save-to-server to avoid flood on keystrokes
@@ -103,15 +102,13 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   }, [character]);
 
   // Cleanup debounce timer on unmount
-  useEffect(() => {
-    return () => {
+  useEffect(() => () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, []);
+    }, []);
 
   // Save status indicator
   const [saveStatus, setSaveStatus] = useState("Saved"); // "Saved", "Saving...", "Error"
-  
+
   // Custom Attack creation form
   const [showAddAttack, setShowAddAttack] = useState(false);
   const [atkName, setAtkName] = useState("");
@@ -127,17 +124,17 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
   // Keep a reference to the active layout tab on the sheet (Stats, Skills, Attacks, Inventory, Spells)
   const [sheetTab, setSheetTab] = useState("stats");
-  
+
   // Spellcasting state
   const [spellSlots, setSpellSlots] = useState({});
   const [spells, setSpells] = useState([]);
   const [spellcastingAbility, setSpellcastingAbility] = useState("");
   const [spellSaveDc, setSpellSaveDc] = useState(10);
   const [spellAttackBonus, setSpellAttackBonus] = useState(5);
-  
+
   // Spell add form
   const [showAddSpell, setShowAddSpell] = useState(false);
-  
+
   // Expanded spell card tracking
   const [expandedSpell, setExpandedSpell] = useState(null);
 
@@ -170,6 +167,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       const sp = Math.floor(remaining / 10); remaining %= 10;
       setCurrencyValues({ pp, gp, ep, sp, cp: remaining });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCurrencyEdit, character?.gold]);
 
   // Fetch character details from backend on mount/ID change
@@ -185,15 +183,15 @@ export default function CharacterSheet({ characterId, onBack, user }) {
           throw new Error("Failed to load character sheet.");
         }
         const data = await res.json();
-        
+
         // Parse inventory and modifiers JSON blobs
         let parsedInventory = [];
         let parsedModifiers = { proficiencies: [], saveProficiencies: [], attacks: [] };
-        
+
         try {
           parsedInventory = JSON.parse(data.inventory || "[]");
         } catch (e) {}
-        
+
         try {
           const modObject = JSON.parse(data.modifiers || "{}");
           parsedModifiers = {
@@ -235,11 +233,13 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       }
     }
     loadCharacter();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characterId]);
 
   // Recalculate spell save DC and attack bonus when level or casting ability changes
   useEffect(() => {
     recalcSpellStats(spellcastingAbility);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [character?.level, character?.strength, character?.dexterity, character?.constitution, character?.intelligence, character?.wisdom, character?.charisma, spellcastingAbility]);
 
   // Default weapon templates if character has none
@@ -251,7 +251,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     ];
   }
 
-  //  SAVE STATE TO SERVER (DEBUNCED/ON-BLUR) 
+  //  SAVE STATE TO SERVER (DEBUNCED/ON-BLUR)
   async function saveToServer(updatedChar) {
     if (!updatedChar) return;
     setSaveStatus("Saving...");
@@ -273,7 +273,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
         modifiers: JSON.stringify(updatedChar.modifiers),
         spellSlots: JSON.stringify(spellSlots),
         spells: JSON.stringify(spells),
-        spellcastingAbility: spellcastingAbility,
+        spellcastingAbility,
         spellSaveDc: Number(spellSaveDc),
         spellAttackBonus: Number(spellAttackBonus),
         gold: Number(updatedChar.gold) || 0,
@@ -497,7 +497,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     }));
   }
 
-  //  DICE ROLLING LOGIC & WEB SOCKET EMITS 
+  //  DICE ROLLING LOGIC & WEB SOCKET EMITS
 
   // Parse a dice expression like "2d6" or "1d10"
   function parseDiceExpression(expr) {
@@ -522,7 +522,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
   // Roll an Ability Check (STR, DEX, etc.)
   async function handleAbilityRoll(statName, score) {
     const modifier = getMod(score);
-    let d20, total;
+    let d20; let total;
     try {
       const results = await rollDice(["1d20"], {
         theme: user?.diceTheme || "default",
@@ -562,7 +562,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     const profBonus = getProficiencyBonus(character.level);
     const isProf = character.modifiers.saveProficiencies.includes(statName);
     const finalMod = modifier + (isProf ? profBonus : 0);
-    let d20, total;
+    let d20; let total;
     try {
       const results = await rollDice(["1d20"], {
         theme: user?.diceTheme || "default",
@@ -621,7 +621,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     const profBonus = getProficiencyBonus(character.level);
     const isProf = character.modifiers.proficiencies.includes(skill.name);
     const finalMod = modifier + (isProf ? profBonus : 0);
-    let d20, total;
+    let d20; let total;
     try {
       const results = await rollDice(["1d20"], {
         theme: user?.diceTheme || "default",
@@ -677,11 +677,11 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     const abilityScore = character[atk.ability];
     const abilityMod = getMod(abilityScore);
     const profBonus = getProficiencyBonus(character.level);
-    
+
     // To Hit Math
     const toHitMod = abilityMod + (atk.proficient ? profBonus : 0);
     const { count, sides } = parseDiceExpression(atk.dice);
-    let toHitD20, dmgRolls;
+    let toHitD20; let dmgRolls;
     try {
       // Roll to-hit and damage dice together in one physics batch
       const notation = ["1d20"];
@@ -875,7 +875,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       damageInfo = {
         dice: dmg.base?.dice || "",
         type: dmg.damageType?.name || "",
-        slotMultiplier: dmg.slots ? true : false,
+        slotMultiplier: !!dmg.slots,
         scaling: spellData.scaling?.dice || "",
       };
     }
@@ -914,18 +914,18 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       prepared: spellData.level === 0, // Cantrips always prepared
       ritual: spellData.ritual || false,
       concentration: spellData.concentration || false,
-      castingTime: spellData.time?.[0]?.number + " " + spellData.time?.[0]?.unit || "",
-      range: spellData.range?.distance?.amount + " " + spellData.range?.distance?.type || spellData.range?.type || "",
+      castingTime: `${spellData.time?.[0]?.number} ${spellData.time?.[0]?.unit}` || "",
+      range: `${spellData.range?.distance?.amount} ${spellData.range?.distance?.type}` || spellData.range?.type || "",
       components: spellData.components?.required?.join(", ") || "",
-      duration: spellData.duration?.[0]?.duration?.amount + " " + spellData.duration?.[0]?.duration?.type || spellData.duration?.[0]?.type || "",
+      duration: `${spellData.duration?.[0]?.duration?.amount} ${spellData.duration?.[0]?.duration?.type}` || spellData.duration?.[0]?.type || "",
       description: spellData.entries || [],
       higherLevels: spellData.entriesHigherLevel?.[0]?.entries || [],
       source: spellData.source || "",
       // Enhanced data from 5etools
       damage: damageInfo,
       save: saveInfo,
-      materialText: materialText,
-      attackType: attackType,
+      materialText,
+      attackType,
     };
     const updatedSpells = [...spells, newSpell];
     setSpells(updatedSpells);
@@ -966,7 +966,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       damageInfo = {
         dice: dmg.base?.dice || "",
         type: dmg.damageType?.name || "",
-        slotMultiplier: dmg.slots ? true : false,
+        slotMultiplier: !!dmg.slots,
         scaling: detail.scaling?.dice || "",
       };
     }
@@ -988,15 +988,15 @@ export default function CharacterSheet({ characterId, onBack, user }) {
       i === spellIndex
         ? {
             ...s,
-            castingTime: s.castingTime || detail.time?.[0]?.number + " " + detail.time?.[0]?.unit || "",
-            range: s.range || detail.range?.distance?.amount + " " + detail.range?.distance?.type || detail.range?.type || "",
+            castingTime: s.castingTime || `${detail.time?.[0]?.number} ${detail.time?.[0]?.unit}` || "",
+            range: s.range || `${detail.range?.distance?.amount} ${detail.range?.distance?.type}` || detail.range?.type || "",
             components: s.components || detail.components?.required?.join(", ") || "",
-            duration: s.duration || detail.duration?.[0]?.duration?.amount + " " + detail.duration?.[0]?.duration?.type || detail.duration?.[0]?.type || "",
+            duration: s.duration || `${detail.duration?.[0]?.duration?.amount} ${detail.duration?.[0]?.duration?.type}` || detail.duration?.[0]?.type || "",
             description: s.description.length > 0 ? s.description : (detail.entries || []),
             higherLevels: s.higherLevels.length > 0 ? s.higherLevels : (detail.entriesHigherLevel?.[0]?.entries || []),
             damage: damageInfo,
             save: saveInfo,
-            materialText: materialText,
+            materialText,
           }
         : s
     );
@@ -1098,7 +1098,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
   // Roll a spell attack (d20 + spell attack bonus)
   async function handleSpellAttack(spell) {
-    let d20, total;
+    let d20; let total;
     try {
       const results = await rollDice(["1d20"], {
         theme: user?.diceTheme || "default",
@@ -1355,7 +1355,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
     const gp = Math.floor(copper / 100);
     const sp = Math.floor((copper % 100) / 10);
     const cpRem = copper % 10;
-    let parts = [];
+    const parts = [];
     if (gp > 0) parts.push(`${gp} GP`);
     if (sp > 0) parts.push(`${sp} SP`);
     parts.push(`${cpRem} CP`);
@@ -1683,7 +1683,7 @@ export default function CharacterSheet({ characterId, onBack, user }) {
 
       {/* Sheet Content Scroll Area */}
       <div style={styles.scrollArea}>
-        
+
         {/*  STATS TAB  */}
         {sheetTab === "stats" && (
           <AbilityScoresPanel

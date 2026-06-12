@@ -5,8 +5,8 @@
 // =============================================================================
 import { useState, useEffect, useRef } from "react";
 import {
-  UserRound, Swords, Brain, BookOpen, Shield,
-  ChevronLeft, ChevronRight, Check, Sparkles, RefreshCw, Search,
+  UserRound, Shield,
+  ChevronLeft, ChevronRight, Check, Sparkles, RefreshCw,
 } from "lucide-react";
 import { getJsonAuthHeaders } from "../utils/authHeaders";
 import { getMod, formatMod, getProficiencyBonus, SKILL_DEFINITIONS } from "./character/characterUtils";
@@ -200,7 +200,7 @@ function StepNameRace({ form, setForm, onError }) {
     setRaceResults([]);
   }
 
-  const race = form.race;
+  const {race} = form;
   const subraces = race?.subrace || [];
 
   return (
@@ -521,9 +521,7 @@ function StepAbilityScores({ form, setForm }) {
       // Clamp 3-20 for rolled, 8-15 for point buy and standard
       if (method === "rolled") {
         if (newVal < 3 || newVal > 20) return prev;
-      } else {
-        if (newVal < 8 || newVal > 15) return prev;
-      }
+      } else if (newVal < 8 || newVal > 15) return prev;
       if (method === "pointbuy") {
         const cost = POINT_BUY_COSTS[newVal];
         const currentCost = POINT_BUY_COSTS[current];
@@ -1424,7 +1422,7 @@ export default function CharacterBuilderWizard({ user, onComplete, onCancel, onE
         inventory: JSON.stringify(inventoryItems),
         modifiers: JSON.stringify(modifiers),
         spells: JSON.stringify(spellData.spells),
-        spellSlots: JSON.stringify(isCasterChar ? { "1": { total: 2, used: 0 } } : {}),
+        spellSlots: JSON.stringify(isCasterChar ? { 1: { total: 2, used: 0 } } : {}),
         spellcastingAbility: spellAbility,
         spellSaveDc,
         spellAttackBonus,

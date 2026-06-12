@@ -229,7 +229,7 @@ router.get("/search", async (req, res) => {
     const results = referenceSearch
       .search(category, q || "", maxResults, searchOpts)
       .map((item) => withReferenceImage(item, category));
-    
+
     // Augment results with homebrew entries matching the category
     const categoryToHomebrewType = {
       spells: "SPELL",
@@ -304,7 +304,7 @@ router.get("/search", async (req, res) => {
         logger.error("api:reference", "Error augmenting with homebrew entries", { error: hbErr.message });
       }
     }
-    
+
     res.json(results);
   } catch (err) {
     logger.error("api:reference", "Error in GET /api/reference/search", { error: err.message });
@@ -405,7 +405,7 @@ router.post("/import", requireDm, async (req, res) => {
 
     const cleanSource = typeof source === "string" ? source : "";
     const allowedSources = await getAllowedSources();
-    
+
     const rawItem = referenceSearch.getByName(category, name, cleanSource, {
       sources: allowedSources,
     });
@@ -446,7 +446,7 @@ router.post("/import", requireDm, async (req, res) => {
           const toHit = hitMatch ? parseInt(hitMatch[1], 10) : 0;
           const dmgMatch = entriesStr.match(/\{@damage ([^}]+)\}/);
           const damage = dmgMatch ? dmgMatch[1].trim() : "";
-          
+
           actions.push({
             name: act.name || "Action",
             description: entriesStr.replace(/\{@[a-z]+ ([^}]+)\}/g, "$1").replace(/\{@hit (\d+)\}/g, "+$1").replace(/\{@damage ([^}]+)\}/g, "$1"),
@@ -502,10 +502,10 @@ router.post("/import", requireDm, async (req, res) => {
       });
 
       return res.json({ success: true, type: "monster", item: monster });
-    } else {
+    }
       const wikiCategory = category.toUpperCase().slice(0, -1);
       const finalCategory = wikiCategory === "RULE" ? "RULE" : wikiCategory === "CLAS" ? "CLASS" : wikiCategory;
-      
+
       const existing = await prisma.wikiArticle.findFirst({
         where: { title: item.name, category: finalCategory },
       });
@@ -551,7 +551,7 @@ router.post("/import", requireDm, async (req, res) => {
       });
 
       return res.json({ success: true, type: "wiki", item: wikiArticle });
-    }
+
   } catch (err) {
     logger.error("api:reference", "Error in POST /api/reference/import", { error: err.message });
     res.status(500).json({ error: `Failed to import reference: ${err.message}` });
@@ -561,22 +561,22 @@ router.post("/import", requireDm, async (req, res) => {
 // Helper utilities for importing
 async function copyReferenceImage(sourceUrl) {
   if (!sourceUrl || typeof sourceUrl !== "string") return "";
-  
+
   // If it's a 5e.tools URL, download it
   if (sourceUrl.startsWith("https://5e.tools/img/")) {
     return downloadReferenceImage(sourceUrl);
   }
-  
+
   // Legacy: if it's an uploads URL, return as-is (already local)
   if (sourceUrl.startsWith("/uploads/")) {
     return sourceUrl;
   }
-  
+
   // Otherwise, treat any http/https URL as a remote image to download
   if (sourceUrl.startsWith("http://") || sourceUrl.startsWith("https://")) {
     return downloadReferenceImage(sourceUrl);
   }
-  
+
   return "";
 }
 
@@ -588,34 +588,34 @@ function downloadReferenceImage(url) {
     const https = require("https");
     const http = require("http");
     const protocol = url.startsWith("https") ? https : http;
-    
+
     const destDir = path.resolve(__dirname, "../../uploads");
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
     }
-    
+
     const urlObj = new URL(url);
     const ext = path.extname(urlObj.pathname) || ".webp";
     const base = path.basename(urlObj.pathname, ext);
     const uniqueName = `imported_${base.replace(/[^a-z0-9]+/gi, "_")}_${Date.now()}${ext}`;
     const destFilePath = path.join(destDir, uniqueName);
-    
+
     protocol.get(url, { timeout: 15000 }, (res) => {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         logger.error("api:reference", "Failed to download reference image", { url, status: res.statusCode });
         resolve("");
         return;
       }
-      
+
       // Handle redirects
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         resolve(downloadReferenceImage(res.headers.location));
         return;
       }
-      
+
       const fileStream = fs.createWriteStream(destFilePath);
       res.pipe(fileStream);
-      
+
       fileStream.on("finish", () => {
         fileStream.close();
         // Verify the file is valid
@@ -629,7 +629,7 @@ function downloadReferenceImage(url) {
           resolve(`/uploads/${uniqueName}`);
         }
       });
-      
+
       fileStream.on("error", (err) => {
         fs.unlink(destFilePath, () => {});
         logger.error("api:reference", "Error writing downloaded image", { error: err.message, url });
@@ -690,7 +690,7 @@ function formatEntriesToMarkdown(entries) {
     return entries.map((entry) => {
       if (typeof entry === "string") return cleanText(entry);
       if (!entry || typeof entry !== "object") return "";
-      
+
       if (entry.type === "list" && Array.isArray(entry.items)) {
         return entry.items.map((item) => `* ${typeof item === "string" ? cleanText(item) : formatEntriesToMarkdown(item.entries || item)}`).join("\n");
       }

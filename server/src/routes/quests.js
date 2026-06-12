@@ -362,7 +362,7 @@ router.patch("/:id/assign", requireDm, async (req, res) => {
       return res.status(400).json({ error: "id must be a valid number." });
     }
 
-    let characterIds = req.body.characterIds;
+    let {characterIds} = req.body;
     if (!Array.isArray(characterIds)) {
       return res.status(400).json({ error: "characterIds must be an array of character IDs." });
     }

@@ -9,11 +9,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Flag,
-  Heart,
   Lightbulb,
   Plus,
   Shield,
-  Skull,
   Swords,
   Trash2,
   UserPlus,
@@ -24,7 +22,7 @@ import { useToast } from "../context/ToastContext";
 import { useSocket } from "../context/SocketContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { getJsonAuthHeaders } from "../utils/authHeaders";
-import { encounterStyles, hpColor, badgeColor } from "./encounters/encounterStyles";
+import { encounterStyles, badgeColor } from "./encounters/encounterStyles";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import AiBuilderModal from "./encounters/AiBuilderModal";
 import AddParticipantPanel from "./encounters/AddParticipantPanel";
@@ -41,11 +39,11 @@ const CONDITION_OPTIONS = [
 ];
 
 const CONDITION_COLORS = {
-  "Blinded": "#94a3b8", "Charmed": "#f472b6", "Deafened": "#64748b",
-  "Frightened": "#a78bfa", "Grappled": "#fb923c", "Incapacitated": "#6b7280",
-  "Invisible": "#c084fc", "Paralyzed": "#fbbf24", "Petrified": "#9ca3af",
-  "Poisoned": "#22c55e", "Prone": "#eab308", "Restrained": "#f97316",
-  "Stunned": "#38bdf8", "Unconscious": "#64748b", "Exhaustion": "#ef4444",
+  Blinded: "#94a3b8", Charmed: "#f472b6", Deafened: "#64748b",
+  Frightened: "#a78bfa", Grappled: "#fb923c", Incapacitated: "#6b7280",
+  Invisible: "#c084fc", Paralyzed: "#fbbf24", Petrified: "#9ca3af",
+  Poisoned: "#22c55e", Prone: "#eab308", Restrained: "#f97316",
+  Stunned: "#38bdf8", Unconscious: "#64748b", Exhaustion: "#ef4444",
 };
 const DEFAULT_COND_COLOR = "#a855f7";
 const SELECTED_ENCOUNTER_STORAGE_KEY = "tablecast.selectedEncounterId";
@@ -69,13 +67,12 @@ export default function EncountersPanel({
   const basePath = location.pathname.replace(/\/\d+$/, "");
 
   /* ---- auth headers ---- */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const authHeaders = useMemo(() => getJsonAuthHeaders(user), [user?.id]);
 
   /* ---- state ---- */
   const [maps, setMaps] = useState([]);
-  const [selectedMapId, setSelectedMapId] = useState(() => {
-    return localStorage.getItem(MAP_FILTER_STORAGE_KEY) || "";
-  });
+  const [selectedMapId, setSelectedMapId] = useState(() => localStorage.getItem(MAP_FILTER_STORAGE_KEY) || "");
   const [encounters, setEncounters] = useState([]);
   const [selectedEncounter, setSelectedEncounter] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -792,8 +789,8 @@ export default function EncountersPanel({
                                 fontSize: 9,
                                 padding: "1px 5px",
                                 borderRadius: 3,
-                                background: condColor + "22",
-                                border: "1px solid " + condColor + "66",
+                                background: `${condColor}22`,
+                                border: `1px solid ${condColor}66`,
                                 color: condColor,
                                 fontWeight: 600,
                               }}
@@ -849,9 +846,9 @@ export default function EncountersPanel({
                                   disabled={hasIt}
                                   style={{
                                     fontSize: 9, padding: "2px 5px", borderRadius: 3,
-                                    background: hasIt ? cColor + "44" : "transparent",
-                                    border: "1px solid " + cColor + "66",
-                                    color: hasIt ? cColor : cColor + "aa",
+                                    background: hasIt ? `${cColor}44` : "transparent",
+                                    border: `1px solid ${cColor}66`,
+                                    color: hasIt ? cColor : `${cColor}aa`,
                                     cursor: hasIt ? "default" : "pointer", fontWeight: 600,
                                     opacity: hasIt ? 0.5 : 1,
                                   }}

@@ -29,13 +29,11 @@ function CopyButton({ text }) {
       console.error("Failed to copy text:", err);
     }
   };
-  useEffect(() => {
-    return () => {
+  useEffect(() => () => {
       if (copiedTimeoutRef.current) {
         clearTimeout(copiedTimeoutRef.current);
       }
-    };
-  }, []);
+    }, []);
   return (
     <button
       onClick={handleCopy}
@@ -156,6 +154,7 @@ export default function AiPanel({ user }) {
       setCurrentNpcConvId(null);
       loadConversationList();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNpcId]);
 
   // --------------- Auto-scroll ---------------
@@ -204,6 +203,7 @@ export default function AiPanel({ user }) {
         setCurrentNpcConvId(conv.id);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, selectedNpcId, npcs, rulesChat, npcChat, createConversation]);
 
   const handleDeleteConv = useCallback(async (convId, type) => {

@@ -233,7 +233,7 @@ export default function WikiTreeSidebar({
                                   aria-label={`New ${cat.label}`}
                                   role="button"
                                   tabIndex={0}
-                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onCreateNew(cat.tab); } }}
+                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onCreateNew(cat.tab); } }}
                                 >
                                   +
                                 </span>

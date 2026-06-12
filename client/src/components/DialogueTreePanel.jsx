@@ -3,10 +3,9 @@
 // Dual-mode component: DM tree editor (builder) and player dialogue viewer.
 // Modes: "builder" (DM only) and "player" (read-only dialogue playback).
 // =============================================================================
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ChevronDown,
-  ChevronRight,
   Circle,
   Edit3,
   FileText,
@@ -62,6 +61,7 @@ export default function DialogueTreePanel({ user, readOnly = false, isPopout = f
   const { socket } = useSocket();
   const isDm = user?.role === "DM" && !readOnly;
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const authHeaders = useMemo(() => getJsonAuthHeaders(user), [user?.id, user?.isCharacter]);
 
   // -------------------------------------------------------------------------
@@ -837,7 +837,7 @@ export default function DialogueTreePanel({ user, readOnly = false, isPopout = f
                     <div style={styles.nodeCardPreview}>
                       {node.npcText
                         ? node.npcText.length > 80
-                          ? node.npcText.slice(0, 80) + "..."
+                          ? `${node.npcText.slice(0, 80)}...`
                           : node.npcText
                         : <span style={{ opacity: 0.4 }}>(empty)</span>}
                     </div>

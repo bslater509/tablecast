@@ -321,7 +321,7 @@ async function performAiStreamTokens(provider, apiKey, ollamaUrl, ollamaModel, s
     case "lmstudio": {
       let baseUrl = ollamaUrl || "http://localhost:1234";
       if (!baseUrl.endsWith("/v1") && !baseUrl.includes("/v1/")) {
-        baseUrl = baseUrl.replace(/\/+$/, "") + "/v1";
+        baseUrl = `${baseUrl.replace(/\/+$/, "")}/v1`;
       }
       const response = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
@@ -359,7 +359,7 @@ async function performAiStreamTokens(provider, apiKey, ollamaUrl, ollamaModel, s
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
+          Authorization: `Bearer ${apiKey}`
         },
         body: JSON.stringify({
           model,
@@ -380,7 +380,7 @@ async function performAiStreamTokens(provider, apiKey, ollamaUrl, ollamaModel, s
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
+          Authorization: `Bearer ${apiKey}`
         },
         body: JSON.stringify({ model: "gpt-4o-mini", messages, stream: true }),
         signal

@@ -171,7 +171,7 @@ if (fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH)) {
 // ---------------------------------------------------------------------------
 
 // Health check  confirms the server is alive
-// Deployment verification 
+// Deployment verification
 let deployInfo = { version: "v1-original" };
 try {
   deployInfo = require("./deploy-verify.js");
@@ -286,7 +286,7 @@ const placeholderPath = path.join(uploadsPath, "placeholder_map.png");
 if (!fs.existsSync(placeholderPath)) {
   try {
     // Simple 400x400 dark grid PNG
-    const width = 400, height = 400;
+    const width = 400; const height = 400;
     const pixels = [];
     for (let y = 0; y < height; y++) {
       const row = Buffer.alloc(width * 4);
@@ -299,7 +299,7 @@ if (!fs.existsSync(placeholderPath)) {
           row[off] = 60; row[off+1] = 55; row[off+2] = 80;
         }
         // Gold crosshair in center
-        const cx = width / 2, cy = height / 2;
+        const cx = width / 2; const cy = height / 2;
         if (Math.abs(x - cx) < 3 || Math.abs(y - cy) < 3) {
           row[off] = 200; row[off+1] = 151; row[off+2] = 58;
         }
@@ -313,7 +313,7 @@ if (!fs.existsSync(placeholderPath)) {
       const c = Buffer.concat([Buffer.from(type), data]);
       const crc = Buffer.alloc(4); crc.writeUInt32BE(require("zlib").crc32(c) >>> 0);
       return Buffer.concat([len, c, crc]);
-    }
+    };
 
     const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
     const ihdrData = Buffer.alloc(13);

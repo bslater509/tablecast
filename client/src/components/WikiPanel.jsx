@@ -9,7 +9,7 @@ import { ExternalLink, Menu, MessageCircle, Loader2 } from "lucide-react";
 import { marked } from "marked";
 import AiAssistButton, { AI_FIELD_ACTIONS } from "./AiAssistButton";
 import TokenPresetIcon from "./TokenPresetIcon";
-import { NPC_TOKEN_PRESETS, matchNpcPreset, generateTokenSvgUrl } from "../data/npcTokenPresets";
+import { NPC_TOKEN_PRESETS, generateTokenSvgUrl } from "../data/npcTokenPresets";
 import WikiTreeSidebar from "./WikiTreeSidebar";
 import NpcStatblock from "./wiki/NpcStatblock";
 import styles from "./wiki/wikiStyles";
@@ -45,18 +45,14 @@ export default function WikiPanel({ user, isPopout = false }) {
   const [linkedSession, setLinkedSession] = useState(null);
   const [npcs, setNpcs] = useState([]);
   const [monsters, setMonsters] = useState([]);
-  const [searchQuery, setSearchQuery] = useState(() => {
-    return localStorage.getItem(SEARCH_QUERY_STORAGE_KEY) || "";
-  });
+  const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem(SEARCH_QUERY_STORAGE_KEY) || "");
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Categorized Section State
-  const [activeCategoryTab, setActiveCategoryTab] = useState(() => {
-    return localStorage.getItem(CATEGORY_TAB_STORAGE_KEY) || "LOCATION";
-  }); // "LOCATION" | "NPC" | "LORE" | "LOG" | "MONSTER" | "SPELL" | "ITEM" | "RULE" | "CLASS" | "RACE"
+  const [activeCategoryTab, setActiveCategoryTab] = useState(() => localStorage.getItem(CATEGORY_TAB_STORAGE_KEY) || "LOCATION"); // "LOCATION" | "NPC" | "LORE" | "LOG" | "MONSTER" | "SPELL" | "ITEM" | "RULE" | "CLASS" | "RACE"
 
   // Creation Flow States
   const [showCategoryPrompt, setShowCategoryPrompt] = useState(false);
@@ -157,11 +153,9 @@ export default function WikiPanel({ user, isPopout = false }) {
 
   // Start NPC interview when the modal opens
   // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
+  useEffect(() => () => {
       if (npcTimerRef.current) clearTimeout(npcTimerRef.current);
-    };
-  }, []);
+    }, []);
 
   // Copy the image prompt to clipboard with brief feedback
   async function handleCopyImagePrompt(npc) {
@@ -280,6 +274,7 @@ export default function WikiPanel({ user, isPopout = false }) {
     }
 
     loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDM]);
 
   useEffect(() => {
@@ -349,11 +344,10 @@ export default function WikiPanel({ user, isPopout = false }) {
       if (location.pathname !== expected) {
         navigate(expected, { replace: true });
       }
-    } else {
-      if (location.pathname !== base && !routeArticleId) {
+    } else if (location.pathname !== base && !routeArticleId) {
         navigate(base, { replace: true });
       }
-    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedArticle?.id, isPopout, location.pathname, navigate, routeArticleId]);
 
   // ── Real-time wiki sync via Socket.io ──────────────────────────────
@@ -399,7 +393,7 @@ export default function WikiPanel({ user, isPopout = false }) {
     const query = searchQuery.toLowerCase();
     const titleMatch = article.title.toLowerCase().includes(query);
     const contentMatch = article.content.toLowerCase().includes(query);
-    
+
     let tagsMatch = false;
     try {
       const tags = JSON.parse(article.tags || "[]");
@@ -586,25 +580,25 @@ export default function WikiPanel({ user, isPopout = false }) {
         headers: authHeaders
       });
       if (!res.ok) throw new Error("Failed to load monster details.");
-      
+
       const details = await res.json();
-      
+
       // Map bestiary stats to NPC model fields
       const hpVal = details.hp?.average || 10;
       const acVal = details.ac?.[0]?.ac || details.ac?.[0] || 10;
-      
+
       // Map actions
       const actionsList = [];
       if (Array.isArray(details.action)) {
         details.action.forEach(act => {
           const entriesStr = Array.isArray(act.entries) ? act.entries.join(" ") : String(act.entries || "");
-          
+
           // Try to extract basic hit and damage
           const hitMatch = entriesStr.match(/\{@hit (\d+)\}/);
-          const toHit = hitMatch ? parseInt(hitMatch[1]) : 0;
+          const toHit = hitMatch ? parseInt(hitMatch[1], 10) : 0;
           const dmgMatch = entriesStr.match(/\{@damage ([^}]+)\}/);
           const damage = dmgMatch ? dmgMatch[1].trim() : "";
-          
+
           actionsList.push({
             name: act.name || "Action",
             description: entriesStr.replace(/\{@[a-z]+ ([^}]+)\}/g, "$1").replace(/\{@hit (\d+)\}/g, "+$1").replace(/\{@damage ([^}]+)\}/g, "$1"),
@@ -700,7 +694,7 @@ export default function WikiPanel({ user, isPopout = false }) {
   const handleNpcFieldChange = (key, value) => {
     setEditingNpc((prev) => {
       const updated = { ...prev, [key]: value };
-      
+
       const abilityFields = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
       if (abilityFields.includes(key)) {
         const mods = {};
@@ -899,13 +893,11 @@ export default function WikiPanel({ user, isPopout = false }) {
           } else {
             setNpcs((prev) => prev.map((n) => (n.id === saved.id ? saved : n)));
           }
-        } else {
-          if (isMonster) {
+        } else if (isMonster) {
             setMonsters((prev) => [...prev, saved]);
           } else {
             setNpcs((prev) => [...prev, saved]);
           }
-        }
         setSelectedArticle(saved);
         setIsEditing(false);
         setEditingNpc(null);
@@ -1960,7 +1952,7 @@ export default function WikiPanel({ user, isPopout = false }) {
 
                 {editorTab === "write" ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                    
+
                     {/* Alignment Field */}
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Alignment</label>
@@ -2112,7 +2104,6 @@ export default function WikiPanel({ user, isPopout = false }) {
                         className="form-input"
                       />
                     </div>
-
 
 
                   </div>

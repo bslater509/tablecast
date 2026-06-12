@@ -1,7 +1,7 @@
 // =============================================================================
 // useMapData — State management, data fetching, socket listeners, action handlers
 // =============================================================================
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MIN_ZOOM, MAX_ZOOM, MAP_IMPORT_PRESETS, parseFogState, cleanText } from "./MapConstants";
 import { NPC_TOKEN_PRESETS, generateTokenSvgUrl } from "../../data/npcTokenPresets";
 import { getAuthHeaders } from "../../utils/authHeaders";
@@ -134,7 +134,6 @@ export default function useMapData({ user, socket, isConnected, addToast, showCo
   const jsonAuthHeaders = { "Content-Type": "application/json", ...authHeaders };
   const withUser = (payload = {}) => ({ ...payload, userId: user?.id });
   const isDM = user?.role === "DM";
-
 
 
   // ---------------------------------------------------------------------------
@@ -300,9 +299,7 @@ export default function useMapData({ user, socket, isConnected, addToast, showCo
         setActiveEncounter(data.encounter);
       } else if (data && data.id) {
         setActiveEncounter(data);
-      } else {
-        if (activeMap) loadActiveEncounter(activeMap.id);
-      }
+      } else if (activeMap) loadActiveEncounter(activeMap.id);
     } else {
       const errData = await res.json().catch(() => ({ error: "Request failed." }));
       addToast(errData.error || "Request failed.", "error");
@@ -323,6 +320,7 @@ export default function useMapData({ user, socket, isConnected, addToast, showCo
     return () => {
       currentFetchIdRef.current = currentFetchIdRef.current + 1;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist VTT view preferences to localStorage
@@ -439,6 +437,7 @@ export default function useMapData({ user, socket, isConnected, addToast, showCo
       socket.off("token:pong", handleTokenPong);
       socket.off("reconnect:state", handleReconnectState);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket]);
 
   // ---------------------------------------------------------------------------

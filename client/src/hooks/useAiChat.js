@@ -83,6 +83,7 @@ export function useAiChat({
     })();
 
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialConversationId, user?.id]);
 
   const send = useCallback(

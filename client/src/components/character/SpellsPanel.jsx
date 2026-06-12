@@ -124,7 +124,7 @@ export default function SpellsPanel({
   function getGroupedSpells() {
     const groups = {};
     for (const spell of sortedSpells) {
-      const level = spell.level;
+      const {level} = spell;
       if (!groups[level]) groups[level] = [];
       groups[level].push(spell);
     }

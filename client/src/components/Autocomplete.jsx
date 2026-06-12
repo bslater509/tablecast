@@ -139,7 +139,7 @@ function Autocomplete({
         autoComplete="off"
       />
       {loading && <div style={styles.loadingIndicator}></div>}
-      
+
       {isOpen && suggestions.length > 0 && (
         <ul style={{ ...styles.dropdown, ...dropdownStyle }} className="glass-panel gold-border-glow">
           {suggestions.map((item, idx) => (

@@ -7,16 +7,14 @@
 const calculateModifier = (score) => Math.floor((score - 10) / 2);
 
 // Auto-calculate full set of D&D 5e modifiers based on stats object
-const generateModifiers = (stats) => {
-  return {
+const generateModifiers = (stats) => ({
     strength: calculateModifier(stats.strength ?? 10),
     dexterity: calculateModifier(stats.dexterity ?? 10),
     constitution: calculateModifier(stats.constitution ?? 10),
     intelligence: calculateModifier(stats.intelligence ?? 10),
     wisdom: calculateModifier(stats.wisdom ?? 10),
     charisma: calculateModifier(stats.charisma ?? 10),
-  };
-};
+  });
 
 const safeJsonParse = (value, fallback) => {
   try {

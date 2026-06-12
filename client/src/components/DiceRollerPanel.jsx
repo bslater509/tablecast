@@ -273,14 +273,14 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
     if (!hasDiceSelected || !socket) return;
 
     const notation = [];
-    let formulaParts = [];
+    const formulaParts = [];
 
     // Build notation from quantities
     Object.entries(quantities).forEach(([key, qty]) => {
       if (qty <= 0) return;
       const dieConfig = DICE_TYPES.find((d) => d.id === key);
       if (!dieConfig) return;
-      const sides = dieConfig.sides;
+      const {sides} = dieConfig;
 
       if (key === "d20" && advantage !== "normal" && qty === 1) {
         // For advantage/disadvantage, roll two individual d20s
@@ -300,7 +300,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
     const completedFormula = formulaParts.join(" ");
 
     // Roll via DiceBox (physics-based) or fallback
-    let groups, allRolls, total;
+    let groups; let allRolls; let total;
     try {
       const result = await rollDice(notation, {
         theme: activeDiceTheme.id,
@@ -341,7 +341,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
     const finalTotal = total;
 
     // Create descriptive summary text
-    let descriptionText = `rolled ${getFormulaPreview()}! Total: ${finalTotal}`;
+    const descriptionText = `rolled ${getFormulaPreview()}! Total: ${finalTotal}`;
 
     // Emit to socket server (which will auto-write to the DB and broadcast)
     socket.emit("chat:send", {
@@ -352,7 +352,7 @@ export default function DiceRollerPanel({ user, isPopout = false }) {
         rollName: rollLabel.trim() || "Dice Roll",
         formula: completedFormula,
         rolls: allRolls,
-        modifier: modifier,
+        modifier,
         total: finalTotal,
         isAttack: false,
         status: "rolled",

@@ -61,7 +61,7 @@ const ADDITIONAL_SOURCES = [
 ];
 
 // In-memory sync state
-let syncState = {
+const syncState = {
   isSyncing: false,
   status: "idle", // "idle", "syncing", "success", "error"
   progress: "Idle",

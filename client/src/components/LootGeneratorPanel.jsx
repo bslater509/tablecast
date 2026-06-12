@@ -13,11 +13,7 @@ import {
   ArrowRight,
   Database,
   ScrollText,
-  Copy,
-  Check,
-  Plus,
   Loader2,
-  Wallet,
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";
@@ -255,6 +251,7 @@ function LootGeneratorPanel({ user }) {
     } catch (err) {
       console.error("Failed to fetch parties:", err);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authHeaders]);
 
   // Fetch caches
@@ -298,7 +295,7 @@ function LootGeneratorPanel({ user }) {
         setError(data.error || "Failed to generate loot.");
       }
     } catch (err) {
-      setError("Network error: " + err.message);
+      setError(`Network error: ${err.message}`);
     } finally {
       setGenerating(false);
     }
@@ -327,7 +324,7 @@ function LootGeneratorPanel({ user }) {
         addToast(errData.error || "Failed to save loot.", "error");
       }
     } catch (err) {
-      addToast("Network error: " + err.message, "error");
+      addToast(`Network error: ${err.message}`, "error");
     }
   };
 
@@ -354,7 +351,7 @@ function LootGeneratorPanel({ user }) {
         addToast(data.error || "Failed to assign loot.", "error");
       }
     } catch (err) {
-      addToast("Network error: " + err.message, "error");
+      addToast(`Network error: ${err.message}`, "error");
     } finally {
       setAssigningId(null);
     }
@@ -375,7 +372,7 @@ function LootGeneratorPanel({ user }) {
         addToast(errData.error || "Failed to discard.", "error");
       }
     } catch (err) {
-      addToast("Network error: " + err.message, "error");
+      addToast(`Network error: ${err.message}`, "error");
     }
   };
 
@@ -454,7 +451,7 @@ function LootGeneratorPanel({ user }) {
       );
     }
 
-    const coins = data.coins;
+    const {coins} = data;
     const gems = data.gems || [];
     const art = data.art || [];
     const magicItems = data.magicItems || [];

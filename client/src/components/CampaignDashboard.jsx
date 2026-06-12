@@ -14,14 +14,11 @@ import {
   Map as MapIcon,
   ScrollText,
   Activity,
-  Sparkles,
   Play,
-  Plus,
   Clock,
   ChevronRight,
   Database,
   Zap,
-  Shield,
   Heart,
   Skull,
 } from "lucide-react";
@@ -194,7 +191,7 @@ function formatDate(dateStr) {
 
 function truncate(str, len = 60) {
   if (!str) return "";
-  return str.length > len ? str.slice(0, len) + "…" : str;
+  return str.length > len ? `${str.slice(0, len)}…` : str;
 }
 
 export default function CampaignDashboard({ user }) {

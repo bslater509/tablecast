@@ -214,7 +214,7 @@ async function handleAdvanceCalendar(args, context) {
 async function handleGenerateWeather(args, context) {
   try {
     const config = await getCalendarConfig();
-    const month = config.currentDate.month;
+    const {month} = config.currentDate;
     const terrain = args.terrain || config.currentWeather?.terrain || "plains";
 
     const validTerrains = ["desert", "forest", "mountains", "plains", "coastal", "swamp", "arctic", "urban", "underground"];

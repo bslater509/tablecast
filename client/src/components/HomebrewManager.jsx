@@ -16,10 +16,6 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  FileJson,
-  Copy,
-  ChevronUp,
-  ChevronDown,
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getAuthHeaders, getJsonAuthHeaders } from "../utils/authHeaders";

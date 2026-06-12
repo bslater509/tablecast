@@ -133,7 +133,7 @@ async function findRelevantRules(message, user) {
     const uniqueNames = new Set();
 
     for (const match of matches) {
-      const item = match.item;
+      const {item} = match;
       if (uniqueNames.has(item.name)) continue;
       uniqueNames.add(item.name);
 
@@ -160,7 +160,7 @@ async function findRelevantRules(message, user) {
   }
 
   if (context) {
-    context = "\n=== RELEVANT CONTEXT ===\n" + context + "========================\n";
+    context = `\n=== RELEVANT CONTEXT ===\n${context}========================\n`;
   }
 
   return context;

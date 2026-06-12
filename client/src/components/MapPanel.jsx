@@ -3,7 +3,6 @@
 // Decomposed into: MapConstants, useMapData, useMapInteraction,
 // MapCanvas, MapToolbar, MapEncounterControls, MapModals, MapTokenDetails
 // =============================================================================
-import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   AlertCircle, Plus, Trash2, X, UserPlus, Undo2, Grid3x3, Eye,

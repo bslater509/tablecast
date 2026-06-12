@@ -24,13 +24,11 @@ function CopyButton({ text }) {
       copiedTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {}
   };
-  useEffect(() => {
-    return () => {
+  useEffect(() => () => {
       if (copiedTimeoutRef.current) {
         clearTimeout(copiedTimeoutRef.current);
       }
-    };
-  }, []);
+    }, []);
   return (
     <button onClick={handleCopy} style={styles.copyBtn} className="btn-hover-scale" title="Copy">
       {copied ? <Check size={13} color="var(--color-success)" /> : <Copy size={13} />}

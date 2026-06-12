@@ -40,7 +40,7 @@ export default function SkillsPanel({
               style={styles.skillRollBtn}
               className="touch-target btn-hover-scale"
             >
-              {formatMod(finalMod)} 
+              {formatMod(finalMod)}
             </button>
           </div>
         );

@@ -35,11 +35,11 @@ function parseDebugEnv() {
     .map((ns) => {
       // Convert glob-style wildcard to regex
       const regexStr =
-        "^" +
+        `^${
         ns
           .replace(/[.+^${}()|[\]\\]/g, "\\$&") // escape regex specials
-          .replace(/\*/g, ".*") + // wildcard -> regex
-        "$";
+          .replace(/\*/g, ".*")  // wildcard -> regex
+        }$`;
       return { raw: ns, regex: new RegExp(regexStr, "i") };
     });
 }

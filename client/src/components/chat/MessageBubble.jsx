@@ -3,12 +3,12 @@
 // Renders a single chat message with WhatsApp-style layout: roll cards,
 // AI scholar messages, NPC roleplay, system notices, and plain text.
 // =============================================================================
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { Sparkles, Volume2, VolumeX, Loader2 } from "lucide-react";
 import { compileMarkdown } from "../../utils/markdown";
 import AiStreamingIndicator from "../AiStreamingIndicator";
 import CopyButton from "./CopyButton";
-import { speak, stop, init, isSpeaking, getVoiceForNpc } from "../../utils/ttsManager";
+import { speak, stop, getVoiceForNpc } from "../../utils/ttsManager";
 import { formatTime, getSenderColor } from "./chatUtils";
 import { useDiceBox } from "../../context/DiceBoxContext";
 import { useSocket } from "../../context/SocketContext";
@@ -29,6 +29,7 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
   const { socket } = useSocket();
   const [rollingChip, setRollingChip] = useState(null);
   const [copiedRollIndex, setCopiedRollIndex] = useState(null);
+  const [ttsPlaying, setTtsPlaying] = useState(false);
   const msgTime = formatTime(msg.timestamp);
   const isRoll = msg.type === "roll" && msg.rollDetails;
   const isAi = msg.sender === "D&D AI Assistant";
@@ -447,7 +448,6 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
   if (isNpc) {
     const matchedNpc = npcs?.find((n) => n.name.toLowerCase() === msg.sender.toLowerCase());
     const npcAvatar = matchedNpc?.imageUrl || matchedNpc?.largeImageUrl || "";
-    const [ttsPlaying, setTtsPlaying] = useState(false);
     return (
       <div
         className={`chat-bubble-wrapper theirs msg-enter`}
@@ -530,5 +530,4 @@ export default function MessageBubble({ msg, isMine, isGroupStart, isGroupEnd, s
 
   return null;
 }
-
 

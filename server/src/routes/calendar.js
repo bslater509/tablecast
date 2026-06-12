@@ -247,7 +247,7 @@ router.post("/advance", requireDm, async (req, res) => {
 router.post("/weather", requireDm, async (req, res) => {
   try {
     const config = await getCalendarConfig();
-    const month = config.currentDate.month;
+    const {month} = config.currentDate;
     const terrain = req.body.terrain || config.currentWeather?.terrain || "plains";
 
     const validTerrains = ["desert", "forest", "mountains", "plains", "coastal", "swamp", "arctic", "urban", "underground"];

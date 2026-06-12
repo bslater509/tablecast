@@ -47,6 +47,7 @@ function HandoutsPanel({ user, readOnly = false, isPopout = false }) {
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const authHeaders = useMemo(() => getJsonAuthHeaders(user), [user?.id]);
 
   // ── Fetch handouts ────────────────────────────────────────────────────

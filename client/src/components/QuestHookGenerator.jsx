@@ -6,7 +6,6 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Sparkles,
   Loader2,
-  Map,
   BookOpen,
   Swords,
   Brain,
@@ -192,11 +191,9 @@ export default function QuestHookGenerator() {
   const abortRef = useRef(null);
 
   // Cleanup on unmount
-  useEffect(() => {
-    return () => {
+  useEffect(() => () => {
       if (abortRef.current) abortRef.current.abort();
-    };
-  }, []);
+    }, []);
 
   const handleGenerate = useCallback(async () => {
     const levels = partyLevel.split(",").map(s => Number(s.trim())).filter(n => n > 0);

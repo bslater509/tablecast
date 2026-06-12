@@ -163,7 +163,7 @@ router.post("/oauth-init", requireDm, async (req, res) => {
       createdAt: now
     });
 
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
       client_id,
       redirect_uri,
       response_type: "code",
@@ -171,7 +171,7 @@ router.post("/oauth-init", requireDm, async (req, res) => {
       access_type: "offline",
       prompt: "consent",
       state
-    }).toString();
+    }).toString()}`;
 
     res.json({ authUrl });
   } catch (err) {
@@ -223,7 +223,7 @@ router.get("/oauth-callback", async (req, res) => {
 
     const tokenData = await response.json();
     const expiryDate = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString();
-    
+
     const rcloneToken = JSON.stringify({
       access_token: tokenData.access_token,
       token_type: tokenData.token_type || "Bearer",

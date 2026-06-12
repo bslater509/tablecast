@@ -208,9 +208,7 @@ export default function TravelGenerator() {
   const [copiedDay, setCopiedDay] = useState(null);
   const abortRef = useRef(null);
 
-  useEffect(() => {
-    return () => { if (abortRef.current) abortRef.current.abort(); };
-  }, []);
+  useEffect(() => () => { if (abortRef.current) abortRef.current.abort(); }, []);
 
   const handleGenerate = useCallback(async () => {
     if (!route.trim()) {

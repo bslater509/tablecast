@@ -79,16 +79,16 @@ export default function LevelUpWizard({ character, user, onClose, onApplied }) {
   // Spell slots progression table (PHB full casters)
   const getSpellSlotsForLevel = (lvl) => {
     const table = {
-      1:  { "1": { total: 2, used: 0 } },
-      2:  { "1": { total: 3, used: 0 } },
-      3:  { "1": { total: 4, used: 0 }, "2": { total: 2, used: 0 } },
-      4:  { "1": { total: 4, used: 0 }, "2": { total: 3, used: 0 } },
-      5:  { "1": { total: 4, used: 0 }, "2": { total: 3, used: 0 }, "3": { total: 2, used: 0 } },
-      6:  { "1": { total: 4, used: 0 }, "2": { total: 3, used: 0 }, "3": { total: 3, used: 0 } },
-      7:  { "1": { total: 4, used: 0 }, "2": { total: 3, used: 0 }, "3": { total: 3, used: 0 }, "4": { total: 1, used: 0 } },
-      8:  { "1": { total: 4, used: 0 }, "2": { total: 3, used: 0 }, "3": { total: 3, used: 0 }, "4": { total: 2, used: 0 } },
-      9:  { "1": { total: 4, used: 0 }, "2": { total: 3, used: 0 }, "3": { total: 3, used: 0 }, "4": { total: 3, used: 0 }, "5": { total: 1, used: 0 } },
-      10: { "1": { total: 4, used: 0 }, "2": { total: 3, used: 0 }, "3": { total: 3, used: 0 }, "4": { total: 3, used: 0 }, "5": { total: 2, used: 0 } },
+      1:  { 1: { total: 2, used: 0 } },
+      2:  { 1: { total: 3, used: 0 } },
+      3:  { 1: { total: 4, used: 0 }, 2: { total: 2, used: 0 } },
+      4:  { 1: { total: 4, used: 0 }, 2: { total: 3, used: 0 } },
+      5:  { 1: { total: 4, used: 0 }, 2: { total: 3, used: 0 }, 3: { total: 2, used: 0 } },
+      6:  { 1: { total: 4, used: 0 }, 2: { total: 3, used: 0 }, 3: { total: 3, used: 0 } },
+      7:  { 1: { total: 4, used: 0 }, 2: { total: 3, used: 0 }, 3: { total: 3, used: 0 }, 4: { total: 1, used: 0 } },
+      8:  { 1: { total: 4, used: 0 }, 2: { total: 3, used: 0 }, 3: { total: 3, used: 0 }, 4: { total: 2, used: 0 } },
+      9:  { 1: { total: 4, used: 0 }, 2: { total: 3, used: 0 }, 3: { total: 3, used: 0 }, 4: { total: 3, used: 0 }, 5: { total: 1, used: 0 } },
+      10: { 1: { total: 4, used: 0 }, 2: { total: 3, used: 0 }, 3: { total: 3, used: 0 }, 4: { total: 3, used: 0 }, 5: { total: 2, used: 0 } },
     };
     return table[lvl] || null;
   };

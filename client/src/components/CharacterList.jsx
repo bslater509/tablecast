@@ -13,7 +13,7 @@ export default function CharacterList({ user, onSelectCharacter }) {
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Creation wizard state
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -106,7 +106,7 @@ export default function CharacterList({ user, onSelectCharacter }) {
         <div style={styles.list}>
           {loading && <p style={styles.infoText}>Loading character records</p>}
           {error && <p style={styles.errorText}> Error: {error}</p>}
-          
+
           {!loading && !error && characters.length === 0 && (
             <div style={styles.emptyCard} className="glass-panel">
               <p style={styles.emptyText}>No characters available.</p>
@@ -115,7 +115,7 @@ export default function CharacterList({ user, onSelectCharacter }) {
                 style={styles.emptyCreateBtn}
                 className="touch-target"
               >
-                Create your first Hero! 
+                Create your first Hero!
               </button>
             </div>
           )}

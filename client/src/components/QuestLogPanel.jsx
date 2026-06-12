@@ -10,7 +10,6 @@ import {
   Plus,
   Trash2,
   Edit3,
-  ArrowLeft,
   ChevronRight,
   CheckCircle,
   Circle,
@@ -27,7 +26,6 @@ import {
   ListTodo,
   Save,
   UserCheck,
-  Bell,
   Trophy,
   List,
 } from "lucide-react";
@@ -939,6 +937,7 @@ export default function QuestLogPanel({ user, isPopout = false }) {
   const { addToast } = useToast();
   const { showConfirm } = useConfirm();
   const isDm = user?.role === "DM";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const authHeaders = useMemo(() => getJsonAuthHeaders(user), [user?.id]);
 
   // ── State ──

@@ -143,9 +143,7 @@ function ImporterPanel({ user }) {
     }
   };
 
-  const isImported = (item) => {
-    return importedKeys.has(`${category}_${item.name.toLowerCase()}`);
-  };
+  const isImported = (item) => importedKeys.has(`${category}_${item.name.toLowerCase()}`);
 
   const getListImageUrl = (item) => {
     if (category === "monsters") return item.tokenUrl || "";
@@ -221,7 +219,7 @@ function ImporterPanel({ user }) {
         {!loading && query.trim() && results.length === 0 && (
           <p style={styles.statusText}>No matching reference entries found in the raw clone.</p>
         )}
-        
+
         {results.map((item, idx) => {
           const listImageUrl = getListImageUrl(item);
           const imported = isImported(item);

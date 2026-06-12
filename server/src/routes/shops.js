@@ -28,8 +28,8 @@ function totalGold(currency) {
 }
 
 function deductCurrency(currency, amountInCp) {
-  let remaining = amountInCp;
-  let totalCp = totalGold(currency);
+  const remaining = amountInCp;
+  const totalCp = totalGold(currency);
   if (totalCp < remaining) return null;
 
   // Convert everything to cp
@@ -52,7 +52,7 @@ function deductCurrency(currency, amountInCp) {
   const sp = Math.floor(cp / 10);
   cp %= 10;
 
-  return { pp, gp, ep, sp, cp: cp };
+  return { pp, gp, ep, sp, cp };
 }
 
 function addCurrency(currency, amountInCp) {

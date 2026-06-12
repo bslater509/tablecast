@@ -510,7 +510,7 @@ router.post("/:id/turn", requireDm, async (req, res) => {
     if (count === 0) return res.status(400).json({ error: "Encounter has no participants." });
 
     const direction = req.body?.direction === "previous" ? -1 : 1;
-    let round = encounter.round;
+    let {round} = encounter;
     let turnIndex = encounter.turnIndex + direction;
     if (turnIndex >= count) {
       turnIndex = 0;
@@ -637,8 +637,8 @@ router.post("/:id/suggest-action", requireDm, async (req, res) => {
     if (!provider) {
       // Fallback: simple heuristic-based suggestion
       const hpPercent = participant.currentHp / Math.max(1, participant.maxHp);
-      const intelligent = participant.npc?.intelligence > 10 || participant.monster ? true : false;
-      let fallback = { recommended: "", alternatives: [] };
+      const intelligent = !!(participant.npc?.intelligence > 10 || participant.monster);
+      const fallback = { recommended: "", alternatives: [] };
 
       if (hpPercent < 0.3) {
         fallback.recommended = "Flee or retreat — the creature is bloodied and would seek safety";

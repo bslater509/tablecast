@@ -46,13 +46,11 @@ export default function ChatPanel({ user, isPopout = false }) {
   const inputRef = useRef(null);
   const loadingMoreRef = useRef(false);
 
-  useEffect(() => {
-    return () => {
+  useEffect(() => () => {
       if (typingTimeout.current) {
         clearTimeout(typingTimeout.current);
       }
-    };
-  }, []);
+    }, []);
 
   // Fetch NPCs for avatar matching
   useEffect(() => {
@@ -193,6 +191,8 @@ export default function ChatPanel({ user, isPopout = false }) {
     } else {
       setUnreadCount((prev) => prev + 1);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, messages[messages.length - 1]?.text?.length]);
 
   // Scroll handler
@@ -291,10 +291,10 @@ Show this command reference.`;
           type: "roll",
           rollDetails: {
             rollName: "Chat Roll",
-            formula: `${qty}d${sides}${modifier !== 0 ? (modifier > 0 ? " + " + modifier : " - " + Math.abs(modifier)) : ""}`,
+            formula: `${qty}d${sides}${modifier !== 0 ? (modifier > 0 ? ` + ${modifier}` : ` - ${Math.abs(modifier)}`) : ""}`,
             rolls: allRolls,
-            modifier: modifier,
-            total: total,
+            modifier,
+            total,
             isAttack: false,
             status: "rolled",
             diceTheme: user?.diceTheme || "default",

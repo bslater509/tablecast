@@ -905,7 +905,7 @@ async function handleNpcInterview(req, res) {
 
       const interviewSummary = interviewHistory
         ? interviewHistory.map(
-            (h, i) => `${h.question}: ${h.answer.label}${h.answer.description ? " — " + h.answer.description : ""}`
+            (h, i) => `${h.question}: ${h.answer.label}${h.answer.description ? ` — ${h.answer.description}` : ""}`
           ).join("\n")
         : "";
 
@@ -1182,8 +1182,8 @@ async function handleGenerateNames(req, res) {
 
     const categoryLabels = {
       "npc-dwarf": "NPC (Dwarf)", "npc-elf": "NPC (Elf)", "npc-human": "NPC (Human)",
-      "tavern": "Tavern", "town": "Town/City", "shop": "Shop",
-      "faction": "Faction", "landmark": "Landmark", "monster-lair": "Monster Lair",
+      tavern: "Tavern", town: "Town/City", shop: "Shop",
+      faction: "Faction", landmark: "Landmark", "monster-lair": "Monster Lair",
     };
     const categoryLabel = categoryLabels[category] || category;
 

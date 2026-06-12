@@ -3,7 +3,7 @@
 // Provides: track list, upload, play/pause, volume, crossfade, loop, queue
 // =============================================================================
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Music, Play, Square, Upload, RotateCcw, Volume2, VolumeX, Trash2, ListMusic, Headphones } from "lucide-react";
+import { Music, Play, Square, Upload, Volume2, VolumeX, Trash2, Headphones } from "lucide-react";
 import { useSound } from "../context/SoundContext";
 import { useSocket } from "../context/SocketContext";
 import { getJsonAuthHeaders } from "../utils/authHeaders";

@@ -2,7 +2,7 @@
 // Tablecast  Shop Panel
 // DM-created shops with item browsing, buying, selling, and haggling.
 // =============================================================================
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Store,
   ShoppingCart,
@@ -12,7 +12,6 @@ import {
   Shield,
   FlaskRound,
   Scroll,
-  BookOpen,
   Wand2,
   Search,
   X,
@@ -20,8 +19,6 @@ import {
   Trash2,
   Edit3,
   Check,
-  ChevronDown,
-  Star,
   Sparkles,
 } from "lucide-react";
 import { getJsonAuthHeaders } from "../utils/authHeaders";
@@ -32,7 +29,7 @@ function displayGold(cp) {
   const gp = Math.floor(copper / 100);
   const sp = Math.floor((copper % 100) / 10);
   const cpRem = copper % 10;
-  let parts = [];
+  const parts = [];
   if (gp > 0) parts.push(`${gp} GP`);
   if (sp > 0) parts.push(`${sp} SP`);
   parts.push(`${cpRem} CP`);
@@ -418,6 +415,7 @@ export default function ShopPanel({ user, addToast }) {
   useEffect(() => {
     fetchShops();
     fetchCharacters();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchCharacters() {
@@ -478,7 +476,7 @@ export default function ShopPanel({ user, addToast }) {
 
   async function handleBuy(itemId, characterId) {
     if (!characterId) {
-      addToast?.('Select a character first.', { type: 'error' });
+      addToast?.("Select a character first.", { type: "error" });
       return;
     }
     const qty = buyQuantities[itemId] || 1;
@@ -490,10 +488,10 @@ export default function ShopPanel({ user, addToast }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        addToast?.(data.error || 'Purchase failed.', { type: 'error' });
+        addToast?.(data.error || "Purchase failed.", { type: "error" });
         return;
       }
-      addToast?.(data.message, { type: 'success' });
+      addToast?.(data.message, { type: "success" });
       // Update shop and character
       if (data.shop) {
         setShops((prev) => prev.map((s) => (s.id === data.shop.id ? data.shop : s)));
@@ -501,7 +499,7 @@ export default function ShopPanel({ user, addToast }) {
       // Refresh character data
       fetchCharacters();
     } catch (err) {
-      addToast?.('Network error during purchase.', { type: 'error' });
+      addToast?.("Network error during purchase.", { type: "error" });
     }
   }
 
@@ -526,17 +524,17 @@ export default function ShopPanel({ user, addToast }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        addToast?.(data.error || 'Sale failed.', { type: 'error' });
+        addToast?.(data.error || "Sale failed.", { type: "error" });
         return;
       }
-      addToast?.(data.message, { type: 'success' });
+      addToast?.(data.message, { type: "success" });
       if (data.shop) {
         setShops((prev) => prev.map((s) => (s.id === data.shop.id ? data.shop : s)));
       }
       // Refresh character data
       fetchCharacters();
     } catch (err) {
-      addToast?.('Network error during sale.', { type: 'error' });
+      addToast?.("Network error during sale.", { type: "error" });
     }
   }
 
@@ -552,12 +550,12 @@ export default function ShopPanel({ user, addToast }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        addToast?.(data.error || 'Haggle failed.', { type: 'error' });
+        addToast?.(data.error || "Haggle failed.", { type: "error" });
         return;
       }
       setHaggleResult(data);
     } catch (err) {
-      addToast?.('Network error during haggle.', { type: 'error' });
+      addToast?.("Network error during haggle.", { type: "error" });
     }
   }
 
@@ -580,15 +578,15 @@ export default function ShopPanel({ user, addToast }) {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        addToast?.(err.error || 'Failed to add item.', { type: 'error' });
+        addToast?.(err.error || "Failed to add item.", { type: "error" });
         return;
       }
       await fetchShops();
       setShowAddItem(false);
       setAddItemForm({ name: "", price: 0, quantity: 1, description: "", category: "", isMagical: false, attunement: false, tags: "[]" });
-      addToast?.('Item added!', { type: 'success' });
+      addToast?.("Item added!", { type: "success" });
     } catch (err) {
-      addToast?.('Network error.', { type: 'error' });
+      addToast?.("Network error.", { type: "error" });
     }
   }
 
@@ -605,14 +603,14 @@ export default function ShopPanel({ user, addToast }) {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        addToast?.(err.error || 'Failed to update shop.', { type: 'error' });
+        addToast?.(err.error || "Failed to update shop.", { type: "error" });
         return;
       }
       await fetchShops();
       setShowEditShop(false);
-      addToast?.('Shop updated!', { type: 'success' });
+      addToast?.("Shop updated!", { type: "success" });
     } catch (err) {
-      addToast?.('Network error.', { type: 'error' });
+      addToast?.("Network error.", { type: "error" });
     }
   }
 
@@ -623,13 +621,13 @@ export default function ShopPanel({ user, addToast }) {
         headers: getJsonAuthHeaders(user),
       });
       if (!res.ok) {
-        addToast?.('Failed to delete item.', { type: 'error' });
+        addToast?.("Failed to delete item.", { type: "error" });
         return;
       }
       await fetchShops();
-      addToast?.('Item removed.', { type: 'success' });
+      addToast?.("Item removed.", { type: "success" });
     } catch (err) {
-      addToast?.('Network error.', { type: 'error' });
+      addToast?.("Network error.", { type: "error" });
     }
   }
 

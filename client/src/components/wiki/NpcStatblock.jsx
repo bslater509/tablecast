@@ -38,10 +38,10 @@ function NpcStatblock({ npc, socket, isDM, onHpChange }) {
 
     // Simple parser for dice formulas like "1d6+2" or "2d10"
     let damageTotal = 0;
-    let damageRolls = [];
+    const damageRolls = [];
     const diceExpr = (atk.damage || "1d4").trim().toLowerCase();
     const match = diceExpr.match(/^(\d+)d(\d+)(.*)$/);
-    let formulaText = `Hit: 1d20 + ${toHit} | Dmg: ${diceExpr}`;
+    const formulaText = `Hit: 1d20 + ${toHit} | Dmg: ${diceExpr}`;
 
     if (match) {
       const count = parseInt(match[1], 10);

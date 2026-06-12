@@ -45,7 +45,7 @@ export default function AddParticipantPanel({
 
   const handleAddParticipant = async () => {
     try {
-      let body = { isHidden: addHidden, quantity: addQuantity };
+      const body = { isHidden: addHidden, quantity: addQuantity };
       if (addType === "monster" && addMonsterSelected) {
         body.type = "monster";
         body.monsterId = addMonsterSelected.id;

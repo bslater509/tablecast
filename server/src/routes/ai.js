@@ -35,7 +35,7 @@ router.get("/router-test", (req, res) => res.json({ ok: true, from: "routes/ai.j
 router.get("/router-debug", (req, res) => {
   res.json({
     genRouterType: typeof generationRouter,
-    genRouterRoutes: generationRouter && generationRouter.stack ? generationRouter.stack.map(s => s.route ? s.route.path + ' [' + Object.keys(s.route.methods).join(',') + ']' : '(sub-router)') : [],
+    genRouterRoutes: generationRouter && generationRouter.stack ? generationRouter.stack.map(s => s.route ? `${s.route.path} [${Object.keys(s.route.methods).join(",")}]` : "(sub-router)") : [],
     settingsType: typeof settingsRouter,
     chatType: typeof chatRouter,
     mcpType: typeof mcpRouter,

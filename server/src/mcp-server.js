@@ -87,9 +87,7 @@ const server = new Server(
 
 // Register MCP request handlers on a given server instance
 function registerHandlers(srv) {
-  srv.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: TOOLS };
-  });
+  srv.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
   // Persist MCP tool call to audit log
   async function persistMcpLog(tool, args, result, isError) {
@@ -112,7 +110,7 @@ function registerHandlers(srv) {
     logError(`Calling tool: ${name}`, JSON.stringify(args));
 
     const execute = async () => {
-      const handlerName = 'handle' + name.split('_').map(s => s[0].toUpperCase() + s.slice(1)).join('');
+      const handlerName = `handle${name.split("_").map(s => s[0].toUpperCase() + s.slice(1)).join("")}`;
       const handler = HANDLERS[handlerName];
       if (!handler) {
         throw new Error(`Tool ${name} not found`);

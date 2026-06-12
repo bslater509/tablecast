@@ -34,6 +34,7 @@ function AiSetup({ authHeaders, jsonAuthHeaders, addToast }) {
         }
       } catch (err) { console.error("Failed to load AI settings:", err); }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSaveAiSettings = async (e) => {

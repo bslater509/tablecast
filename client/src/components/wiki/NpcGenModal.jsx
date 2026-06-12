@@ -22,6 +22,7 @@ export default function NpcGenModal({ show, onClose, jsonAuthHeaders, onNpcCreat
       const timer = setTimeout(() => startInterview(), 80);
       return () => clearTimeout(timer);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show]);
 
   // SSE reader for NPC generation endpoints (emits status, result, error, done events)
@@ -204,7 +205,7 @@ export default function NpcGenModal({ show, onClose, jsonAuthHeaders, onNpcCreat
 
     const effectiveHistory = historyOverride || npcInterviewHistory;
     const summaryText = interviewResult.summary || effectiveHistory.map(
-      (h, i) => `${h.question}: ${h.answer.label}${h.answer.description ? " \u2014 " + h.answer.description : ""}`
+      (h, i) => `${h.question}: ${h.answer.label}${h.answer.description ? ` \u2014 ${h.answer.description}` : ""}`
     ).join("\n");
 
     try {
@@ -568,7 +569,7 @@ export default function NpcGenModal({ show, onClose, jsonAuthHeaders, onNpcCreat
                             color: "var(--color-text)",
                           }}
                           className="touch-target"
-                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = c.accent; e.currentTarget.style.background = c.bg.replace('0.1', '0.18'); }}
+                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = c.accent; e.currentTarget.style.background = c.bg.replace("0.1", "0.18"); }}
                           onMouseLeave={(e) => { e.currentTarget.style.borderColor = c.border; e.currentTarget.style.background = c.bg; }}
                         >
                           <span style={{

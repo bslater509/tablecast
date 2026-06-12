@@ -318,7 +318,7 @@ async function handleUpdateEncounterParticipant(args, { prisma, parseJsonObject,
         data: {
           stats: JSON.stringify({
             ...tokenStats,
-            currentHp: currentHp,
+            currentHp,
             maxHp: maxHp ?? updated.maxHp,
             ac: ac ?? updated.ac,
           }),

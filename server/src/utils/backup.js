@@ -70,7 +70,7 @@ function createBackupZip() {
       // 1. Add SQLite Database file + WAL + SHM (if they exist)
       const dbUrl = process.env.DATABASE_URL || "file:./data/tablecast.db";
       let dbPath = "";
-      
+
       if (dbUrl.startsWith("file:")) {
         const filePath = dbUrl.replace("file:", "");
         if (path.isAbsolute(filePath)) {
@@ -87,8 +87,8 @@ function createBackupZip() {
         logger.info("backup", "Adding SQLite database to archive", { dbPath });
         archive.file(dbPath, { name: "tablecast.db" });
         // Also include WAL and SHM files if they exist
-        const walPath = dbPath + "-wal";
-        const shmPath = dbPath + "-shm";
+        const walPath = `${dbPath}-wal`;
+        const shmPath = `${dbPath}-shm`;
         if (fs.existsSync(walPath)) {
           archive.file(walPath, { name: "tablecast.db-wal" });
         }
@@ -227,11 +227,9 @@ async function initRcloneConfig() {
     });
     if (setting && setting.value) {
       await writeRcloneConfigFile(setting.value);
-    } else {
-      if (fs.existsSync(CONFIG_PATH)) {
+    } else if (fs.existsSync(CONFIG_PATH)) {
         await fs.promises.unlink(CONFIG_PATH);
       }
-    }
   } catch (err) {
     logger.error("backup", "Error loading rclone config from DB", { error: err.message });
   }
@@ -266,7 +264,7 @@ async function getRcloneStatus(remote = process.env.RCLONE_REMOTE || "gdrive:tab
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
-    const requestedRemoteName = String(remote || "").split(":")[0] + ":";
+    const requestedRemoteName = `${String(remote || "").split(":")[0]}:`;
     const configured = remoteNames.includes(requestedRemoteName);
 
     return {

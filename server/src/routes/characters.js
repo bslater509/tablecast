@@ -217,7 +217,7 @@ router.post("/", async (req, res) => {
         .json({ error: "name (string) is required." });
     }
 
-    let parsedUserId = userId ? Number(userId) : null;
+    const parsedUserId = userId ? Number(userId) : null;
     if (userId && isNaN(parsedUserId)) {
       return res.status(400).json({ error: "userId must be a valid number." });
     }

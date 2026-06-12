@@ -79,13 +79,13 @@ router.post("/:id/rest", async (req, res) => {
       return res.status(403).json({ error: "You are not authorized to rest this character." });
     }
 
-    const maxHp = character.maxHp;
+    const {maxHp} = character;
     const currentHp = character.hp;
     const conMod = calcConMod(character.constitution);
 
     // -- Parse current hit dice state --
-    let hitDiceTotal = character.hitDiceTotal || character.level || 1;
-    let hitDiceUsed = character.hitDiceUsed || 0;
+    const hitDiceTotal = character.hitDiceTotal || character.level || 1;
+    const hitDiceUsed = character.hitDiceUsed || 0;
     const hitDiceType = character.hitDiceType || "d10";
 
     // -- Refuse rest if character is dead (hp <= 0) --

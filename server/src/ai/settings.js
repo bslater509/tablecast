@@ -25,7 +25,7 @@ router.get("/models", requireDm, async (req, res) => {
     if (provider === "lmstudio") {
       let baseUrl = url;
       if (!baseUrl.endsWith("/v1") && !baseUrl.includes("/v1/")) {
-        baseUrl = baseUrl.replace(/\/+$/, "") + "/v1";
+        baseUrl = `${baseUrl.replace(/\/+$/, "")}/v1`;
       }
       const response = await fetch(`${baseUrl}/models`);
       if (!response.ok) {
@@ -65,7 +65,7 @@ router.get("/zen-models", requireDm, async (req, res) => {
 
     const response = await fetch("https://opencode.ai/zen/v1/models", {
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json"
       }
     });
@@ -115,7 +115,7 @@ router.get("/settings", requireDm, async (req, res) => {
         config.hasKey = true;
         const len = s.value.length;
         if (len > 8) {
-          config.apiKey = s.value.substring(0, 4) + "..." + s.value.substring(len - 4);
+          config.apiKey = `${s.value.substring(0, 4)}...${s.value.substring(len - 4)}`;
         } else {
           config.apiKey = "****";
         }

@@ -121,7 +121,7 @@ router.post("/", requireDm, async (req, res) => {
 
       // Validate local paths with path.resolve to prevent traversal
       if (trimmedImageUrl.startsWith("/uploads/")) {
-        const resolved = path.resolve(UPLOADS_DIR, "." + trimmedImageUrl.slice("/uploads".length));
+        const resolved = path.resolve(UPLOADS_DIR, `.${trimmedImageUrl.slice("/uploads".length)}`);
         if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) {
           return res.status(400).json({ error: "Invalid image URL path." });
         }

@@ -19,7 +19,6 @@ import {
   Bug,
   Flame,
   Skull,
-  ExternalLink,
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { useNavigate } from "react-router-dom";

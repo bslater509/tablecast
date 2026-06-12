@@ -4,7 +4,7 @@
 // Receives copilot:suggestion events and displays them as priority-coded cards
 // =============================================================================
 import { useState, useEffect, useRef, useCallback } from "react";
-import { X, Wifi, WifiOff, BrainCircuit } from "lucide-react";
+import { X, BrainCircuit } from "lucide-react";
 
 const MAX_SUGGESTIONS = 10;
 const AUTO_DISMISS_MS = 5 * 60 * 1000; // 5 minutes
@@ -339,7 +339,7 @@ export default function CoPilotPanel({ user, socket, encounterId }) {
                 >
                   {isExpanded || !needsTruncation
                     ? s.text
-                    : s.text.slice(0, 150) + "\u2026"}
+                    : `${s.text.slice(0, 150)}\u2026`}
                   {needsTruncation && (
                     <span style={styles.expandToggle}>
                       {isExpanded ? " Show less" : " Show more"}

@@ -19,7 +19,7 @@ export function ConfirmProvider({ children }) {
   const resolveRef = useRef(null);
 
   const showConfirm = useCallback((...args) => {
-    let title, message, confirmLabel;
+    let title; let message; let confirmLabel;
     if (args.length === 1) {
       title = "Confirm";
       message = args[0];

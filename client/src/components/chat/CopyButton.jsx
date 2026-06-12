@@ -22,13 +22,11 @@ export default function CopyButton({ text }) {
     }
   };
 
-  useEffect(() => {
-    return () => {
+  useEffect(() => () => {
       if (copiedTimeoutRef.current) {
         clearTimeout(copiedTimeoutRef.current);
       }
-    };
-  }, []);
+    }, []);
 
   return (
     <button

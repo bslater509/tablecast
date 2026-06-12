@@ -85,7 +85,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
+          Authorization: `Bearer ${apiKey}`
         },
         body: JSON.stringify({
           model: ollamaModel || "gpt-4o-mini",
@@ -162,7 +162,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
     case "lmstudio": {
       let baseUrl = ollamaUrl || "http://localhost:1234";
       if (!baseUrl.endsWith("/v1") && !baseUrl.includes("/v1/")) {
-        baseUrl = baseUrl.replace(/\/+$/, "") + "/v1";
+        baseUrl = `${baseUrl.replace(/\/+$/, "")}/v1`;
       }
       const url = `${baseUrl}/chat/completions`;
       const messages = buildChatMessages(systemPrompt, userMessage, history);
@@ -196,7 +196,7 @@ async function performAiCall(provider, apiKey, ollamaUrl, ollamaModel, systemPro
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
+          Authorization: `Bearer ${apiKey}`
         },
         body: JSON.stringify({ model, messages })
       });

@@ -5,7 +5,7 @@ import { AlertCircle } from "lucide-react";
 import Autocomplete from "../Autocomplete";
 import TokenPresetIcon from "../TokenPresetIcon";
 import { MAP_IMPORT_PRESETS } from "../map/MapConstants";
-import { NPC_TOKEN_PRESETS, generateTokenSvgUrl } from "../../data/npcTokenPresets";
+import { NPC_TOKEN_PRESETS } from "../../data/npcTokenPresets";
 import { canAccessCharacter } from "../../utils/authHeaders";
 
 export default function MapModals({

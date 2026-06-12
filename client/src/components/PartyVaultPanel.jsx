@@ -3,7 +3,7 @@
 // Manages shared party inventory, gold pool, and item/gold transfers.
 // =============================================================================
 import { useState, useEffect, useCallback } from "react";
-import { Users, Wallet, ArrowLeftRight, Plus, Trash2, UserPlus, LogOut, ArrowUpDown, Shield, Coins, Box, ChevronLeft } from "lucide-react";
+import { Users, Wallet, ArrowLeftRight, Plus, Trash2, UserPlus, LogOut, ArrowUpDown, Coins, Box, ChevronLeft } from "lucide-react";
 import { getJsonAuthHeaders } from "../utils/authHeaders";
 
 const panelStyles = {

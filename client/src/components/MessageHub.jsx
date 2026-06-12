@@ -3,7 +3,7 @@
 // WhatsApp-style conversation hub that manages the contact list and routes
 // to the appropriate chat view (Session Chat, Rules Scholar, NPC Roleplay).
 // =============================================================================
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
@@ -16,7 +16,7 @@ import { getJsonAuthHeaders } from "../utils/authHeaders";
 function truncate(text, max = 80) {
   if (!text) return "";
   const cleaned = text.replace(/\s+/g, " ").trim();
-  return cleaned.length > max ? cleaned.slice(0, max) + "…" : cleaned;
+  return cleaned.length > max ? `${cleaned.slice(0, max)}…` : cleaned;
 }
 
 function lastMsgPreview(msg) {
@@ -232,6 +232,7 @@ export default function MessageHub({ user, initialView: propInitialView }) {
 
     load();
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // ---- Track session chat unread ----
@@ -273,8 +274,8 @@ export default function MessageHub({ user, initialView: propInitialView }) {
     setActiveNpcId(npc.id);
     setActiveNpcData(npc);
     setActiveConvId(null); // new conversation
-    const messagesBase = location.pathname.match(/^\/(dm|player)\/messages/)?.[0] || '/dm/messages';
-    navigate(messagesBase + '/npc/' + npc.id, { replace: true });
+    const messagesBase = location.pathname.match(/^\/(dm|player)\/messages/)?.[0] || "/dm/messages";
+    navigate(`${messagesBase}/npc/${npc.id}`, { replace: true });
   }, [navigate, location.pathname]);
 
   const handleNewNpc = useCallback(() => {
@@ -283,15 +284,15 @@ export default function MessageHub({ user, initialView: propInitialView }) {
 
   // ---- Conversation select ----
   const handleSelectConversation = useCallback((conv) => {
-    const messagesBase = location.pathname.match(/^\/(dm|player)\/messages/)?.[0] || '/dm/messages';
+    const messagesBase = location.pathname.match(/^\/(dm|player)\/messages/)?.[0] || "/dm/messages";
     if (conv.type === "session") {
       setActiveView("session");
       setSessionUnread(0);
-      navigate(messagesBase + '/session', { replace: true });
+      navigate(`${messagesBase}/session`, { replace: true });
     } else if (conv.type === "rules") {
       setActiveView("rules");
       setActiveConvId(conv.conversationId || null);
-      navigate(messagesBase + '/rules/' + (conv.conversationId || ''), { replace: true });
+      navigate(`${messagesBase}/rules/${conv.conversationId || ""}`, { replace: true });
     } else if (conv.type === "npc") {
       setActiveView("npc");
       setActiveNpcId(conv.npcId);
@@ -299,7 +300,7 @@ export default function MessageHub({ user, initialView: propInitialView }) {
       // Look up NPC data
       const npcData = npcs.find((n) => n.id === conv.npcId);
       setActiveNpcData(npcData || null);
-      navigate(messagesBase + '/npc/' + conv.npcId + '/' + (conv.conversationId || ''), { replace: true });
+      navigate(`${messagesBase}/npc/${conv.npcId}/${conv.conversationId || ""}`, { replace: true });
     }
   }, [npcs, navigate, location.pathname]);
 
@@ -309,7 +310,7 @@ export default function MessageHub({ user, initialView: propInitialView }) {
     setActiveNpcId(null);
     setActiveNpcData(null);
     setActiveConvId(null);
-    const messagesBase = location.pathname.match(/^\/(dm|player)\/messages/)?.[0] || '/dm/messages';
+    const messagesBase = location.pathname.match(/^\/(dm|player)\/messages/)?.[0] || "/dm/messages";
     navigate(messagesBase, { replace: true });
   }, [navigate, location.pathname]);
 

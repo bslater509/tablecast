@@ -278,7 +278,7 @@ function ReferencePanel({ user, isPopout = false }) {
         {!loading && results.length === 0 && (
           <p style={styles.statusText}>No matching scrolls found. </p>
         )}
-        
+
         {results.map((item, idx) => {
           const listImageUrl = getListImageUrl(item);
           return (

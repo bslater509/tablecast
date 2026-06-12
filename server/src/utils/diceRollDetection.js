@@ -18,7 +18,7 @@ const PATTERNS = [
   { regex: /\bsaving throw\b/gi, mapType: "save" },
   // "DC N" or "DC N" patterns
   { regex: /\bDC\s*(\d+)\b/gi, mapType: "dc" },
-  // "attack roll" 
+  // "attack roll"
   { regex: /\battack roll\b/gi, mapType: "attack" },
   // "make a melee/ranged attack"
   { regex: /\b(melee|ranged)\s+attack\b/gi, mapType: "attack" },
@@ -176,7 +176,7 @@ function injectRollChips(text) {
     })
     .join(" ");
 
-  return text + "\n\n" + chipMarkers;
+  return `${text}\n\n${chipMarkers}`;
 }
 
 module.exports = {

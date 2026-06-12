@@ -16,8 +16,6 @@ import {
   RefreshCw,
   Thermometer,
   Save,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
 import { getJsonAuthHeaders } from "../utils/authHeaders";

@@ -180,9 +180,7 @@ export default function DescriptionGenerator() {
   const [copiedSection, setCopiedSection] = useState(null);
   const abortRef = useRef(null);
 
-  useEffect(() => {
-    return () => { if (abortRef.current) abortRef.current.abort(); };
-  }, []);
+  useEffect(() => () => { if (abortRef.current) abortRef.current.abort(); }, []);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) {

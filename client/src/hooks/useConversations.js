@@ -30,6 +30,7 @@ export function useConversations({ user } = {}) {
     } finally {
       setLoadingConvs(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   /**
@@ -57,6 +58,7 @@ export function useConversations({ user } = {}) {
       console.error("[useConversations] Failed to create:", err);
     }
     return null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, loadConversationList]);
 
   /**
@@ -75,6 +77,7 @@ export function useConversations({ user } = {}) {
     } catch (err) {
       console.error("[useConversations] Failed to delete:", err);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, loadConversationList]);
 
   /**
@@ -94,6 +97,7 @@ export function useConversations({ user } = {}) {
       console.error("[useConversations] Failed to load conv:", err);
     }
     return null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   return {

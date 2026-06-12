@@ -316,7 +316,7 @@ Keep your answer clear, concise, and formatted in Markdown.`;
           const placeholderMsg = {
             id: generateId(),
             sender: npc.name,
-            text: "*" + npc.name + " is thinking…*",
+            text: `*${npc.name} is thinking…*`,
             timestamp: Date.now(),
             type: "npc",
           };
@@ -1061,7 +1061,7 @@ function validateFogPayload(payload) {
   const mapResult = validateIdPayload(payload, "mapId");
   if (!mapResult.ok) return mapResult;
 
-  let fogState = payload.fogState;
+  let {fogState} = payload;
   if (typeof fogState === "string") {
     try {
       fogState = JSON.parse(fogState);

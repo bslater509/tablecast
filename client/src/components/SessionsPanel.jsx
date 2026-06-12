@@ -27,6 +27,7 @@ function SessionsPanel({ user, readOnly = false, isPopout = false, basePath = "/
   const [maps, setMaps] = useState([]);
   const [encounters, setEncounters] = useState([]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const authHeaders = useMemo(() => getJsonAuthHeaders(user), [user?.id]);
 
   const fetchSessions = useCallback(async () => {
@@ -99,9 +100,7 @@ function SessionsPanel({ user, readOnly = false, isPopout = false, basePath = "/
     }
   }, [routeId, fetchSession]);
 
-  const filteredSessions = useMemo(() => {
-    return sessions.filter((session) => session.status === statusFilter);
-  }, [sessions, statusFilter]);
+  const filteredSessions = useMemo(() => sessions.filter((session) => session.status === statusFilter), [sessions, statusFilter]);
 
   const wikiById = useMemo(() => {
     const map = new Map();

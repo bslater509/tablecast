@@ -11,14 +11,10 @@ import {
   Edit3,
   Mail,
   MailOpen,
-  Eye,
-  EyeOff,
-  X,
   Send,
   Image,
   Users,
   ChevronLeft,
-  Bell,
   CheckCircle,
 } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
@@ -53,6 +49,7 @@ export default function HandoutPanel({ user, isPopout = false }) {
   const [formTargetIds, setFormTargetIds] = useState([]);
   const [editorTab, setEditorTab] = useState("write"); // "write" | "preview"
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const authHeaders = useMemo(() => getJsonAuthHeaders(user), [user?.id]);
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -94,7 +91,7 @@ export default function HandoutPanel({ user, isPopout = false }) {
     if (!text) return "";
     const plain = text.replace(/[#*_~`>\[\]]/g, "").trim();
     if (plain.length <= 100) return plain;
-    return plain.slice(0, 100) + "\u2026";
+    return `${plain.slice(0, 100)}\u2026`;
   }
 
   // ─── Fetch characters (for target selection) ──────────────────────────────

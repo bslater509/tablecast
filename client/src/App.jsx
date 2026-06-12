@@ -15,7 +15,6 @@ import {
   Compass,
   Database,
   ExternalLink,
-  Eye,
   FileText,
   Headphones,
   Layers,
@@ -24,8 +23,6 @@ import {
   MessageCircle,
   PenLine,
   Route as RouteIcon,
-  ScrollText,
-  Settings,
   ShoppingCart,
   SlidersHorizontal,
   Sparkles,
@@ -319,7 +316,7 @@ function App() {
   const handleUpdateDiceSettings = async (diceTheme, diceColor) => {
     try {
       // Determine endpoint: character for heroes, user for DM
-      const isCharacter = user.isCharacter;
+      const {isCharacter} = user;
       const endpoint = isCharacter ? `/api/characters/${user.characterId}` : `/api/users/${user.id}`;
       const headers = {
         "Content-Type": "application/json",
@@ -338,10 +335,10 @@ function App() {
           diceColor: updated.diceColor || diceColor,
         }));
         return true;
-      } else {
+      }
         const err = await res.json().catch(() => ({}));
         console.error("Failed to update dice settings:", err.error || res.statusText);
-      }
+
     } catch (err) {
       console.error("Error updating dice settings:", err);
     }
@@ -363,11 +360,9 @@ function App() {
       if (!location.pathname.startsWith("/dm")) {
         navigate("/dm/dashboard", { replace: true });
       }
-    } else {
-      if (!location.pathname.startsWith("/player")) {
+    } else if (!location.pathname.startsWith("/player")) {
         navigate("/player/map", { replace: true });
       }
-    }
   }, [user, location.pathname, navigate, loadingHeroes]);
 
   const pathParts = location.pathname.split("/");
@@ -398,9 +393,9 @@ function App() {
                 // Skip heroes fetch for DM — heroes are loaded on the Characters panel
                 if (!cancelled) setLoadingHeroes(false);
                 return;
-              } else {
-                localStorage.removeItem(DM_IDENTITY_STORAGE_KEY);
               }
+                localStorage.removeItem(DM_IDENTITY_STORAGE_KEY);
+
             } catch {
               localStorage.removeItem(DM_IDENTITY_STORAGE_KEY);
             }
@@ -439,6 +434,7 @@ function App() {
     return () => {
       cancelled = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Handle selecting a hero (player login)
@@ -574,7 +570,7 @@ function App() {
                 {heroes.map((hero) => (
                   <button
                     key={hero.id}
-                    id={`join-hero-${hero.name.toLowerCase().replace(/\s+/g, '-')}`}
+                    id={`join-hero-${hero.name.toLowerCase().replace(/\s+/g, "-")}`}
                     onClick={() => handleSelectHero(hero)}
                     style={styles.heroButton}
                     className="touch-target btn-hover-scale glass-panel"
@@ -669,13 +665,12 @@ function App() {
   }
 
 
-
   return (
     <SoundProvider>
     <AiProvider user={user}>
     <ErrorBoundary critical={true}>
-    <div 
-      style={styles.appContainer} 
+    <div
+      style={styles.appContainer}
       className={user?.role === "DM" ? "theme-dm" : "theme-player"}
     >
       <div
@@ -710,7 +705,7 @@ function App() {
         <Route path="/" element={<p style={{ padding: "2rem", color: "var(--color-muted)" }}>Entering Tavern...</p>} />
         <Route path="/player/*" element={<PlayerLayout user={user} onLogout={handleLogout} onOpenDiceSettings={() => setDiceModalOpen(true)} />} />
         <Route path="/dm/*" element={<DmLayout user={user} onLogout={handleLogout} onOpenDiceSettings={() => setDiceModalOpen(true)} />} />
-        
+
         {/* Standalone Popout Panel Routes */}
         <Route path="/dm/popout/map" element={<ErrorBoundary critical={false}><MapPanel user={user} isPopout={true} /></ErrorBoundary>} />
         <Route path="/dm/popout/map/:id" element={<ErrorBoundary critical={false}><MapPanel user={user} isPopout={true} /></ErrorBoundary>} />
@@ -726,7 +721,7 @@ function App() {
         <Route path="/dm/popout/encounters/:id" element={<ErrorBoundary critical={false}><EncountersPanel user={user} isPopout={true} basePath="/dm/popout/encounters" /></ErrorBoundary>} />
         <Route path="/dm/popout/handouts" element={<HandoutPanel user={user} isPopout={true} />} />
         <Route path="/dm/popout/connection" element={<ConnectionHelpPanel user={user} />} />
-        <Route path="/dm/popout/characters" element={<CharacterList user={user} onSelectCharacter={(char) => window.open(`/#/dm/popout/characters/${char.id}`, '_blank', 'width=600,height=800,resizable=yes')} isPopout={true} />} />
+        <Route path="/dm/popout/characters" element={<CharacterList user={user} onSelectCharacter={(char) => window.open(`/#/dm/popout/characters/${char.id}`, "_blank", "width=600,height=800,resizable=yes")} isPopout={true} />} />
         <Route path="/dm/popout/characters/:id" element={<ErrorBoundary critical={false}><CharacterSheetWrapper user={user} basePath="/dm/popout/characters" isPopout={true} /></ErrorBoundary>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -1146,9 +1141,9 @@ function PlayerLayout({ user, onLogout, onOpenDiceSettings }) {
           >
             🎲
           </button>
-          <button 
-            onClick={onLogout} 
-            style={styles.logoutBtn} 
+          <button
+            onClick={onLogout}
+            style={styles.logoutBtn}
             className="touch-target btn-hover-scale"
           >
             Exit
@@ -1438,8 +1433,8 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             >
               <Box size={18} />
             </button>
-            <button 
-              onClick={onLogout} 
+            <button
+              onClick={onLogout}
               className="dm-header-logout touch-target btn-hover-scale"
             >
               <LogOut size={16} />

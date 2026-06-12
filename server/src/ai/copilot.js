@@ -92,7 +92,7 @@ router.post("/copilot/check", requireDm, async (req, res) => {
     ];
     const isRulesQuestion = rulesTriggerPatterns.some(p => p.test(text));
 
-    let suggestions = [];
+    const suggestions = [];
 
     // 1. Rules suggestion
     if (isRulesQuestion && provider && apiKey) {

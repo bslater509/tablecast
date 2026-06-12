@@ -28,7 +28,7 @@ router.get("/mcp", requireDm, async (req, res) => {
     const connectionServer = createMcpServer();
     await connectionServer.connect(transport);
 
-    const sessionId = transport.sessionId;
+    const {sessionId} = transport;
     const startTime = Date.now();
     activeTransports.set(sessionId, transport);
     logger.info("mcp:sse", "MCP SSE connection established", { sessionId });

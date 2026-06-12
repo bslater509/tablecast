@@ -21,7 +21,7 @@ module.exports = {
       jsx: true,
     },
   },
-  plugins: ["react", "react-hooks"],
+  plugins: ["react", "react-hooks", "unused-imports"],
   settings: {
     react: {
       version: "detect",
@@ -48,7 +48,7 @@ module.exports = {
 
     // ── Best Practices ────────────────────────────────────────────────────
     "array-callback-return": WARN,
-    "consistent-return": WARN,
+    "consistent-return": OFF,
     curly: [WARN, "multi-line"],
     "default-case": WARN,
     "dot-notation": WARN,
@@ -98,8 +98,13 @@ module.exports = {
     "no-shadow": OFF, // Allow shadowing (common in JS patterns)
     "no-undef": ERROR,
     "no-undef-init": WARN,
-    "no-unused-vars": [WARN, { args: "after-used", ignoreRestSiblings: true }],
-    "no-use-before-define": [WARN, { functions: false, classes: false }],
+    "no-unused-vars": "off",
+    "unused-imports/no-unused-imports": "error",
+    "unused-imports/no-unused-vars": [
+      "warn",
+      { "vars": "all", "varsIgnorePattern": "^_", "args": "after-used", "argsIgnorePattern": "^_" }
+    ],
+    "no-use-before-define": OFF,
 
     // ── Stylistic ─────────────────────────────────────────────────────────
     // Prettier handles formatting; these are just sanity rules

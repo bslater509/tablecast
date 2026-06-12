@@ -74,6 +74,7 @@ function CalendarWidget({ user, isPopout = false }) {
   const { socket } = useSocket();
   const { addToast } = useToast();
   const isDm = user?.role === "DM";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const authHeaders = useMemo(() => getJsonAuthHeaders(user), [user?.id]);
 
   // ── State ──────────────────────────────────────────────────────────

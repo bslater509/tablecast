@@ -202,7 +202,7 @@ router.post("/:npcId/dialogue/advance", async (req, res) => {
     }
 
     let nextNode = null;
-    let messages = [];
+    const messages = [];
 
     switch (node.type) {
       case "SPEECH":

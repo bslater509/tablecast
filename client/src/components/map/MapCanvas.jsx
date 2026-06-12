@@ -1,7 +1,7 @@
 // =============================================================================
 // MapCanvas — Canvas rendering for grid, fog, and tokens
 // =============================================================================
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { parseFogState } from "./MapConstants";
 import { parseWalls, computeAllVision } from "../../utils/dynamicLighting";
 
@@ -62,36 +62,36 @@ export default function MapCanvas({
 
   // Condition color mapping
   const CONDITION_COLORS = {
-    "Blinded": "#94a3b8",
-    "Charmed": "#f472b6",
-    "Deafened": "#64748b",
-    "Frightened": "#a78bfa",
-    "Grappled": "#fb923c",
-    "Incapacitated": "#6b7280",
-    "Invisible": "#c084fc",
-    "Paralyzed": "#fbbf24",
-    "Petrified": "#9ca3af",
-    "Poisoned": "#22c55e",
-    "Prone": "#eab308",
-    "Restrained": "#f97316",
-    "Stunned": "#38bdf8",
-    "Unconscious": "#64748b",
-    "Exhaustion": "#ef4444",
+    Blinded: "#94a3b8",
+    Charmed: "#f472b6",
+    Deafened: "#64748b",
+    Frightened: "#a78bfa",
+    Grappled: "#fb923c",
+    Incapacitated: "#6b7280",
+    Invisible: "#c084fc",
+    Paralyzed: "#fbbf24",
+    Petrified: "#9ca3af",
+    Poisoned: "#22c55e",
+    Prone: "#eab308",
+    Restrained: "#f97316",
+    Stunned: "#38bdf8",
+    Unconscious: "#64748b",
+    Exhaustion: "#ef4444",
   };
   const DEFAULT_COND_COLOR = "#a855f7";
 
   // Token aura colors (pre-defined)
   const AURA_COLORS = {
-    "fire": "#ef4444",
-    "cold": "#3b82f6",
-    "lightning": "#eab308",
-    "poison": "#22c55e",
-    "necrotic": "#a855f7",
-    "radiant": "#fbbf24",
-    "psychic": "#ec4899",
-    "thunder": "#6366f1",
-    "acid": "#84cc16",
-    "force": "#c084fc",
+    fire: "#ef4444",
+    cold: "#3b82f6",
+    lightning: "#eab308",
+    poison: "#22c55e",
+    necrotic: "#a855f7",
+    radiant: "#fbbf24",
+    psychic: "#ec4899",
+    thunder: "#6366f1",
+    acid: "#84cc16",
+    force: "#c084fc",
   };
 
   // Compute total distance along ruler points
@@ -108,7 +108,7 @@ export default function MapCanvas({
   // Format distance in grid squares
   function formatDistance(px, grid) {
     const squares = px / grid;
-    return squares.toFixed(1) + " sq (" + Math.round(px) + " px)";
+    return `${squares.toFixed(1)} sq (${Math.round(px)} px)`;
   }
   // ---------------------------------------------------------------------------
   // Canvas Drawing Loop
@@ -376,7 +376,7 @@ export default function MapCanvas({
       tokens.forEach(token => {
         const auraR = Number(token.auraRadius) || 0;
         if (auraR > 0) {
-          let px, py;
+          let px; let py;
           if (dragState && dragState.tokenId === token.id) {
             px = dragState.currentWorldPos.x;
             py = dragState.currentWorldPos.y;
@@ -403,7 +403,7 @@ export default function MapCanvas({
 
       // 5. Render Tokens
       tokens.forEach(token => {
-        let px, py;
+        let px; let py;
         if (dragState && dragState.tokenId === token.id) {
           px = dragState.currentWorldPos.x;
           py = dragState.currentWorldPos.y;
@@ -576,6 +576,7 @@ export default function MapCanvas({
         drawRafIdRef.current = null;
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeMap, tokens, zoom, panOffset, showGrid, dragState,
     selectedTokenId, currentPolygon, mousePosWorld, mapImageLoaded, user,

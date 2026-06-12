@@ -85,6 +85,7 @@ export default function BackupSettings({ user, authHeaders, jsonAuthHeaders, add
         }
       } catch (err) { console.error("Failed to load backup config:", err); }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   useEffect(() => {
@@ -100,6 +101,7 @@ export default function BackupSettings({ user, authHeaders, jsonAuthHeaders, add
         if (data) setConfiguredRemotes(data.remotes || []);
       } catch (err) { console.error("Failed to load configured remotes:", err); }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, remoteName, remotePath]);
 
   // Poll backend sync logs if in-progress
@@ -118,6 +120,7 @@ export default function BackupSettings({ user, authHeaders, jsonAuthHeaders, add
     return () => {
       if (interval) clearInterval(interval);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncingRef]);
 
   const handleOpenAddRemote = () => {
@@ -484,7 +487,7 @@ export default function BackupSettings({ user, authHeaders, jsonAuthHeaders, add
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
   };
 
   // Derived source filter values

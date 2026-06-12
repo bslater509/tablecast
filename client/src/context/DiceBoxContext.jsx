@@ -8,7 +8,7 @@ const DiceBoxContext = createContext(null);
 // Fallback random generator when 3D dice box is unavailable
 function fallbackRoll(notation) {
   const groups = [];
-  let allRolls = [];
+  const allRolls = [];
   let total = 0;
 
   const parseNotation = (str) => {
@@ -82,7 +82,7 @@ export function DiceBoxProvider({ children }) {
       diceBoxRef.current = box;
       setIsReady(true);
       debug("[3D Dice] DiceBox initialized successfully.");
-      
+
       // Force an immediate window resize event to trigger correct layout size calculations
       window.dispatchEvent(new Event("resize"));
 
@@ -153,7 +153,7 @@ export function DiceBoxProvider({ children }) {
 
     if (box && notation.length > 0) {
       debug("[3D Dice] Rolling:", notation, "with theme:", theme, "and color:", color);
-      
+
       // Force viewport resize event just in case layout changed before active roll
       window.dispatchEvent(new Event("resize"));
 
@@ -180,12 +180,10 @@ export function DiceBoxProvider({ children }) {
         : Promise.resolve();
 
       loadPromise
-        .then(() => {
-          return box.roll(notation, {
+        .then(() => box.roll(notation, {
             theme: activeTheme,
             themeColor: rollThemeColor,
-          });
-        })
+          }))
         .catch((err) => {
           console.error("[3D Dice] Roll error:", err);
           if (pendingReject.current) {
