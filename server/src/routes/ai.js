@@ -7,12 +7,25 @@
 const { Router } = require("express");
 
 const settingsRouter = require("../ai/settings");
-const generationRouter = require("../ai/generation");
 const chatRouter = require("../ai/chat");
 const mcpRouter = require("../ai/mcp");
 const debugRouter = require("../ai/debug");
 const copilotRouter = require("../ai/copilot");
 const helpers = require("../ai/helpers");
+const { requireDm } = require("../auth");
+
+// Load the generation router with error trapping so a module load failure
+// doesn't crash the whole server (degraded mode: newer routes fall back to
+// the safety-net registrations below)
+let generationRouter;
+try {
+  generationRouter = require("../ai/generation");
+} catch (err) {
+  const logger = require("../utils/logger");
+  logger.error("ai:generation", "FATAL: failed to load generation router", { error: err.message, stack: err.stack });
+  const { Router } = require("express");
+  generationRouter = Router(); // empty fallback router
+}
 
 const router = Router();
 
@@ -34,6 +47,45 @@ router.use("/", chatRouter);
 router.use("/", mcpRouter);
 router.use("/", debugRouter);
 router.use("/", copilotRouter);
+
+// Safety-net: register newer generation routes directly in case generation/index.js
+// fails to register them in the Docker environment. These run AFTER generationRouter,
+// so if generationRouter already handled the route these won't fire.
+// Using a lazy require so any module load failure is isolated and logged.
+(function registerGenerationSafetyNet() {
+  try {
+    const {
+      handleGenerateHooks,
+      handleGenerateNames,
+      handleGenerateWikiArticle,
+      handleGenerateDescription,
+      handleGenerateTravel,
+      handleGenerateNpcPhrases,
+      handleDetectRollChips,
+      handleGenerateImage,
+      handleDeployTest,
+    } = require("../ai/generation/handlers");
+
+    // Use a sub-router with a flag so we know which path served the request
+    const safetyRouter = Router();
+    safetyRouter.post("/generate-hooks", requireDm, handleGenerateHooks);
+    safetyRouter.post("/generate-names", requireDm, handleGenerateNames);
+    safetyRouter.post("/generate-wiki-article", requireDm, handleGenerateWikiArticle);
+    safetyRouter.post("/generate-description", requireDm, handleGenerateDescription);
+    safetyRouter.post("/generate-travel", requireDm, handleGenerateTravel);
+    safetyRouter.post("/generate-npc-phrases", requireDm, handleGenerateNpcPhrases);
+    safetyRouter.post("/detect-roll-chips", requireDm, handleDetectRollChips);
+    safetyRouter.post("/generate-image", requireDm, handleGenerateImage);
+    safetyRouter.post("/deploy-test", handleDeployTest);
+    safetyRouter.get("/ping", (req, res) => res.json({ ok: true, ts: Date.now(), via: "safety-net" }));
+    router.use("/", safetyRouter);
+    console.log("[AI routes] Safety-net generation routes registered.");
+  } catch (err) {
+    const logger = require("../utils/logger");
+    logger.error("ai:routes", "Failed to register safety-net generation routes", { error: err.message });
+  }
+})();
+
 
 // Named re-exports for socket.js and other consumers
 module.exports = {
