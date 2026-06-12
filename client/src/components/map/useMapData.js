@@ -1,7 +1,7 @@
 // =============================================================================
 // useMapData — State management, data fetching, socket listeners, action handlers
 // =============================================================================
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { MIN_ZOOM, MAX_ZOOM, MAP_IMPORT_PRESETS, parseFogState, cleanText } from "./MapConstants";
 import { NPC_TOKEN_PRESETS, generateTokenSvgUrl } from "../../data/npcTokenPresets";
 import { getAuthHeaders } from "../../utils/authHeaders";

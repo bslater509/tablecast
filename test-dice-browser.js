@@ -30,18 +30,17 @@ async function run() {
   await new Promise((resolve) => setTimeout(resolve, 3000));
 
   // Find any join button and click it
-  console.log("Looking for user join buttons...");
-  const buttons = await page.$$("button[id^='join-user-']");
+  console.log("Looking for hero join buttons...");
+  const buttons = await page.$$("button[id^='join-hero-']");
   if (buttons.length > 0) {
-    console.log(`Found ${buttons.length} users. Joining the first one...`);
+    console.log(`Found ${buttons.length} hero buttons. Joining the first one...`);
     await buttons[0].click();
     await new Promise((resolve) => setTimeout(resolve, 2000));
   } else {
-    console.log("No join buttons found. Attempting to create user...");
-    // Just type a name and submit
-    await page.type("#new-username-input", "TestAdventurer");
-    await page.click("#join-tavern-btn");
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log("No join buttons found. Let's print the page body HTML for diagnostics:");
+    const bodyHtml = await page.evaluate(() => document.body.innerHTML);
+    console.log(bodyHtml.slice(0, 1000));
+    throw new Error("No hero join buttons found on page");
   }
 
   // Now we should be logged in. Let's find the chat input and trigger a roll
