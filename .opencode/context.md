@@ -1,44 +1,42 @@
-# Project Context - Section 4.4 Complete
+# Project Context - Section 4.5 Complete (Loot Generator)
 
 ## Environment
 - Language: JavaScript (Node.js 22, React 18)
 - Build: Vite 5 (client) / Node (server)
 - Package Manager: npm, Docker, Prisma 5 (SQLite)
 
-## What Was Built - Section 4.4: Scenario & Encounter Templates
+## What Was Built — Section 4.5: Loot Generator
 
-### Prisma Schema
-- New `EncounterTemplate` model with: id, name, description, difficulty (easy/medium/hard/deadly), recommendedLevel, tags (JSON), participants (JSON), mapId (optional relation to Map), timestamps
-- Migration `add_encounter_template` applied and DB is up to date
+### Reference Data — `server/src/utils/treasureTables.js` (644 lines)
+- DMG treasure tables A-I encoded with full d100 lookup
+- Individual Treasure per CR tier (0-4, 5-10, 11-16, 17+)
+- Hoard Treasure per CR tier with coin hoards, gems, art, magic items
+- Magic item tables A-I (consumables, minor, major, weapons, scrolls, rods, wondrous, very rare, legendary)
+- Gem types (10gp–5000gp) and art objects (25gp–7500gp)
+- Dice rolling helpers (rollDice, rollD100) with multiplier notation
 
-### Backend — `/api/encounter-templates` Routes
-- `GET /api/encounter-templates` — list with optional ?difficulty, ?minLevel, ?maxLevel filters
-- `GET /api/encounter-templates/:id` — single template
-- `POST /api/encounter-templates` — create template (DM only)
-- `PUT /api/encounter-templates/:id` — update template (DM only, partial)
-- `DELETE /api/encounter-templates/:id` — delete template (DM only)
-- `POST /api/encounter-templates/:id/apply` — apply template to create live Encounter with participants (npc/monster/character/placeholder source types)
+### Backend — `/api/loot` Routes (5 endpoints)
+- `POST /api/loot/generate` — Generate loot from CR + type (individual/hoard/both)
+- `POST /api/loot/cache` — Save generated loot as unclaimed cache
+- `GET /api/loot/cache` — List all unclaimed caches
+- `POST /api/loot/cache/:id/assign` — Assign cache to party (coins → gold pool, items → inventory)
+- `DELETE /api/loot/cache/:id` — Discard a cache entry
 
-### MCP Tools (5 tools)
-- `list_encounter_templates` — list with optional difficulty filter
-- `create_encounter_template` — create template with participants
-- `update_encounter_template` — update template fields
-- `delete_encounter_template` — delete by ID
-- `apply_encounter_template` — apply template to create encounter
+### Prisma — `LootCache` model
+- Fields: id, data (JSON - full loot result), assignedToPartyId?, assignedAt, createdAt
+- Migration `add_loot_cache` applied, DB up to date
 
-### Frontend — EncounterTemplatesPanel.jsx (717 lines)
-DM-only panel for managing encounter templates:
-- **List view**: Cards with difficulty badge, level range, tags, participant count
-- **Search/filter**: By name, difficulty dropdown (easy/medium/hard/deadly/All)
-- **Create/Edit Modal**: Name, description, difficulty, level range, tags, participants (add/remove rows with sourceType dropdown, name, count)
-- **Apply button**: Quick-action to create live encounter from template
-- **Seed templates**: 4 built-in templates (Goblin Ambush, Bandit Camp, Kobold Warren, Dragon's Lair)
-- **Delete with confirmation**: Toast notification on success/error
+### Frontend — `LootGeneratorPanel.jsx` (681 lines)
+- **Generate tab**: CR input, treasure type selector, formatted result with coins/gems/art/magic items, Keep Unclaimed / Regenerate buttons
+- **Unclaimed tab**: Cached loot list with party selector dropdown, Assign / Discard buttons per entry
+- Toast notifications, auth headers, responsive layout matching project patterns
 
 ### Wiring
-- Route wired in index.js at `/api/encounter-templates`
-- MCP handler wired in mcp-server.js
-- Nav item added to App.jsx: id="templates", icon=Layers, path="/dm/templates"
+- Route wired in index.js at `/api/loot`
+- Nav item added to App.jsx: id="loot", icon=TreasureChest, path="/dm/loot"
+- Route in DmLayout: `<Route path="loot" element={...} />`
 
 ### Tests
-- 15 isolated unit tests for the route module (all pass)
+- 31 unit tests covering all treasure table functions (all pass)
+
+### Status: ✅ §4.6 is next unmarked section in features.md
