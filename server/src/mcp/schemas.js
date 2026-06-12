@@ -891,6 +891,65 @@ const TOOLS = [
       required: ["id"],
     },
   },
+  //  HOMEBREW ENTRY TOOLS
+  {
+    name: "list_homebrew",
+    description: "List all homebrew content entries (custom races, classes, feats, spells, magic items, monsters), optionally filtered by type.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["RACE", "CLASS", "FEAT", "SPELL", "MAGIC_ITEM", "MONSTER"], description: "Filter by entry type." },
+        active: { type: "boolean", description: "Filter by active status." },
+      },
+    },
+  },
+  {
+    name: "create_homebrew",
+    description: "Create a new homebrew content entry (custom race, class, feat, spell, magic item, or monster).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["RACE", "CLASS", "FEAT", "SPELL", "MAGIC_ITEM", "MONSTER"], description: "Entry type." },
+        name: { type: "string", description: "Entry name." },
+        source: { type: "string", description: "Source label (e.g., 'My Campaign')." },
+        version: { type: "string", description: "Semver version string (default: '1.0.0')." },
+        content: { type: "object", description: "JSON object with type-specific schema. See documentation for per-type schemas." },
+        tags: { type: "array", items: { type: "string" }, description: "Tags for categorization." },
+        isActive: { type: "boolean", description: "Whether this entry is active (default: true)." },
+      },
+      required: ["type", "name"],
+    },
+  },
+  {
+    name: "update_homebrew",
+    description: "Update an existing homebrew content entry.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Homebrew entry ID to update." },
+        type: { type: "string", enum: ["RACE", "CLASS", "FEAT", "SPELL", "MAGIC_ITEM", "MONSTER"] },
+        name: { type: "string" },
+        source: { type: "string" },
+        version: { type: "string" },
+        content: { type: "object" },
+        tags: { type: "array", items: { type: "string" } },
+        isActive: { type: "boolean" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "delete_homebrew",
+    description: "Delete a homebrew content entry by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Homebrew entry ID to delete." },
+      },
+      required: ["id"],
+    },
+  },
+
   //  DIALOGUE TREE TOOLS
   {
     name: "get_npc_dialogue",

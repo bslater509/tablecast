@@ -607,7 +607,7 @@ races/classes/backgrounds, Character POST route (already exists)
 
 ### 4.3 Homebrew Content Manager
 
-- [ ] **Status:** Planned
+- [x] **Status:** Implemented
 
 **Motivation:** D&D groups frequently use custom races, subclasses, feats,
 spells, and magic items. A manager keeps them organized and searchable.

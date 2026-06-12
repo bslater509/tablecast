@@ -1,37 +1,50 @@
-# Project Context - Section 4.2 Complete
+# Project Context - Section 4.3 Complete
 
 ## Environment
 - Language: JavaScript (Node.js 22, React 18)
 - Build: Vite 5 (client) / Node (server)
-- Test: No frontend unit tests (project pattern)
 - Package Manager: npm, Docker, Prisma 5 (SQLite)
 
-## What Was Built - Section 4.2: Character Builder Wizard
+## What Was Built - Section 4.3: Homebrew Content Manager
 
-### Backend Changes
-- **`server/src/routes/reference.js`**: `GET /api/reference/search` now supports `summary=false` query param. When set, returns full item data (not summarized) — needed by the wizard for complete race/class data (traits, features, proficiencies, ability bonuses, equipment).
+### Prisma Schema
+- New `HomebrewEntry` model with fields: id, type (RACE|CLASS|FEAT|SPELL|MAGIC_ITEM|MONSTER), name, source, version, content (JSON), tags (JSON), isActive, timestamps
 
-### Frontend — CharacterBuilderWizard.jsx (~960 lines)
-A 7-step guided character creation wizard with D&D 5e rules, mobile-first (44px min touch targets):
+### Backend — `/api/homebrew` Routes
+- `GET /api/homebrew` — list with optional ?type= and ?active=true filters
+- `GET /api/homebrew/:id` — single entry
+- `POST /api/homebrew` — create (DM only)
+- `PUT /api/homebrew/:id` — update (DM only)
+- `DELETE /api/homebrew/:id` — delete (DM only)
+- `POST /api/homebrew/export` — export all/selected entries as JSON
+- `POST /api/homebrew/import` — import entries with duplicate detection and optional overwrite
 
-| Step | Content |
-|------|---------|
-| **1. Name & Race** | Name input + 5etools race search → full detail via `/api/reference/detail` → racial traits, ability bonuses, speed, size, subrace selection |
-| **2. Class** | 5etools class search → full detail → hit die, proficiencies (armor/weapons/tools/saves), skill choices, level 1 features, spellcasting detection |
-| **3. Ability Scores** | Three methods: Standard Array (click-to-assign), Point Buy (27pts, 8-15 range), Rolled (4d6 drop lowest, re-roll). Racial+subrace bonuses applied. |
-| **4. Skills** | Class auto-proficiencies shown. Skill choices from `startingProficiencies.skills[{choose, from}]`. 18 D&D skills grid with limited picks. |
-| **5. Equipment** | Class starting equipment auto-loaded. 5etools item search for additional gear. Quantity adjust + remove. |
-| **6. Spells** | Only for spellcasting classes (detected via classFeatures). Cantrip/Level 1 tabs. 5etools spell search. Shows spellcasting ability, save DC, attack bonus. |
-| **7. Review & Create** | Full summary: ability scores (base+racial), skills, equipment, HP (max hit die + CON), spellcasting. Create button → POST /api/characters → navigates to sheet. |
+### MCP Tools
+- `list_homebrew` — list entries by type/active status
+- `create_homebrew` — create entry with type-specific content
+- `update_homebrew` — update entry fields
+- `delete_homebrew` — delete by ID
 
-**Navigation**: Progress dots, step labels, back/next buttons, step counter.
+### Reference Search Integration
+- `/api/reference/search` now augments results with homebrew entries matching the category
+- Category mapping: spells→SPELL, monsters→MONSTER, items→MAGIC_ITEM, races→RACE, classes→CLASS, feats→FEAT
+- `/api/reference/detail` falls back to homebrew entries when 5etools lookup fails
 
-### CharacterList.jsx Integration
-- Removed simple create form (name/race/class fields)
-- Imported `CharacterBuilderWizard`, shows it when "Create" is clicked
-- `onComplete` callback adds character to list + navigates to sheet
-- Button icon changed to `Wand2` icon
+### Frontend — HomebrewManager.jsx (~550 lines)
+DM-only panel for managing homebrew content:
+- **List view**: Cards with type badge, name, version/source, tags, active toggle, edit/delete buttons
+- **Search & filter**: By name/source/tag, and type dropdown filter
+- **Create/Edit Modal**: Type-specific form with fields for each content type:
+  - RACE: ability bonuses, speed, size, traits, languages
+  - CLASS: hit die, spellcasting ability, features
+  - FEAT: description, prerequisites
+  - SPELL: level, school, casting time, range, components, duration, description, higher levels, damage, save type, attack type
+  - MAGIC_ITEM: item type, rarity, attunement, description, properties
+  - MONSTER: HP, AC, CR, 6 ability scores, actions, description
+- **Export**: Downloads all entries as JSON file
+- **Import**: Upload JSON file with overwrite option
 
-### Deployment
-- Client build verified (npm run build — 1802 modules, 4.61s)
-- Server syntax verified (node -c)
+### App.jsx Wiring
+- Imported `Beaker` icon from lucide-react
+- Added DM nav item: id="homebrew", path="/dm/homebrew", icon=Beaker
+- Added Route: `<Route path="homebrew" element={<HomebrewManager user={user} />} />`

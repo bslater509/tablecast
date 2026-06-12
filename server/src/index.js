@@ -249,6 +249,7 @@ app.use("/api/soundtracks", require("./routes/soundtracks"));
 app.use("/api/calendar", require("./routes/calendar"));
 app.use("/api/handouts", require("./routes/handouts"));
 app.use("/api/quests", require("./routes/quests"));
+app.use("/api/homebrew", require("./routes/homebrew"));
 app.use("/api/features", require("./routes/features"));
 
 // ---------------------------------------------------------------------------

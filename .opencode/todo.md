@@ -1,32 +1,28 @@
-# Mission: Implement Section 3 - Narrative & Worldbuilding
+# Mission: Implement Section 4.3 - Homebrew Content Manager
 
-## M1: Prisma Schema & Migration ✅
-- [x] T1: Add Quest, Handout models + dialogueTree on Npc to schema.prisma
-- [x] T1.1: Generate migration `add_section3_models`
+## Status: ✅ MISSION COMPLETE
 
-## M2: Backend Routes, MCP Tools & Utilities ✅
-- [x] T2: Calendar & Weather Backend (routes + weatherGenerator util + MCP handlers + socket events)
-- [x] T3: Quest/Journal Backend (routes + MCP handlers)
-- [x] T4: Player Handouts Backend (routes + MCP handlers + socket events)
-- [x] T5: Dialogue Tree Backend (routes + dialogueEngine util + MCP handlers)
+### M1: Prisma Schema & Migration ✅
+- [x] T1: Add HomebrewEntry model to schema.prisma
+- [x] T1.1: Generate migration `add_homebrew_entry`
 
-## M3: Frontend Components ✅
-- [x] T6: CalendarWidget.jsx / CalendarPanel.jsx
-- [x] T7: QuestLogPanel.jsx (QuestJournalPanel.jsx deleted - dead code)
-- [x] T8: HandoutPanel.jsx / HandoutsPanel.jsx
-- [x] T9: DialogueTreePanel.jsx (DialogueEditor.jsx deleted - dead code)
+### M2: Backend Routes & MCP Tools ✅
+- [x] T2: Backend CRUD routes for /api/homebrew (with export/import)
+- [x] T3: MCP helper functions in server/src/mcp/handlers/homebrew.js
+- [x] T4: MCP tool schemas added to schemas.js (list/create/update/delete)
+- [x] T5: Wire handler into mcp-server.js
+- [x] T6: Wire route into index.js
 
-## M4: App.jsx Integration ✅
-- [x] T10: Wire App.jsx with imports, nav items, routes (DM + Player + Popout)
-- [x] T10.1: Build verification (npm run build) - PASSED
+### M3: Reference Search Integration ✅
+- [x] T7: Augment /api/reference/search with homebrew entries by category
+- [x] T8: Fallback in /api/reference/detail for homebrew entries
 
-## M5: Verification & Deployment ✅
-- [x] T11: Live endpoint verification on 192.168.0.77:3001
-- [x] T11.1: GET /api/health - ✅
-- [x] T11.2: GET /api/calendar - ✅
-- [x] T11.3: GET /api/handouts - ✅
-- [x] T11.4: GET /api/quests - ✅
-- [x] T11.5: GET /api/npcs (dialogueTree field) - ✅
-- [x] T12: Git push + deploy (commits a4ade56, 5636b0d)
+### M4: Frontend Component ✅
+- [x] T9: Create HomebrewManager.jsx (list, create/edit modal, search, filter, export/import, type-specific forms)
+- [x] T10: Wire App.jsx (import Beaker icon, add DM nav item, add route)
 
-# Status: ✅ MISSION COMPLETE
+### M5: Verification ✅
+- [x] T11: Server syntax check - ALL 6 files PASS
+- [x] T12: Vite build - PASS
+- [x] T13: LSP diagnostics - ALL clean
+- [x] T14: features.md updated - §4.3 marked [x] Implemented

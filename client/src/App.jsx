@@ -5,6 +5,7 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import {
+  Beaker,
   BookOpen,
   Box,
   CalendarDays,
@@ -47,6 +48,7 @@ import CalendarPanel from "./components/CalendarPanel";
 import HandoutPanel from "./components/HandoutPanel";
 import QuestLogPanel from "./components/QuestLogPanel";
 import DialogueTreePanel from "./components/DialogueTreePanel";
+import HomebrewManager from "./components/HomebrewManager";
 import { useSocket } from "./context/SocketContext";
 import { useToast } from "./context/ToastContext";
 import { AiProvider } from "./context/AiContext";
@@ -175,6 +177,13 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Shop",
     path: "/dm/shop",
     icon: ShoppingCart,
+  },
+  {
+    id: "homebrew",
+    label: "Homebrew",
+    mobileLabel: "Homebrew",
+    path: "/dm/homebrew",
+    icon: Beaker,
   },
   {
     id: "importer",
@@ -1398,6 +1407,7 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
             <Route path="shop" element={<ShopPanel user={user} addToast={addToast} />} />
             <Route path="importer" element={<ImporterPanel user={user} />} />
             <Route path="soundboard" element={<SoundboardPanel user={user} />} />
+            <Route path="homebrew" element={<HomebrewManager user={user} />} />
             <Route path="calendar" element={<CalendarPanel user={user} />} />
             <Route path="handouts" element={<HandoutPanel user={user} />} />
             <Route path="journal" element={<QuestLogPanel user={user} />} />

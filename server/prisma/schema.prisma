@@ -748,6 +748,33 @@ model Soundtrack {
   @@map("soundtracks")
 }
 
+/// A DM-created homebrew content entry (custom races, classes, feats, spells, magic items, monsters).
+/// type: "RACE" | "CLASS" | "FEAT" | "SPELL" | "MAGIC_ITEM" | "MONSTER"
+/// content: JSON whose schema varies by type (see features.md §4.3 for full schemas).
+model HomebrewEntry {
+  id        Int      @id @default(autoincrement())
+  /// RACE | CLASS | FEAT | SPELL | MAGIC_ITEM | MONSTER
+  type      String
+  name      String
+  /// DM's custom source label (e.g. "My Campaign", "Homebrew")
+  source    String   @default("")
+  /// Semver string (e.g. "1.0.0")
+  version   String   @default("1.0.0")
+  /// JSON blob — schema varies by type. Contains the full definition.
+  content   String   @default("{}")
+  /// JSON array of tag strings
+  tags      String   @default("[]")
+  /// Whether this entry is active/available for use
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([name])
+  @@index([isActive])
+  @@map("homebrew_entries")
+}
+
 /// Links a Character to a Party
 model PartyMember {
   id Int @id @default(autoincrement())

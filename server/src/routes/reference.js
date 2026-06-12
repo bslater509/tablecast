@@ -230,6 +230,81 @@ router.get("/search", async (req, res) => {
       .search(category, q || "", maxResults, searchOpts)
       .map((item) => withReferenceImage(item, category));
     
+    // Augment results with homebrew entries matching the category
+    const categoryToHomebrewType = {
+      spells: "SPELL",
+      monsters: "MONSTER",
+      items: "MAGIC_ITEM",
+      races: "RACE",
+      classes: "CLASS",
+      feats: "FEAT",
+    };
+    const homebrewType = categoryToHomebrewType[String(category).toLowerCase()];
+    if (homebrewType) {
+      try {
+        const query = String(q || "").toLowerCase();
+        const homebrewEntries = await prisma.homebrewEntry.findMany({
+          where: {
+            type: homebrewType,
+            isActive: true,
+            ...(query ? { name: { contains: query } } : {}),
+          },
+          take: maxResults,
+          orderBy: { updatedAt: "desc" },
+        });
+        for (const entry of homebrewEntries) {
+          let content;
+          try { content = JSON.parse(entry.content || "{}"); } catch { content = {}; }
+          const homebrewItem = {
+            name: entry.name,
+            source: entry.source || "Homebrew",
+            homebrew: true,
+            homebrewId: entry.id,
+            _homebrew: true,
+            description: content.description || "",
+            ...(homebrewType === "SPELL" ? {
+              level: content.level ?? 0,
+              school: content.school || "",
+              castingTime: content.castingTime || "",
+              range: content.range || "",
+              duration: content.duration || "",
+              components: content.components || "",
+            } : {}),
+            ...(homebrewType === "MONSTER" ? {
+              cr: content.cr || "0",
+              type: content.type || "",
+              ac: content.ac || 10,
+              hp: content.hp || { average: 10 },
+            } : {}),
+            ...(homebrewType === "MAGIC_ITEM" ? {
+              type: content.type || "",
+              rarity: content.rarity || "",
+              attunement: content.attunement || false,
+            } : {}),
+            ...(homebrewType === "RACE" ? {
+              abilityBonuses: content.abilityBonuses || {},
+              speed: content.speed || 30,
+              size: content.size || "Medium",
+              traits: content.traits || [],
+            } : {}),
+            ...(homebrewType === "CLASS" ? {
+              hitDie: content.hitDie || "d8",
+              proficiencies: content.proficiencies || {},
+              spellcastingAbility: content.spellcastingAbility || "",
+            } : {}),
+            ...(homebrewType === "FEAT" ? {
+              prerequisites: content.prerequisites || [],
+              abilityBonus: content.abilityBonus || {},
+            } : {}),
+          };
+          results.push(homebrewItem);
+        }
+      } catch (hbErr) {
+        // Homebrew augmentation is best-effort
+        logger.error("api:reference", "Error augmenting with homebrew entries", { error: hbErr.message });
+      }
+    }
+    
     res.json(results);
   } catch (err) {
     logger.error("api:reference", "Error in GET /api/reference/search", { error: err.message });
@@ -253,11 +328,38 @@ router.get("/detail", async (req, res) => {
       sources: allowedSources,
     });
 
-    if (!item) {
-      return res.status(404).json({ error: "Reference entry not found." });
+    if (item) {
+      return res.json(withReferenceInfo(withReferenceImage(item, category), category, allowedSources));
     }
 
-    res.json(withReferenceInfo(withReferenceImage(item, category), category, allowedSources));
+    // Fallback: try to find a homebrew entry by name
+    const categoryToHomebrewType = {
+      spells: "SPELL",
+      monsters: "MONSTER",
+      items: "MAGIC_ITEM",
+      races: "RACE",
+      classes: "CLASS",
+      feats: "FEAT",
+    };
+    const hbType = categoryToHomebrewType[String(category).toLowerCase()];
+    if (hbType) {
+      const homebrewEntry = await prisma.homebrewEntry.findFirst({
+        where: { type: hbType, name: { equals: name }, isActive: true },
+      });
+      if (homebrewEntry) {
+        let content;
+        try { content = JSON.parse(homebrewEntry.content || "{}"); } catch { content = {}; }
+        return res.json({
+          name: homebrewEntry.name,
+          source: homebrewEntry.source || "Homebrew",
+          homebrew: true,
+          homebrewId: homebrewEntry.id,
+          ...content,
+        });
+      }
+    }
+
+    return res.status(404).json({ error: "Reference entry not found." });
   } catch (err) {
     logger.error("api:reference", "Error in GET /api/reference/detail", { error: err.message });
     res.status(500).json({ error: "Failed to retrieve reference detail." });
