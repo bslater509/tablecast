@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
       labels:
-        - "com.tablecast.version=v2.2026-06-12"
+        - "com.tablecast.version=v2.2026-06-12b"
     container_name: tablecast
     restart: unless-stopped
     read_only: true
