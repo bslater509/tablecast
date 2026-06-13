@@ -210,6 +210,12 @@ function downloadPacks() {
 }
 
 async function seed() {
+  const existingCount = await prisma.soundtrack.count();
+  if (existingCount > 0) {
+    console.log(`Soundboard already has ${existingCount} tracks. Skipping seed.`);
+    process.exit(0);
+  }
+
   downloadPacks();
 
   const audioFiles = findAudioFiles(TMP_DIR);

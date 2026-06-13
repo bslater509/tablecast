@@ -58,6 +58,9 @@ fi
 su -s /bin/sh tablecast -c "HOME=/tmp npx prisma migrate deploy"
 su -s /bin/sh tablecast -c "HOME=/tmp npx prisma db seed" || true
 
+# Seed the soundboard with free CC0 audio tracks from Kenney (idempotent — skips if already populated)
+su -s /bin/sh tablecast -c "HOME=/tmp node scripts/seed-sounds.js" || true
+
 # Run the Node.js app as the tablecast user.
 # The tablecast user has /sbin/nologin as shell (security), so we must
 # explicitly use /bin/sh via -s flag for su to execute commands.
