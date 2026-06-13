@@ -11,10 +11,10 @@ This document is a **living reference** describing the project's standards, arch
 - **Simplicity:** Prefer readable, modular code over clever, heavily abstracted logic.
 - **Leverage Existing Libraries:** Prefer well-established, maintained libraries rather than reinventing the wheel (e.g., complex math, VTT operations, compression, or UI components).
 - **Error Handling:** All async operations must have robust try/catch blocks. Gracefully handle WebSocket disconnections and reconnections.
-- **No Local Server Execution:** The server must **never** be run or tested locally. All runtime testing, verification, and deployment happen on the remote server.
+- **Local Docker Testing First:** Always run and test changes locally using `docker compose build` and `docker compose up` before deploying. This catches build failures and runtime issues early.
 - **Staging Server & Health:** The active server is hosted at `http://192.168.0.77:3001`. Verify backend connectivity with `curl http://192.168.0.77:3001/api/health`.
 - **GitHub Webhook Deployment:** Code updates are deployed via git push → webhook at `http://192.168.0.77:3000/api/git/stacks/2/webhook`. This triggers a remote `docker compose -p tablecast -f - up -d --remove-orphans --build --pull always`.
-- **No Local Docker Rebuilds:** All Docker builds/rebuilds happen on the remote server via the webhook. Do **not** run `docker compose build` or similar locally.
+- **Then Deploy via Webhook:** After local testing is successful, push changes to trigger the remote webhook deployment at `http://192.168.0.77:3000/api/git/stacks/2/webhook`.
 - **Debugging Tools:** Chrome (Debian package) is available for browser testing against `http://192.168.0.77:3001`. If browser subagents fail, verify endpoints directly with `curl`.
 - **Git Version Control & Deployment Trigger:** Always push all changes to the repository. When finished with a task, there should be no uncommitted or unpushed changes left.
 - **No 5etools Repository Modifications:** The `5etoolsimg/` and `5etoolssrc/` git submodules have been removed. 5etools reference data (JSON) is fetched from a GitHub raw mirror (`raw.githubusercontent.com/5etools-mirror-3/5etools-src/master/data`) and cached to `server/uploads/5etools-cache/` via `curl`. Monster token images point directly to `https://5e.tools/img/...` (CDN, not behind Cloudflare). Do not create or modify files in the cache directory directly.
@@ -254,7 +254,7 @@ The AI agent's OpenCode environment sends notifications via the **terminal bell*
 - **Maintain** `docker-compose.yml` with persistent volumes for SQLite (`tablecast-db`), uploads (`tablecast-uploads`), and 5etools cache (`tablecast-5etools-cache`).
 - **Manage** Prisma schema — add/modify models in `server/prisma/schema.prisma`, run `npx prisma migrate dev` to generate migrations, update `server/prisma/seed.js` as needed.
 - **Keep** `server/prisma/data/rclone.conf` generated from DB `app_settings` — do not hardcode cloud credentials.
-- **Never** run local Docker rebuilds. Deploy via git push → webhook.
+- **Run** local Docker rebuilds first: `docker compose build` and `docker compose up` to verify changes locally. Then deploy via git push → webhook.
 
 ### 🔌 Agent 2: Backend & Real-Time Engineer
 **Focus:** Express API routes, Socket.io, MCP server, Prisma integration, backup, auth.
