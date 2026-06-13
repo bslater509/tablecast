@@ -21,9 +21,9 @@ RUN npm run build
 # e.g. FROM node:22-slim@sha256:...
 FROM node:22-slim AS runtime
 
-# Install rclone (backups), openssl (Prisma schema engine), curl (5etools HTTP fetches), and ca-certificates
+# Install rclone (backups), openssl (Prisma schema engine), curl (5etools/sound downloads), ca-certificates, and unzip (seed-sounds)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends rclone openssl curl ca-certificates && \
+    apt-get install -y --no-install-recommends rclone openssl curl ca-certificates unzip && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
