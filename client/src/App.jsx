@@ -10,8 +10,8 @@ import {
   BookOpen,
   Bot,
   Box,
-  BrainCircuit,
   CalendarDays,
+  ChevronDown,
   Compass,
   Database,
   ExternalLink,
@@ -72,6 +72,11 @@ import { getJsonAuthHeaders } from "./utils/authHeaders";
 const SELECTED_CHARACTER_STORAGE_KEY = "tablecast.selectedCharacterId";
 const DM_IDENTITY_STORAGE_KEY = "tablecast.dmIdentity";
 
+const GROUPS = {
+  core: "Core",
+  tools: "Tools & Content",
+};
+
 const DM_NAV_ITEMS = [
   {
     id: "dashboard",
@@ -79,13 +84,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Home",
     path: "/dm/dashboard",
     icon: Activity,
-  },
-  {
-    id: "copilot",
-    label: "Co-Pilot",
-    mobileLabel: "AI",
-    path: "/dm/copilot",
-    icon: BrainCircuit,
+    group: "core",
   },
   {
     id: "map",
@@ -96,6 +95,7 @@ const DM_NAV_ITEMS = [
     popoutUrl: "/#/dm/popout/map",
     popoutTitle: "Pop out Map",
     popoutFeatures: "width=1000,height=700,resizable=yes,scrollbars=yes",
+    group: "core",
   },
   {
     id: "characters",
@@ -106,16 +106,7 @@ const DM_NAV_ITEMS = [
     popoutUrl: "/#/dm/popout/characters",
     popoutTitle: "Pop out Characters List",
     popoutFeatures: "width=600,height=800,resizable=yes,scrollbars=yes",
-  },
-  {
-    id: "dice",
-    label: "Dice Roller",
-    mobileLabel: "Dice",
-    path: "/dm/dice",
-    icon: Box,
-    popoutUrl: "/#/dm/popout/dice",
-    popoutTitle: "Pop out Dice Roller",
-    popoutFeatures: "width=600,height=800,resizable=yes,scrollbars=yes",
+    group: "core",
   },
   {
     id: "messages",
@@ -126,6 +117,7 @@ const DM_NAV_ITEMS = [
     popoutUrl: "/#/dm/popout/chat",
     popoutTitle: "Pop out Session Chat",
     popoutFeatures: "width=600,height=800,resizable=yes,scrollbars=yes",
+    group: "core",
   },
   {
     id: "wiki",
@@ -136,6 +128,7 @@ const DM_NAV_ITEMS = [
     popoutUrl: "/#/dm/popout/wiki",
     popoutTitle: "Pop out Wiki",
     popoutFeatures: "width=800,height=900,resizable=yes,scrollbars=yes",
+    group: "core",
   },
   {
     id: "sessions",
@@ -146,13 +139,7 @@ const DM_NAV_ITEMS = [
     popoutUrl: "/#/dm/popout/sessions",
     popoutTitle: "Pop out Sessions",
     popoutFeatures: "width=800,height=900,resizable=yes,scrollbars=yes",
-  },
-  {
-    id: "calendar",
-    label: "Calendar",
-    mobileLabel: "Calendar",
-    path: "/dm/calendar",
-    icon: CalendarDays,
+    group: "core",
   },
   {
     id: "encounters",
@@ -163,6 +150,7 @@ const DM_NAV_ITEMS = [
     popoutUrl: "/#/dm/popout/encounters",
     popoutTitle: "Pop out Encounters",
     popoutFeatures: "width=800,height=900,resizable=yes,scrollbars=yes",
+    group: "core",
   },
   {
     id: "encounter-templates",
@@ -170,13 +158,26 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Templates",
     path: "/dm/encounter-templates",
     icon: Layers,
+    group: "core",
   },
   {
-    id: "templates",
-    label: "Templates",
-    mobileLabel: "Templates",
-    path: "/dm/templates",
-    icon: Layers,
+    id: "dice",
+    label: "Dice Roller",
+    mobileLabel: "Dice",
+    path: "/dm/dice",
+    icon: Box,
+    popoutUrl: "/#/dm/popout/dice",
+    popoutTitle: "Pop out Dice Roller",
+    popoutFeatures: "width=600,height=800,resizable=yes,scrollbars=yes",
+    group: "core",
+  },
+  {
+    id: "calendar",
+    label: "Calendar",
+    mobileLabel: "Calendar",
+    path: "/dm/calendar",
+    icon: CalendarDays,
+    group: "tools",
   },
   {
     id: "handouts",
@@ -184,6 +185,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Handouts",
     path: "/dm/handouts",
     icon: FileText,
+    group: "tools",
   },
   {
     id: "journal",
@@ -191,6 +193,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Journal",
     path: "/dm/journal",
     icon: BookOpen,
+    group: "tools",
   },
   {
     id: "dialogue",
@@ -198,6 +201,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Dialogue",
     path: "/dm/dialogue",
     icon: MessageCircle,
+    group: "tools",
   },
   {
     id: "soundboard",
@@ -205,6 +209,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Sound",
     path: "/dm/soundboard",
     icon: Headphones,
+    group: "tools",
   },
   {
     id: "party",
@@ -212,6 +217,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Party",
     path: "/dm/party",
     icon: Wallet,
+    group: "tools",
   },
   {
     id: "shop",
@@ -219,6 +225,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Shop",
     path: "/dm/shop",
     icon: ShoppingCart,
+    group: "tools",
   },
   {
     id: "homebrew",
@@ -226,6 +233,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Homebrew",
     path: "/dm/homebrew",
     icon: Beaker,
+    group: "tools",
   },
   {
     id: "loot",
@@ -233,6 +241,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Loot",
     path: "/dm/loot",
     icon: Database,
+    group: "tools",
   },
   {
     id: "quest-hooks",
@@ -240,6 +249,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Hooks",
     path: "/dm/quest-hooks",
     icon: Compass,
+    group: "tools",
   },
   {
     id: "name-generator",
@@ -247,6 +257,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Names",
     path: "/dm/name-generator",
     icon: Sparkles,
+    group: "tools",
   },
   {
     id: "desc-gen",
@@ -254,6 +265,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Describe",
     path: "/dm/desc-gen",
     icon: PenLine,
+    group: "tools",
   },
   {
     id: "travel",
@@ -261,6 +273,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Travel",
     path: "/dm/travel",
     icon: RouteIcon,
+    group: "tools",
   },
   {
     id: "importer",
@@ -268,6 +281,15 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Import",
     path: "/dm/importer",
     icon: Database,
+    group: "tools",
+  },
+  {
+    id: "templates",
+    label: "Templates",
+    mobileLabel: "Templates",
+    path: "/dm/templates",
+    icon: Layers,
+    group: "tools",
   },
   {
     id: "copilot",
@@ -275,6 +297,7 @@ const DM_NAV_ITEMS = [
     mobileLabel: "Co-Pilot",
     path: "/dm/copilot",
     icon: Bot,
+    group: "tools",
   },
 ];
 
@@ -1358,6 +1381,12 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
   const { socket } = useSocket();
   const { addToast } = useToast();
 
+  // Sidebar section collapse state (default: both expanded)
+  const [collapsedSections, setCollapsedSections] = useState({});
+  const toggleSection = (groupKey) => {
+    setCollapsedSections((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
+
   const pathParts = location.pathname.split("/");
   const currentTab = ["dashboard", "map", "characters", "messages", "wiki", "sessions", "calendar", "encounters", "encounter-templates", "handouts", "journal", "settings", "dice", "importer", "party", "shop", "loot", "name-generator", "quest-hooks", "desc-gen", "travel", "copilot"].includes(pathParts[2])
     ? pathParts[2]
@@ -1377,29 +1406,51 @@ function DmLayout({ user, onLogout, onOpenDiceSettings }) {
           </div>
         </div>
         <div className="dm-sidebar-links">
-          {DM_NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentTab === item.id;
+          {Object.entries(GROUPS).map(([groupKey, groupLabel]) => {
+            const groupItems = DM_NAV_ITEMS.filter((item) => item.group === groupKey);
+            if (groupItems.length === 0) return null;
+            const isCollapsed = collapsedSections[groupKey];
             return (
-              <div className="dm-sidebar-item" key={item.id}>
+              <div className="dm-sidebar-section" key={groupKey}>
                 <button
-                  onClick={() => navigate(item.path)}
-                  className={`dm-sidebar-btn ${isActive ? "active" : ""}`}
-                  aria-current={isActive ? "page" : undefined}
+                  className="dm-sidebar-section-header"
+                  onClick={() => toggleSection(groupKey)}
+                  aria-expanded={!isCollapsed}
                 >
-                  <span className="dm-sidebar-icon"><Icon size={18} strokeWidth={2.1} /></span>
-                  <span>{item.label}</span>
+                  <ChevronDown
+                    size={14}
+                    className={`dm-sidebar-chevron ${isCollapsed ? "collapsed" : ""}`}
+                  />
+                  <span>{groupLabel}</span>
                 </button>
-                {item.popoutUrl && (
-                  <button
-                    onClick={() => window.open(item.popoutUrl, "_blank", item.popoutFeatures)}
-                    className="dm-sidebar-popout-btn touch-target btn-hover-scale"
-                    title={item.popoutTitle}
-                    aria-label={item.popoutTitle}
-                  >
-                    <ExternalLink size={16} />
-                  </button>
-                )}
+                <div className={`dm-sidebar-section-items ${isCollapsed ? "collapsed" : ""}`}>
+                  {groupItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = currentTab === item.id;
+                    return (
+                      <div className="dm-sidebar-item" key={item.id}>
+                        <button
+                          onClick={() => navigate(item.path)}
+                          className={`dm-sidebar-btn ${isActive ? "active" : ""}`}
+                          aria-current={isActive ? "page" : undefined}
+                        >
+                          <span className="dm-sidebar-icon"><Icon size={18} strokeWidth={2.1} /></span>
+                          <span>{item.label}</span>
+                        </button>
+                        {item.popoutUrl && (
+                          <button
+                            onClick={() => window.open(item.popoutUrl, "_blank", item.popoutFeatures)}
+                            className="dm-sidebar-popout-btn touch-target btn-hover-scale"
+                            title={item.popoutTitle}
+                            aria-label={item.popoutTitle}
+                          >
+                            <ExternalLink size={16} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
