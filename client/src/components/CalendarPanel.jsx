@@ -3,7 +3,7 @@
 // DM-facing calendar management with time control, weather generation,
 // and calendar system configuration. Read-only mode for players.
 // =============================================================================
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   CalendarDays,
   Sun,
@@ -387,7 +387,7 @@ const s = {
 export default function CalendarPanel({ user }) {
   const { socket } = useSocket();
   const isDm = user?.role === "DM";
-  const authHeaders = getJsonAuthHeaders(user);
+  const authHeaders = useMemo(() => getJsonAuthHeaders(user), [user?.id]);
 
   const [calendarConfig, setCalendarConfig] = useState(null);
   const [loading, setLoading] = useState(true);
