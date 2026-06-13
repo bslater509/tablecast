@@ -43,8 +43,6 @@ const EMPTY_CONTENT = {
 
 function HomebrewManager({ user }) {
   const { addToast } = useToast();
-  const authHeaders = getAuthHeaders(user);
-  const jsonAuthHeaders = getJsonAuthHeaders(user);
 
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +58,7 @@ function HomebrewManager({ user }) {
       setLoading(true);
       const params = new URLSearchParams();
       if (typeFilter) params.set("type", typeFilter);
-      const res = await fetch(`${API}?${params}`, { headers: authHeaders });
+      const res = await fetch(`${API}?${params}`, { headers: getAuthHeaders(user) });
       if (!res.ok) throw new Error("Failed to fetch homebrew entries");
       const data = await res.json();
       setEntries(data);
@@ -69,7 +67,7 @@ function HomebrewManager({ user }) {
     } finally {
       setLoading(false);
     }
-  }, [typeFilter, authHeaders, addToast]);
+  }, [typeFilter, user, addToast]);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
@@ -135,13 +133,13 @@ function HomebrewManager({ user }) {
       if (editingEntry) {
         res = await fetch(`${API}/${editingEntry.id}`, {
           method: "PUT",
-          headers: jsonAuthHeaders,
+          headers: getJsonAuthHeaders(user),
           body: JSON.stringify(body),
         });
       } else {
         res = await fetch(API, {
           method: "POST",
-          headers: jsonAuthHeaders,
+          headers: getJsonAuthHeaders(user),
           body: JSON.stringify(body),
         });
       }
@@ -162,7 +160,7 @@ function HomebrewManager({ user }) {
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
     try {
-      const res = await fetch(`${API}/${id}`, { method: "DELETE", headers: authHeaders });
+      const res = await fetch(`${API}/${id}`, { method: "DELETE", headers: getAuthHeaders(user) });
       if (!res.ok) throw new Error("Failed to delete");
       addToast?.({ id: "hb-deleted", message: "Entry deleted.", type: "success" });
       fetchEntries();
@@ -175,7 +173,7 @@ function HomebrewManager({ user }) {
     try {
       const res = await fetch(`${API}/${entry.id}`, {
         method: "PUT",
-        headers: jsonAuthHeaders,
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify({ isActive: !entry.isActive }),
       });
       if (!res.ok) throw new Error("Failed to toggle");
@@ -189,7 +187,7 @@ function HomebrewManager({ user }) {
     try {
       const res = await fetch(`${API}/export`, {
         method: "POST",
-        headers: jsonAuthHeaders,
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error("Export failed");
@@ -223,7 +221,7 @@ function HomebrewManager({ user }) {
         const overwrite = window.confirm("Overwrite existing entries with the same name+type?");
         const res = await fetch(`${API}/import`, {
           method: "POST",
-          headers: jsonAuthHeaders,
+          headers: getJsonAuthHeaders(user),
           body: JSON.stringify({ entries, overwrite }),
         });
         if (!res.ok) throw new Error("Import failed");

@@ -218,8 +218,6 @@ function CoinIcon({ type }) {
 
 function LootGeneratorPanel({ user }) {
   const { addToast } = useToast();
-  const authHeaders = getAuthHeaders(user);
-  const jsonAuthHeaders = getJsonAuthHeaders(user);
 
   // Generate form
   const [cr, setCr] = useState("1");
@@ -239,7 +237,7 @@ function LootGeneratorPanel({ user }) {
   // Fetch parties
   const fetchParties = useCallback(async () => {
     try {
-      const res = await fetch(PARTY_API, { headers: authHeaders });
+      const res = await fetch(PARTY_API, { headers: getAuthHeaders(user) });
       if (res.ok) {
         const data = await res.json();
         setParties(data);
@@ -252,13 +250,13 @@ function LootGeneratorPanel({ user }) {
       console.error("Failed to fetch parties:", err);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authHeaders]);
+  }, [user]);
 
   // Fetch caches
   const fetchCaches = useCallback(async () => {
     setLoadingCaches(true);
     try {
-      const res = await fetch(`${API}/cache`, { headers: authHeaders });
+      const res = await fetch(`${API}/cache`, { headers: getAuthHeaders(user) });
       if (res.ok) {
         const data = await res.json();
         setCaches(data);
@@ -268,7 +266,7 @@ function LootGeneratorPanel({ user }) {
     } finally {
       setLoadingCaches(false);
     }
-  }, [authHeaders]);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -285,7 +283,7 @@ function LootGeneratorPanel({ user }) {
     try {
       const res = await fetch(`${API}/generate`, {
         method: "POST",
-        headers: jsonAuthHeaders,
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify({ cr: parseFloat(cr) || 1, type: lootType }),
       });
       const data = await res.json();
@@ -307,7 +305,7 @@ function LootGeneratorPanel({ user }) {
     try {
       const res = await fetch(`${API}/cache`, {
         method: "POST",
-        headers: jsonAuthHeaders,
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify({
           label: result.label || `CR ${cr} ${lootType}`,
           data: result,
@@ -339,7 +337,7 @@ function LootGeneratorPanel({ user }) {
     try {
       const res = await fetch(`${API}/cache/${cacheId}/assign`, {
         method: "POST",
-        headers: jsonAuthHeaders,
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify({ partyId }),
       });
       const data = await res.json();
@@ -362,7 +360,7 @@ function LootGeneratorPanel({ user }) {
     try {
       const res = await fetch(`${API}/cache/${cacheId}`, {
         method: "DELETE",
-        headers: authHeaders,
+        headers: getAuthHeaders(user),
       });
       if (res.ok) {
         addToast("Loot cache discarded.", "info");

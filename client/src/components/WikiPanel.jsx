@@ -109,9 +109,6 @@ export default function WikiPanel({ user, isPopout = false }) {
   // Determine if user has DM privileges
   const isDM = user?.role === "DM";
 
-  const authHeaders = getAuthHeaders(user);
-  const jsonAuthHeaders = getJsonAuthHeaders(user);
-
   const buildAssistContext = (fieldId) => {
     if (fieldId === "markdown") {
       return {
@@ -211,7 +208,7 @@ export default function WikiPanel({ user, isPopout = false }) {
     try {
       const res = await fetch("/api/ai/generate-npc-phrases", {
         method: "POST",
-        headers: jsonAuthHeaders,
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify({ npcId: npc.id, npcName: npc.title || npc.name }),
       });
       if (!res.ok) {
@@ -240,7 +237,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       setError(null);
       try {
         const wikiUrl = isDM ? "/api/wiki" : "/api/wiki?visible=true";
-        const wikiRes = await fetch(wikiUrl, { headers: authHeaders });
+        const wikiRes = await fetch(wikiUrl, { headers: getAuthHeaders(user) });
         if (!wikiRes.ok) {
           throw new Error("Failed to load campaign records.");
         }
@@ -256,13 +253,13 @@ export default function WikiPanel({ user, isPopout = false }) {
           localStorage.removeItem(SELECTED_ARTICLE_STORAGE_KEY);
         }
 
-        const npcsRes = await fetch("/api/npcs", { headers: authHeaders });
+        const npcsRes = await fetch("/api/npcs", { headers: getAuthHeaders(user) });
         if (npcsRes.ok) {
           const npcsData = await npcsRes.json();
           setNpcs(npcsData);
         }
 
-        const monstersRes = await fetch("/api/monsters", { headers: authHeaders });
+        const monstersRes = await fetch("/api/monsters", { headers: getAuthHeaders(user) });
         if (monstersRes.ok) {
           const monstersData = await monstersRes.json();
           setMonsters(monstersData);
@@ -287,7 +284,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       }
 
       try {
-        const res = await fetch("/api/sessions", { headers: authHeaders });
+        const res = await fetch("/api/sessions", { headers: getAuthHeaders(user) });
         if (!res.ok) {
           setLinkedSession(null);
           return;
@@ -302,7 +299,7 @@ export default function WikiPanel({ user, isPopout = false }) {
     }
 
     loadLinkedSession();
-  }, [selectedArticle, isDM, authHeaders]);
+  }, [selectedArticle, isDM, user]);
 
   // Persist selected category tab
   useEffect(() => {
@@ -580,7 +577,7 @@ export default function WikiPanel({ user, isPopout = false }) {
   const handleBestiaryImport = async (bestiaryItem) => {
     try {
       const res = await fetch(`/api/reference/detail?category=monsters&name=${encodeURIComponent(bestiaryItem.name)}&source=${encodeURIComponent(bestiaryItem.source)}`, {
-        headers: authHeaders
+        headers: getAuthHeaders(user)
       });
       if (!res.ok) throw new Error("Failed to load monster details.");
 
@@ -666,7 +663,7 @@ export default function WikiPanel({ user, isPopout = false }) {
     try {
       const res = await fetch(`/${isMonster ? "api/monsters" : "api/npcs"}/${selectedArticle.id}`, {
         method: "PUT",
-        headers: jsonAuthHeaders,
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify({ hp: newHp }),
       });
       if (res.ok) {
@@ -806,7 +803,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       try {
         const res = await fetch(`/${isMonster ? "api/monsters" : "api/npcs"}/${articleToDelete.id}`, {
           method: "DELETE",
-          headers: authHeaders,
+          headers: getAuthHeaders(user),
         });
 
         if (!res.ok) {
@@ -830,7 +827,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       try {
         const res = await fetch(`/api/wiki/${articleToDelete.id}`, {
           method: "DELETE",
-          headers: authHeaders,
+          headers: getAuthHeaders(user),
         });
 
         if (!res.ok) {
@@ -881,7 +878,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       try {
         const res = await fetch(url, {
           method,
-          headers: jsonAuthHeaders,
+          headers: getJsonAuthHeaders(user),
           body: JSON.stringify(payload),
         });
 
@@ -928,9 +925,9 @@ export default function WikiPanel({ user, isPopout = false }) {
       const method = editId ? "PUT" : "POST";
 
       try {
-        const res = await fetch(url, {
+      const res = await fetch(url, {
           method,
-          headers: jsonAuthHeaders,
+          headers: getJsonAuthHeaders(user),
           body: JSON.stringify(payload),
         });
 
@@ -965,7 +962,7 @@ export default function WikiPanel({ user, isPopout = false }) {
     try {
       const res = await fetch("/api/ai/generate-wiki-article", {
         method: "POST",
-        headers: jsonAuthHeaders,
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify({ prompt, category: editCategory }),
       });
 
@@ -2605,7 +2602,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       <NpcGenModal
         show={showNpcGenModal}
         onClose={() => setShowNpcGenModal(false)}
-        jsonAuthHeaders={jsonAuthHeaders}
+        jsonAuthHeaders={getJsonAuthHeaders(user)}
         onNpcCreated={(npcData) => {
           setEditingNpc((prev) => ({ ...prev, ...npcData }));
         }}
@@ -2615,7 +2612,7 @@ export default function WikiPanel({ user, isPopout = false }) {
       <MonsterGenModal
         show={showMonsterGenModal}
         onClose={() => setShowMonsterGenModal(false)}
-        jsonAuthHeaders={jsonAuthHeaders}
+        jsonAuthHeaders={getJsonAuthHeaders(user)}
         onMonsterCreated={(monsterData) => {
           setEditingNpc(monsterData);
           setActiveCategoryTab("MONSTER");
