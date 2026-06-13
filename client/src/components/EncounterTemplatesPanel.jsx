@@ -111,9 +111,6 @@ const BUILT_IN_TEMPLATES = [
 function EncounterTemplatesPanel({ user }) {
   const { addToast } = useToast();
   const navigate = useNavigate();
-  const authHeaders = getAuthHeaders(user);
-  const jsonAuthHeaders = getJsonAuthHeaders(user);
-
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -130,7 +127,8 @@ function EncounterTemplatesPanel({ user }) {
   const fetchTemplates = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(API, { headers: authHeaders });
+      const headers = getAuthHeaders(user);
+      const res = await fetch(API, { headers });
       if (!res.ok) throw new Error("Failed to fetch encounter templates");
       const data = await res.json();
       setTemplates(data);
@@ -139,7 +137,7 @@ function EncounterTemplatesPanel({ user }) {
     } finally {
       setLoading(false);
     }
-  }, [authHeaders, addToast]);
+  }, [user, addToast]);
 
   useEffect(() => {
     fetchTemplates();
@@ -236,17 +234,18 @@ function EncounterTemplatesPanel({ user }) {
         mapId: formData.mapId ? Number(formData.mapId) : undefined,
       };
 
+      const jsonHeaders = getJsonAuthHeaders(user);
       let res;
       if (editingTemplate) {
         res = await fetch(`${API}/${editingTemplate.id}`, {
           method: "PUT",
-          headers: jsonAuthHeaders,
+          headers: jsonHeaders,
           body: JSON.stringify(body),
         });
       } else {
         res = await fetch(API, {
           method: "POST",
-          headers: jsonAuthHeaders,
+          headers: jsonHeaders,
           body: JSON.stringify(body),
         });
       }
@@ -267,7 +266,7 @@ function EncounterTemplatesPanel({ user }) {
   async function handleDelete(id, name) {
     if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
     try {
-      const res = await fetch(`${API}/${id}`, { method: "DELETE", headers: authHeaders });
+      const res = await fetch(`${API}/${id}`, { method: "DELETE", headers: getAuthHeaders(user) });
       if (!res.ok) throw new Error("Failed to delete template");
       addToast("Template deleted.", "success");
       fetchTemplates();
@@ -292,7 +291,7 @@ function EncounterTemplatesPanel({ user }) {
 
       const res = await fetch(`${API}/${applyTemplateId}/apply`, {
         method: "POST",
-        headers: jsonAuthHeaders,
+        headers: getJsonAuthHeaders(user),
         body: JSON.stringify(body),
       });
 
@@ -331,7 +330,7 @@ function EncounterTemplatesPanel({ user }) {
         };
         const res = await fetch(API, {
           method: "POST",
-          headers: jsonAuthHeaders,
+          headers: getJsonAuthHeaders(user),
           body: JSON.stringify(body),
         });
         if (res.ok) {
