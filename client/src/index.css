@@ -630,6 +630,7 @@ textarea:focus-visible {
     flex-direction: column;
     gap: 0.35rem;
     flex: 1;
+    overflow-y: auto;
   }
 
   .dm-sidebar-item {
