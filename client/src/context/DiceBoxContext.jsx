@@ -64,8 +64,10 @@ export function DiceBoxProvider({ children }) {
     mountedRef.current = true;
     if (!containerRef.current) return;
 
-    // Initialize the DiceBox instance
-    const box = new DiceBox({
+    // Initialize the DiceBox instance (wrapped in try-catch for mobile/WebGL safety)
+    let box;
+    try {
+      box = new DiceBox({
       container: "#dice-box-canvas",
       id: "dice-canvas",
       assetPath: "/assets/dice-box/", // Must match public folder structure
@@ -76,6 +78,10 @@ export function DiceBoxProvider({ children }) {
       friction: 0.8,
       restitution: 0.1,
     });
+    } catch (initErr) {
+      console.error("[3D Dice] Failed to construct DiceBox:", initErr);
+      return;
+    }
 
     box.init().then(() => {
       if (!mountedRef.current) return;
